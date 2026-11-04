@@ -43,6 +43,17 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Modern host installation/startup now share a permanent private regular lock file
+  and non-blocking flock, reusing the bounded command runner to inherit its descriptor.
+  Surviving children keep exclusion after parent SIGKILL, and fresh attempts acquire
+  the same inode after all references close. Older installers fail their directory
+  creation at that path. Legacy directory locks lack process-owner evidence and are
+  refused without deletion. Staging scratch work moved to `cache/install/`, and nohup
+  daemon launches close the installer descriptor. Process tests exercise shell/Node
+  interoperability and installer crash/child continuity. No protocol changes are
+  required. Actual Linux locking, removal/purge coordination and complete packaged
+  upgrade acceptance remain open.
+
 - Explicit selected startup and accepted daemon/connector restart recovery now admit
   an idle launchd registration through shared GUI-context/list-column inspection.
   Idle remains distinct from stopped: while retaining controller/update exclusion,

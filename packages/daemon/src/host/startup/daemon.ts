@@ -1,10 +1,10 @@
-import { mkdirSync, realpathSync, rmdirSync } from 'node:fs';
+import { realpathSync } from 'node:fs';
 import { homedir } from 'node:os';
 import { join } from 'node:path';
 import { hostUpdateTerminal } from '@puddle/shared';
-import { privateDirectory } from '@puddle/shared/node';
 import { readHostUpdateLedger, updateWorkerExecutables } from '@puddle/shared/node/host-control';
-import type { CompilationCommandRunner } from '../../compilation/process.js';
+import { runCompilationCommand, type CompilationCommandRunner } from '../../compilation/process.js';
+import { acquireInstallationLock } from '../installation/lock.js';
 import { acquireHostClaim } from '../../security/claims.js';
 import { requireEndedUpdateWorker } from '../../updates/worker/lifetime.js';
 import { readUpdateWorker } from '../../updates/worker/supervisor.js';
@@ -34,17 +34,17 @@ export async function startSelectedDaemon(
   } = {},
 ): Promise<void> {
   const claims: Array<{ release(): void }> = [];
-  let installationLocked = false;
-  const lock = join(home, 'bin/.install-lock');
+  let installation: ReturnType<typeof acquireInstallationLock> | undefined;
   try {
     claims.push(acquireHostClaim(home, 'host-update-coordinator'));
     claims.push(acquireHostClaim(home, 'host-update-execution'));
     const controller = acquireHostClaim(home, 'daemon-controller');
     claims.push(controller);
-    privateDirectory(join(home, 'bin'));
     // Share the canonical installer's exclusion without changing any selector or definition.
-    mkdirSync(lock, { mode: 0o700 });
-    installationLocked = true;
+    installation = acquireInstallationLock(home);
+    const descriptor = installation.descriptor;
+    const run: CompilationCommandRunner = (command) =>
+      (options.run ?? runCompilationCommand)({ ...command, inheritedFds: [descriptor] });
     const paths = updateWorkerExecutables(home, releasePath);
     const check = () => {
       if (realpathSync(join(home, 'bin/current')) !== paths.release_path)
@@ -58,7 +58,7 @@ export async function startSelectedDaemon(
       }
     };
     check();
-    const manager = await inspectHostServiceManager(home, options);
+    const manager = await inspectHostServiceManager(home, { ...options, run });
     if ((await readSupervisorMarker(home, options.uid ?? process.getuid!())) !== manager.kind)
       throw new Error('Unknown installed daemon supervision');
     const target = {
@@ -70,28 +70,28 @@ export async function startSelectedDaemon(
         ? (options.definitionPath ??
           join(homedir(), 'Library/LaunchAgents/dev.puddle.puddled.plist'))
         : null;
-    const definition = await serviceDefinitionDigest(home, target, definitionPath, options.run);
-    if (!(await serviceHasNoProcess(home, target, options.run)))
+    const definition = await serviceDefinitionDigest(home, target, definitionPath, run);
+    if (!(await serviceHasNoProcess(home, target, run)))
       throw new Error('Installed daemon service is not positively stopped');
     const requireCurrent = async () => {
-      if ((await serviceDefinitionDigest(home, target, definitionPath, options.run)) !== definition)
+      if ((await serviceDefinitionDigest(home, target, definitionPath, run)) !== definition)
         throw new Error('Daemon service configuration changed before startup');
-      await requireSelectedDaemonExecutable(home, target, options.run);
+      await requireSelectedDaemonExecutable(home, target, run);
       check();
     };
     await requireCurrent();
-    await unloadIdleLaunchdService(home, target, requireCurrent, options.run);
-    await resetServiceStartLimit(home, target, requireCurrent, options.run);
+    await unloadIdleLaunchdService(home, target, requireCurrent, run);
+    await resetServiceStartLimit(home, target, requireCurrent, run);
     await requireCurrent();
     // Startup will acquire the same controller claim. Keep update/installer exclusion
     // through dispatch, but do not mint an epoch or rewrite the previous controller record.
     controller.release();
-    const execute = supervisorCommand(home, options.run);
+    const execute = supervisorCommand(home, run);
     if (target.kind === 'systemd') await execute('systemctl', ['--user', 'start', target.name]);
     else await execute('/bin/launchctl', ['bootstrap', target.domain!, definitionPath!]);
   } finally {
     try {
-      if (installationLocked) rmdirSync(lock);
+      installation?.release();
     } finally {
       for (const claim of claims.reverse()) claim.release();
     }

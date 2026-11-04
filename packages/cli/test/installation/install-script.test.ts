@@ -9,9 +9,8 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { execFile, execFileSync } from 'node:child_process';
-import { promisify } from 'node:util';
-import { describe, expect, it, vi } from 'vitest';
+import { execFileSync } from 'node:child_process';
+import { describe, expect, it } from 'vitest';
 import { installedVersion, installHostComponent } from '../../src/lib/installation/bootstrap.js';
 import {
   installedComponentVersions,
@@ -213,7 +212,7 @@ describe('install.sh tree validation', () => {
       expect(() => f.install('--force')).toThrow();
       expect(f.selected()).toBe(previous);
       expect(f.generations()).toHaveLength(1);
-      expect(existsSync(join(f.puddleHome, 'bin', '.install-lock'))).toBe(false);
+      expect(statSync(join(f.puddleHome, 'bin', '.install-lock')).isFile()).toBe(true);
     },
   );
 
@@ -225,31 +224,6 @@ describe('install.sh tree validation', () => {
     expect(f.install).toThrow('current must be a symlink');
     expect(readFileSync(join(current, 'keep'), 'utf8')).toBe('existing files');
     expect(f.generations()).toEqual([]);
-  });
-
-  it('serialises competing installers before either can publish a generation', async () => {
-    const f = fixture();
-    const gate = join(f.temp, 'continue');
-    const entered = join(f.temp, 'entered');
-    writeFileSync(
-      f.stagedBinary,
-      '#!/bin/sh\ntouch "$INSTALL_ENTERED"\nwhile [ ! -e "$INSTALL_GATE" ]; do sleep 0.1; done\n',
-    );
-    f.pack();
-    const first = promisify(execFile)('sh', f.args, {
-      env: { ...f.env, INSTALL_ENTERED: entered, INSTALL_GATE: gate },
-      timeout: 10_000,
-    });
-    try {
-      await vi.waitFor(() => expect(existsSync(entered)).toBe(true));
-      expect(f.install).toThrow('another installer is running');
-      expect(existsSync(join(f.puddleHome, 'bin', 'current'))).toBe(false);
-    } finally {
-      writeFileSync(gate, 'continue');
-      await first;
-    }
-    expect(f.generations()).toHaveLength(1);
-    expect(existsSync(join(f.puddleHome, 'bin', '.install-lock'))).toBe(false);
   });
 
   it('reads legacy selectors without starting a daemon and rejects corrupt generation metadata', async () => {

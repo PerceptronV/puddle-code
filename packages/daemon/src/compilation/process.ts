@@ -12,6 +12,8 @@ export interface CompilationCommand {
   maxOutputBytes?: number;
   /** Supervised one-shot workers keep children inside their service process group. */
   detached?: boolean;
+  /** Internal lock descriptors retained by command descendants; never browser input. */
+  inheritedFds?: number[];
 }
 
 export interface CompilationCommandResult {
@@ -60,7 +62,7 @@ export const runCompilationCommand: CompilationCommandRunner = (command) =>
       cwd: command.cwd,
       env: command.env,
       detached: command.detached ?? true,
-      stdio: ['ignore', 'pipe', 'pipe'],
+      stdio: ['ignore', 'pipe', 'pipe', ...(command.inheritedFds ?? [])],
     });
     liveCommands.set(child, command.detached ?? true);
     let stdout = Buffer.alloc(0);
@@ -113,8 +115,9 @@ export const runCompilationCommand: CompilationCommandRunner = (command) =>
       else stderr = Buffer.concat([stderr, chunk]);
     };
 
-    child.stdout.on('data', (chunk: Buffer) => collect('stdout', chunk));
-    child.stderr.on('data', (chunk: Buffer) => collect('stderr', chunk));
+    // stdout/stderr are always pipes, regardless of the extra inherited descriptors.
+    child.stdout!.on('data', (chunk: Buffer) => collect('stdout', chunk));
+    child.stderr!.on('data', (chunk: Buffer) => collect('stderr', chunk));
     child.once('error', (error) =>
       rejectOnce(`Could not start Compilation command: ${error.message}`),
     );

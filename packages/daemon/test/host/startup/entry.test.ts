@@ -1,3 +1,4 @@
+import { acquireInstallationLock } from '../../../src/host/installation/lock.js';
 import { execFile, spawn } from 'node:child_process';
 import { once } from 'node:events';
 import {
@@ -76,7 +77,7 @@ it('runs the pinned startup entry, refuses unsafe starts and cleans up a disconn
     await expect(invoke(['--home', home, '--start-daemon'])).rejects.toMatchObject(rejected);
     expect(readFileSync(join(home, 'updates/operations.json'))).toEqual(before);
     expect(new HostUpdateOperations(home).read()?.id).toBe(operation.id);
-    expect(existsSync(join(home, 'bin/.install-lock'))).toBe(false);
+    acquireInstallationLock(home).release();
     expect(existsSync(join(home, 'puddle.db'))).toBe(false);
     expect(existsSync(join(home, 'supervisor'))).toBe(false);
     // Begin a clean fixture lifecycle after checking the synthetic interrupted update.
@@ -91,8 +92,8 @@ const fs = require('node:fs'), path = require('node:path');
 const home = process.env.PUDDLE_HOME, args = process.argv.slice(2);
 if (args[1] === 'cat') {
   if (process.env.PUDDLE_TEST_START_DELAY) {
-    fs.writeFileSync(path.join(home, 'probe'), 'ready');
-    setInterval(() => {}, 1000);
+    fs.writeFileSync(path.join(home, 'probe'), String(process.pid));
+    setInterval(() => { if (fs.existsSync(path.join(home, 'probe-release'))) process.exit(0); }, 20);
   } else console.log('[Service]\\nExisting=yes');
 } else if (args.includes('--property=ExecStart')) {
   const wrapper = path.join(home, 'bin/current/puddled');
@@ -125,17 +126,56 @@ else if (args[1] !== 'show') process.exit(2);
       .toBe(true);
     child.kill('SIGHUP');
     expect((await stopped)[0]).toBe(1);
-    expect(existsSync(join(home, 'bin/.install-lock'))).toBe(false);
+    acquireInstallationLock(home).release();
     expect(readFileSync(join(home, 'starts'), 'utf8')).toBe('start\n');
     const released = acquireHostClaim(home, 'daemon-controller');
     released.release();
+    rmSync(join(home, 'probe'));
+    child = spawn(node, [entry, '--home', home, '--start-daemon'], {
+      env: { ...env, PUDDLE_TEST_START_DELAY: '1' },
+      stdio: ['ignore', 'pipe', 'pipe'],
+    });
+    const killed = once(child, 'exit');
+    await expect.poll(() => existsSync(join(home, 'probe')), { timeout: 5000 }).toBe(true);
+    child.kill('SIGKILL');
+    expect((await killed)[1]).toBe('SIGKILL');
+    expect(() => acquireInstallationLock(home)).toThrow('Another installer');
+    writeFileSync(join(home, 'probe-release'), 'finish');
+    await expect
+      .poll(
+        () => {
+          try {
+            acquireInstallationLock(home).release();
+            return true;
+          } catch {
+            return false;
+          }
+        },
+        { timeout: 5000 },
+      )
+      .toBe(true);
+    expect(readFileSync(join(home, 'starts'), 'utf8')).toBe('start\n');
   } finally {
     claim?.release();
+    writeFileSync(join(home, 'probe-release'), 'finish');
     if (child && child.exitCode === null && child.signalCode === null) {
       const stopped = once(child, 'exit');
       child.kill('SIGKILL');
       await stopped;
     }
+    await expect
+      .poll(
+        () => {
+          try {
+            acquireInstallationLock(home).release();
+            return true;
+          } catch {
+            return false;
+          }
+        },
+        { timeout: 5000 },
+      )
+      .toBe(true);
     rmSync(home, { recursive: true, force: true });
   }
 });

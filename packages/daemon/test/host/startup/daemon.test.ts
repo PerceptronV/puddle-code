@@ -1,3 +1,4 @@
+import { acquireInstallationLock } from '../../../src/host/installation/lock.js';
 import {
   existsSync,
   mkdirSync,
@@ -98,7 +99,7 @@ function fixture(kind: 'systemd' | 'launchd' = 'systemd') {
       const controller = acquireHostClaim(home, 'daemon-controller');
       controller.release();
       expect(() => acquireHostClaim(home, 'host-update-execution')).toThrow();
-      expect(existsSync(join(home, 'bin/.install-lock'))).toBe(true);
+      expect(() => acquireInstallationLock(home)).toThrow('Another installer');
       state.stopped = false;
       if (state.lost) throw new Error('Supervisor reply lost');
     }
@@ -129,7 +130,7 @@ it.each(['systemd', 'launchd'] as const)(
     expect(JSON.parse(readFileSync(join(f.home, 'runtime-controller.json'), 'utf8'))).toEqual(
       f.controller,
     );
-    expect(existsSync(join(f.home, 'bin/.install-lock'))).toBe(false);
+    acquireInstallationLock(f.home).release();
     expect(
       f.commands.some(
         ({ args }) =>
@@ -170,7 +171,8 @@ it.each([
   else f.state.lost = true;
   await expect(f.start()).rejects.toThrow();
   expect(f.mutations()).toHaveLength(failure === 'lost-reply' ? 1 : 0);
-  expect(existsSync(join(f.home, 'bin/.install-lock'))).toBe(failure === 'installer');
+  if (failure === 'installer') expect(existsSync(join(f.home, 'bin/.install-lock'))).toBe(true);
+  else acquireInstallationLock(f.home).release();
 });
 
 it('unloads an idle launchd registration before bootstrapping its validated plist', async () => {
@@ -209,7 +211,7 @@ it.each(['lost-reply', 'configuration', 'live-process'] as const)(
     }
     await expect(f.start()).rejects.toThrow();
     expect(f.mutations()).toEqual([]);
-    expect(existsSync(join(f.home, 'bin/.install-lock'))).toBe(false);
+    acquireInstallationLock(f.home).release();
     expect(f.commands.filter(({ args }) => args[0] === 'bootout')).toHaveLength(
       failure === 'live-process' ? 0 : 1,
     );
@@ -266,7 +268,7 @@ it.each(['lost-reply', 'definition', 'process'] as const)(
     await expect(f.start()).rejects.toThrow();
     expect(f.commands.filter(({ args }) => args[1] === 'reset-failed')).toHaveLength(1);
     expect(f.mutations()).toHaveLength(0);
-    expect(existsSync(join(f.home, 'bin/.install-lock'))).toBe(false);
+    acquireInstallationLock(f.home).release();
   },
 );
 

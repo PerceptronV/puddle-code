@@ -141,11 +141,33 @@ for DIRECTORY in "$BIN_DIR" "$BIN_DIR/versions" "$CACHE_DIR"; do
   [ ! -L "$DIRECTORY" ] || die "installation directory must not be a symlink: $DIRECTORY"
 done
 mkdir -p "$BIN_DIR/versions" "$CACHE_DIR" "$HOME_DIR/logs"
-# Match the standalone CLI installer's fail-closed lock and fresh-tree pattern.
-# This serialises bootstrap scripts; the durable host-update coordinator will
-# additionally fence runtime admission and track replacement/adoption.
-mkdir "$BIN_DIR/.install-lock" 2>/dev/null \
-  || die "another installer is running (if interrupted, remove $BIN_DIR/.install-lock and retry)"
+# A permanent regular file also fences older installers, whose mkdir must fail.
+# Keep this inode: flock is inherited by children and releases after all references
+# close, including after SIGKILL. Match daemon host/installation/lock.ts.
+LOCK="$BIN_DIR/.install-lock"
+[ ! -L "$LOCK" ] || die "installation lock must not be a symlink"
+[ ! -d "$LOCK" ] || die "another installer is running, or a legacy installation lock needs inspection"
+if [ ! -e "$LOCK" ]; then
+  (set -C; : > "$LOCK") 2>/dev/null || [ -f "$LOCK" ] || die "cannot create installation lock"
+fi
+[ -f "$LOCK" ] && [ ! -L "$LOCK" ] || die "installation lock must be a regular file"
+case "$OS" in
+  darwin) LOCK_INFO=$(stat -f '%u %Lp %l %z' "$LOCK") ;;
+  linux) LOCK_INFO=$(stat -c '%u %a %h %s' "$LOCK") ;;
+esac
+set -- $LOCK_INFO
+[ "$1" = "$(id -u)" ] && [ "$((0$2 & 0077))" -eq 0 ] && [ "$3" = 1 ] && [ "$4" = 0 ] \
+  || die "unsafe installation lock"
+exec 9>> "$LOCK"
+case "$OS" in
+  darwin)
+    /usr/bin/env -i PATH=/usr/bin:/bin /usr/bin/perl -e \
+      'use Fcntl qw(LOCK_EX LOCK_NB); open(my $lock, ">&=$ARGV[0]") or exit 74; flock($lock, LOCK_EX|LOCK_NB) or exit 75;' 9 \
+      || die "another installer is running or installation locking is unavailable" ;;
+  linux)
+    /usr/bin/env -i PATH=/usr/bin:/bin flock -E 75 -n 9 \
+      || die "another installer is running or installation locking is unavailable" ;;
+esac
 STAGE=""
 WORK=""
 cleanup() {
@@ -153,7 +175,6 @@ cleanup() {
     rm -rf "$STAGE"
   fi
   if [ -n "$WORK" ]; then rm -rf "$WORK"; fi
-  rmdir "$BIN_DIR/.install-lock"
 }
 trap cleanup 0
 trap 'exit 1' 1 2 3 15
@@ -212,7 +233,9 @@ if [ -z "$ACTIVATE" ]; then
     SUMS="$(CDPATH= cd -- "$(dirname "$SUMS")" && pwd -P)/$(basename "$SUMS")"
   fi
   if [ "$STAGE_ONLY" -eq 1 ]; then
-    WORK=$(mktemp -d "$BIN_DIR/.install-lock/stage.XXXXXX")
+    [ ! -L "$CACHE_DIR/install" ] || die "installation cache must not be a symlink"
+    mkdir -p "$CACHE_DIR/install"
+    WORK=$(mktemp -d "$CACHE_DIR/install/stage.XXXXXX")
     cp "$TARBALL" "$WORK/$(basename "$TARBALL")"
     TARBALL="$WORK/$(basename "$TARBALL")"
     if [ -n "$SUMS" ]; then cp "$SUMS" "$WORK/SHA256SUMS"; SUMS="$WORK/SHA256SUMS"; fi
@@ -525,7 +548,7 @@ else
       kill "$(cat "$HOME_DIR/puddled.pid")" || true
       sleep 1
     fi
-    nohup "$BIN_DIR/current/puddled" >> "$HOME_DIR/logs/puddled.out.log" 2>&1 &
+    nohup "$BIN_DIR/current/puddled" 9>&- >> "$HOME_DIR/logs/puddled.out.log" 2>&1 &
     printf '%s\n' "$!" > "$HOME_DIR/puddled.pid"
   fi
   say "warning: no systemd or launchd found — using nohup; puddled will NOT auto-start after a reboot"

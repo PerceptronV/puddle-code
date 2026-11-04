@@ -145,8 +145,8 @@ atomically selects `bin/current` (daemon) or `bin/runtime-current` (runtime); ne
 overwrite a published tree, including a
 same-version repair. Keep old trees until reference-aware collection exists.
 Read release identity from `VERSION`, with fixed-version symlink fallback only
-for legacy installations. The bootstrap lock serialises installers; the durable
-runtime-aware update coordinator remains a separate rollout gate. Runtime bootstrap
+for legacy installations. The bootstrap lock serialises installers alongside the
+durable runtime-aware update coordinator. Runtime bootstrap
 uses the same implementation with explicit component selection and never starts or
 restarts a service. The default launcher uses `installed: true` to resolve and pin
 one complete runtime release at each launch; reject unsupported metadata before
@@ -210,7 +210,12 @@ columns, retain controller/update exclusion,
 recheck the idle job, unload it once and prove removal before bootstrapping the validated
 plist. Never trust the previously loaded definition or treat idle as shutdown proof;
 lost unload replies stop the attempt. Database/runtime checks still precede controller
-release. The helper handles graceful disconnect signals; abrupt-kill lock repair and
+release. `host/installation/lock.ts` and `scripts/install.sh` share a permanent private
+regular `bin/.install-lock` inode and non-blocking flock (Linux's flock command/macOS's
+system Perl). Never unlink it during operation. Pass its descriptor to bounded commands
+so surviving children retain exclusion after parent SIGKILL; close it for long-lived
+nohup daemon launches. Stage scratch files under `cache/install/`. Legacy directory
+locks have no owner proof and must not be automatically removed. Removal/purge and
 further platform acceptance remain unfinished.
 Application 25.13 exposes local/SSH `GET/POST /cockpit/updates` through the existing
 gateway, including Vite. Keep browser schemas in `shared/api/connection/cockpit-updates.ts`

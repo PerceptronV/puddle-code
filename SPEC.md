@@ -460,7 +460,17 @@ normal daemon startup creates the new controller and adopts surviving runtimes.
 The helper changes no selector, definition or controller record. Dispatched incomplete
 updates require explicit recovery; undispatched preparations do not prevent startup.
 Prior completed workers must have ended. SIGINT/SIGTERM/SIGHUP stop helper commands
-and release claims/installer exclusion; abrupt SIGKILL lock repair remains outstanding.
+and release claims/installer exclusion. Installer exclusion now uses the permanent
+private regular file `bin/.install-lock`, shared by the shell installer and startup
+helper. Its non-blocking OS file lock survives in command descendants and releases
+only when all references close, including after SIGKILL; neither owner unlinks the inode.
+Linux uses `flock`, and macOS uses the system Perl's `flock` on an inherited descriptor.
+Installer staging work lives under `cache/install/`; long-lived nohup launches close
+the installer descriptor. Older installers' directory creation refuses this file.
+An existing legacy directory lock remains ambiguous and is never removed automatically;
+symlinks, hardlinks, non-private files and unexpected contents also refuse acquisition.
+Removal/purge must preserve this exclusion alongside runtime references; that wider
+lifecycle audit and platform acceptance remain release gates.
 Authenticated readiness is shared by launchers, SSH attachment and stopped-host explicit
 upgrades. Lost startup replies cause observation without another start or bootstrap
 fallback. Different compatible release versions remain valid. Explicit startup and

@@ -10,6 +10,22 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+Installation exclusion now has real process tests for the shell installer and Node
+startup helper sharing the same permanent regular lock file. The installer SIGKILL
+test leaves its smoke child running, rejects a competing install and admits a fresh
+attempt only after the child exits, preserving the inode. The built startup entry also
+survives a lost parent through its command's retained descriptor: after helper SIGKILL,
+exclusion remains until that command exits, with no daemon-start replay. Command-runner tests retain
+the lock after the parent's descriptor closes. Legacy directories, symlinks, hardlinks,
+non-private files and unexpected contents refuse acquisition without replacement.
+These tests run against macOS's native flock through system Perl. Linux flock and
+removal/purge coordination still need acceptance; a legacy directory without process-owner evidence is not
+treated as a modern crashed owner. Interrupted staging directories remain for later
+reference-aware collection.
+The installation/startup, bounded command runner, update/recovery worker and CLI
+installation regression run passed 234 tests in 27 files. Source and strict
+changed-test typechecks, lint, formatting, shell syntax and CLI/desktop builds passed.
+
 Loaded-idle launchd startup/recovery shares documented GUI-context/list-column inspection
 with running-service checks. Idle is not shutdown proof; tests verify that controller
 exclusion and durable recovery start intent remain held through exact registration unload.
@@ -151,7 +167,7 @@ refusals and SIGHUP cleanup; the scripted command starts no daemon or service.
 The ExecStart property shape was checked against
 [systemd v254's property printer](https://github.com/systemd/systemd/blob/v254/src/systemctl/systemctl-show.c),
 but actual Linux service parsing/startup still needs platform acceptance. Also verify
-packaged loaded-idle launchd recovery, actual systemd start limits and SIGKILL/stale installer-lock repair
+packaged loaded-idle launchd recovery, actual systemd start limits and Linux installer crash recovery
 before release. None of these fixtures proves real-provider continuity through startup.
 The final startup, shared supervision and CLI upgrade regression run passed 67 tests
 in nine files. Source and strict changed-test typechecks, lint, formatting and both

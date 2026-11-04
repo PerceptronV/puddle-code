@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import {
   chmodSync,
   existsSync,
+  statSync,
   mkdirSync,
   readFileSync,
   rmSync,
@@ -110,7 +111,7 @@ it.each(['receipt', 'dependency', 'mode', 'symlink', 'extra', 'missing'])(
     expect(f.selected()).toBe(previous);
     expect(existsSync(directory)).toBe(true);
     expect(existsSync(join(f.puddleHome, 'bin', 'runtime-current'))).toBe(false);
-    expect(existsSync(join(f.puddleHome, 'bin', '.install-lock'))).toBe(false);
+    expect(statSync(join(f.puddleHome, 'bin', '.install-lock')).isFile()).toBe(true);
   },
 );
 
