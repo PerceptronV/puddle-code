@@ -111,7 +111,7 @@ export function profileAccessMiddleware(
           api.service.list({ profile_id: profile, project_id: project, status: status?.data }),
         );
       }
-      if (/^\/api\/(version|host|config|agents)$/.test(path)) return next();
+      if (/^\/api\/(version|release-notes|host|config|agents)$/.test(path)) return next();
       const settings = /^\/api\/profiles\/([a-f0-9]{10})\/(settings|state)$/.exec(path);
       if (settings) {
         if (settings[1] !== profile) throw denied();

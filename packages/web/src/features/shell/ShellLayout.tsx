@@ -32,6 +32,8 @@ import { useCurrentProfileId } from '../profile/profile-store';
 import { NewSessionProvider, useNewSession } from './new-session-context';
 import { UpdateToast } from './UpdateToast';
 import { HostUpdateToast } from '../host-updates/HostUpdateToast';
+import { HostReleaseNotes } from '../release-notes/HostReleaseNotes';
+import { ReleaseNotesHost } from '../release-notes/ReleaseNotesHost';
 import { useLocalSyncEngine } from './use-local-sync-engine';
 import { useWaitingNotifications } from './use-waiting-notifications';
 import { ScratchpadPopover } from '../scratchpad/ScratchpadPopover';
@@ -333,6 +335,8 @@ function ShellBody() {
       <ConnectionBanner />
       <UpdateToast />
       <HostUpdateToast />
+      <HostReleaseNotes />
+      <ReleaseNotesHost />
       <CommandPalette
         onNewSession={handler ?? undefined}
         onNewProject={() => setCreatingProject(true)}

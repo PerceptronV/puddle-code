@@ -17,6 +17,7 @@ import { PhoneWorkspace } from '../mobile/PhoneWorkspace';
 import { watchPushNotifications } from './push-notifications';
 import type { RemoteClient } from './client';
 import { RemoteHostUpdates } from '../host-updates/RemoteHostUpdates';
+import { HostReleaseNotes } from '../release-notes/HostReleaseNotes';
 
 export function ConnectedHost({
   client,
@@ -81,6 +82,7 @@ export function ConnectedHost({
   return (
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary scope="remote host">
+        <HostReleaseNotes hostKey={client.scope} enabled={state === 'ready' && admitted} />
         <div className="remote-connected">
           <header className="remote-topbar">
             <Button variant="ghost" size="icon" aria-label="All projects" onClick={leave}>

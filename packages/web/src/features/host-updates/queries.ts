@@ -18,6 +18,7 @@ import { api, ApiError } from '../../lib/transport/api';
 import { browserTransport } from '../../lib/transport/browser-transport';
 import { wsManager } from '../../lib/transport/ws';
 import { hostUpdateScope, hostUpdateTransport } from './transport';
+import { watchInstalledReleases } from '../release-notes/state/installed';
 
 function queryKey() {
   return ['cockpit-host-updates', hostUpdateScope()] as const;
@@ -118,13 +119,16 @@ export function useHostUpdateEvents() {
     const key = ['cockpit-host-updates', scope];
     const refresh = () => {
       void client.invalidateQueries({ queryKey: key });
+      void client.invalidateQueries({ queryKey: ['release-notes'] });
     };
     const changed = wsManager.onHostUpdatesChanged(refresh);
+    const installed = watchInstalledReleases(client, scope);
     const connected = wsManager.onConnectionChange((ready) => {
       if (ready) refresh();
     });
     return () => {
       changed();
+      installed();
       connected();
     };
   }, [client, scope]);

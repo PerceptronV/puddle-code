@@ -4,6 +4,7 @@ import {
   projectSchema,
   repoWithOrphansSchema,
   sessionSchema,
+  releaseNotesSchema,
   type Project,
   type RemoteHost,
   type RepoWithOrphans,
@@ -17,6 +18,7 @@ import { watchPushNotifications } from './push-notifications';
 import { RemoteClient } from './client';
 import { serviceOrigin } from './service';
 import { loadOrderedProjects } from '../mobile/project-order';
+import { reportInstalledReleaseNotes } from '../release-notes/state/queue';
 
 /** Catalogue readers never install a global transport or attach a terminal. */
 export function HostProjects({
@@ -54,18 +56,26 @@ export function HostProjects({
     const refresh = async () => {
       if (!client || client.state !== 'ready' || loading) return;
       loading = true;
+      const generation = client.generation;
       try {
         const read = async (path: string) => {
           const response = await client!.request('GET', path);
           if (!response.ok) throw new Error('Could not load projects. Try connecting again.');
           return response.json() as Promise<unknown>;
         };
-        const [projects, repos, sessions] = await Promise.all([
+        const [projects, repos, sessions, notes] = await Promise.all([
           read('/api/projects').then((value) => projectSchema.array().parse(value)),
           read('/api/repos').then((value) => repoWithOrphansSchema.array().parse(value)),
           read('/api/sessions').then((value) => sessionSchema.array().parse(value)),
+          // Reuse this visible catalogue refresh: runtime-only installs need not reconnect.
+          // Older hosts may omit notes without preventing project discovery.
+          read('/api/release-notes')
+            .then((value) => releaseNotesSchema.parse(value))
+            .catch(() => null),
         ]);
         if (live) {
+          if (notes && client.state === 'ready' && client.generation === generation)
+            reportInstalledReleaseNotes(client.scope, notes);
           const ordered = await loadOrderedProjects(projects, read);
           if (!live) return;
           setCatalogue({ projects: ordered, repos, sessions });
@@ -90,8 +100,9 @@ export function HostProjects({
         unsubscribe = client.onState(() => {
           if (!live) return;
           setNeedsPairing(client!.state === 'rejected');
-          if (client!.state === 'ready') void refresh();
-          else {
+          if (client!.state === 'ready') {
+            void refresh();
+          } else {
             setCatalogue(null);
             setMessage(
               client!.state === 'rejected' ? 'Pairing required or access revoked.' : 'Connecting…',

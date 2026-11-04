@@ -144,6 +144,18 @@ Each live runtime has one independent `puddler` owner for its PTYs, output and p
 
 ### Persistent runtimes (0.4.0)
 
+Application protocol remains 26.1: its major already requires an approved upgrade
+from released protocol-25 daemons. Cockpit, daemon and runtime installations show
+the corresponding component sections of the release notes in a read-only Markdown
+preview. Release content ships with the software: the cockpit embeds its exact
+release, and authenticated `GET /api/release-notes` returns the running daemon and
+selected runtime's bounded documents. No release-service request is needed to read
+them. Missing older documents are omitted rather than borrowed from another build.
+The remote read-only allowlist carries the same public content without granting
+maintenance authority. Presentation remembers rendered component/version notes per
+browser and host, merges matching releases and serialises different releases;
+staged targets never count as installed software.
+
 Managed runtime memory has one durable host ceiling, initialised to a quarter of
 physical memory (or a lower reported process constraint), capped at 8 GiB. Its
 private sealed ledger survives daemon replacement and retains the original

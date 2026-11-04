@@ -47,6 +47,7 @@ import { build } from 'esbuild';
 
 import { stageNodeRuntime } from './lib/node-runtime.mjs';
 import { smokePuddlang } from './lib/puddlang-smoke.mjs';
+import { releaseNotes } from './lib/releases/notes.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const args = process.argv.slice(2);
@@ -58,6 +59,7 @@ const flag = (name) => {
 const version =
   flag('--version') ??
   JSON.parse(readFileSync(join(repoRoot, 'packages/daemon/package.json'), 'utf8')).version;
+const notes = releaseNotes(repoRoot, version);
 const protocolSource = readFileSync(join(repoRoot, 'packages/shared/src/protocol.ts'), 'utf8');
 const protocolMatch = /PROTOCOL_VERSION\s*=\s*{\s*major:\s*(\d+),\s*minor:\s*(\d+)\s*}/.exec(
   protocolSource,
@@ -124,6 +126,7 @@ async function bundleHostProcesses() {
     define: {
       __PUDDLED_VERSION__: JSON.stringify(version),
       __PUDDLER_VERSION__: JSON.stringify(version),
+      __PUDDLE_RELEASE_NOTES__: JSON.stringify(notes),
       ...(process.env.PUDDLE_REPO_SLUG
         ? { __PUDDLE_REPO_SLUG__: JSON.stringify(process.env.PUDDLE_REPO_SLUG) }
         : {}),
@@ -228,6 +231,7 @@ function writeMetadata() {
     chmodSync(join(stage, name), 0o755);
   }
   writeFileSync(join(stage, 'VERSION'), `${version}\n`);
+  if (notes !== null) writeFileSync(join(stage, 'RELEASE_NOTES.md'), notes);
   // Read directly by `puddle --version`; an offline inventory must never
   // execute an unknown historical daemon just to discover compatibility.
   writeFileSync(join(stage, 'PROTOCOL'), `${protocolVersion}\n`);

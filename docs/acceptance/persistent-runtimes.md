@@ -12,6 +12,17 @@ Passing these foundation checks does not establish seamless production upgrades.
 
 ## Automated foundation checks
 
+Release notes use the four component sections in `CHANGELOG.md`. After installation,
+verify that cockpit notes survive the application restart, daemon notes follow the
+running version after reconnection, and runtime notes follow the selected default
+without claiming that existing owners restarted. A combined installation must show
+both relevant sections. Repeated status events and reloads must not reopen already
+rendered notes; a new installed version must open once. Missing legacy notes must
+not display another release's content. Check local/SSH and paired-browser views,
+including the remote project overview, sanitised read-only Markdown, and no file
+or embedded-asset requests from the preview. Protocol remains 26.1; remote 5 and
+runtime 1.0 are unchanged.
+
 The [final local archive verification](../reports/persistent-runtimes/2026-11-04-packaged-verification.md)
 records the 0.4.0 macOS arm64 archive from source `159a348`, its SHA-256,
 and the passing packaged updater/runtime check (23.93 seconds). Four separate

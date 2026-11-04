@@ -1,5 +1,13 @@
 # The puddle communication protocol
 
+The unreleased application **26.1** contract also includes read-only
+`GET /api/release-notes`, returning at most two installed release documents:
+the running daemon and selected runtime build. The shared `releaseNotesSchema`
+defines their component, version and Markdown fields. The connector permits this
+public release content through its read-only allowlist; it adds no maintenance
+authority or remote-envelope change. Major 26 already requires an approved daemon
+upgrade from released application 25; no further major bump is needed for 0.4.0.
+
 Application **26.1** adds local/SSH programme outcome inspection and exact explicit
 read/discard actions under `/api/puddlang/:profile/runs/:id/outcomes`. Bounded
 metadata lists contain no replies or native references. A disposition binds the
@@ -428,7 +436,7 @@ Its introduction changes no wire shape or protocol version.
 
 ## Remote transport
 
-`REMOTE_PROTOCOL_VERSION = 4` versions the separate service/connector/browser
+`REMOTE_PROTOCOL_VERSION = 5` versions the separate service/connector/browser
 contract in `src/remote/`. Its strict envelopes and Noise prologue require an
 exact match; incompatible peers fail closed. Its introduction did not change
 daemon protocol 18.0. Turning the existing server WS union into an equivalent

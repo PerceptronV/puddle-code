@@ -4,6 +4,7 @@ export * from './notification-title.js';
 export * from './project-abbrev.js';
 export * from './api/common.js';
 export * from './api/connection/version.js';
+export * from './api/connection/release-notes.js';
 export * from './api/connection/host-updates.js';
 export * from './api/connection/connector-inspection.js';
 export * from './api/agents/agent-signal.js';

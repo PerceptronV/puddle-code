@@ -24,6 +24,7 @@ import { usePhoneViewport } from '../mobile/use-phone-viewport';
 import { HostProjects } from './HostProjects';
 import { RemoteSettings } from './RemoteSettings';
 import { RemoteBrand } from './RemoteBrand';
+import { ReleaseNotesHost } from '../release-notes/ReleaseNotesHost';
 import { PairBrowserDialog } from './PairBrowserDialog';
 import { PairDeviceDialog } from './PairDeviceDialog';
 import { parsePairingInvitation, takePairingInvitation } from './pairing-invitation';
@@ -221,6 +222,7 @@ export function RemoteApp() {
           <AccountAccess providers={providers} mfa={login.mfaRequired} refresh={refresh} />
         ) : (
           <div className="remote-ui">
+            <ReleaseNotesHost remote />
             {client ? (
               <ConnectedHost
                 key={client.scope}

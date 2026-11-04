@@ -96,6 +96,13 @@ function fixture() {
 }
 
 describe('profile-bound host authority', () => {
+  it('allows public release notes but no mutation or neighbouring path', async () => {
+    const f = fixture();
+    expect((await f.req('/api/release-notes')).status).toBe(200);
+    expect((await f.req('/api/release-notes', 'POST')).status).toBe(403);
+    expect((await f.req('/api/release-notes/private')).status).toBe(403);
+    expect(f.dispatch).toHaveBeenCalledTimes(1);
+  });
   it('keeps GET and POST host updates outside direct daemon profile HTTP authority', async () => {
     const f = fixture();
     // Maintenance claims belong only to a private control socket. Admission still

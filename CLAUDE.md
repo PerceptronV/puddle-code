@@ -481,7 +481,7 @@ release tag so npm provenance names the built commit. See SPEC §10 for recovery
 `CHANGELOG.md` in the repo root is the **rolling changelog for the next release**. Rules:
 
 1. Every user-visible or behaviour-affecting change updates `CHANGELOG.md` **in the same commit/PR** as the change. Internal-only refactors with zero behaviour change may be skipped.
-2. Structure follows [Keep a Changelog](https://keepachangelog.com): a single `## [Unreleased]` section with `### Added`, `### Changed`, `### Fixed`, `### Removed`, `### Security` subsections (include only non-empty ones). One line per change, imperative mood, reference the PR/issue when it exists.
+2. Keep one `## [Unreleased]` section grouped under `### Cockpit`, `### Daemon`, `### Runtime` and `### Remote`, in that order. These component headings and their anchors are shared with the release-notes UI; preserve them instead of introducing change-type sections. Put each user-visible item in its most relevant component once. Use one line per change, imperative mood, and reference the PR/issue when it exists.
 3. **On publishing version X.Y.Z**:
    - Append `X.Y.Z` and that release's exact protocol to `RELEASE_PROTOCOLS` in `packages/cli/src/lib/installation/component-versions.ts`; this immutable offline ledger identifies older installed components without executing them. Daemon archives also carry `CONNECTOR_PROTOCOL`; keep the historical connector lookup in that module accurate. The displayed `cN` suffix is informational and never enters CLI/desktop compatibility checks.
    - Retitle `## [Unreleased]` to `## [X.Y.Z] — YYYY-MM-DD`.

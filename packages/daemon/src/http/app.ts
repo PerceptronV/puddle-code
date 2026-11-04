@@ -48,6 +48,7 @@ import { latexRoutes } from './routes/execution/latex.js';
 import { scratchpadRoutes } from './routes/scratchpad.js';
 import { sessionRoutes } from './routes/sessions.js';
 import { versionRoutes } from './routes/version.js';
+import { releaseNotesRoutes } from './routes/release-notes.js';
 import { worktreeRoutes } from './routes/worktrees/worktrees.js';
 import { puddlangRoutes } from './routes/execution/puddlang.js';
 import type { PuddlangService } from '../puddlang/service.js';
@@ -122,6 +123,7 @@ export function buildApp(deps: AppDeps): Hono {
     return deps.admission.run(next);
   });
   app.route('/api/version', versionRoutes(deps.version));
+  app.route('/api/release-notes', releaseNotesRoutes(deps.api?.paths.home, deps.version));
 
   if (deps.api) {
     const api = deps.api;

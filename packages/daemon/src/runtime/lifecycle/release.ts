@@ -1,33 +1,11 @@
-import {
-  closeSync,
-  constants,
-  fstatSync,
-  openSync,
-  readSync,
-  realpathSync,
-  accessSync,
-  statSync,
-} from 'node:fs';
+import { constants, realpathSync, accessSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import {
   compatibleRuntimeProtocol,
   parseHostReleaseVersion,
   parseReleaseProtocol,
 } from '@puddle/shared';
-
-function metadata(file: string, limit: number): string {
-  const fd = openSync(file, constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK);
-  try {
-    const stat = fstatSync(fd);
-    if (!stat.isFile() || stat.size > limit) throw new Error('Invalid runtime release metadata');
-    const buffer = Buffer.alloc(limit + 1);
-    const size = readSync(fd, buffer, 0, buffer.length, 0);
-    if (size > limit) throw new Error('Runtime release metadata exceeds its limit');
-    return buffer.subarray(0, size).toString('utf8');
-  } finally {
-    closeSync(fd);
-  }
-}
+import { readReleaseText } from '../../host/releases/files.js';
 
 /** Resolve the selector once; every executable and metadata read uses that tree. */
 export function resolveInstalledRuntimeRelease(home: string) {
@@ -35,8 +13,8 @@ export function resolveInstalledRuntimeRelease(home: string) {
   const releasePath = realpathSync(join(home, 'bin', 'runtime-current'));
   if (dirname(releasePath) !== versions)
     throw new Error('Runtime selector is outside installed releases');
-  const build = parseHostReleaseVersion(metadata(join(releasePath, 'VERSION'), 129));
-  const protocol = parseReleaseProtocol(metadata(join(releasePath, 'RUNTIME_PROTOCOL'), 33));
+  const build = parseHostReleaseVersion(readReleaseText(join(releasePath, 'VERSION'), 129));
+  const protocol = parseReleaseProtocol(readReleaseText(join(releasePath, 'RUNTIME_PROTOCOL'), 33));
   if (!build || !protocol) throw new Error('Runtime release metadata is invalid');
   if (!compatibleRuntimeProtocol(protocol))
     throw new Error('Selected runtime protocol is incompatible with this daemon');
