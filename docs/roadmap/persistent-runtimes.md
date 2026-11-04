@@ -68,6 +68,18 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Owner screen parsing now has separate byte/action capacity from captures and
+  atomic disk saves. Slow writes coalesce without holding the parser; captures
+  queue synchronously at their replay cursor boundary. Bounded whole-line
+  scrollback preserves complete normal/alternate viewports and terminal modes;
+  an oversized viewport refuses capture before serialisation. Lost parser input
+  makes the canonical screen explicitly unavailable while live output continues,
+  with a key-only tombstone after exit. All 104 focused checks passed, including
+  partial-parser ordering, mouse encoding, slow writes, real PTYs, native-switch
+  segments and viewer replay. TypeScript/lint passed. These are owner-local
+  charged buffers/file limits, not RSS or aggregate host storage guarantees;
+  historical temporary-file inventory and raw-log generation counts remain open.
+
 - Launch-time upgrades now carry the coordinator's exact interruption review
   through CLI/background IPC and desktop approval. Modern prompts describe
   independent runtime continuity; legacy prompts retain the one-time interruption

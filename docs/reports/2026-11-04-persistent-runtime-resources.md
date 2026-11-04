@@ -263,6 +263,30 @@ One partial run does not establish variation at fifty runtimes, cross-platform
 behaviour or production budgets. CPU/wakeup ceilings remain unset pending that
 evidence.
 
+## Subsequent owner screen bounds
+
+Screen parsing no longer waits for atomic snapshot writes. Separate pools charge
+16 MiB/2,048 parser actions and 16 KiB/64 capture actions; read pressure cannot
+consume the input pool. Two transient operations share a 96 MiB charged allowance,
+with at most 32 metadata-only waiters and no queued serialised snapshot payloads.
+Saves coalesce, and final screen files are capped at 4 MiB. Preflight bounds the
+pinned serialiser before allocation, selecting whole old scrollback lines while
+preserving complete visible normal/alternate buffers and mouse modes. Oversized
+viewports refuse capture instead of truncating ANSI.
+
+Capture queues synchronously at its replay cursor boundary. This prevents a slow
+capacity wait or partially parsed write from mixing newer output into an older
+snapshot. Actual parser overflow makes the screen explicitly unavailable while
+live output/log draining continues; last-good disk screens are retained, with a
+key-only unavailable tombstone after the emulator exits. All 104 focused tests
+passed, including actual owner/PTY, segment-switch, viewer replay, mouse, slow-save
+and ordering regressions; source/test TypeScript and lint passed.
+
+These are owner-local charged allowances, not preallocated RAM or a whole-host
+envelope. Historical orphaned temporary files still need bounded inventory.
+The native measurements above predate this change; no measured savings or
+throughput claim follows from these bounds.
+
 ## Remaining resource gates
 
 Native macOS interrupt/package-idle wakeups are now measured at one and ten

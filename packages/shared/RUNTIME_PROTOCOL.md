@@ -70,6 +70,20 @@ request count and encoded bytes. A slow controller is disconnected without
 blocking PTY drainage. No unbounded replay queue is maintained for disconnected
 controllers; terminal attachment obtains a new snapshot.
 
+Owner screen persistence keeps parsing separate from disk writes. Its parser
+queue charges 16 MiB/2,048 actions; captures have a separate 16 KiB/64-action
+pool. Capture is enqueued synchronously at the caller's output cursor, before
+later PTY bytes, and never waits for disk I/O. Two transient operations share a
+96 MiB charged allowance; at most 32 metadata-only waiters await capacity. Saves
+coalesce to the latest revision and final files are capped at 4 MiB. Preflight
+uses the pinned serialiser's whole-scrollback-line option to retain complete
+visible normal/alternate buffers and modes without truncating ANSI. An oversized
+viewport refuses capture; actual lost parser input makes the canonical screen
+unavailable while live PTY output continues. Exited gaps retain only a tombstone
+for the store's lifetime. Last-good disk screens remain intact. These limits
+bound managed buffers/files, not total RSS, all owner processes or accumulated
+temporary files from earlier crashes. No runtime wire shape changes.
+
 Every admitted post-handshake request carries a monotonic command sequence.
 The runtime remembers its high-water mark through controller disconnects and
 reports it on adoption. Old sequences are rejected, including commands whose

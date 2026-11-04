@@ -31,6 +31,7 @@ Persistent runtimes and cockpit-managed host updates are mandatory standard beha
 
 ### Fixed
 
+- Keep terminal screen parsing responsive during slow snapshot writes. Bound queued work and serialised screens, preserve replay ordering and complete visible terminal modes, and report a canonical-screen gap instead of silently presenting dropped input as complete.
 - Carry exact daemon-update interruption approval through CLI/background launches and desktop windows. Inspect stopped older services before compatibility negotiation, and preserve independent runtime continuity instead of warning that every modern update interrupts all sessions.
 - Move live independent agent runtimes between accounts through the existing native-conversation migration flow. Require confirmed owner/sidecar exit, recheck authority before replacement and preserve copied state after an uncertain admitted launch.
 - Retain application storage when runtime connection drainage fails during daemon shutdown, preventing outstanding callbacks from accessing a closed database.
