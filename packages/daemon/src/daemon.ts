@@ -6,7 +6,7 @@ import { StorageMonitor } from './storage/monitor.js';
 import { createAdaptorServer, upgradeWebSocket, type ServerType } from '@hono/node-server';
 import { WebSocketServer } from 'ws';
 import type { AgentAdapter } from './agents/adapter.js';
-import { isBinaryAvailable } from './agents/binary.js';
+import { AccountObservations } from './agents/accounts/observations.js';
 import { defaultAdapters } from './agents/defaults.js';
 import { AdapterRegistry } from './agents/registry.js';
 import { loadConfig, readConfig } from './config.js';
@@ -262,6 +262,13 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     // Migration 004 rewrote config-dir paths to id-keyed; rename the dirs before
     // adapters install watches or inspect any native conversation store.
     reconcileProfileDirs(profiles.list(), paths);
+    const accountObservations = new AccountObservations({
+      accounts,
+      adapters,
+      ptys,
+      background: upkeep,
+    });
+    failedStartup.push(() => accountObservations.close());
     const share = new ConversationShare({
       accounts,
       adapters,
@@ -399,21 +406,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       await service.drainObservations();
     });
 
-    // Stored logged-in flags can lie (keychain-bound creds die with a path
-    // change) — re-verify each account in the background so badges are honest.
-    upkeep.startBatch('account-checks', accounts.list(), async (account) => {
-      try {
-        const adapter = adapters.get(account.agent_type);
-        adapter.reconcileConfigDir?.(account); // idempotent upkeep (e.g. status line)
-        // An uninstalled agent answers "logged out" to every probe; booting
-        // without it on PATH must not clear every stored flag (SPEC §5).
-        if (adapter.checkLoggedIn && isBinaryAvailable(adapter)) {
-          accounts.setLoggedIn(account.id, await adapter.checkLoggedIn(account));
-        }
-      } catch {
-        // Unknown adapter or probe failure: leave the stored flag alone.
-      }
-    });
+    accountObservations.refresh();
 
     // Repair the shared conversation store's symlinks (missing/dangling) so
     // every account of a profile can still resolve its adopted conversations.
@@ -588,6 +581,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
         // Close admission synchronously, before any asynchronous cleanup yields.
         admission.close();
         upkeep.beginShutdown();
+        accountObservations.close();
         clearInterval(fetchTimer);
         updateCoordinator?.close();
         // A request already preparing a launch must not create another child

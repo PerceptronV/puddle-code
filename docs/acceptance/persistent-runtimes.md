@@ -62,6 +62,12 @@ The session-service suite also holds a direct native clear callback at its PTY
 rebind boundary while shutdown begins. The drain must wait for its durable switch
 event and preserve the PID/ref, while later provider callbacks are refused.
 
+`packages/daemon/test/agents/accounts/observations.test.ts` holds login checks over
+closure, serialises startup/login results, coalesces repeated exits, and retains
+stored flags for absent binaries or failed probes. The daemon lifecycle and end-to-end
+account/login suites verify that production composition drains these observations
+before closing SQLite. Checks use fake adapters and never read credentials.
+
 Run from the repository root with dependencies installed:
 
 ```sh

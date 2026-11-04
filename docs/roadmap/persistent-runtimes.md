@@ -27,6 +27,14 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far:
 
+- Account login-exit observation now belongs to daemon lifecycle management under
+  `agents/accounts/`, using the existing bounded host background drain. Startup
+  verification shares the same per-account serialisation, so a slow older check
+  cannot overwrite a newer login result. Repeated exits during a probe coalesce
+  into a fresh check, and shutdown removes the observer while draining accepted
+  results. Unit and real-daemon account/login regressions cover these boundaries;
+  this removes another asynchronous writer hidden in an HTTP route factory.
+
 - Direct provider native-lifecycle callbacks now enter the session drain as well
   as HTTP signals. Shutdown lets an admitted clear/fork finish its exact placement
   rebind, records its result before SQLite closes, and rejects later lifecycle,

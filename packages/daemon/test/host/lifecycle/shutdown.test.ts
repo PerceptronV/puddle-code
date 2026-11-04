@@ -45,50 +45,67 @@ it('closes client admission immediately and retains SQLite until admitted work f
   }
 });
 
-it('waits for an admitted startup account check to save its result before closing SQLite', async () => {
-  const home = await mkdtemp(join(tmpdir(), 'puddle-upkeep-shutdown-'));
-  const paths = resolvePaths(home);
-  ensureHome(paths);
-  const seed = openDatabase(paths.dbFile);
-  const profile = new ProfileStore(seed).create({ name: 'fixture', branch_prefix: '' });
-  const account = new AccountStore(seed).create({
-    profile_id: profile.id,
-    agent_type: 'fake',
-    label: 'fixture',
-    config_dir: home,
-    skip_permissions_default: false,
-  });
-  seed.close();
-  let finish!: (loggedIn: boolean) => void;
-  const probe = new Promise<boolean>((resolve) => {
-    finish = resolve;
-  });
-  // The existing binary check succeeds, but the fake adapter never starts a CLI.
-  const checkLoggedIn = vi.fn(() => probe);
-  const daemon = await startDaemon({
-    home,
-    port: 0,
-    adapters: [{ ...fakeAdapter({ binary: '/bin/sh' }), checkLoggedIn }],
-  });
-  let stopping: Promise<void> | undefined;
-  try {
-    await vi.waitFor(() => expect(checkLoggedIn).toHaveBeenCalledOnce());
-    const drain = vi.spyOn(daemon.service, 'drainObservations');
-    const stopped = vi.fn();
-    stopping = daemon.stop().then(stopped);
-    await vi.waitFor(() => expect(drain).toHaveBeenCalledOnce());
-    expect(stopped).not.toHaveBeenCalled();
-    finish(true);
-    await stopping;
-    const verified = openDatabase(paths.dbFile);
+it.each(['startup', 'login'] as const)(
+  'waits for an admitted %s account check to save its result before closing SQLite',
+  async (source) => {
+    const home = await mkdtemp(join(tmpdir(), 'puddle-upkeep-shutdown-'));
+    const paths = resolvePaths(home);
+    ensureHome(paths);
+    const seed = openDatabase(paths.dbFile);
+    const profile = new ProfileStore(seed).create({ name: 'fixture', branch_prefix: '' });
+    const account = new AccountStore(seed).create({
+      profile_id: profile.id,
+      agent_type: 'fake',
+      label: 'fixture',
+      config_dir: home,
+      skip_permissions_default: false,
+    });
+    seed.close();
+    let finish!: (loggedIn: boolean) => void;
+    const probe = new Promise<boolean>((resolve) => {
+      finish = resolve;
+    });
+    // Auth checks are fake; the login PTY only echoes a marker through /bin/sh.
+    const checkLoggedIn = vi.fn(() => probe);
+    if (source === 'login') checkLoggedIn.mockResolvedValueOnce(false);
+    const daemon = await startDaemon({
+      home,
+      port: 0,
+      adapters: [{ ...fakeAdapter({ binary: '/bin/sh' }), checkLoggedIn }],
+    });
+    let stopping: Promise<void> | undefined;
     try {
-      expect(new AccountStore(verified).get(account.id).logged_in).toBe(true);
+      await vi.waitFor(() => expect(checkLoggedIn).toHaveBeenCalledOnce());
+      if (source === 'login') {
+        const { token } = daemon.authority.create();
+        const response = await fetch(
+          `http://127.0.0.1:${daemon.port}/api/accounts/${account.id}/login`,
+          {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}` },
+          },
+        );
+        expect(response.status).toBe(200);
+        await response.arrayBuffer();
+        await vi.waitFor(() => expect(checkLoggedIn).toHaveBeenCalledTimes(2));
+      }
+      const drain = vi.spyOn(daemon.service, 'drainObservations');
+      const stopped = vi.fn();
+      stopping = daemon.stop().then(stopped);
+      await vi.waitFor(() => expect(drain).toHaveBeenCalledOnce());
+      expect(stopped).not.toHaveBeenCalled();
+      finish(true);
+      await stopping;
+      const verified = openDatabase(paths.dbFile);
+      try {
+        expect(new AccountStore(verified).get(account.id).logged_in).toBe(true);
+      } finally {
+        verified.close();
+      }
     } finally {
-      verified.close();
+      finish(false);
+      await (stopping ?? daemon.stop());
+      await rm(home, { recursive: true, force: true });
     }
-  } finally {
-    finish(false);
-    await (stopping ?? daemon.stop());
-    await rm(home, { recursive: true, force: true });
-  }
-});
+  },
+);
