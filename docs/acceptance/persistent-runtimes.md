@@ -20,6 +20,13 @@ isolated temporary daemon retaining SQLite until admitted work settles. The PTY
 spawn test uses a fake child; the daemon shutdown test starts no agents. They
 establish client admission, not background-writer quiescence or upgrade adoption.
 
+The lifecycle suite also checks coalesced upkeep, a four-worker sweep of 100 items,
+bounded job counts and drain deadlines. Its temporary daemon holds a fake account
+probe across shutdown and verifies the logged-in result in the reopened database.
+The conversation-share suite holds status-triggered adoption across shutdown;
+the onboarding-shutdown test rejects late watcher installation and callbacks.
+These cover specific background writers, not a complete maintenance checkpoint.
+
 `packages/daemon/test/sessions/conversation-catalogue.test.ts` additionally holds
 adapter discovery and Git mapping across catalogue disposal, verifies that late
 results cannot create placements or mark conversations missing, and checks that

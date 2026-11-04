@@ -62,6 +62,7 @@ import { HostUpdateSupervision } from './updates/preflight/supervision.js';
 import { HostUpdateCoordinator } from './updates/coordinator.js';
 import { HostUpdateOperations } from './updates/operations/store.js';
 import { HostAdmission } from './host/lifecycle/admission.js';
+import { HostBackgroundTasks } from './host/lifecycle/background.js';
 import { startUpdateWorker } from './updates/worker/supervisor.js';
 import { resolveInstalledRuntimeRelease } from './runtime/lifecycle/release.js';
 import { RuntimeConnections } from './runtime/transport/connections.js';
@@ -118,12 +119,14 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
   const config = loadConfig(paths);
   const authority = new LeaseRegistry();
   const admission = new HostAdmission();
+  const upkeep = new HostBackgroundTasks();
   let updateCoordinator: HostUpdateCoordinator | null = null;
   let controlInfo: {
     port: number;
     version: { version: string; protocol: typeof PROTOCOL_VERSION };
   } | null = null;
   const failedStartup: Array<() => void | Promise<void>> = [];
+  let cleanupFailed = false;
   try {
     const closeControl = await startHostControl(
       paths.home,
@@ -136,7 +139,10 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     failedStartup.push(closeControl);
     ensureToken(paths);
     const db = openDatabase(paths.dbFile);
-    failedStartup.push(() => {
+    failedStartup.push(async () => {
+      // A failed drain does not prove its callbacks stopped using SQLite.
+      if (cleanupFailed) return;
+      await upkeep.close();
       db.close();
     });
 
@@ -390,32 +396,28 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     failedStartup.push(async () => {
       service.beginShutdown();
       await catalogue.dispose();
-      await service.drainNativeRefs();
+      await service.drainObservations();
     });
 
     // Stored logged-in flags can lie (keychain-bound creds die with a path
     // change) — re-verify each account in the background so badges are honest.
-    void Promise.allSettled(
-      accounts.list().map(async (account) => {
-        try {
-          const adapter = adapters.get(account.agent_type);
-          adapter.reconcileConfigDir?.(account); // idempotent upkeep (e.g. status line)
-          // An uninstalled agent answers "logged out" to every probe; booting
-          // without it on PATH must not clear every stored flag (SPEC §5).
-          if (adapter.checkLoggedIn && isBinaryAvailable(adapter)) {
-            accounts.setLoggedIn(account.id, await adapter.checkLoggedIn(account));
-          }
-        } catch {
-          // Unknown adapter or probe failure: leave the stored flag alone.
+    upkeep.startBatch('account-checks', accounts.list(), async (account) => {
+      try {
+        const adapter = adapters.get(account.agent_type);
+        adapter.reconcileConfigDir?.(account); // idempotent upkeep (e.g. status line)
+        // An uninstalled agent answers "logged out" to every probe; booting
+        // without it on PATH must not clear every stored flag (SPEC §5).
+        if (adapter.checkLoggedIn && isBinaryAvailable(adapter)) {
+          accounts.setLoggedIn(account.id, await adapter.checkLoggedIn(account));
         }
-      }),
-    );
+      } catch {
+        // Unknown adapter or probe failure: leave the stored flag alone.
+      }
+    });
 
     // Repair the shared conversation store's symlinks (missing/dangling) so
     // every account of a profile can still resolve its adopted conversations.
-    void share
-      .reconcile()
-      .catch((e) => console.warn(`conversation reconcile failed: ${e.message}`));
+    upkeep.start('conversation-reconcile', () => share.reconcile());
 
     const sweptStates = profileStates.gc(config.uiStateRetentionDays);
     if (sweptStates > 0) console.log(`ui-state gc: ${sweptStates} stale row(s) removed`);
@@ -433,17 +435,15 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     // Periodic fetch for repos with at least one non-archived session (SPEC §4).
     const fetchTimer = setInterval(
       () => {
-        for (const repo of repos.list()) {
-          if (!repo.fetch_enabled) continue;
-          if (sessions.listActiveByRepo(repo.id).length === 0) continue;
-          void worktrees
-            .fetchRepo(repo)
-            .catch((e) => console.warn(`periodic fetch failed for ${repo.path}: ${e.message}`));
-        }
+        upkeep.startBatch('repository-fetch', repos.list(), async (repo) => {
+          if (!repo.fetch_enabled || sessions.listActiveByRepo(repo.id).length === 0) return;
+          await worktrees.fetchRepo(repo);
+        });
       },
       config.fetchIntervalMinutes * 60 * 1000,
     );
     fetchTimer.unref();
+    failedStartup.push(() => clearInterval(fetchTimer));
 
     const tracker = new ProxySocketTracker();
     const gateway = new WsGateway({
@@ -500,7 +500,6 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       websocket: { server: wss },
     });
     failedStartup.push(() => {
-      clearInterval(fetchTimer);
       wss.close();
       server.close();
       if ('closeAllConnections' in server) server.closeAllConnections();
@@ -588,6 +587,8 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
         if (stopping) return stopping;
         // Close admission synchronously, before any asynchronous cleanup yields.
         admission.close();
+        upkeep.beginShutdown();
+        clearInterval(fetchTimer);
         updateCoordinator?.close();
         // A request already preparing a launch must not create another child
         // after cleanup has taken its inventory of daemon-owned terminals.
@@ -604,7 +605,6 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
           controlInfo = null;
           authority.dispose();
           await closeControl();
-          clearInterval(fetchTimer);
           await catalogue.dispose();
           compilation.dispose();
           await notebooks.dispose();
@@ -615,7 +615,8 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
           // Finish admitted handlers before closing terminal state or SQLite;
           // closing a socket alone does not cancel its asynchronous handler.
           await admission.drain();
-          await service.drainNativeRefs();
+          await service.drainObservations();
+          await upkeep.close();
           ptys.killAll();
           const deadline = Date.now() + 3000;
           while (ptys.liveCount() > 0) {
@@ -658,12 +659,14 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     };
   } catch (err) {
     admission.close();
+    upkeep.beginShutdown();
     controlInfo = null;
     authority.dispose();
     for (const cleanup of failedStartup.reverse()) {
       try {
         await cleanup();
       } catch {
+        cleanupFailed = true;
         /* Preserve the startup failure. */
       }
     }

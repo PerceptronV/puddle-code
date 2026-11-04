@@ -10,7 +10,7 @@ import {
 } from 'node:fs';
 import { join } from 'node:path';
 import type { Account } from '@puddle/shared';
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import type { ShareSession } from '../../src/sessions/conversation-share.js';
 import { removeDirWithin } from '../../src/http/fs-cleanup.js';
 import { fixture, waitFor, type Fixture } from '../helpers/daemon-fixtures.js';
@@ -85,6 +85,50 @@ function cfg(f: Fixture, accountId: number): string {
 }
 
 describe('ConversationShare adoption (live agent)', () => {
+  it('drains a status-triggered adoption before shutdown completes', async () => {
+    const f = fixture({ share: true });
+    let release!: () => void;
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const original = f.share.adoptIfNeeded.bind(f.share);
+    const adopt = vi.spyOn(f.share, 'adoptIfNeeded').mockImplementation(async (session) => {
+      await blocked;
+      return original(session);
+    });
+    try {
+      const session = await f.service.create({
+        project_id: f.ids.project,
+        account_id: f.ids.account,
+        title: 'drain adoption',
+      });
+      await waitFor(() => f.logs.readTail(session.id, 'agent').includes('READY'));
+      await waitFor(() => adopt.mock.calls.length > 0);
+      f.service.beginShutdown();
+      const drained = vi.fn();
+      const drain = f.service.drainObservations().then(drained);
+      await Promise.resolve();
+      expect(drained).not.toHaveBeenCalled();
+      release();
+      await drain;
+      expect(adopt).toHaveBeenCalledOnce();
+      expect(f.stores.events.list(session.id).map((event) => event.type)).toContain(
+        'conversation_adopted',
+      );
+    } finally {
+      release();
+      f.service.beginShutdown();
+      await f.service.drainObservations();
+      f.ptys.beginShutdown();
+      f.ptys.killAll();
+      await waitFor(() => f.ptys.liveCount() === 0);
+      await f.ptys.closeTerminalStates();
+      f.onboarding.dispose();
+      f.logs.closeAll();
+      adopt.mockRestore();
+    }
+  });
+
   it('moves the conversation dir into the canonical store, symlinks it back, and live writes land in the canonical file', async () => {
     const f = fixture({ share: true });
     const session = await f.service.create({

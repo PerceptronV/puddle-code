@@ -1,6 +1,7 @@
 import type { RuntimeControls } from '../runtime/controller/controls.js';
 import type { RuntimeLauncher } from '../runtime/lifecycle/launcher.js';
 import { RuntimePersistence } from '../storage/runtime-persistence.js';
+import { HostBackgroundTasks } from '../host/lifecycle/background.js';
 import { storageUnavailable, type StorageMonitor } from '../storage/monitor.js';
 import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
@@ -285,6 +286,7 @@ export class SessionService extends EventEmitter {
   /** `${sessionId}:${name}` pairs already warned about, so cap notes fire once. */
   private readonly envDropNoted = new Set<string>();
   private readonly sessionRefs: SessionRefs;
+  private readonly adoptions = new HostBackgroundTasks();
   private shuttingDown = false;
   private readonly titleTimer: ReturnType<typeof setInterval>;
   private readonly terminalAgents: TerminalAgentMonitor;
@@ -347,13 +349,14 @@ export class SessionService extends EventEmitter {
   beginShutdown(): void {
     this.shuttingDown = true;
     this.sessionRefs.beginShutdown();
+    this.adoptions.beginShutdown();
     clearInterval(this.titleTimer);
     this.terminalAgents.dispose();
   }
 
-  /** Await native-ref observations already running when shutdown fenced new work. */
-  async drainNativeRefs(): Promise<void> {
-    await this.sessionRefs.close();
+  /** Await native-ref and shared-store observations admitted before shutdown. */
+  async drainObservations(): Promise<void> {
+    await Promise.all([this.sessionRefs.close(), this.adoptions.close()]);
   }
 
   get(id: string): Session {
@@ -2122,21 +2125,17 @@ export class SessionService extends EventEmitter {
    * nothing on disk yet leaves the session out so a later flip retries.
    */
   private scheduleAdopt(sessionId: string): void {
-    if (!this.deps.share || this.adopted.has(sessionId)) return;
+    const share = this.deps.share;
+    if (this.shuttingDown || !share || this.adopted.has(sessionId)) return;
     let session;
     try {
       session = this.deps.sessions.get(sessionId);
     } catch {
       return; // session gone
     }
-    void this.deps.share
-      .adoptIfNeeded(session)
-      .then((done) => {
-        if (done) this.adopted.add(sessionId);
-      })
-      .catch((e) =>
-        console.warn(`conversation adopt ${sessionId} failed: ${(e as Error).message}`),
-      );
+    this.adoptions.start(`conversation-adopt:${sessionId}`, async () => {
+      if (await share.adoptIfNeeded(session)) this.adopted.add(sessionId);
+    });
   }
 
   private onPtyExit(e: PtyExitEvent): void {

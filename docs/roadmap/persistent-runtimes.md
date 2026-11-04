@@ -27,6 +27,16 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far:
 
+- Host upkeep now shares the admission/drain primitive: startup account checks,
+  shared-store repair and periodic fetch sweeps are tracked through shutdown.
+  Sweeps coalesce and use four workers, processing all items without an unbounded
+  pending-job queue. Session-triggered conversation adoption is also coalesced and
+  drained, and disposed onboarding watchers cannot reinstall themselves. A temporary
+  daemon test holds a startup probe across shutdown and verifies its saved result;
+  live fake-agent coverage holds adoption across shutdown. Failed startup cleanup
+  retains SQLite when a prior drain fails. These drains prepare the maintenance
+  checkpoint; they do not yet pause every background producer for an update.
+
 - A shared client-admission barrier now tracks HTTP handlers, native signal
   requests and asynchronous WebSocket commands. Reversible pauses reject new
   commands while existing terminal output and status remain available. Shutdown

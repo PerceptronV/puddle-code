@@ -74,6 +74,7 @@ export function buildInterruptedResumeNote(template: string | undefined): string
  * collide when several agents share one worktree — is no longer used.
  */
 export class MarkerFileSync {
+  private disposed = false;
   private readonly watchers = new Map<string, FSWatcher>();
   private readonly timers = new Map<string, NodeJS.Timeout>();
 
@@ -87,6 +88,7 @@ export class MarkerFileSync {
   ) {}
 
   watch(sessionId: string, repoId: number, worktreePath: string): void {
+    if (this.disposed) return;
     if (this.watchers.has(sessionId)) return;
     const dir = join(worktreePath, '.puddle');
     if (!existsSync(dir)) return;
@@ -108,10 +110,12 @@ export class MarkerFileSync {
   }
 
   dispose(): void {
+    this.disposed = true;
     for (const id of [...this.watchers.keys()]) this.unwatch(id);
   }
 
   private schedule(sessionId: string, repoId: number, dir: string): void {
+    if (this.disposed) return;
     const existing = this.timers.get(sessionId);
     if (existing) clearTimeout(existing);
     this.timers.set(

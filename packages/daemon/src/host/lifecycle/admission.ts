@@ -7,7 +7,7 @@ const unavailable = () =>
     'The host is pausing requests for maintenance; inspect the outcome before retrying a write.',
   );
 
-/** Client admission only: draining requests is not proof that background writers are quiescent. */
+/** Drains admitted work only; each caller must include all of the writers it owns. */
 export class HostAdmission {
   private held = false;
   private closed = false;
