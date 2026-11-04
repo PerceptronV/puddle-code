@@ -42,6 +42,7 @@ export function hostInstallationFixture(homeName = 'home') {
     { mode: 0o755 },
   );
   writeFileSync(join(staged, 'RUNTIME_PROTOCOL'), '1.0\n');
+  writeFileSync(join(staged, 'PROTOCOL'), '25.20\n');
   symlinkSync(process.execPath, join(staged, 'bin', 'node'));
   writeFileSync(join(staged, 'VERSION'), '1.2.3\n');
   const pack = () =>

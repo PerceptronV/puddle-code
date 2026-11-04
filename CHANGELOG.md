@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Record immutable release receipts during ordinary bootstrap using the existing staging verifier. Verify, extract and hash one private archive snapshot, preserve prior receipts on reuse, and retain completed release evidence after publication failures so verified unreferenced builds can later be collected safely.
+
 - Reduce steady terminal-agent polling to one scoped process scan per runtime by caching its verified TTY. Keep the detection cadence and background-child exit handling; invalidate the cache on terminal replacement, failed inspection or shutdown.
 
 - Initialise the mandatory runtime default during a fresh daemon install or legacy daemon-only upgrade. Validate the runtime before selecting the daemon, retain independently pinned runtime versions on later upgrades and preserve selected generations after interrupted bootstrap.

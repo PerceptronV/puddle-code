@@ -50,6 +50,13 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Ordinary bootstrap now shares the bounded staging receipt writer for newly
+  extracted releases and uses one private archive snapshot for checksum verification,
+  extraction and hashing. Existing receipts and reused legacy trees remain untouched;
+  unchecked archives remain explicitly unverified. Durable receipts survive later
+  publication failures. This supplies collection evidence for initial generations;
+  production scheduling and obsolete-reference retirement remain pending.
+
 - Independent terminal monitors now reuse their verified TTY for one bounded
   process scan per steady refresh, preserving the three-second cadence and
   background-child exit observation. PID/generation replacement, moved/missing
@@ -1632,10 +1639,10 @@ Retire references separately from release deletion:
   for audit, but only a validated retirement receipt may make those names cease
   to be executable references. Unknown evidence always retains the tree.
 
-Ordinary bootstrap currently omits the stage receipt even when its archive checksum
-was verified. Reuse the existing receipt writer for new verified bootstrap
-generations before publication; otherwise those initial trees remain unverified
-forever. Do not manufacture verification for existing legacy trees.
+Ordinary bootstrap now reuses the existing receipt writer for newly extracted
+generations with protocol metadata before publication. Its verified archive snapshot
+and complete tree digest provide collection evidence; unchecked archives and legacy
+trees remain unverified. Do not manufacture verification for reused trees.
 
 Keep the existing seven-day retention, 32-generation plans and 512-object deletion
 budget, and add a smaller maintenance deadline plus aggregate metadata byte/reference

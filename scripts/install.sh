@@ -253,14 +253,14 @@ if [ -z "$ACTIVATE" ]; then
   if [ -n "$SUMS" ]; then
     SUMS="$(CDPATH= cd -- "$(dirname "$SUMS")" && pwd -P)/$(basename "$SUMS")"
   fi
-  if [ "$STAGE_ONLY" -eq 1 ]; then
-    [ ! -L "$CACHE_DIR/install" ] || die "installation cache must not be a symlink"
-    mkdir -p "$CACHE_DIR/install"
-    WORK=$(mktemp -d "$CACHE_DIR/install/stage.XXXXXX")
-    cp "$TARBALL" "$WORK/$(basename "$TARBALL")"
-    TARBALL="$WORK/$(basename "$TARBALL")"
-    if [ -n "$SUMS" ]; then cp "$SUMS" "$WORK/SHA256SUMS"; SUMS="$WORK/SHA256SUMS"; fi
-  fi
+  # Checksum verification, extraction and receipt hashing must observe the same
+  # private archive snapshot, including ordinary bootstrap from a caller's file.
+  [ ! -L "$CACHE_DIR/install" ] || die "installation cache must not be a symlink"
+  mkdir -p "$CACHE_DIR/install"
+  WORK=$(mktemp -d "$CACHE_DIR/install/stage.XXXXXX")
+  cp "$TARBALL" "$WORK/$(basename "$TARBALL")"
+  TARBALL="$WORK/$(basename "$TARBALL")"
+  if [ -n "$SUMS" ]; then cp "$SUMS" "$WORK/SHA256SUMS"; SUMS="$WORK/SHA256SUMS"; fi
   if [ -n "$SUMS" ]; then
     TOOL=$(sha_tool)
     [ -n "$TOOL" ] || die "no sha256sum or shasum on this host to verify --sums"
@@ -346,12 +346,21 @@ else
     rm -f "$SMOKE_LOG"
   fi
 fi
-if [ "$STAGE_ONLY" -eq 1 ] || [ -n "$ACTIVATE" ]; then
+CREATE_RECEIPT="$STAGE_ONLY"
+if [ -n "$STAGE" ] && [ -z "$ACTIVATE" ] &&
+   { [ -e "$DEST/PROTOCOL" ] || [ -L "$DEST/PROTOCOL" ] ||
+     [ -e "$DEST/HOST_CAPABILITIES.json" ] || [ -L "$DEST/HOST_CAPABILITIES.json" ] ||
+     [ -e "$DEST/RUNTIME_PROTOCOL" ] || [ -L "$DEST/RUNTIME_PROTOCOL" ] ||
+     [ -e "$DEST/puddler" ] || [ -L "$DEST/puddler" ]; }; then
+  CREATE_RECEIPT=1
+fi
+if [ "$CREATE_RECEIPT" -eq 1 ] || [ -n "$ACTIVATE" ]; then
   # The immutable receipt binds the complete tree, including native dependencies
-  # and symlink targets. Activation verifies it without resolving another release.
-  RECEIPT=$("$DEST/bin/node" --input-type=commonjs - "$DEST" "$COMPONENT" "$VERSION" "$TARBALL" "$CHECKSUM_VERIFIED" "$STAGE_ONLY" "$STAGE_DIGEST" <<'NODE'
+  # and symlink targets. Newly extracted ordinary installs use the same proof;
+  # reused/legacy trees are never retrospectively attested. Activation only verifies.
+  RECEIPT=$("$DEST/bin/node" --input-type=commonjs - "$DEST" "$COMPONENT" "$VERSION" "$TARBALL" "$CHECKSUM_VERIFIED" "$CREATE_RECEIPT" "$STAGE_DIGEST" <<'NODE'
 const fs = require('node:fs'), path = require('node:path'), crypto = require('node:crypto');
-const [root, component, version, archive, verified, stageOnly, expectedDigest] = process.argv.slice(2);
+const [root, component, version, archive, verified, createReceipt, expectedDigest] = process.argv.slice(2);
 const marker = '.puddle-stage.json';
 const digest = (value) => crypto.createHash('sha256').update(value).digest('hex');
 const deadline = Date.now() + 30_000;
@@ -399,7 +408,7 @@ async function main() {
     throw Error('Staged tree changed during verification');
   const treeDigest = hash.digest('hex');
   const file = path.join(root, marker);
-  if (stageOnly !== '1') {
+  if (createReceipt !== '1') {
     const fd = fs.openSync(file, fs.constants.O_RDONLY | fs.constants.O_NOFOLLOW | fs.constants.O_NONBLOCK);
     let body;
     try {
@@ -441,13 +450,17 @@ async function main() {
 main().catch((error) => { console.error(error.message); process.exitCode = 1; });
 NODE
   ) || die "staged release verification failed"
+  if [ "$CREATE_RECEIPT" -eq 1 ]; then
+    # Once proof is durable, retain the immutable generation even if later
+    # publication fails. Reference-aware collection can reclaim it after retention.
+    STAGE=""
+  fi
   if [ "$STAGE_ONLY" -eq 1 ]; then
-    STAGE="" # Durable stage survives a lost reply; it is never selected implicitly.
     prune_cache
     printf 'PUDDLE_HOST_STAGE %s\n' "$RECEIPT"
     exit 0
   fi
-  if ! smoke "$DEST" >/dev/null 2>"$SMOKE_LOG"; then
+  if [ -n "$ACTIVATE" ] && ! smoke "$DEST" >/dev/null 2>"$SMOKE_LOG"; then
     die "staged tree fails its own --version smoke test (details: $SMOKE_LOG)"
   fi
   rm -f "$SMOKE_LOG"

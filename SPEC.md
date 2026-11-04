@@ -601,6 +601,13 @@ installer validates and durably publishes its first runtime default before selec
 the daemon. Existing runtime pins remain independent, including during daemon
 repair. Staging and exact activation never add an unreviewed component. An interrupted
 bootstrap retains any generation already referenced by either selector.
+Ordinary bootstrap also reuses the staging verifier to write a private immutable
+receipt for each newly extracted generation with protocol metadata. Checksum
+verification, extraction and hashing use one private snapshot of the archive.
+Reused trees and their receipts remain unchanged; historical archives without
+protocol metadata remain unverified, and unchecked local archives retain that
+explicit status. A durable receipt survives a later publication failure for
+diagnostics and reference-aware collection.
 Runtime
 installation validates its exact version/protocol report with bounded smoke output
 and time, changes no supervisor registration and starts/restarts no service.
