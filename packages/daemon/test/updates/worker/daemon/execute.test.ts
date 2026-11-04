@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import { PROTOCOL_VERSION, type HostUpdateAdoption } from '@puddle/shared';
@@ -18,6 +19,7 @@ import { inspectRunningService } from '../../../../src/host/supervision/inspecti
 import { HostUpdateCheckpointWriter } from '../../../../src/updates/checkpoints/store.js';
 import { HostUpdateConnector } from '../../../../src/updates/preflight/connector.js';
 import { executeHostUpdate } from '../../../../src/updates/worker/execute.js';
+import { readUpdateActions } from '../../../../src/updates/worker/actions.js';
 import * as connectorReplacement from '../../../../src/updates/worker/connector.js';
 import * as adoptionVerification from '../../../../src/updates/verification/adoption.js';
 import { verifyHostUpdateCompletion } from '../../../../src/updates/verification/completion.js';
@@ -90,6 +92,8 @@ async function fixture(combined = false, connector = false) {
       ).commit(controller.record);
       controller.release();
       state.stopped = true;
+      if (state.fail === 'journal-stop')
+        writeFileSync(join(f.puddleHome, 'updates/jobs', f.job.operation_id, 'actions.json'), '{');
       if (state.fail === 'stop') throw new Error('Stop reply lost');
     } else if (command.args[1] === 'start') {
       state.changes.push('start');
@@ -166,6 +170,14 @@ it.each([false, true])(
           : ['stop', 'select-daemon', 'start', 'verify'],
       );
       expect(f.store.read()?.phase).toBe('complete');
+      expect(readUpdateActions(f.puddleHome, f.job, f.store.read()!).actions).toEqual([
+        { action: 'stop-connector', state: 'finished' },
+        { action: 'stop-daemon', state: 'finished' },
+        { action: 'select-daemon', state: 'finished' },
+        ...(combined ? [{ action: 'select-runtime', state: 'finished' }] : []),
+        { action: 'start-daemon', state: 'finished' },
+        { action: 'start-connector', state: 'finished' },
+      ]);
       expect(f.selected('daemon')).toBe(
         join(f.puddleHome, 'bin/versions', f.receipts[0]!.record.generation),
       );
@@ -194,6 +206,23 @@ it('refuses selection when the shutdown checkpoint exceeds the candidate databas
   }
 }, 30_000);
 
+it('releases the controller hand-off after journal failure without selecting or restarting', async () => {
+  const f = await fixture();
+  try {
+    f.state.fail = 'journal-stop';
+    await expect(executeHostUpdate(f.puddleHome, f.job, f.run)).rejects.toThrow();
+    expect(f.state.changes).toEqual(['stop']);
+    expect(f.store.read()?.phase).toBe('recovery_required');
+    expect(f.selected('daemon')).toBe(f.previousDaemon);
+    const next = acquireRuntimeController(f.puddleHome);
+    next.release();
+    await expect(executeHostUpdate(f.puddleHome, f.job, f.run)).rejects.toThrow();
+    expect(f.state.changes).toEqual(['stop']);
+  } finally {
+    f.close();
+  }
+}, 30_000);
+
 it.each(['stop', 'select', 'start', 'configuration'])(
   'retains uncertainty after %s failure without rollback or replay',
   async (failure) => {
@@ -203,6 +232,17 @@ it.each(['stop', 'select', 'start', 'configuration'])(
       await expect(executeHostUpdate(f.puddleHome, f.job, f.run)).rejects.toThrow();
       expect(f.store.read()?.phase).toBe('recovery_required');
       expect(f.verify).not.toHaveBeenCalled();
+      const steps = readUpdateActions(f.puddleHome, f.job, f.store.read()!).actions;
+      const uncertain =
+        failure === 'stop'
+          ? 'stop-daemon'
+          : failure === 'select'
+            ? 'select-daemon'
+            : 'start-daemon';
+      const index = steps.findIndex(({ action }) => action === uncertain);
+      expect(steps.slice(0, index).every(({ state }) => state === 'finished')).toBe(true);
+      expect(steps[index]!.state).toBe('started');
+      expect(steps.slice(index + 1).every(({ state }) => state === 'planned')).toBe(true);
       const changes = [...f.state.changes];
       await expect(executeHostUpdate(f.puddleHome, f.job, f.run)).rejects.toThrow();
       expect(f.state.changes).toEqual(changes);

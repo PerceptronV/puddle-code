@@ -31,6 +31,20 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- The surviving worker now writes a bounded step journal before activation,
+  binding its fixed stop/select/start plan to the accepted operation and worker.
+  Every step records durable intent before external mutation; lost replies and
+  failed completion writes retain uncertainty without repeating the step. Later
+  planned steps remain distinguishable from attempted ones. Existing installer,
+  service replacement and completion verification paths are reused. The journal
+  tests cover failures before/after durable writes, lost replies, exact ordering
+  and controller-claim release after shutdown when journal completion fails.
+  Installer transaction fixtures verify runtime-only, daemon and combined plans.
+  The journal
+  is recovery evidence, not permission to continue or proof of component health;
+  supported forward recovery still needs implementation. Older missing journals
+  cannot establish that a command never ran. All three protocols are unchanged.
+
 - Local/SSH `puddle updates` now falls back to the existing bootstrap helper when
   daemon authority cannot connect. It reads the bounded private operation ledger
   using the same schema and stage-digest validation as the daemon, without opening

@@ -6,6 +6,7 @@ import { executeHostUpdate } from '../../../src/updates/worker/execute.js';
 import { recordUpdateWorkerLifetime } from '../../../src/updates/worker/lifetime.js';
 import { verifyHostUpdateCompletion } from '../../../src/updates/verification/completion.js';
 import { updateInstallation as fixture } from '../../helpers/update-installation.js';
+import { readUpdateActions } from '../../../src/updates/worker/actions.js';
 
 // Installer composition uses simulated supervision; lifetime has separate process tests.
 vi.mock('../../../src/updates/worker/lifetime.js', () => ({
@@ -20,6 +21,9 @@ it('uses the canonical installer, verifies exact selection and consumes the oper
     expect(command.detached).toBe(false);
     expect(command.env).not.toHaveProperty('CLAUDECODE');
     expect(command.args).toContain('--select-only');
+    expect(readUpdateActions(f.puddleHome, f.job, f.store.read()!).actions).toEqual([
+      { action: 'select-runtime', state: 'started' },
+    ]);
     return runCompilationCommand(command);
   });
   expect(f.selected('runtime')).toBe(
@@ -27,6 +31,9 @@ it('uses the canonical installer, verifies exact selection and consumes the oper
   );
   expect(readFileSync(f.marker, 'utf8')).toBe('launchd\n');
   expect(f.store.read()?.phase).toBe('complete');
+  expect(readUpdateActions(f.puddleHome, f.job, f.store.read()!).actions).toEqual([
+    { action: 'select-runtime', state: 'finished' },
+  ]);
   expect(f.store.read()?.verification).toMatch(/^[a-f0-9]{64}$/);
   await expect(
     executeHostUpdate(f.puddleHome, f.job, async () => {
@@ -85,6 +92,9 @@ it('keeps a successful selection after a lost reply and never repeats activation
     join(f.puddleHome, 'bin/versions', f.receipt.record.generation),
   );
   expect(f.store.read()?.phase).toBe('recovery_required');
+  expect(readUpdateActions(f.puddleHome, f.job, f.store.read()!).actions).toEqual([
+    { action: 'select-runtime', state: 'started' },
+  ]);
   await expect(executeHostUpdate(f.puddleHome, f.job)).rejects.toThrow();
   expect(f.store.begin(f.operation.targets).created).toBe(false);
   const recovery = f.store.read()!;

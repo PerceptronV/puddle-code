@@ -218,6 +218,14 @@ receipt validation. The CLI labels this as recorded state, without opening SQLit
 starting services, issuing a lease or repeating installation. Cancellation,
 recovery and fresh adoption verification still require the live control channel.
 
+The worker also writes a private bounded step journal before activation. Its exact
+stop/select/start plan is bound to the operation, dispatch, worker and approval;
+each step records durable intent before it may issue a component command. A lost
+reply or failed completion write cannot reset that step to unattempted. Subsequent
+steps remain distinguishable from attempted work, but a finished entry is not fresh
+service health or runtime adoption evidence. Existing journals cannot be restarted
+by ordinary execution, and missing older journals grant no replay permission.
+
 Before any activation command, the updater confirms its independent service,
 requires that it leads its own process group and durably records that group against
 the operation, dispatch and worker identities. Commands remain in that group.

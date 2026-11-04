@@ -25,8 +25,7 @@ export function requireExecutingUpdate(
     !operation.worker_id ||
     operation.revision !== job.dispatch_revision + (phase === 'applying' ? 1 : 2) ||
     operation.dispatch_id !== job.dispatch_id ||
-    operation.approved !== job.preflight ||
-    !operation.targets.some((target) => target.component === 'daemon')
+    operation.approved !== job.preflight
   )
     throw new Error('Component replacement does not match an executing update');
   return operation;

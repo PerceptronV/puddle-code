@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Changed
 
+- Record durable host-update step intent before stopping services, selecting releases or starting replacements, retaining attempted versus unstarted work after lost replies and storage failures for explicit recovery.
+
 - Inspect recorded host-update status through local/SSH access when the daemon cannot connect, reusing the existing host-control helper and shared private-ledger validation without starting services or replaying updates.
 
 - Add `puddle updates --operation <id> --recover` (application 25.11) to verify completed host updates after lost replies without repeating installation or service commands. Record the updater's process group before activation; retain maintenance and recovery while its commands may still be running. Incomplete installations and recovery with the daemon stopped remain pending.

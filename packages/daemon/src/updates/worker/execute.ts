@@ -13,6 +13,7 @@ import { stopDaemonForUpdate } from './daemon/stop.js';
 import { selectUpdateStage, verifyUpdateSelection } from './selection.js';
 import { verifyHostUpdateCompletion } from '../verification/completion.js';
 import { recordUpdateWorkerLifetime } from './lifetime.js';
+import { HostUpdateActions } from './actions.js';
 
 /** One consumed worker transaction; uncertainty always retains its operation for inspection. */
 export async function executeHostUpdate(
@@ -40,18 +41,23 @@ export async function executeHostUpdate(
   let handoff: Awaited<ReturnType<typeof stopDaemonForUpdate>> | undefined;
   try {
     await recordUpdateWorkerLifetime(home, job, worker.operation, execute);
+    const actions = new HostUpdateActions(home, job);
     if (daemon) {
       if (candidate!.database_schema_version === undefined)
         throw new Error('Candidate database support is unknown');
-      await stopConnectorForUpdate(home, job, execute);
-      handoff = await stopDaemonForUpdate(home, job, execute);
+      await actions.run('stop-connector', async () => {
+        await stopConnectorForUpdate(home, job, execute);
+      });
+      await actions.run('stop-daemon', async () => {
+        handoff = await stopDaemonForUpdate(home, job, execute);
+      });
       if (
         candidate!.database_schema_version === undefined ||
-        candidate!.database_schema_version < handoff.checkpoint.daemon.schema_version
+        candidate!.database_schema_version < handoff!.checkpoint.daemon.schema_version
       )
         throw new Error('Candidate cannot open the checkpointed application database');
       if (
-        handoff.checkpoint.owners.some(
+        handoff!.checkpoint.owners.some(
           (owner) => !candidate!.supported_runtime_majors.includes(owner.protocol.major),
         )
       )
@@ -60,15 +66,21 @@ export async function executeHostUpdate(
     // Each selector is atomic. A failure between components retains the exact partial
     // result for recovery; never silently undo a selection or replay its installer.
     for (const stage of pending.stages) {
-      await selectUpdateStage(home, job, stage, execute);
-      verifyUpdateSelection(home, stage);
+      await actions.run(`select-${stage.record.component}`, async () => {
+        await selectUpdateStage(home, job, stage, execute);
+        verifyUpdateSelection(home, stage);
+      });
     }
     const verifying = worker.verifying();
     handoff?.release();
     handoff = undefined;
     if (daemon) {
-      await startReplacementService(home, job.daemon_service!, execute);
-      await startConnectorAfterUpdate(home, job, daemon, execute);
+      await actions.run('start-daemon', async () => {
+        await startReplacementService(home, job.daemon_service!, execute);
+      });
+      await actions.run('start-connector', async () => {
+        await startConnectorAfterUpdate(home, job, daemon, execute);
+      });
     }
     const deadline = Date.now() + 30_000;
     let verification: string;

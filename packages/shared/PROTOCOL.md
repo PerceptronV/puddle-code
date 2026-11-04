@@ -59,6 +59,14 @@ remote 4 and runtime 1.0 are unchanged. `installation/worker.ts` also defines th
 private pre-activation lifetime record, bound to operation, dispatch and worker
 identities. It is not a new wire or runtime-state version.
 
+`installation/actions.ts` defines a private, bounded worker step journal with a
+fixed plan and serial planned/started/finished states. Each stop, selection and
+start step records durable intent before it may mutate a component. Lost replies
+retain started; finished records a returned step, not current health or adoption.
+Readers bind the exact plan to operation, dispatch, worker and approval identities.
+Missing journals from older workers cannot prove that a step was never attempted.
+This evidence is internal to host updates and changes none of the three protocols.
+
 Protocol 25.9 adds nonce-correlated, read-only process inspection on the connector
 manager's existing exclusive private host socket. Replies contain bounded process,
 release and protocol metadata only; profile configuration, grants and registration

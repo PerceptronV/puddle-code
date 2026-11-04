@@ -192,6 +192,12 @@ when authority cannot connect. Share bounded ledger validation through
 `shared/src/node/installation/updates.ts`; label recorded evidence and never use
 it for fresh adoption, cancellation or recovery. Inspection must not open SQLite
 or start a service.
+Worker step intent lives in `updates/worker/actions.ts` with private shared schemas
+under `installation/actions.ts`. Persist intent before any stop/select/start step;
+never overwrite an existing journal or replay started steps. Finished entries do
+not substitute for fresh service/adoption checks, and missing old journals cannot
+prove a command was never attempted. Use the existing installer and supervisor
+helpers inside these boundaries.
 Runtime owners and update workers share `host/services.ts`; neither service may
 inherit puddled's restart or termination boundary. The packaged one-shot updater
 composes runtime-default and daemon/combined selection using its pinned copy of the
