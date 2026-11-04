@@ -36,6 +36,7 @@ import {
   waitForOwner,
   waitForSnapshot,
   retainRuntimeHome,
+  admitFixtureOwner,
 } from '../../helpers/runtime-fixture.js';
 import { continuitySupervisor } from '../../helpers/update-continuity/release.js';
 import { waitFor } from '../../helpers/daemon-fixtures.js';
@@ -235,6 +236,7 @@ it.runIf(!!process.env.PUDDLE_TEST_RUNTIME_RELEASE)(
     ).toBe(`puddler ${version} (runtime protocol ${protocol})`);
     expect(readdirSync(f.home).sort()).toEqual(before);
 
+    admitFixtureOwner(f.home, f.launch.identity.runtime_id);
     const child = spawn(
       join(stage, 'puddler'),
       ['--home', f.home, '--runtime', f.launch.identity.runtime_id],
