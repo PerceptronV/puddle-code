@@ -68,6 +68,13 @@ See [outcome and decisions](#outcome-and-decisions) for the agreed scope,
 
 Implementation evidence so far (newest first; earlier entries record their milestone limitations):
 
+- Claude's pinned status helper now drains input beyond 64 KiB without retaining
+  it or replacing the last useful status. It records only finite numeric usage
+  and a bounded model label; the adapter reads at most 4 KiB of validated metadata.
+  Thirteen status/helper-asset checks, source/test TypeScript and lint passed.
+  This bounds a Puddle-managed helper alongside runtime persistence; native
+  conversation files and user-controlled status commands remain outside that policy.
+
 - Runtime persistence now uses shared fixed-slot atomic writers: one journal
   scratch, one state scratch, 64 checkpoint scratches and two screen scratches
   across all screen keys. Byte ceilings precede creation; exclusive opens and
