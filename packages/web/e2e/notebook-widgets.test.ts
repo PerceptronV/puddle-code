@@ -158,6 +158,14 @@ define(['@jupyter-widgets/base'], function(base) {
   });
   try {
     await page.goto(`${origin}/e2e/fixtures/notebook.html`);
+    // Run All exists before the version query chooses live execution over the
+    // legacy executed-copy action. The cell control enables only for live runs.
+    await expect(
+      page
+        .getByRole('region', { name: 'Cell 1', exact: true })
+        .getByRole('button', { name: 'Run Cell', exact: true })
+        .first(),
+    ).toBeEnabled();
     await page.getByRole('button', { name: 'Run All', exact: true }).click();
     const frame = page.frameLocator('iframe[title="Jupyter widget"]');
     await page.locator('iframe[title="Jupyter widget"]').scrollIntoViewIfNeeded();

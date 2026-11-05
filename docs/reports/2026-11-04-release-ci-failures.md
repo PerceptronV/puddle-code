@@ -121,3 +121,13 @@ now waits, with a ten-second bound, for a marker written inside that exact cell
 before interrupting it. All four real-kernel lifecycle checks passed locally in
 26.36 seconds. The CI timeout alone does not identify its precise blocked phase;
 the subsequent Linux run remains the confirmation for this correction.
+
+Local serial browser acceptance passed 93 tests in 4.7 minutes; the real-widget
+case skipped because that process's PATH did not expose Jupyter. Running it with
+the installed environment first exposed another readiness gap: Run All is visible
+before the version query selects live execution, so the fixture could invoke its
+legacy fallback. The widget case now waits for the live cell-run control to enable
+before Run All. Its complete real-kernel flow passed in 36.3 seconds, including
+binary uploads, extension callbacks and saved-state restoration. All 94 browser
+cases have therefore passed locally across these two runs; Linux CI remains the
+authoritative end-to-end release gate.
