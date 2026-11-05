@@ -865,9 +865,15 @@ export function SessionSidebar({
   projectActions: ProjectHeaderActions;
 }) {
   const controls = (
-    <div className="flex shrink-0 items-center gap-1 px-2 py-1.5">
-      <IconButton icon={PanelRightClose} label="Hide sessions" onClick={onCollapse} />
-      <ControlTray label="New sessions" variant="selection" className="ml-auto">
+    <div className="pointer-events-none z-10 col-start-1 row-start-1 flex items-center gap-1 self-start px-2 py-1.5">
+      <ControlTray
+        label="Session sidebar"
+        variant="selection"
+        className="control-tray-square pointer-events-auto"
+      >
+        <IconButton icon={PanelRightClose} label="Hide sessions" onClick={onCollapse} />
+      </ControlTray>
+      <ControlTray label="New sessions" variant="selection" className="pointer-events-auto ml-auto">
         <IconButton icon={Bot} label="New agent" onClick={onNewSession} />
         <IconButton icon={SquareTerminal} label="New terminal" onClick={onNewTerminal} />
       </ControlTray>
@@ -978,13 +984,15 @@ function SessionListBody({
 
   return (
     <>
-      <div className="workspace-surface island-outline flex min-h-0 flex-1 flex-col bg-surface">
+      <div className="workspace-surface island-outline grid min-h-0 flex-1 grid-cols-1 grid-rows-[minmax(0,1fr)] bg-surface">
         {header}
         {/* body */}
         {/* No horizontal padding: the active/hover fill-shift bleeds to both
           sidebar edges (each row carries its own px-3). Scrolls without a
           visible scrollbar so a long cross-project list still works. */}
-        <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain py-1.5">
+        {/* Initial clearance scrolls away with the list, leaving only the two
+            control islands above the content. Include tray and header padding. */}
+        <div className="no-scrollbar col-start-1 row-start-1 min-h-0 overflow-y-auto overscroll-contain pb-1.5 pt-[calc(var(--ui-control-height)+1.5rem)]">
           {total === 0 && archived.length === 0 && (
             <p className="px-3 py-3 text-xs text-fg-muted">
               No sessions yet — press {paletteKey} to start one.

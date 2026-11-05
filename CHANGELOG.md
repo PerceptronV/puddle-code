@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Cockpit
 
+- Highlight draggable dividers between workspace islands with a bold rule on hover, keyboard focus, and while resizing.
+- Float session sidebar controls above scrolling content, give the collapse control a matching square island, and preserve initial clearance above project titles.
 - Fetch a fresh session list for notifications from uncached sessions so an incomplete cache cannot silently drop alerts from other projects.
 - Restore live remote-session alerts while push registration is unconfirmed after a disconnect or failed reconnection.
 - Recognise terminal paths containing spaces and multiline paths split before or after `/`, preserving full clickable ranges and resolve-validated fallbacks.

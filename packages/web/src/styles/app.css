@@ -436,11 +436,38 @@
   overflow: hidden;
 }
 
-/* Invisible resize targets preserve the gap between floating surfaces. */
+/* Resize targets preserve the gap and reveal a bold rule on interaction. */
 .workspace-divider-vertical,
 .workspace-divider-horizontal {
+  position: relative;
   flex-shrink: 0;
   background: transparent;
+}
+.workspace-divider-vertical::after,
+.workspace-divider-horizontal::after {
+  content: '';
+  position: absolute;
+  border-radius: var(--ui-radius);
+  background: var(--text-muted);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 120ms ease;
+}
+.workspace-divider-vertical::after {
+  inset-block: var(--ui-surface-radius);
+  left: 50%;
+  width: 3px;
+  transform: translateX(-50%);
+}
+.workspace-divider-horizontal::after {
+  inset-inline: var(--ui-surface-radius);
+  top: 50%;
+  height: 3px;
+  transform: translateY(-50%);
+}
+.workspace-divider-vertical:is(:hover, :focus-visible, [data-separator='active'])::after,
+.workspace-divider-horizontal:is(:hover, :focus-visible, [data-separator='active'])::after {
+  opacity: 1;
 }
 .workspace-divider-vertical {
   width: var(--ui-surface-gap);
