@@ -1,15 +1,17 @@
 import { CliError } from '../types.js';
 import { repoSlug } from '../version.js';
-import { latestGitHubRelease } from '@puddle/shared/node/host-control';
+import { latestComponentReleases } from '@puddle/shared/node/host-control';
 
 /**
  * Release-version resolution for `puddle install`/`upgrade` (SPEC §10):
- * "newest" means the repository's latest published release, resolved
+ * "newest" means the selected component in the latest release manifest, resolved
  * client-side so messages and pin warnings can name the version before any
  * installer runs. install.sh can resolve latest itself, but only after the
  * CLI has already committed to running it.
  */
-export async function latestReleaseVersion(opts: { fetchFn?: typeof fetch } = {}): Promise<string> {
+export async function latestReleaseVersion(
+  opts: { fetchFn?: typeof fetch; component?: 'cockpit' | 'daemon' | 'runtime' } = {},
+): Promise<string> {
   const slug = repoSlug();
   if (slug === undefined) {
     throw new CliError(
@@ -19,7 +21,8 @@ export async function latestReleaseVersion(opts: { fetchFn?: typeof fetch } = {}
     );
   }
   try {
-    return (await latestGitHubRelease(slug, opts)).version;
+    return (await latestComponentReleases(slug, opts)).components[opts.component ?? 'daemon']
+      .version;
   } catch (error) {
     throw new CliError(
       'not_installed',

@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readReleasePlan } from '../../../scripts/lib/releases/plan.mjs';
 /**
  * Builds the publishable CLI: one esbuild bundle (ws and @puddle/shared
  * inlined, so the published package has zero runtime dependencies), the
@@ -39,6 +40,7 @@ await build({
   },
   define: {
     __PUDDLE_CLI_VERSION__: JSON.stringify(version),
+    __PUDDLE_COMPONENT_VERSIONS__: JSON.stringify(readReleasePlan(repoRoot, version).components),
     ...(slug ? { __PUDDLE_REPO_SLUG__: JSON.stringify(slug) } : {}),
   },
   banner: {

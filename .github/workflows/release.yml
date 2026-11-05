@@ -7,7 +7,22 @@ permissions:
   contents: write
 
 jobs:
+  plan:
+    runs-on: ubuntu-latest
+    outputs:
+      host: ${{ steps.plan.outputs.host }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - id: plan
+        run: node scripts/check-release-plan.mjs "${GITHUB_REF_NAME#v}" --verify-history
+
   tarball-linux:
+    needs: plan
     strategy:
       # Let both native architectures finish so one failure cannot hide the
       # other architecture's result (as happened in v0.0.44 and v0.0.45).
@@ -55,10 +70,12 @@ jobs:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
       - name: verify runtime test host process inspection and orphan reaping
         run: node scripts/check-runtime-test-host.mjs
-      - run: node scripts/build-tarball.mjs --version "${GITHUB_REF_NAME#v}"
+      - if: needs.plan.outputs.host == 'true'
+        run: node scripts/build-tarball.mjs --version "${GITHUB_REF_NAME#v}"
         env:
           PUDDLE_REPO_SLUG: ${{ github.repository }}
       - name: verify packaged runtime continuity
+        if: needs.plan.outputs.host == 'true'
         run: PUDDLE_TEST_RUNTIME_RELEASE="dist-release/stage/puddled-${GITHUB_REF_NAME}" PUDDLE_TEST_RUNTIME_ARCHIVE="dist-release/puddled-${GITHUB_REF_NAME}-${{ matrix.target }}.tar.gz" node node_modules/vitest/vitest.mjs run packages/daemon/test/runtime/lifecycle/release.test.ts
       - name: build standalone CLI archive
         env:
@@ -69,6 +86,7 @@ jobs:
           node scripts/build-cli-tarball.mjs --version "${GITHUB_REF_NAME#v}"
           node scripts/test-cli-tarball.mjs
       - name: verify packaged native ABI
+        if: needs.plan.outputs.host == 'true'
         run: node scripts/check-linux-native-abi.mjs dist-release/stage
       - uses: actions/upload-artifact@v4
         with:
@@ -79,6 +97,7 @@ jobs:
           if-no-files-found: error
 
   tarball-darwin:
+    needs: plan
     # darwin-x64 is unpublished while GitHub's last Intel runner queues too
     # slowly to block releases; restore it (or build under Rosetta) if needed.
     runs-on: macos-15
@@ -92,10 +111,12 @@ jobs:
       - run: node scripts/install-ci.mjs
         env:
           ELECTRON_SKIP_BINARY_DOWNLOAD: '1'
-      - run: node scripts/build-tarball.mjs --version "${GITHUB_REF_NAME#v}"
+      - if: needs.plan.outputs.host == 'true'
+        run: node scripts/build-tarball.mjs --version "${GITHUB_REF_NAME#v}"
         env:
           PUDDLE_REPO_SLUG: ${{ github.repository }}
       - name: verify packaged runtime continuity
+        if: needs.plan.outputs.host == 'true'
         run: PUDDLE_TEST_RUNTIME_RELEASE="dist-release/stage/puddled-${GITHUB_REF_NAME}" PUDDLE_TEST_RUNTIME_ARCHIVE="dist-release/puddled-${GITHUB_REF_NAME}-darwin-arm64.tar.gz" node node_modules/vitest/vitest.mjs run packages/daemon/test/runtime/lifecycle/release.test.ts
       - name: build standalone CLI archive
         env:
@@ -208,6 +229,8 @@ jobs:
           pattern: desktop-*
           merge-multiple: true
           path: dist-release
+      - name: stage component release manifest
+        run: node scripts/check-release-plan.mjs "${GITHUB_REF_NAME#v}" --stage
       - name: assemble SHA256SUMS and the public CLI installer
         run: |
           cat dist-release/*.sha256 > dist-release/SHA256SUMS
@@ -228,6 +251,9 @@ jobs:
             dist-release/*.AppImage \
             dist-release/SHA256SUMS \
             dist-release/install.sh \
+            dist-release/release-manifest.json \
+            dist-release/daemon-version \
+            dist-release/runtime-version \
             --verify-tag --notes-file dist-release/RELEASE_NOTES.md
 
   npm-publish:

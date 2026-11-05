@@ -47,6 +47,7 @@ import { build } from 'esbuild';
 
 import { stageNodeRuntime } from './lib/node-runtime.mjs';
 import { smokePuddlang } from './lib/puddlang-smoke.mjs';
+import { readReleasePlan } from './lib/releases/plan.mjs';
 import { releaseNotes } from './lib/releases/notes.mjs';
 
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -231,6 +232,10 @@ function writeMetadata() {
     chmodSync(join(stage, name), 0o755);
   }
   writeFileSync(join(stage, 'VERSION'), `${version}\n`);
+  writeFileSync(
+    join(stage, 'release-manifest.json'),
+    JSON.stringify(readReleasePlan(repoRoot, version)) + '\n',
+  );
   if (notes !== null) writeFileSync(join(stage, 'RELEASE_NOTES.md'), notes);
   // Read directly by `puddle --version`; an offline inventory must never
   // execute an unknown historical daemon just to discover compatibility.

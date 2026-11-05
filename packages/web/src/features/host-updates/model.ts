@@ -14,15 +14,18 @@ export function availableHostUpdates(
 ): HostUpdateTargets {
   const catalogue = status?.catalogue;
   const latest = catalogue?.releases.latest;
-  if (status?.availability !== 'ready' || !catalogue || !latest?.host_asset) return [];
+  if (status?.availability !== 'ready' || !catalogue) return [];
   const targets: HostUpdateTargets = [];
-  if (isNewerVersion(latest.version, catalogue.daemon_version))
-    targets.push({ component: 'daemon', version: latest.version });
+  const daemon = catalogue.releases.components?.daemon ?? latest;
+  const runtime = catalogue.releases.components?.runtime ?? latest;
+  if (daemon?.host_asset && isNewerVersion(daemon.version, catalogue.daemon_version))
+    targets.push({ component: 'daemon', version: daemon.version });
   if (
+    runtime?.host_asset &&
     catalogue.runtime_default &&
-    isNewerVersion(latest.version, catalogue.runtime_default.version)
+    isNewerVersion(runtime.version, catalogue.runtime_default.version)
   )
-    targets.push({ component: 'runtime', version: latest.version });
+    targets.push({ component: 'runtime', version: runtime.version });
   return targets;
 }
 

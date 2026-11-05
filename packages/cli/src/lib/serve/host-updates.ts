@@ -17,7 +17,10 @@ export function hostUpdatesHandler(control: CockpitHostUpdates | undefined) {
     if (req.method !== 'GET' && req.method !== 'POST') return fail(res, 405, 'method_not_allowed');
     const url = new URL(req.url!, 'http://localhost');
     const query = cockpitHostUpdateQuerySchema.parse(Object.fromEntries(url.searchParams));
-    if (url.searchParams.getAll('id').length > 1 || (req.method === 'POST' && url.search))
+    if (
+      [...url.searchParams.keys()].some((key) => url.searchParams.getAll(key).length > 1) ||
+      (req.method === 'POST' && url.search)
+    )
       return fail(res, 400, 'bad_request');
     const request =
       req.method === 'POST' ? cockpitHostUpdateRequestSchema.parse(await readJson(req)) : null;
@@ -31,7 +34,7 @@ export function hostUpdatesHandler(control: CockpitHostUpdates | undefined) {
     try {
       const result = request
         ? await control.request(request, authorised, signal)
-        : await control.status(query.id, authorised, signal);
+        : await control.status(query.id, authorised, signal, query.components === '1');
       if (!authorised()) return fail(res, 401, 'browser_rejected');
       json(res, 200, result);
     } catch {

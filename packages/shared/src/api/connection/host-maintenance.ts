@@ -7,7 +7,13 @@ import {
 
 /** Private host control: only bounded, public update inputs; never stage receipts or paths. */
 export const hostMaintenanceCommandSchema = z.discriminatedUnion('action', [
-  z.object({ action: z.literal('status'), id: z.uuid().optional() }).strict(),
+  z
+    .object({
+      action: z.literal('status'),
+      id: z.uuid().optional(),
+      include_component_releases: z.literal(true).optional(),
+    })
+    .strict(),
   ...onlineHostUpdateRequestSchema.options,
 ]);
 export const hostMaintenanceReplySchema = z.discriminatedUnion('kind', [

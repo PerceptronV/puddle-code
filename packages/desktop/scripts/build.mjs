@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { readReleasePlan } from '../../../scripts/lib/releases/plan.mjs';
 import { renderPrompt } from './prompt-assets.mjs';
 /**
  * Builds the desktop shell, mirroring the CLI's build exactly: the main
@@ -36,6 +37,7 @@ const shared = {
   },
   define: {
     __PUDDLE_CLI_VERSION__: JSON.stringify(cliVersion),
+    __PUDDLE_COMPONENT_VERSIONS__: JSON.stringify(readReleasePlan(repoRoot, cliVersion).components),
     ...(slug ? { __PUDDLE_REPO_SLUG__: JSON.stringify(slug) } : {}),
   },
   sourcemap: false,

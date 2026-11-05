@@ -2,7 +2,7 @@ import { join } from 'node:path';
 import { z } from 'zod';
 import { hostReleaseCheckSchema, type HostReleaseCheck } from '@puddle/shared';
 import { atomicPrivateJson, readPrivateJson } from '@puddle/shared/node';
-import { latestGitHubRelease, releaseRepository } from '@puddle/shared/node/host-control';
+import { latestComponentReleases, releaseRepository } from '@puddle/shared/node/host-control';
 
 export const HOST_RELEASE_CHECK_MS = 30 * 60_000;
 const stored = z.object({ format: z.literal(1), check: hostReleaseCheckSchema }).strict();
@@ -74,24 +74,36 @@ export class HostReleaseChecks {
     const repository = this.check.repository!;
     this.pending = (async () => {
       try {
-        const release = await latestGitHubRelease(repository, {
+        const release = await latestComponentReleases(repository, {
           fetchFn: this.options.fetchFn,
           signal: this.abort.signal,
         });
         if (this.closed) return;
         const platform = this.options.platform ?? process.platform;
         const arch = this.options.arch ?? process.arch;
-        const file = `puddled-v${release.version}-${platform}-${arch}.tar.gz`;
+        const available = (target: typeof release.components.daemon) => ({
+          version: target.version,
+          host_asset:
+            ['linux', 'darwin'].includes(platform) &&
+            ['arm64', 'x64'].includes(arch) &&
+            target.assets.some(
+              (asset) => asset.name === `puddled-v${target.version}-${platform}-${arch}.tar.gz`,
+            ) &&
+            target.assets.some((asset) => asset.name === 'SHA256SUMS'),
+        });
+        const daemon = available(release.components.daemon);
+        const runtime = available(release.components.runtime);
         const host_asset =
-          ['linux', 'darwin'].includes(platform) &&
-          ['arm64', 'x64'].includes(arch) &&
-          release.assets.some((asset) => asset.name === file) &&
-          release.assets.some((asset) => asset.name === 'SHA256SUMS');
+          daemon.version === release.version &&
+          runtime.version === release.version &&
+          daemon.host_asset &&
+          runtime.host_asset;
         this.check = {
           ...this.check,
           state: 'ready',
           succeeded_at: this.check.checked_at,
           latest: { version: release.version, host_asset },
+          components: { daemon, runtime },
         };
       } catch {
         if (this.closed) return;

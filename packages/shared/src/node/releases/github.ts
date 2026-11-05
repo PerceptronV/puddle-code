@@ -26,11 +26,19 @@ export async function latestGitHubRelease(
   repository: string,
   options: { fetchFn?: typeof fetch; signal?: AbortSignal } = {},
 ): Promise<{ version: string; assets: ReleaseAsset[] }> {
+  return githubRelease(repository, 'latest', options);
+}
+
+export async function githubRelease(
+  repository: string,
+  ref: 'latest' | `tags/v${string}`,
+  options: { fetchFn?: typeof fetch; signal?: AbortSignal } = {},
+): Promise<{ version: string; assets: ReleaseAsset[] }> {
   releaseRepositorySchema.parse(repository);
   const timeout = AbortSignal.timeout(10_000);
   const signal = options.signal ? AbortSignal.any([timeout, options.signal]) : timeout;
   const response = await (options.fetchFn ?? fetch)(
-    `https://api.github.com/repos/${repository}/releases/latest`,
+    `https://api.github.com/repos/${repository}/releases/${ref}`,
     {
       headers: { accept: 'application/vnd.github+json', 'user-agent': 'puddle' },
       signal,

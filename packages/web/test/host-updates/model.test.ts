@@ -109,3 +109,15 @@ describe('reviewed activation', () => {
     expect(reviewedApply(status, reply)).toBeNull();
   });
 });
+
+it('only offers changed components when cockpit release numbers advance', () => {
+  const status = statusFixture();
+  status.catalogue!.releases.latest = { version: '0.4.9', host_asset: false };
+  status.catalogue!.releases.components = {
+    daemon: { version: '0.4.0', host_asset: true },
+    runtime: { version: '0.3.14', host_asset: true },
+  };
+  expect(availableHostUpdates(status)).toEqual([]);
+  status.catalogue!.releases.components.daemon.version = '0.4.8';
+  expect(availableHostUpdates(status)).toEqual([{ component: 'daemon', version: '0.4.8' }]);
+});

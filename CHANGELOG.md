@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Cockpit
 
+- Support selective component releases and manifest-pinned bootstrap; notify only for newly published host components, and reject explicitly requested skipped versions.
+
 - Skip unchanged terminal rich-output projections, resolve tab sessions once, and share delayed blob-download cleanup for worktree downloads.
 
 - Bound memory retained while streaming local or SSH logs, preserving complete output delivery and normal command capture.
@@ -22,6 +24,8 @@ Past releases: see docs/changelogs/.
 - Keep PDF zoom controls over the visible document instead of below its viewport; allow overlay trays to override their default positioning.
 
 ### Daemon
+
+- Resolve daemon and runtime updates independently from a release manifest, preserving existing pins and legacy catalogue readers.
 
 - Avoid writing conversation presence twice during one catalogue scan, preserving newer lifecycle observations and two-scan deletion confirmation.
 

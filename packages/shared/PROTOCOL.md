@@ -1,5 +1,14 @@
 # The puddle communication protocol
 
+Application **26.2** adds opt-in component release catalogues. Private status and
+remote maintenance status accept `include_component_releases: true`; supporting
+cockpits/connectors request it only for opted-in reads (`?components=1`). Older
+readers receive the original strict catalogue shape. `releases.components`
+contains separate daemon/runtime version and platform-asset availability; the
+legacy unified offer is disabled when components do not share the release tag.
+No mutation authority, approval, remote framing or runtime protocol changes.
+Release manifests live in GitHub assets, not in the wire authority boundary.
+
 The unreleased application **26.1** contract also includes read-only
 `GET /api/release-notes`, returning at most two installed release documents:
 the running daemon and selected runtime build. The shared `releaseNotesSchema`

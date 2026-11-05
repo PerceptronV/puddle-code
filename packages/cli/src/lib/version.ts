@@ -6,6 +6,7 @@ export { releaseRepository as repoSlug } from '@puddle/shared/node/host-control'
 // Inlined by esbuild at build time (packages/cli/scripts/build.mjs); dev runs
 // (vitest over src) fall back to reading package.json / the environment.
 declare const __PUDDLE_CLI_VERSION__: string | undefined;
+declare const __PUDDLE_COMPONENT_VERSIONS__: { daemon: string; runtime: string } | undefined;
 
 export function cliVersion(): string {
   if (typeof __PUDDLE_CLI_VERSION__ !== 'undefined') return __PUDDLE_CLI_VERSION__;
@@ -25,9 +26,14 @@ export function cliVersion(): string {
 }
 
 /**
- * The daemon release the CLI installs and upgrades to — the same version
- * train as the CLI itself (one tag releases both).
+ * The daemon baseline pinned by the release plan; unchanged hosts may skip cockpit tags.
  */
 export function pinnedDaemonVersion(): string {
-  return cliVersion();
+  return pinnedHostVersion('daemon');
+}
+
+export function pinnedHostVersion(component: 'daemon' | 'runtime'): string {
+  return typeof __PUDDLE_COMPONENT_VERSIONS__ === 'undefined'
+    ? cliVersion()
+    : __PUDDLE_COMPONENT_VERSIONS__[component];
 }

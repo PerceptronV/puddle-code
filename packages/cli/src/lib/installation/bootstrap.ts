@@ -1,10 +1,11 @@
+import { componentReleaseAt } from '@puddle/shared/node/host-control';
 import { existsSync, readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { hostPaths } from '../paths.js';
 import type { Transport } from '../transport/transport.js';
 import { CliError, type Logger, silentLogger } from '../types.js';
-import { pinnedDaemonVersion, repoSlug } from '../version.js';
+import { pinnedHostVersion, repoSlug } from '../version.js';
 import {
   parseHostReleaseVersion,
   parseLegacyHostVersion,
@@ -76,7 +77,7 @@ export async function bootstrapHostComponent(
   action: 'install' | 'stage' = 'install',
 ): Promise<string> {
   const logger = opts.logger ?? silentLogger;
-  const version = opts.version ?? pinnedDaemonVersion();
+  const version = opts.version ?? pinnedHostVersion(component);
 
   const args: string[] = ['--version', version, '--component', component];
   if (action === 'stage') args.push('--stage-only');
@@ -119,6 +120,17 @@ export async function bootstrapHostComponent(
         'no release source is configured for this build',
         'pass --tarball <path> (pnpm build:tarball produces one) or set PUDDLE_REPO=owner/repo',
       );
+    }
+    if (action === 'install' && component === 'daemon') {
+      const release = await componentReleaseAt(slug, 'daemon', version);
+      const runtimeVersion = release.manifest.components.runtime;
+      if (runtimeVersion !== version && (await installedVersion(transport, 'runtime')) === null)
+        await bootstrapHostComponent(
+          transport,
+          'runtime',
+          { ...opts, version: runtimeVersion, repository: slug },
+          'install',
+        );
     }
     args.push('--repo', slug);
   }

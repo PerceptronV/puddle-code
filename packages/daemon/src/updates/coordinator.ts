@@ -1,3 +1,4 @@
+import { presentHostCatalogue } from '@puddle/shared';
 import {
   hostUpdateCommandSchema,
   hostConnectorReplacementSchema,
@@ -73,7 +74,12 @@ export class HostUpdateCoordinator {
           ok: true,
           operation,
           ...(command.include_catalogue && this.deps.catalogue
-            ? { catalogue: this.deps.catalogue() }
+            ? {
+                catalogue: presentHostCatalogue(
+                  this.deps.catalogue(),
+                  command.include_component_releases,
+                ),
+              }
             : {}),
           ...(operation && command.include_recovery
             ? { recovery: inspectRecordedRecovery(this.deps.home, operation) }

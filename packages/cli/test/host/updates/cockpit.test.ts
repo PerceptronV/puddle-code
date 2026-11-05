@@ -259,3 +259,17 @@ it('does not open a replacement mutation authority when the cockpit is disconnec
   expect(open).not.toHaveBeenCalled();
   expect(f.commands).toEqual([]);
 });
+
+it('only requests component catalogues from supporting hosts and opted-in browsers', async () => {
+  const f = await cockpitUpdatesFixture('ssh');
+  await f.control.status(undefined, () => true, f.signal.signal);
+  expect(f.commands.at(-1)).not.toHaveProperty('include_component_releases');
+  await f.control.status(undefined, () => true, f.signal.signal, true);
+  expect(f.commands.at(-1)).toHaveProperty('include_component_releases', true);
+  Object.defineProperty(f.authority, 'version', {
+    configurable: true,
+    get: () => ({ version: '0.4.8', protocol: { major: 26, minor: 1 } }),
+  });
+  await f.control.status(undefined, () => true, f.signal.signal, true);
+  expect(f.commands.at(-1)).not.toHaveProperty('include_component_releases');
+});

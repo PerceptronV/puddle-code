@@ -46,6 +46,7 @@ export class RemoteHostUpdates {
         action: 'status',
         ...(command.id ? { id: command.id } : {}),
         include_catalogue: true,
+        ...(command.include_component_releases ? { include_component_releases: true } : {}),
         include_recovery: true,
       });
       return hostMaintenanceReplySchema.parse({

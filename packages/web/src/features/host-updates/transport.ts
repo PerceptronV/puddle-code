@@ -1,5 +1,10 @@
-import { onlineHostUpdateRequestSchema, type CockpitHostUpdateRequest } from '@puddle/shared';
-import { api } from '../../lib/transport/api';
+import {
+  onlineHostUpdateRequestSchema,
+  versionResponseSchema,
+  supportsApplicationFeature,
+  type CockpitHostUpdateRequest,
+} from '@puddle/shared';
+import { api, ApiError } from '../../lib/transport/api';
 import { browserTransport } from '../../lib/transport/browser-transport';
 
 export function hostUpdateScope() {
@@ -19,11 +24,33 @@ export function hostUpdateTransport(allowed: boolean) {
   return async (request?: CockpitHostUpdateRequest, signal?: AbortSignal) => {
     current();
     if (remote && request) onlineHostUpdateRequestSchema.parse(request);
-    const result = request
-      ? await api('POST', path, request, signal)
-      : signal
-        ? await api('GET', path, undefined, signal)
-        : await api('GET', path);
+    let readPath = path;
+    if (!request) {
+      const supported =
+        !remote ||
+        supportsApplicationFeature(
+          versionResponseSchema.parse(await api('GET', '/api/version', undefined, signal)).protocol,
+          { major: 26, minor: 2 },
+        );
+      if (supported) readPath += '?components=1';
+    }
+    let result;
+    try {
+      result = request
+        ? await api('POST', path, request, signal)
+        : await api('GET', readPath, undefined, signal);
+    } catch (error) {
+      // An older connector/cockpit may reject the additive query even with a new host.
+      // Only the read is retried, never preparation or activation.
+      if (
+        request ||
+        readPath === path ||
+        !(error instanceof ApiError) ||
+        ![400, 403].includes(error.status)
+      )
+        throw error;
+      result = await api('GET', path, undefined, signal);
+    }
     current();
     return result;
   };

@@ -40,7 +40,7 @@ describe('cockpit host update requests', () => {
     expect(second).toEqual(status);
     expect(api).toHaveBeenCalledExactlyOnceWith(
       'GET',
-      '/cockpit/updates',
+      '/cockpit/updates?components=1',
       undefined,
       expect.any(AbortSignal),
     );
@@ -137,7 +137,11 @@ describe('cockpit host update requests', () => {
       generation: 'first',
     } as NonNullable<ReturnType<typeof browserTransport>>);
     const first = hostUpdateQuery(true);
-    vi.mocked(api).mockResolvedValue(statusFixture());
+    vi.mocked(api).mockImplementation(async (_method, path) =>
+      path === '/api/version'
+        ? { version: '0.4.8', protocol: { major: 26, minor: 1 } }
+        : statusFixture(),
+    );
     await queryClient.fetchQuery(first);
     expect(api).toHaveBeenCalledWith(
       'GET',

@@ -236,6 +236,14 @@ else
       || die "cannot reach github.com/$REPO to resolve the latest release"
     VERSION=$(printf '%s' "$LATEST" | sed -n 's#.*/tag/v\{0,1\}##p')
     [ -n "$VERSION" ] || die "could not resolve the latest release of $REPO; pass --version"
+    POINTER="$CACHE_DIR/$COMPONENT-version"
+    STATUS=$(curl --max-time 15 --max-filesize 128 -sSL -w '%{http_code}' -o "$POINTER" "https://github.com/$REPO/releases/download/v$VERSION/$COMPONENT-version") \
+      || die "component release lookup failed"
+    case "$STATUS" in
+      200) VERSION=$(cat "$POINTER") ;;
+      404) : ;; # Legacy releases predate component pointers.
+      *) die "component release lookup failed (HTTP $STATUS)" ;;
+    esac
   fi
   valid_version
   FILE="puddled-v$VERSION-$OS-$ARCH.tar.gz"
@@ -345,6 +353,18 @@ else
     fi
     rm -f "$SMOKE_LOG"
   fi
+fi
+# The archive may contain shared host executables, but only advertised components
+# may be selected. Legacy archives have no manifest and retain their old meaning.
+if [ -e "$DEST/release-manifest.json" ]; then
+  "$DEST/bin/node" --input-type=commonjs - "$DEST/release-manifest.json" "$COMPONENT" "$VERSION" <<'NODE'
+const fs = require('node:fs');
+const [file, component, version] = process.argv.slice(2);
+if (fs.statSync(file).size > 16384) throw new Error('Release manifest too large');
+const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
+if (manifest.format !== 1 || manifest.version !== version || manifest.components?.[component] !== version)
+  throw new Error(`No ${component} was published for v${version}`);
+NODE
 fi
 CREATE_RECEIPT="$STAGE_ONLY"
 if [ -n "$STAGE" ] && [ -z "$ACTIVATE" ] &&
@@ -478,6 +498,14 @@ if [ "$COMPONENT" = daemon ] && [ -z "$ACTIVATE" ] &&
     die "initial runtime fails its own --version smoke test (details: $SMOKE_LOG)"
   fi
   rm -f "$SMOKE_LOG"
+  if [ -e "$DEST/release-manifest.json" ]; then
+    "$DEST/bin/node" --input-type=commonjs - "$DEST/release-manifest.json" "$VERSION" <<'NODE'
+const fs = require('node:fs');
+const manifest = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
+if (manifest.components.runtime !== process.argv[3])
+  throw new Error(`Install runtime ${manifest.components.runtime} before bootstrapping this daemon (use an updated cockpit)`);
+NODE
+  fi
   INITIAL_RUNTIME=1
 fi
 # Use the archive's Node as the standalone CLI installer does: rename replaces

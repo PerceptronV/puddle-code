@@ -38,7 +38,9 @@ export const cockpitHostUpdateRequestSchema = z.discriminatedUnion('action', [
     .strict(),
 ]);
 
-export const cockpitHostUpdateQuerySchema = z.object({ id: z.uuid().optional() }).strict();
+export const cockpitHostUpdateQuerySchema = z
+  .object({ id: z.uuid().optional(), components: z.literal('1').optional() })
+  .strict();
 
 const operation = hostUpdateOperationSchema.shape;
 export const cockpitHostUpdateOperationSchema = z

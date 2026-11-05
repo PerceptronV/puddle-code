@@ -34,6 +34,7 @@ const installer = join(root, 'scripts/install-cli.sh');
 const temps: string[] = [];
 afterEach(() => {
   vi.unstubAllEnvs();
+  vi.unstubAllGlobals();
   for (const temp of temps.splice(0)) rmSync(temp, { recursive: true, force: true });
 });
 
@@ -272,6 +273,10 @@ it.each(['daemon', 'runtime'] as const)(
   'pipes the embedded %s bootstrap over SSH with the GitHub release source',
   async (component) => {
     vi.stubEnv('PUDDLE_REPO', 'example/puddle');
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => new Response(JSON.stringify({ tag_name: 'v1.2.3', assets: [] }))),
+    );
     const transport: Transport = {
       kind: 'ssh',
       label: 'user@host',
@@ -290,3 +295,52 @@ it.each(['daemon', 'runtime'] as const)(
     expect(readInstallScript()).toContain('puddled-v$VERSION-$OS-$ARCH.tar.gz');
   },
 );
+
+it('selects a carried-forward runtime before a fresh selective daemon install', async () => {
+  vi.stubEnv('PUDDLE_REPO', 'example/puddle');
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(
+      async (input) =>
+        new Response(
+          JSON.stringify(
+            String(input).endsWith('release-manifest.json')
+              ? {
+                  format: 1,
+                  version: '1.2.3',
+                  components: { cockpit: '1.2.3', daemon: '1.2.3', runtime: '1.2.1' },
+                }
+              : {
+                  tag_name: 'v1.2.3',
+                  assets: [
+                    {
+                      name: 'release-manifest.json',
+                      browser_download_url: 'https://github.com/example/puddle/manifest',
+                    },
+                  ],
+                },
+          ),
+        ),
+    ),
+  );
+  const transport: Transport = {
+    kind: 'ssh',
+    label: 'user@host',
+    exec: vi.fn<Transport['exec']>().mockImplementation(async (command) => ({
+      code: command.startsWith('if ') ? 3 : 0,
+      stdout: '',
+      stderr: '',
+    })),
+    readFile: vi.fn(),
+    copyTo: vi.fn(),
+    dispose: vi.fn(),
+  };
+  await installDaemon(transport, { version: '1.2.3' });
+  const installs = vi
+    .mocked(transport.exec)
+    .mock.calls.filter(([command]) => command.startsWith('sh -s'));
+  expect(installs.map(([command]) => command)).toEqual([
+    "sh -s -- '--version' '1.2.1' '--component' 'runtime' '--repo' 'example/puddle'",
+    "sh -s -- '--version' '1.2.3' '--component' 'daemon' '--repo' 'example/puddle'",
+  ]);
+});

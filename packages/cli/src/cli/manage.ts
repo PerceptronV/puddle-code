@@ -62,32 +62,19 @@ function assertLocal(what: Component, host: string | undefined, verb: string): v
   );
 }
 
-/**
- * The host release a versionless install/upgrade lands on: the newest
- * published release, resolved client-side so messages can name it up front —
- * falling back to the CLI's own version train when the release API is
- * unreachable (still a correct daemon; the note says which train it came from).
- */
-async function resolveHostVersion(logger: Logger): Promise<string> {
-  try {
-    return await latestReleaseVersion();
-  } catch (e) {
-    const pinned = pinnedDaemonVersion();
-    logger.warn(
-      `cannot resolve the newest release (${e instanceof Error ? e.message : String(e)}) — using this CLI's version train v${pinned}`,
-    );
-    return pinned;
-  }
+/** Resolve the requested component; failed discovery never invents an unpublished host version. */
+async function resolveHostVersion(component: 'daemon' | 'runtime' = 'daemon'): Promise<string> {
+  return latestReleaseVersion({ component });
 }
 
 /**
  * An explicit @version can pin the daemon across a protocol major from this
  * CLI — which the next `puddle launch` would auto-upgrade straight back (the
- * forced-upgrade mechanism working as designed). Only the CLI's own version
- * is guaranteed skew-free, so anything else earns the warning.
+ * forced-upgrade mechanism working as designed). The CLI's manifest-pinned daemon baseline
+ * is the known compatible default, so anything else earns the warning.
  */
 function pinWarning(logger: Logger, version: string): void {
-  if (version === cliVersion()) return;
+  if (version === pinnedDaemonVersion()) return;
   logger.warn(
     `pinning the daemon to v${version} while this CLI is v${cliVersion()} — if the two speak ` +
       `different protocol majors, the next \`puddle launch\` will upgrade the daemon back (or refuse). ` +
@@ -146,8 +133,7 @@ async function installDaemonAt(
   explicitPin = true,
 ): Promise<number> {
   // A tarball names its own version (install.sh derives it from the file name).
-  const version =
-    explicit ?? (tarball !== undefined ? undefined : await resolveHostVersion(logger));
+  const version = explicit ?? (tarball !== undefined ? undefined : await resolveHostVersion());
   if (explicit !== undefined && explicitPin) pinWarning(logger, explicit);
   const result = await upgradeDaemon(transport, {
     ...(version !== undefined ? { version } : {}),
@@ -175,7 +161,7 @@ async function installRuntimeAt(
 ): Promise<number> {
   if (tarball !== undefined && explicit === undefined)
     throw new CliError('bad_arguments', 'A runtime --tarball requires an explicit @version');
-  const version = explicit ?? (await resolveHostVersion(logger));
+  const version = explicit ?? (await resolveHostVersion('runtime'));
   const result = await upgradeHostComponent(transport, 'runtime', { version, tarball, logger });
   logger.info(
     `puddler default ${result.from ?? '(not installed)'} → ${result.to} on ${transport.label}; running runtimes keep their pinned build`,
@@ -226,9 +212,9 @@ export async function runUpgrade(
       const runtimeInstalled = (await installedVersion(transport, 'runtime')) !== null;
       if (runtimeInstalled && cmd.tarball !== undefined && cmd.version === undefined)
         throw new CliError('bad_arguments', 'A runtime --tarball requires an explicit @version');
-      const version = cmd.version ?? (cmd.tarball ? undefined : await resolveHostVersion(logger));
+      const version = cmd.version ?? (cmd.tarball ? undefined : await resolveHostVersion());
       await installDaemonAt(transport, version, cmd.tarball, logger, cmd.version !== undefined);
-      if (runtimeInstalled) await installRuntimeAt(transport, version, cmd.tarball, logger);
+      if (runtimeInstalled) await installRuntimeAt(transport, cmd.version, cmd.tarball, logger);
       return 0;
     } finally {
       transport.dispose();
@@ -248,12 +234,12 @@ export async function runUpgrade(
   // exiting. The already-loaded process finishes fine; a re-entry would not.
   const hostVersion =
     daemonInstalled || runtimeInstalled
-      ? (cmd.version ?? (cmd.tarball ? undefined : await resolveHostVersion(logger)))
+      ? (cmd.version ?? (cmd.tarball ? undefined : await resolveHostVersion()))
       : cmd.version;
   if (daemonInstalled)
     await installDaemonAt(transport, hostVersion, cmd.tarball, logger, cmd.version !== undefined);
   else logger.info('no daemon installed on this machine — skipping (puddle install daemon)');
-  if (runtimeInstalled) await installRuntimeAt(transport, hostVersion, cmd.tarball, logger);
+  if (runtimeInstalled) await installRuntimeAt(transport, cmd.version, cmd.tarball, logger);
   if (desktopInstalled) await setDesktop({ version: cmd.version, verb: 'upgrade' }, logger);
   else if (process.platform === 'darwin') logger.info('no desktop app installed — skipping');
   return upgradeCli(cmd.version, logger);

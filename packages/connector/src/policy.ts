@@ -18,7 +18,7 @@ import {
 const hex = '[a-f0-9]{10}';
 const uuid = '[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}';
 const routes: ReadonlyArray<readonly [string, RegExp, readonly string[]]> = [
-  ['GET', /^\/api\/host\/updates$/, ['id']],
+  ['GET', /^\/api\/host\/updates$/, ['id', 'components']],
   ['POST', /^\/api\/host\/updates$/, []],
   ['POST', /^\/api\/notifications\/(push|test)$/, []],
   ['GET', /^\/api\/(version|release-notes|host|config|agents|profiles|repos)$/, []],
@@ -89,8 +89,11 @@ export function permittedRequest(
     if (!maintenanceAllowed) throw new Error('Host updates require host-approved device access');
     if (message.method === 'GET') {
       if (message.body !== undefined) throw new Error('This operation has no request body');
+      if (url.searchParams.has('components') && url.searchParams.get('components') !== '1')
+        throw new Error('Invalid component catalogue request');
       maintenance = hostMaintenanceCommandSchema.parse({
         action: 'status',
+        ...(url.searchParams.get('components') === '1' ? { include_component_releases: true } : {}),
         ...(url.searchParams.has('id') ? { id: url.searchParams.get('id') } : {}),
       });
     } else {

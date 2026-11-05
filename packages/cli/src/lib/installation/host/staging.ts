@@ -8,7 +8,7 @@ import {
 } from '../bootstrap.js';
 import type { Transport } from '../../transport/transport.js';
 import { CliError, type Logger } from '../../types.js';
-import { pinnedDaemonVersion } from '../../version.js';
+import { pinnedHostVersion } from '../../version.js';
 
 function validatedReceipt(value: unknown): HostStageReceipt {
   try {
@@ -29,7 +29,7 @@ export async function stageHostComponent(
 ): Promise<HostStageReceipt> {
   const output = await bootstrapHostComponent(transport, component, options, 'stage');
   try {
-    return parseHostStageOutput(output, component, options.version ?? pinnedDaemonVersion());
+    return parseHostStageOutput(output, component, options.version ?? pinnedHostVersion(component));
   } catch (error) {
     throw new CliError(
       'not_installed',

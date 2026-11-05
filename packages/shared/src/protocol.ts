@@ -329,7 +329,8 @@
 // 25.20: bounded host purge and explicit runtime lifetime presentation/update checks.
 // 26.0: exact host-approved remote-device maintenance authority and bounded update controls.
 // 26.1: explicit profile-authorised read/discard of retained programme outcomes.
-export const PROTOCOL_VERSION = { major: 26, minor: 1 } as const;
+// 26.2: opt-in per-component release catalogue; legacy strict responses remain unchanged.
+export const PROTOCOL_VERSION = { major: 26, minor: 2 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

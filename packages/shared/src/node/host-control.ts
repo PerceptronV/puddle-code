@@ -1,3 +1,8 @@
+export {
+  latestComponentReleases,
+  componentReleaseAt,
+  releaseManifest,
+} from './releases/components.js';
 import { HostUpdateOnlyScope, type HostUpdateConnectionScope } from './control/update-authority.js';
 export type { HostUpdateConnectionScope } from './control/update-authority.js';
 export { readStageCapabilities, readInstalledCapabilities } from './installation/capabilities.js';

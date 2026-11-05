@@ -25,6 +25,7 @@ export const hostUpdateCommandSchema = z.discriminatedUnion('action', [
       include_recovery: z.literal(true).optional(),
       /** Host-wide versions and coalesced release discovery (25.14), never admission evidence. */
       include_catalogue: z.literal(true).optional(),
+      include_component_releases: z.literal(true).optional(),
     })
     .strict()
     .refine(

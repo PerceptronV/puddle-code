@@ -521,7 +521,7 @@ it('requires a new user action when inspection changes before apply', async () =
   expect(f.dispatch).not.toHaveBeenCalled();
 });
 
-it('includes an installed runtime in bare host upgrades, resolving the host release once', async () => {
+it('includes an installed runtime in bare host upgrades, resolving each component independently', async () => {
   const f = await fixture('ssh');
   mock.stage.mockImplementationOnce(async () => {
     expect(mock.daemon).toHaveBeenCalledOnce();
@@ -529,7 +529,8 @@ it('includes an installed runtime in bare host upgrades, resolving the host rele
     return f.stage;
   });
   expect(await runUpgrade({ cmd: 'upgrade', host: 'user@host' }, f.logger)).toBe(0);
-  expect(mock.latest).toHaveBeenCalledOnce();
+  expect(mock.latest).toHaveBeenCalledWith({ component: 'daemon' });
+  expect(mock.latest).toHaveBeenCalledWith({ component: 'runtime' });
   expect(mock.daemon).toHaveBeenCalledWith(
     f.transport,
     expect.objectContaining({ version: '0.4.0' }),

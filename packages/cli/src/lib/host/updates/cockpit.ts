@@ -59,6 +59,7 @@ export class CockpitHostUpdates {
     id: string | undefined,
     authorised: () => boolean,
     signal: AbortSignal,
+    components = false,
   ): Promise<CockpitHostUpdateStatus> {
     if (!authorised() || signal.aborted) throw new Error('Browser authorisation expired');
     const generation = this.authority.generation;
@@ -81,6 +82,10 @@ export class CockpitHostUpdates {
               ...(id ? { id } : {}),
               ...(capabilities.continue_recovery ? { include_recovery: true } : {}),
               ...(this.supports(14) ? { include_catalogue: true } : {}),
+              ...(components &&
+              supportsApplicationFeature(this.authority.version?.protocol, { major: 26, minor: 2 })
+                ? { include_component_releases: true }
+                : {}),
             }),
           )
         : availability === 'unavailable'

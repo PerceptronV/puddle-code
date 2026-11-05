@@ -370,3 +370,34 @@ describe('install.sh tree validation', () => {
     expect(existsSync(join(legacy, 'puddled'))).toBe(true);
   });
 });
+
+it('rejects selecting an excluded component even when its executable shares the host archive', () => {
+  const f = fixture();
+  writeFileSync(
+    join(f.staged, 'release-manifest.json'),
+    JSON.stringify({
+      format: 1,
+      version: '1.2.3',
+      components: { cockpit: '1.2.3', daemon: '1.2.2', runtime: '1.2.3' },
+    }),
+  );
+  f.pack();
+  expect(() => f.install()).toThrow('No daemon was published');
+  expect(existsSync(join(f.puddleHome, 'bin/current'))).toBe(false);
+});
+
+it('does not seed an unpublished runtime during selective daemon bootstrap', () => {
+  const f = fixture();
+  writeFileSync(
+    join(f.staged, 'release-manifest.json'),
+    JSON.stringify({
+      format: 1,
+      version: '1.2.3',
+      components: { cockpit: '1.2.3', daemon: '1.2.3', runtime: '1.2.2' },
+    }),
+  );
+  f.pack();
+  expect(() => f.install()).toThrow('Install runtime 1.2.2');
+  expect(existsSync(join(f.puddleHome, 'bin/current'))).toBe(false);
+  expect(existsSync(join(f.puddleHome, 'bin/runtime-current'))).toBe(false);
+});

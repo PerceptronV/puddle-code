@@ -113,7 +113,17 @@ export function HostUpdatesSection() {
           {releases.latest && (
             <p>
               Latest known release: {releases.latest.version}
-              {!releases.latest.host_asset && ' · No package available for this host'}
+              {!releases.components &&
+                !releases.latest.host_asset &&
+                ' · No package available for this host'}
+            </p>
+          )}
+          {releases.components && (
+            <p>
+              Latest daemon: {releases.components.daemon.version}
+              {!releases.components.daemon.host_asset && ' (unavailable for this host)'}
+              {' · '}Runtime: {releases.components.runtime.version}
+              {!releases.components.runtime.host_asset && ' (unavailable for this host)'}
             </p>
           )}
           {releases.succeeded_at !== null && (
