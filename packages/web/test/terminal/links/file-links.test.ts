@@ -41,6 +41,27 @@ describe('findPathCandidates', () => {
     ]);
   });
 
+  it('keeps complete paths containing spaces and their positions', () => {
+    expect(
+      findPathCandidates(
+        'Vector PDF (docs/papers/2026 Grokking Capacity/media/theory/cone_seedmin_fixed.pdf)',
+      ),
+    ).toContainEqual({
+      path: 'docs/papers/2026 Grokking Capacity/media/theory/cone_seedmin_fixed.pdf',
+      line: undefined,
+      column: undefined,
+      start: 12,
+      end: 82,
+    });
+    expect(findPathCandidates('open "results/final image.png:12:3"')).toContainEqual({
+      path: 'results/final image.png',
+      line: 12,
+      column: 3,
+      start: 6,
+      end: 34,
+    });
+  });
+
   it('captures a path:line inside parens, leaving the closing paren out', () => {
     expect(findPathCandidates('(src/foo.ts:3)')).toEqual([
       { path: 'src/foo.ts', line: 3, column: undefined, start: 1, end: 13 },
@@ -145,6 +166,34 @@ describe('findBufferPathCandidates', () => {
     });
   });
 
+  it.each([
+    ['see docs/papers/2026 Grokking Capacity/', '  media/theory/figure.pdf'],
+    ['see docs/papers/2026 Grokking Capacity', '  /media/theory/figure.pdf'],
+  ])('joins a spaced directory across a slash boundary: %s', (first, second) => {
+    const buffer = bufferWithLines([{ text: first }, { text: second }], 100);
+    for (const row of [0, 1]) {
+      expect(findBufferPathCandidates(buffer, row, 100)[0]).toMatchObject({
+        candidate: { path: 'docs/papers/2026 Grokking Capacity/media/theory/figure.pdf' },
+        start: { row: 0, col: 4 },
+        end: { row: 1, col: second.length - 1 },
+      });
+    }
+  });
+
+  it('joins several leading-slash continuations away from the margin', () => {
+    const buffer = bufferWithLines(
+      [{ text: 'see src' }, { text: '  /nested' }, { text: '  /file.ts:12:3' }],
+      80,
+    );
+    for (const row of [0, 1, 2]) {
+      expect(findBufferPathCandidates(buffer, row, 80)[0]).toMatchObject({
+        candidate: { path: 'src/nested/file.ts', line: 12, column: 3 },
+        start: { row: 0, col: 4 },
+        end: { row: 2, col: 14 },
+      });
+    }
+  });
+
   it('preserves spaces at a soft wrap so separate tokens do not merge', () => {
     const buffer = bufferWithLines(
       [{ text: 'note' }, { text: 'src/file.ts', isWrapped: true }],
@@ -157,12 +206,15 @@ describe('findBufferPathCandidates', () => {
     });
   });
 
-  it('does not merge a new absolute path or cross blank lines', () => {
+  it('retains standalone absolute paths as fallbacks and does not cross blank lines', () => {
     const buffer = bufferWithLines(
       [{ text: 'src/file.ts' }, { text: '/other.ts' }, { text: '' }, { text: 'last.ts' }],
       12,
     );
-    expect(findBufferPathCandidates(buffer, 1, 12).map((link) => link.text)).toEqual(['/other.ts']);
+    expect(findBufferPathCandidates(buffer, 1, 12).map((link) => link.text)).toEqual([
+      'src/file.ts/other.ts',
+      '/other.ts',
+    ]);
     expect(findBufferPathCandidates(buffer, 3, 12).map((link) => link.text)).toEqual(['last.ts']);
   });
 

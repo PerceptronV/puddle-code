@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Cockpit
+
+- Recognise terminal paths containing spaces and multiline paths split before or after `/`, preserving full clickable ranges and resolve-validated fallbacks.
