@@ -30,7 +30,7 @@ export function ControlTray({
       data-variant={variant}
       aria-label={label}
       className={cn(
-        'control-tray sliding-hover-tray',
+        'control-tray sliding-hover-tray relative',
         variant !== 'actions' && 'island-outline',
         vertical && 'control-tray-vertical',
         className,

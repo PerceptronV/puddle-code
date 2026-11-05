@@ -66,7 +66,17 @@ try {
   await page.getByRole('button', { name: 'Add Markdown cell', exact: true }).click();
 
   await page.locator('[data-path="examples/preview.pdf"]').dblclick();
-  await page.getByRole('group', { name: 'PDF zoom' }).waitFor();
+  const zoomTray = page.getByRole('group', { name: 'PDF zoom' });
+  await zoomTray.waitFor();
+  const pdfBounds = await page.getByRole('region', { name: 'PDF document' }).boundingBox();
+  const trayBounds = await zoomTray.boundingBox();
+  assert.ok(
+    trayBounds.y >= pdfBounds.y &&
+      trayBounds.y + trayBounds.height <= pdfBounds.y + pdfBounds.height &&
+      trayBounds.x >= pdfBounds.x &&
+      trayBounds.x + trayBounds.width <= pdfBounds.x + pdfBounds.width,
+    'PDF zoom tray stays inside the visible document viewport',
+  );
   await page.getByRole('button', { name: 'Zoom in', exact: true }).click();
 
   assert.deepEqual(errors, []);

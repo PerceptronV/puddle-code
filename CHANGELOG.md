@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Cockpit
+
+- Keep PDF zoom controls over the visible document instead of below its viewport; allow overlay trays to override their default positioning.
