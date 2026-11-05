@@ -39,6 +39,8 @@ jobs:
         run: pnpm --filter @puddle/web exec playwright install --with-deps chromium
       - name: verify installed release-note previews
         run: node packages/web/test/release-notes/browser.mjs
+      - name: verify synchronised terminal rendering
+        run: node packages/web/test/terminal/synchronised-output.browser.mjs
       - run: pnpm test:mobile
       - name: retain browser failure diagnostics
         if: failure()

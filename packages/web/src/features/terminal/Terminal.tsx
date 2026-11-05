@@ -53,6 +53,7 @@ import {
   registerTerminalInput,
 } from './input/input';
 import { preserveXtermScrollUp } from './scroll/xterm-scrollback';
+import { preserveXtermSynchronisedDirtyRows } from './xterm-synchronised-output';
 import { attachTerminalTouchScroll } from './scroll/touch-scroll';
 import { attachIosTerminalInput } from './input/ios-input';
 import { SelectionActions } from '../../components/selection-actions';
@@ -360,6 +361,7 @@ export function Terminal({
       linkHandler: { activate: (_event, uri) => openUri(uri) },
     });
     preserveXtermScrollUp(xterm);
+    preserveXtermSynchronisedDirtyRows(xterm);
     hasReplayRef.current = false;
     replayingRef.current = false;
     xtermRef.current = xterm;
