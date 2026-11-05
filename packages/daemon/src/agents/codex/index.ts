@@ -13,7 +13,7 @@ import {
   rolloutsFor,
 } from './rollout.js';
 import { codexThread, codexThreadIndex, threadTitle } from './threads.js';
-import { prepareCodexLifecycle } from './lifecycle.js';
+import { prepareCodexLaunch } from './launch.js';
 import { lastJsonlOutput } from '../notification-output.js';
 
 const execFileAsync = promisify(execFile);
@@ -349,7 +349,7 @@ export const codex: AgentAdapter = {
     },
   },
 
-  prepareLifecycleLaunch: prepareCodexLifecycle,
+  prepareLifecycleLaunch: prepareCodexLaunch,
 
   /**
    * Verified against a live 0.146.0 PTY (2026-08-03): a screen redraw places

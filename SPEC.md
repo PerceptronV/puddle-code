@@ -736,7 +736,9 @@ Installer `--select-only` requires exact activation and preserves the recorded
 supervisor, unit/plist files and running services. Selector publication is directory
 synced. Worker children remain in the service process group, and worker lifetime is
 bounded to three minutes. Runtime owners and workers share `host/services.ts` for
-literal supervisor definitions and bounded dispatch commands.
+literal supervisor definitions and bounded dispatch commands. Systemd working
+directories use literal, specifier-escaped paths rather than command-argument
+quoting; native unit-parser checks cover runtime and updater definitions.
 
 The private host-control dispatcher composes daemon and combined updates with
 final quiescence and exact compatibility/impact approval. Unverified supervision or
@@ -752,6 +754,11 @@ interactive fallback when installed-version checks fail. Provider version probes
 Codex sidecars use the launch environment, including its executable search path,
 rather than relying on the service manager environment. Codex lifecycle cleanup
 waits for app-server exit and escalates to SIGKILL after 1.5 seconds if needed.
+If its bridge cannot start, Codex 0.164+ interactive fallback uses `--no-daemon`
+and remains marked as degraded synchronisation. It must not attach to the shared
+Codex daemon, whose idle conversation retention can outlive the PTY and block an
+immediate restart. Existing shared-daemon conversations may still need their
+native inactivity grace period before a replacement can acquire them.
 Runtime IPC admits one provider turn at a time using a monotonic runtime-local
 identity and exact native-ref check. It reserves bounded journal space before
 dispatch, retains results across controller replacement, and records cancellation,

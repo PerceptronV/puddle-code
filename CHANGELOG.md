@@ -18,3 +18,7 @@ Past releases: see docs/changelogs/.
 
 - Generate valid systemd working directories for independent runtimes and update workers, so Linux launches no longer fail before readiness.
 
+### Runtime
+
+- Keep Codex 0.164+ fallback launches in the foreground so restarting a terminal does not leave its conversation owned by Codex’s shared background daemon.
+

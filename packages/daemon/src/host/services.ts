@@ -42,7 +42,11 @@ export function independentServiceDefinition(options: {
   if (timeout !== undefined && (!Number.isSafeInteger(timeout) || timeout < 1 || timeout > 3600))
     throw new Error('Invalid service lifetime');
   if (kind === 'systemd') {
-    return `[Unit]\nDescription=${description}\n[Service]\nType=simple\nExecStart=${args.map((arg) => unit(arg, true)).join(' ')}\nWorkingDirectory=${unit(home)}\nRestart=no\nKillMode=control-group\nTimeoutStopSec=10\n${timeout === undefined ? '' : `RuntimeMaxSec=${timeout}\n`}UMask=0077\nStandardOutput=null\nStandardError=journal\n`;
+    // WorkingDirectory is a literal path with specifier expansion, not an
+    // ExecStart word: quotes become part of the path and make it non-absolute.
+    // The /. suffix preserves a final space or backslash through INI parsing.
+    const directory = `${home.replace(/%/g, '%%')}/.`;
+    return `[Unit]\nDescription=${description}\n[Service]\nType=simple\nExecStart=${args.map((arg) => unit(arg, true)).join(' ')}\nWorkingDirectory=${directory}\nRestart=no\nKillMode=control-group\nTimeoutStopSec=10\n${timeout === undefined ? '' : `RuntimeMaxSec=${timeout}\n`}UMask=0077\nStandardOutput=null\nStandardError=journal\n`;
   }
   // launchd has no per-job running-time limit; bounded workers enforce theirs internally.
   return `<?xml version="1.0" encoding="UTF-8"?>\n<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">\n<plist version="1.0"><dict><key>Label</key><string>${xml(name)}</string><key>ProgramArguments</key><array>${args.map((arg) => `<string>${xml(arg)}</string>`).join('')}</array><key>WorkingDirectory</key><string>${xml(home)}</string><key>RunAtLoad</key><true/><key>KeepAlive</key><false/><key>AbandonProcessGroup</key><false/><key>Umask</key><integer>63</integer></dict></plist>\n`;

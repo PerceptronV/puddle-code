@@ -1637,6 +1637,7 @@ export class SessionService extends EventEmitter {
     let lifecycleResource: LifecycleLaunchResource | null = null;
     let spawnArgs = args;
     let nativeSync: NonNullable<Session['native_sync']> = 'fallback';
+    let lifecycleUnavailable = false;
     const headless = this.deps.sessions.get(sessionId).agent_mode === 'headless';
     if (headless && (signalNonce === null || !adapter.prepareHeadlessLaunch)) {
       this.transition(sessionId, 'exited');
@@ -1651,6 +1652,9 @@ export class SessionService extends EventEmitter {
         try {
           lifecycleResource = await prepare({
             account,
+            reportLifecycleUnavailable: () => {
+              lifecycleUnavailable = true;
+            },
             opts: launchOpts ?? {
               worktreePath,
               sessionId,
@@ -1682,7 +1686,7 @@ export class SessionService extends EventEmitter {
             },
           });
           spawnArgs = lifecycleResource.args;
-          nativeSync = 'full';
+          nativeSync = lifecycleUnavailable ? 'fallback' : 'full';
         } catch (error) {
           if (headless) {
             this.transition(sessionId, 'exited');
