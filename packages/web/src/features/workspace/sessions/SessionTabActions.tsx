@@ -5,7 +5,7 @@ import { liveConversationTarget, toastError } from '../../../lib/transport/error
 import { useArchiveSession, useSessionAction } from '../../../lib/queries/queries';
 
 const BUTTON_CLASS =
-  'hidden rounded-sm p-0.5 text-fg-muted transition-colors hover:text-fg disabled:cursor-not-allowed disabled:opacity-50 group-hover:inline-flex pointer-coarse:inline-flex';
+  'inline-flex rounded-sm p-0.5 text-fg-muted transition-colors hover:text-fg disabled:cursor-not-allowed disabled:opacity-50';
 
 /** Tab shortcuts share the session menu's stop, resume and archive mutations. */
 export function SessionTabActions({

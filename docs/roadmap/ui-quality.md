@@ -383,3 +383,12 @@ the semantic-colour guard and both production builds. The single-pane regression
 also asserts that its tray lies below the pane top edge: Tailwind uses the
 standalone `translate` property, so resetting `transform` alone did not remove
 the normal tab tray’s vertical offset.
+
+Follow-up: tray selection uses untransformed layout coordinates; hover and cached
+selection rectangles account for ancestor scaling. This prevents dialogue opening
+animations from leaving gold fills undersized or shifted. Tab actions distinguish
+keyboard-visible focus from retained pointer focus, so clicking a tab does not
+leave a close button behind. Collapsed project labels share a UI-scaled text size
+across densities, with extra project padding in compact mode. `rail-focus.mjs`
+checks alignment under a paused scale animation, pointer/keyboard visibility and
+compact/comfortable geometry.

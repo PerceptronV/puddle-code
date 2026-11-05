@@ -72,12 +72,17 @@ try {
     }),
   );
   await page.locator('[data-path="README.md"]').dblclick();
-  const close = page.getByRole('button', { name: 'Close README.md', exact: true });
+  const close = page.getByRole('button', {
+    name: 'Close README.md',
+    exact: true,
+    includeHidden: true,
+  });
   await page.mouse.move(1400, 950);
   const tab = page
     .locator('[role="button"]')
     .filter({ has: page.locator('[aria-label="Close README.md"]') })
     .last();
+  await page.keyboard.press('Tab');
   await tab.focus();
   await close.waitFor({ state: 'visible' });
   const before = await tab.boundingBox();

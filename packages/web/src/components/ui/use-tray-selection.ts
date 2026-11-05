@@ -35,12 +35,11 @@ export function useTraySelection(vertical: boolean, motionId?: string) {
       for (const slot of buttons())
         slot.toggleAttribute('data-selection-highlight', slot === button);
       if (!button) return;
-      const bounds = tray.getBoundingClientRect();
-      const rect = button.getBoundingClientRect();
+      // Layout coordinates stay stable while the containing dialogue scales in.
       if (!placed) marker.style.transition = 'none';
-      marker.style.width = `${rect.width}px`;
-      marker.style.height = `${rect.height}px`;
-      marker.style.transform = `translate(${rect.left - bounds.left}px, ${rect.top - bounds.top}px)`;
+      marker.style.width = `${button.offsetWidth}px`;
+      marker.style.height = `${button.offsetHeight}px`;
+      marker.style.transform = `translate(${button.offsetLeft}px, ${button.offsetTop}px)`;
       if (!placed) {
         void marker.offsetWidth;
         marker.style.transition = '';
@@ -138,10 +137,10 @@ export function useTraySelection(vertical: boolean, motionId?: string) {
         const bounds = tray.getBoundingClientRect();
         const rect = marker.getBoundingClientRect();
         positions.set(key, {
-          x: rect.left - bounds.left,
-          y: rect.top - bounds.top,
-          width: rect.width,
-          height: rect.height,
+          x: (rect.left - bounds.left) / (bounds.width / tray.offsetWidth || 1),
+          y: (rect.top - bounds.top) / (bounds.height / tray.offsetHeight || 1),
+          width: rect.width / (bounds.width / tray.offsetWidth || 1),
+          height: rect.height / (bounds.height / tray.offsetHeight || 1),
           vertical,
         });
       }

@@ -47,7 +47,7 @@ export function EditorDirtyDot({
   return (
     <Circle
       aria-hidden
-      className="size-2 shrink-0 fill-current text-fg-muted group-hover:invisible group-focus-within:invisible"
+      className="size-2 shrink-0 fill-current text-fg-muted group-hover:invisible group-focus-visible:invisible group-has-[:focus-visible]:invisible"
     />
   );
 }
@@ -96,7 +96,7 @@ export function EditorTabClose({
         }}
         // Reveal for pointer hover, keyboard focus within the tab, and touch.
         // The floating tray reserves no label width.
-        className="hidden size-4 items-center justify-center rounded-sm text-fg-muted transition-colors hover:text-fg group-hover:flex group-focus-within:flex pointer-coarse:flex"
+        className="flex size-4 items-center justify-center rounded-sm text-fg-muted transition-colors hover:text-fg"
         aria-label={`Close ${label}`}
       >
         <X className="size-3" />

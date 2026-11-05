@@ -11,4 +11,6 @@ Past releases: see docs/changelogs/.
 
 ### Cockpit
 
+- Improve compact project-rail label sizing and vertical spacing; align selection and hover fills during dialogue scaling, and dismiss tab actions after pointer exit without losing keyboard access.
+
 - Keep PDF zoom controls over the visible document instead of below its viewport; allow overlay trays to override their default positioning.

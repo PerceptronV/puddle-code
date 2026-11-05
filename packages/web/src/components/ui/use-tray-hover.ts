@@ -34,10 +34,12 @@ export function useHoverSurface(
       }
       const bounds = surface.getBoundingClientRect();
       const rect = item.getBoundingClientRect();
+      const scaleX = bounds.width / surface.offsetWidth || 1;
+      const scaleY = bounds.height / surface.offsetHeight || 1;
       if (!placed) marker.style.transition = 'none';
-      marker.style.width = `${rect.width}px`;
-      marker.style.height = `${rect.height}px`;
-      marker.style.transform = `translate(${rect.left - bounds.left + surface.scrollLeft}px, ${rect.top - bounds.top + surface.scrollTop}px)`;
+      marker.style.width = `${rect.width / scaleX}px`;
+      marker.style.height = `${rect.height / scaleY}px`;
+      marker.style.transform = `translate(${(rect.left - bounds.left) / scaleX + surface.scrollLeft}px, ${(rect.top - bounds.top) / scaleY + surface.scrollTop}px)`;
       marker.style.borderRadius = getComputedStyle(item).borderRadius;
       // Retain geometry when selection masks hover, so the next movement still
       // begins at the last slot instead of restarting at the container's origin.

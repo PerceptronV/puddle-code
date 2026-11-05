@@ -242,7 +242,7 @@ function TabControls({ children }: { children: ReactNode }) {
   return (
     <span
       ref={trayRef}
-      className="pane-tab-controls sliding-hover-tray island-outline pointer-events-none absolute right-1 top-1/2 z-10 flex -translate-y-1/2 items-center gap-1 rounded-full bg-elevated px-1 py-1 shadow-sm opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100 pointer-coarse:pointer-events-auto pointer-coarse:opacity-100 [&_button]:size-5 [&_button]:items-center [&_button]:justify-center [&_button]:rounded-full"
+      className="pane-tab-controls sliding-hover-tray island-outline pointer-events-none absolute right-1 top-1/2 z-10 flex -translate-y-1/2 items-center gap-1 rounded-full bg-elevated px-1 py-1 shadow-sm opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-visible:pointer-events-auto group-has-[:focus-visible]:pointer-events-auto group-focus-visible:opacity-100 group-has-[:focus-visible]:opacity-100 has-[:focus-visible]:pointer-events-auto has-[:focus-visible]:opacity-100 pointer-coarse:pointer-events-auto pointer-coarse:opacity-100 [&_button]:size-5 [&_button]:items-center [&_button]:justify-center [&_button]:rounded-full"
     >
       <span ref={hoverRef} aria-hidden className="tray-hover-surface" />
       {children}
@@ -301,7 +301,7 @@ function ViewToggle({
             e.stopPropagation();
             onSetView(notebook ? (view === 'source' ? 'preview' : 'source') : VIEW_CYCLE[view]);
           }}
-          className="hidden rounded-sm p-0.5 text-fg-muted transition-colors hover:text-fg group-hover:inline-flex group-focus-within:inline-flex pointer-coarse:inline-flex"
+          className="inline-flex rounded-sm p-0.5 text-fg-muted transition-colors hover:text-fg"
           aria-label={label}
         >
           <Icon className="size-3" />
@@ -339,7 +339,7 @@ function CompilationControls({
           onRun();
         }}
         className={cn(
-          'hidden rounded-sm p-0.5 transition-colors hover:text-fg disabled:cursor-wait group-hover:inline-flex group-focus-within:inline-flex pointer-coarse:inline-flex',
+          'inline-flex rounded-sm p-0.5 transition-colors hover:text-fg disabled:cursor-wait',
           eager ? 'text-fg-muted' : 'text-accent',
         )}
         aria-label={
@@ -372,7 +372,7 @@ function CompilationControls({
             onSetMode(eager ? 'on_demand' : 'eager');
           }}
           className={cn(
-            'hidden rounded-sm p-0.5 transition-colors hover:text-fg disabled:cursor-wait group-hover:inline-flex group-focus-within:inline-flex pointer-coarse:inline-flex',
+            'inline-flex rounded-sm p-0.5 transition-colors hover:text-fg disabled:cursor-wait',
             eager ? 'text-accent' : 'text-fg-muted',
           )}
           aria-label={eager ? 'Disable eager compilation' : 'Enable eager compilation'}
@@ -517,7 +517,7 @@ function PaneTab({
                 e.stopPropagation();
                 onClose();
               }}
-              className="hidden rounded-sm p-0.5 text-fg-muted transition-colors hover:text-fg group-hover:inline-flex group-focus-within:inline-flex pointer-coarse:inline-flex"
+              className="inline-flex rounded-sm p-0.5 text-fg-muted transition-colors hover:text-fg"
               aria-label="Close tab"
             >
               <X className="size-3" />

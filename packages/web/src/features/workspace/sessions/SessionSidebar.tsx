@@ -559,7 +559,7 @@ export function CollapsedSessionsRail({
           // Projects share one scrollable island; inset dividers separate them.
           <div
             key={group.projectId}
-            className="collapsed-session-project relative flex w-full shrink-0 flex-col items-center gap-1 py-1.5 compact:gap-0.5"
+            className="collapsed-session-project relative flex w-full shrink-0 flex-col items-center gap-1 py-1.5 compact:py-2"
             onDragOver={(e) => {
               if (!dragProject) return;
               e.preventDefault();
@@ -579,7 +579,7 @@ export function CollapsedSessionsRail({
               <InlineLabelEdit
                 initial={group.abbrev}
                 maxLength={ABBREV_MAX}
-                className="w-7 text-center text-[8px] uppercase leading-3 text-fg"
+                className="w-full px-1 text-center text-2xs uppercase text-fg"
                 onCommit={(v) => commitAbbrev(group, v)}
                 onCancel={() => setEditingAbbrev(null)}
               />
@@ -599,7 +599,7 @@ export function CollapsedSessionsRail({
                         }}
                         onDragEnd={() => setDragProject(null)}
                         className={cn(
-                          'w-7 truncate text-center text-[8px] uppercase leading-3 transition-colors',
+                          'w-full truncate px-1 text-center text-2xs uppercase transition-colors',
                           appearanceColourClass(group.colour)
                             ? cn(appearanceColourClass(group.colour), 'hover:opacity-75')
                             : 'text-fg-muted hover:text-fg',
