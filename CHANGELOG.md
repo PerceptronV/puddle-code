@@ -8,7 +8,3 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
-
-### Daemon
-
-- Publish native conversation title changes before slower placement discovery and reuse worktree mappings within each catalogue scan.
