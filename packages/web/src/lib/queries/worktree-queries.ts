@@ -27,6 +27,7 @@ import type {
 } from '@puddle/shared';
 import { api, apiFetchRaw } from '../transport/api';
 import { focusAwareInterval } from './poll-focus';
+import { downloadBlob } from '../download-blob';
 
 /**
  * TanStack Query hooks for a session's worktree: file browsing/editing (the
@@ -460,15 +461,5 @@ export async function downloadPath(sid: string, path: string, root?: string): Pr
   const blob = await res.blob();
   const fallback = path.split('/').filter(Boolean).pop() ?? 'worktree';
   const filename = filenameFromDisposition(res.headers.get('content-disposition'), fallback);
-  const url = URL.createObjectURL(blob);
-  try {
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = filename;
-    document.body.appendChild(a);
-    a.click();
-    a.remove();
-  } finally {
-    URL.revokeObjectURL(url);
-  }
+  downloadBlob(blob, filename);
 }

@@ -4,16 +4,7 @@ import type { IBuffer, Terminal } from '@xterm/xterm';
 import { currentTheme, onThemeChange } from '../../../lib/appearance/theme';
 import { terminalRichBlocks, type TerminalRichBlock as RichBlock } from './rich-output-buffer';
 import { TerminalRichBlock } from './TerminalRichBlock';
-
-interface Projection {
-  blocks: RichBlock[];
-  viewportY: number;
-  buffer: string;
-  width: number;
-  cellWidth: number;
-  cellHeight: number;
-  fontSize: number;
-}
+import { sameProjection, type Projection } from './projection';
 
 /** Cheap redraw validation of already-rendered regions, including their delimiters. */
 function sourceSignature(buffer: IBuffer, blocks: RichBlock[]): string {
@@ -53,7 +44,7 @@ export function TerminalRichOutput({ terminal }: { terminal: Terminal }) {
         viewportY: buffer.viewportY,
         cols: terminal.cols,
       };
-      setProjection({
+      const next = {
         blocks,
         viewportY: buffer.viewportY,
         buffer: buffer.type,
@@ -61,7 +52,8 @@ export function TerminalRichOutput({ terminal }: { terminal: Terminal }) {
         cellWidth: screen.clientWidth / terminal.cols,
         cellHeight: screen.clientHeight / terminal.rows,
         fontSize: terminal.options.fontSize ?? 14,
-      });
+      };
+      setProjection((current) => (sameProjection(current, next) ? current : next));
       pending = false;
       setObscured(terminal.hasSelection());
     };

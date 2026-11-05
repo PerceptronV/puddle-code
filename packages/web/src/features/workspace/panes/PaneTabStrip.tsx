@@ -101,6 +101,7 @@ export function PaneTabStrip({
   onRenameFile: (tab: EditorTab, newName: string) => Promise<boolean>;
 }) {
   const single = leaf.tabs.length === 1;
+  const sessionsById = new Map(sessions.map((session) => [session.id, session]));
   const branches = new Map(sessions.map((s) => [s.id, s.branch]));
   const directories = new Map(sessions.map((s) => [s.id, s.worktree_path]));
   const editorTabs = leaf.tabs.flatMap((t) => (t.type === 'editor' ? [t.tab] : []));
@@ -146,85 +147,84 @@ export function PaneTabStrip({
         if (e.target === e.currentTarget) onNewFile();
       }}
     >
-      {leaf.tabs.map((ref, index) => (
-        <Fragment key={tabRefKey(ref)}>
-          {caretAt === index && <InsertionCaret />}
-          <PaneTab
-            tab={ref}
-            single={single}
-            filetreeRoot={filetreeRoot}
-            leafId={leaf.id}
-            index={index}
-            active={tabRefKey(ref) === leaf.activeKey}
-            preview={tabRefKey(ref) === leaf.previewKey}
-            session={
-              ref.type === 'terminal' ? sessions.find((s) => s.id === ref.session) : undefined
-            }
-            // The worktree a FILE tab belongs to, for its hover tooltip. A tab
-            // carrying a `root` is rooted outside the worktree (a browse-tree
-            // `external` file) and an untitled draft's session is the nil uuid,
-            // so neither resolves — and neither describes a worktree.
-            fileSession={
-              ref.type === 'editor' && ref.tab.root === undefined
-                ? sessions.find((s) => s.id === ref.tab.session)
-                : undefined
-            }
-            fileDirectory={
-              ref.type === 'editor' &&
-              (tabKind(ref.tab) === 'file' || tabKind(ref.tab) === 'external')
-                ? (ref.tab.root ?? sessions.find((s) => s.id === ref.tab.session)?.worktree_path)
-                : undefined
-            }
-            label={ref.type === 'editor' ? labelFor(ref.tab) : ''}
-            onActivate={() => onActivate(ref)}
-            onClose={() => onClose(ref)}
-            onPromote={() => onPromote(ref)}
-            onArchived={onArchived}
-            onSetView={(view) => onSetView(ref, view)}
-            compilable={isCompilableSource(
-              ref.type === 'editor' ? ref.tab.path : '',
-              compilableExtensions,
-            )}
-            provider={
-              ref.type === 'editor'
-                ? compilationProviders.find((provider) =>
-                    provider.extensions.includes(sourceExtension(ref.tab.path) ?? ''),
-                  )
-                : undefined
-            }
-            compilationRunning={
-              ref.type === 'editor' &&
-              compilationRunningKeys.has(
-                compilationSourceKey(ref.tab.session, ref.tab.path, ref.tab.root),
-              )
-            }
-            onRunCompilation={() => {
-              if (ref.type !== 'editor') return;
-              onActivate(ref);
-              requestAnimationFrame(() => onRunCompilation(ref.tab));
-            }}
-            onSetCompilationMode={(mode) => {
-              if (ref.type !== 'editor') return;
-              onActivate(ref);
-              requestAnimationFrame(() => onSetCompilationMode(ref.tab, mode));
-            }}
-            onOpenCompilationSettings={
-              ref.type === 'editor' && onOpenCompilationSettings
-                ? () =>
-                    onOpenCompilationSettings({
-                      session: ref.tab.session,
-                      path: ref.tab.path,
-                      ...(ref.tab.root !== undefined ? { root: ref.tab.root } : {}),
-                    })
-                : undefined
-            }
-            onRevealFile={() => ref.type === 'editor' && onRevealFile(ref.tab)}
-            onRenameFile={(newName) =>
-              ref.type === 'editor' ? onRenameFile(ref.tab, newName) : Promise.resolve(false)
-            }
-          />
-        </Fragment>
-      ))}
+      {leaf.tabs.map((ref, index) => {
+        const session = sessionsById.get(ref.type === 'terminal' ? ref.session : ref.tab.session);
+        return (
+          <Fragment key={tabRefKey(ref)}>
+            {caretAt === index && <InsertionCaret />}
+            <PaneTab
+              tab={ref}
+              single={single}
+              filetreeRoot={filetreeRoot}
+              leafId={leaf.id}
+              index={index}
+              active={tabRefKey(ref) === leaf.activeKey}
+              preview={tabRefKey(ref) === leaf.previewKey}
+              session={ref.type === 'terminal' ? session : undefined}
+              // The worktree a FILE tab belongs to, for its hover tooltip. A tab
+              // carrying a `root` is rooted outside the worktree (a browse-tree
+              // `external` file) and an untitled draft's session is the nil uuid,
+              // so neither resolves — and neither describes a worktree.
+              fileSession={
+                ref.type === 'editor' && ref.tab.root === undefined ? session : undefined
+              }
+              fileDirectory={
+                ref.type === 'editor' &&
+                (tabKind(ref.tab) === 'file' || tabKind(ref.tab) === 'external')
+                  ? (ref.tab.root ?? session?.worktree_path)
+                  : undefined
+              }
+              label={ref.type === 'editor' ? labelFor(ref.tab) : ''}
+              onActivate={() => onActivate(ref)}
+              onClose={() => onClose(ref)}
+              onPromote={() => onPromote(ref)}
+              onArchived={onArchived}
+              onSetView={(view) => onSetView(ref, view)}
+              compilable={isCompilableSource(
+                ref.type === 'editor' ? ref.tab.path : '',
+                compilableExtensions,
+              )}
+              provider={
+                ref.type === 'editor'
+                  ? compilationProviders.find((provider) =>
+                      provider.extensions.includes(sourceExtension(ref.tab.path) ?? ''),
+                    )
+                  : undefined
+              }
+              compilationRunning={
+                ref.type === 'editor' &&
+                compilationRunningKeys.has(
+                  compilationSourceKey(ref.tab.session, ref.tab.path, ref.tab.root),
+                )
+              }
+              onRunCompilation={() => {
+                if (ref.type !== 'editor') return;
+                onActivate(ref);
+                requestAnimationFrame(() => onRunCompilation(ref.tab));
+              }}
+              onSetCompilationMode={(mode) => {
+                if (ref.type !== 'editor') return;
+                onActivate(ref);
+                requestAnimationFrame(() => onSetCompilationMode(ref.tab, mode));
+              }}
+              onOpenCompilationSettings={
+                ref.type === 'editor' && onOpenCompilationSettings
+                  ? () =>
+                      onOpenCompilationSettings({
+                        session: ref.tab.session,
+                        path: ref.tab.path,
+                        ...(ref.tab.root !== undefined ? { root: ref.tab.root } : {}),
+                      })
+                  : undefined
+              }
+              onRevealFile={() => ref.type === 'editor' && onRevealFile(ref.tab)}
+              onRenameFile={(newName) =>
+                ref.type === 'editor' ? onRenameFile(ref.tab, newName) : Promise.resolve(false)
+              }
+            />
+          </Fragment>
+        );
+      })}
       {caretAt === leaf.tabs.length && <InsertionCaret />}
     </div>
   );

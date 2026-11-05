@@ -41,6 +41,8 @@ jobs:
         run: node packages/web/test/release-notes/browser.mjs
       - name: verify synchronised terminal rendering
         run: node packages/web/test/terminal/synchronised-output.browser.mjs
+      - name: verify terminal projection updates and download cleanup
+        run: node packages/web/test/terminal/rich-output.browser.mjs
       - run: pnpm test:mobile
       - name: retain browser failure diagnostics
         if: failure()

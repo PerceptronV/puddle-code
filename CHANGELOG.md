@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Cockpit
 
+- Skip unchanged terminal rich-output projections, resolve tab sessions once, and share delayed blob-download cleanup for worktree downloads.
+
 - Bound memory retained while streaming local or SSH logs, preserving complete output delivery and normal command capture.
 
 - Avoid full-screen terminal redraws for cursor-only synchronised updates while preserving buffered output and the terminal's refresh timeout.
