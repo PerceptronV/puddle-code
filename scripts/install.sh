@@ -532,8 +532,19 @@ if [ "$COMPONENT" = runtime ]; then
   exit 0
 fi
 
+write_supervisor_marker() {
+  # Replacing the inode avoids retaining legacy group-write permissions.
+  # The private home and installer lock fence publication.
+  [ ! -L "$HOME_DIR/supervisor" ] || die "supervisor marker must not be a symlink"
+  [ ! -d "$HOME_DIR/supervisor" ] || die "supervisor marker must not be a directory"
+  MARKER_TMP=$(mktemp "$HOME_DIR/.supervisor.XXXXXX")
+  printf '%s\n' "$1" > "$MARKER_TMP"
+  chmod 600 "$MARKER_TMP"
+  mv -f "$MARKER_TMP" "$HOME_DIR/supervisor"
+}
+
 if [ "$SUPERVISOR" -eq 0 ]; then
-  printf '%s\n' none > "$HOME_DIR/supervisor"
+  write_supervisor_marker none
   say "installed puddled $VERSION (no supervisor, per --no-supervisor)"
   exit 0
 fi
@@ -613,7 +624,7 @@ else
   say "warning: no systemd or launchd found — using nohup; puddled will NOT auto-start after a reboot"
 fi
 
-printf '%s\n' "$KIND" > "$HOME_DIR/supervisor"
+write_supervisor_marker "$KIND"
 # An upgrade replaces the supervised connector too. Never opt a new host in.
 if [ "$START" = 1 ] && [ -d "$HOME_DIR/remote" ]; then
   if [ "$KIND" = systemd ] && [ -f "$HOME/.config/systemd/user/puddle-connector.service" ]; then

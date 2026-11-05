@@ -1,6 +1,6 @@
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { readFileSync, rmSync } from 'node:fs';
+import { readFileSync, readdirSync, rmSync } from 'node:fs';
 import { expect, it, vi } from 'vitest';
 import { runtimeLaunchSchema } from '@puddle/shared';
 import { HostUpdatePause } from '../../../src/updates/maintenance/pause.js';
@@ -69,6 +69,50 @@ function fixture(run: CompilationCommandRunner, installed = false) {
     },
   };
 }
+
+it('removes uncommitted launch files when placement validation rejects preparation', async () => {
+  const run = vi.fn<CompilationCommandRunner>();
+  const f = fixture(run);
+  const before = readdirSync(join(f.home, 'runtimes')).sort();
+  f.db
+    .prepare('UPDATE sessions SET canonical_worktree_path = ? WHERE id = ?')
+    .run(join(f.home, 'different-placement'), f.session.id);
+  try {
+    await expect(f.launcher.launch(f.session.id, () => f.launch.main)).rejects.toThrow(
+      'Runtime placement ownership does not match its launch identity',
+    );
+    expect(run).not.toHaveBeenCalled();
+    expect(readdirSync(join(f.home, 'runtimes')).sort()).toEqual(before);
+    expect(f.runtimes.ownerOf(f.session.id)).toBeNull();
+  } finally {
+    await f.close();
+  }
+});
+
+it('preserves launch evidence if preparation committed before reporting an error', async () => {
+  const run = vi.fn<CompilationCommandRunner>();
+  const f = fixture(run);
+  const prepare = f.runtimes.prepare.bind(f.runtimes);
+  vi.spyOn(f.runtimes, 'prepare').mockImplementation((input) => {
+    prepare(input);
+    throw new Error('Preparation reply failed');
+  });
+  try {
+    await expect(f.launcher.launch(f.session.id, () => f.launch.main)).rejects.toThrow(
+      'Preparation reply failed',
+    );
+    expect(run).not.toHaveBeenCalled();
+    const owner = f.runtimes.ownerOf(f.session.id)!;
+    expect(owner.state).toBe('prepared');
+    expect(
+      readRuntimeJson(join(f.home, 'runtimes', owner.runtime_id, 'launch.json')),
+    ).toMatchObject({
+      identity: { runtime_id: owner.runtime_id },
+    });
+  } finally {
+    await f.close();
+  }
+});
 
 it('refuses exhausted host memory before dispatch and retires the unlaunched intent', async () => {
   const run = vi.fn<CompilationCommandRunner>();

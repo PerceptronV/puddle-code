@@ -150,6 +150,16 @@ describe('install.sh tree validation', () => {
     expect(statSync(data).mode & 0o777).toBe(0o640);
   });
 
+  it('replaces a legacy writable supervision marker with a private file', () => {
+    const f = fixture();
+    f.install();
+    const marker = join(f.puddleHome, 'supervisor');
+    chmodSync(marker, 0o664);
+    f.install('--force');
+    expect(readFileSync(marker, 'utf8')).toBe('none\n');
+    expect(statSync(marker).mode & 0o777).toBe(0o600);
+  });
+
   it('refuses a symlinked home without changing its target', () => {
     const { temp, puddleHome, install } = fixture();
     const target = join(temp, 'target');

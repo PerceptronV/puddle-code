@@ -27,3 +27,11 @@ Past releases: see docs/changelogs/.
 - Fetch a fresh session list for notifications from uncached sessions so an incomplete cache cannot silently drop alerts from other projects.
 - Restore live remote-session alerts while push registration is unconfirmed after a disconnect or failed reconnection.
 - Recognise terminal paths containing spaces and multiline paths split before or after `/`, preserving full clickable ranges and resolve-validated fallbacks.
+
+### Daemon
+
+- Publish private supervision markers during installation instead of retaining legacy writable permissions that block daemon updates.
+
+### Runtime
+
+- Remove undispatched launch files after rejected placement preparation so failed launches do not leave unknown runtime records that block daemon updates.

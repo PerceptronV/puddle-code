@@ -1,5 +1,5 @@
 import { randomBytes, randomUUID } from 'node:crypto';
-import { realpathSync } from 'node:fs';
+import { realpathSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   RUNTIME_LIMITS,
@@ -275,7 +275,18 @@ export class RuntimeLauncher {
         'The runtime launch is recorded but readiness is unconfirmed. Reconnect to inspect it; the command has not been replayed.',
       );
     } finally {
-      claim.release();
+      try {
+        // Preparation can reject after shell hooks and launch.json were written.
+        // No dispatcher has seen this identity yet. Keep the launch claim until
+        // removing only this attempt's files, and preserve any committed binding.
+        if (!recorded && !dispatched && !this.deps.runtimes.get(identity.runtime_id))
+          rmSync(join(this.deps.home, 'runtimes', identity.runtime_id), {
+            recursive: true,
+            force: true,
+          });
+      } finally {
+        claim.release();
+      }
       if (recorded && !dispatched) {
         try {
           await this.deps.reconciler.retire(identity.runtime_id);
