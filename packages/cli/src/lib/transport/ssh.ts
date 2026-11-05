@@ -4,6 +4,7 @@ import { mkdirSync } from 'node:fs';
 import { clientHome } from '../paths.js';
 import { CliError } from '../types.js';
 import type { ExecOptions, ExecResult, Transport } from './transport.js';
+import { collectExecOutput } from './exec-output.js';
 
 /** A remote command whose SSH channel deliberately stays open with it. */
 export interface RunningSshCommand {
@@ -169,36 +170,11 @@ export class SshTransport implements Transport {
   }
 
   exec(command: string, opts: ExecOptions = {}): Promise<ExecResult> {
-    return new Promise((resolve) => {
-      const child = spawn(this.ssh, this.args(this.host, '--', `sh -c ${shellQuote(command)}`), {
-        stdio: ['pipe', 'pipe', 'pipe'],
-        env: this.spawnEnv(),
-      });
-      let stdout = '';
-      let stderr = '';
-      let timer: NodeJS.Timeout | undefined;
-      if (opts.timeoutMs !== undefined) {
-        timer = setTimeout(() => child.kill('SIGKILL'), opts.timeoutMs);
-        timer.unref();
-      }
-      child.stdout.on('data', (chunk: Buffer) => {
-        const text = chunk.toString();
-        stdout += text;
-        opts.onStdout?.(text);
-      });
-      child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
-      child.on('error', (err) => {
-        if (timer) clearTimeout(timer);
-        resolve({ code: -1, stdout, stderr: stderr + String(err) });
-      });
-      child.on('close', (code) => {
-        if (timer) clearTimeout(timer);
-        resolve({ code: code ?? -1, stdout, stderr });
-      });
-      child.stdin.on('error', () => {}); // EPIPE is reported by the command's exit status.
-      if (opts.stdin !== undefined) child.stdin.end(opts.stdin);
-      else child.stdin.end();
+    const child = spawn(this.ssh, this.args(this.host, '--', `sh -c ${shellQuote(command)}`), {
+      stdio: ['pipe', 'pipe', 'pipe'],
+      env: this.spawnEnv(),
     });
+    return collectExecOutput(child, opts);
   }
 
   /**

@@ -17,6 +17,8 @@ export interface ExecOptions {
   timeoutMs?: number;
   /** Stream stdout as it arrives (for `logs -f` and installer progress). */
   onStdout?: (chunk: string) => void;
+  /** Default: retain all output. Stream: discard stdout, retain at most 64K stderr characters. */
+  capture?: 'all' | 'stream';
 }
 
 export interface Transport {

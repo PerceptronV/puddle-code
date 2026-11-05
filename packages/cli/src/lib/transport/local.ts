@@ -3,6 +3,7 @@ import { copyFileSync, mkdirSync, readFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { clientHome } from '../paths.js';
 import type { ExecOptions, ExecResult, Transport } from './transport.js';
+import { collectExecOutput } from './exec-output.js';
 
 /** Local mode: commands run on this machine, files read from this disk. */
 export class LocalTransport implements Transport {
@@ -10,33 +11,8 @@ export class LocalTransport implements Transport {
   readonly label = 'this machine';
 
   exec(command: string, opts: ExecOptions = {}): Promise<ExecResult> {
-    return new Promise((resolve) => {
-      const child = spawn('sh', ['-c', command], { stdio: ['pipe', 'pipe', 'pipe'] });
-      let stdout = '';
-      let stderr = '';
-      let timer: NodeJS.Timeout | undefined;
-      if (opts.timeoutMs !== undefined) {
-        timer = setTimeout(() => child.kill('SIGKILL'), opts.timeoutMs);
-        timer.unref();
-      }
-      child.stdout.on('data', (chunk: Buffer) => {
-        const text = chunk.toString();
-        stdout += text;
-        opts.onStdout?.(text);
-      });
-      child.stderr.on('data', (chunk: Buffer) => (stderr += chunk.toString()));
-      child.on('error', (err) => {
-        if (timer) clearTimeout(timer);
-        resolve({ code: -1, stdout, stderr: stderr + String(err) });
-      });
-      child.on('close', (code) => {
-        if (timer) clearTimeout(timer);
-        resolve({ code: code ?? -1, stdout, stderr });
-      });
-      child.stdin.on('error', () => {}); // A command may exit before reading all input.
-      if (opts.stdin !== undefined) child.stdin.end(opts.stdin);
-      else child.stdin.end();
-    });
+    const child = spawn('sh', ['-c', command], { stdio: ['pipe', 'pipe', 'pipe'] });
+    return collectExecOutput(child, opts);
   }
 
   readFile(path: string): Promise<string | null> {

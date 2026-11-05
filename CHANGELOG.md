@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Cockpit
 
+- Bound memory retained while streaming local or SSH logs, preserving complete output delivery and normal command capture.
+
 - Avoid full-screen terminal redraws for cursor-only synchronised updates while preserving buffered output and the terminal's refresh timeout.
 
 - Improve compact project-rail label sizing and vertical spacing; align selection and hover fills during dialogue scaling, and dismiss tab actions after pointer exit without losing keyboard access.

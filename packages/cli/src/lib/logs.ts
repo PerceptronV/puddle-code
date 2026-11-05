@@ -23,6 +23,7 @@ export async function showLogs(transport: Transport, opts: LogsOptions): Promise
     const command = opts.follow ? `tail -f -c 262144 ${file}` : `tail -c 262144 ${file}`;
     const result = await transport.exec(command, {
       onStdout: opts.write,
+      capture: 'stream',
       ...(opts.follow ? {} : { timeoutMs: 30_000 }),
     });
     if (result.code !== 0 && !opts.follow) {
@@ -42,5 +43,5 @@ export async function showLogs(transport: Transport, opts: LogsOptions): Promise
     `elif [ -f ${hostPaths.logs}/puddled.out.log ]; then ` +
     `tail ${opts.follow ? '-f ' : ''}-n 200 ${hostPaths.logs}/puddled.out.log ${hostPaths.logs}/puddled.err.log 2>/dev/null; ` +
     `else echo 'no daemon logs found — the daemon logs to its supervisor (journalctl --user -u puddled / ~/.puddle/logs)'; fi`;
-  await transport.exec(command, { onStdout: opts.write });
+  await transport.exec(command, { onStdout: opts.write, capture: 'stream' });
 }
