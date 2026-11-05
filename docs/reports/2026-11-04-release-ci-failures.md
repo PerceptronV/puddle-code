@@ -49,3 +49,25 @@ lint and formatting passed for the fixes. Native Linux verification requires a
 new CI run: local Docker is not running. These changes
 do not turn the failed tagged jobs into passing jobs, move the tag, or publish
 the release. Their Linux result must be recorded from the subsequent run.
+
+## Follow-up, 5 November
+
+The [0.4.1 release workflow](https://github.com/PerceptronV/puddle-code/actions/runs/41933219206)
+and [0.4.2 release workflow](https://github.com/PerceptronV/puddle-code/actions/runs/41964083643)
+passed, including the Linux packaged continuity checks. This confirms the corrected
+container setup in those jobs; it does not establish native systemd acceptance.
+
+General [0.4.2 CI](https://github.com/PerceptronV/puddle-code/actions/runs/41964082070)
+still failed one encrypted-update fixture while 3,578 tests passed. Its timeout was
+before upgrade dispatch, waiting for initial shell output. Inspection found that
+the encrypted fixture awaited only the connector's `sent` acknowledgement before
+sending terminal input. That acknowledges forwarding, while owner attachment and
+canonical replay remain asynchronous. The local continuity viewer already awaits
+replay; the encrypted fixture now also waits for a fresh replay matching the exact
+session and terminal. A preceding attachment's replay cannot satisfy this wait.
+Failure diagnostics now include bounded terminal output/error events so that a
+future failure can distinguish attachment rejection from shell-command failure.
+The corrected encrypted-update test passed locally in 36.68 seconds, including
+replacement, preserved runtime/shell state and cleanup. Strict continuity-fixture
+TypeScript, ESLint and formatting passed. Confirmation on the Linux CI runner
+remains pending for this additional fixture fix.

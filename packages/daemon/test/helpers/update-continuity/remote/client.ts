@@ -162,6 +162,7 @@ export async function continuityBrowser(options: {
       sendRequest('POST', '/api/host/updates', command, true),
     async terminal(message: Extract<RemoteMessage, { t: 'terminal' }>['message']) {
       const id = randomUUID();
+      const receivedFrom = received.length;
       pending.add(id);
       try {
         await channel!.send({ t: 'terminal', id, message });
@@ -169,6 +170,23 @@ export async function continuityBrowser(options: {
           () => received.find((entry) => entry.t === 'sent' && entry.id === id),
           'Terminal acknowledgement',
         );
+        // `sent` confirms connector forwarding, not asynchronous owner attach.
+        // Match this attachment's replay before allowing the next input, just
+        // like the local continuity viewer; an old replay cannot prove readiness.
+        if (message.t === 'attach')
+          await wait(
+            () =>
+              received
+                .slice(receivedFrom)
+                .find(
+                  (entry) =>
+                    entry.t === 'event' &&
+                    entry.message.t === 'replay' &&
+                    entry.message.session === message.session &&
+                    entry.message.term === message.term,
+                ),
+            'Terminal attachment replay',
+          );
       } finally {
         pending.delete(id);
       }

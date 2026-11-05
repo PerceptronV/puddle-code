@@ -48,6 +48,20 @@ it('replaces the bundled daemon and connector through encrypted maintenance whil
     readdirSync(services)
       .filter((file) => file.endsWith('.log'))
       .map((file) => `${file}: ${readFileSync(join(services, file), 'utf8').slice(-5000)}`)
+      .concat(
+        browsers.map(
+          (browser, index) =>
+            `browser ${index} terminal events: ${JSON.stringify(
+              browser.received
+                .filter(
+                  (entry) =>
+                    entry.t === 'event' &&
+                    ['output', 'replay', 'error', 'exit'].includes(entry.message.t),
+                )
+                .slice(-8),
+            ).slice(-5000)}`,
+        ),
+      )
       .join('\n');
   const wait = async (check: () => boolean | Promise<boolean>, label: string, timeout = 45_000) => {
     const deadline = Date.now() + timeout;
