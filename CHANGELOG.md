@@ -21,4 +21,6 @@ Past releases: see docs/changelogs/.
 
 ### Daemon
 
+- Publish changed notebook cells without repeatedly serialising every completed cell; preserve shared display updates, output clearing and cancellation.
+
 - Avoid scanning the owning Git repository twice during repository discovery.

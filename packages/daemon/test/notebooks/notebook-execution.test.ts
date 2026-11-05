@@ -31,6 +31,62 @@ it('bounds submissions and rejects ambiguous cell identities', () => {
 
 // A real Jupyter kernel, without starting puddled or inheriting an agent PTY.
 it.skipIf(!findCodeExecutable(['jupyter-nbconvert']))(
+  'publishes earlier display-ID changes and preserves cells whose shared display was cleared',
+  async () => {
+    const root = realpathSync(mkdtempSync(join(tmpdir(), 'puddle-notebook-display-')));
+    const source = { session: NO_SESSION, root, path: 'example.ipynb' };
+    writeFileSync(
+      join(root, source.path),
+      JSON.stringify({ nbformat: 4, nbformat_minor: 5, metadata: {}, cells: [] }),
+    );
+    const kernels = new NotebookKernels({ sessions: {} as SessionStore, repos: {} as RepoStore });
+    onTestFinished(async () => {
+      await kernels.dispose();
+      rmSync(root, { recursive: true, force: true });
+    });
+    const status = async () => (await kernels.executionStatus(source)).execution!;
+    await kernels.executeCells({
+      source,
+      cells: [
+        {
+          id: 'first',
+          source:
+            'from IPython.display import display, update_display, clear_output\nimport time\ndisplay({"text/plain": "first"}, raw=True, display_id="shared");',
+        },
+        {
+          id: 'cleared',
+          source:
+            'display({"text/plain": "second"}, raw=True, display_id="shared")\ntime.sleep(1)\nclear_output(wait=True)\nprint("replacement")',
+        },
+        {
+          id: 'last',
+          source:
+            'display({"text/plain": "third"}, raw=True, display_id="shared")\nupdate_display({"text/plain": "final"}, raw=True, display_id="shared")',
+        },
+      ],
+    });
+    await expect
+      .poll(async () => JSON.stringify((await status()).cells[0]?.outputs), {
+        timeout: 30000,
+        interval: 50,
+      })
+      .toContain('second');
+    await expect.poll(async () => (await status()).state, { timeout: 30000 }).toBe('succeeded');
+    const result = await status();
+    expect(result.cells[0]!.outputs).toEqual([
+      { output_type: 'display_data', data: { 'text/plain': 'final' }, metadata: {} },
+    ]);
+    expect(result.cells[1]!.outputs).toEqual([
+      { output_type: 'stream', name: 'stdout', text: 'replacement\n' },
+    ]);
+    expect(result.cells[2]!.outputs).toEqual([
+      { output_type: 'display_data', data: { 'text/plain': 'final' }, metadata: {} },
+    ]);
+  },
+  60000,
+);
+
+it.skipIf(!findCodeExecutable(['jupyter-nbconvert']))(
   'streams selected cells, keeps kernel state, handles input and stops batches on error or interruption',
   async () => {
     const root = realpathSync(mkdtempSync(join(tmpdir(), 'puddle-notebook-live-')));

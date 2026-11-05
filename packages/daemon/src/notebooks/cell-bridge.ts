@@ -13,6 +13,7 @@ class LiveClient(BoundedClient):
         self.started = {}
         self.elapsed = {}
         self.published = {}
+        self.dirty = set(range(len(nb.cells)))
         self.flush_handle = None
         self.cell_index = None
 
@@ -20,7 +21,8 @@ class LiveClient(BoundedClient):
         if self.flush_handle is not None:
             self.flush_handle.cancel()
         self.flush_handle = None
-        for index, cell in enumerate(self.nb.cells):
+        for index in sorted(self.dirty):
+            cell = self.nb.cells[index]
             value = dict(id=cell.id, source=cell.source, state=self.states[index],
                          execution_count=cell.get('execution_count'), outputs=cell.get('outputs', []))
             if index in self.elapsed:
@@ -29,8 +31,17 @@ class LiveClient(BoundedClient):
             if self.published.get(index) != encoded:
                 self.published[index] = encoded
                 emit({'event': 'cell', 'run_id': self.run_id, 'cell': value})
+        self.dirty.clear()
 
     def process_message(self, msg, cell, cell_index):
+        self.dirty.add(cell_index)
+        kind = msg.get('msg_type', '')
+        display_id = (msg.get('content', {}).get('transient') or {}).get('display_id')
+        # nbclient can mutate earlier cells for all three display message kinds,
+        # not only update_display_data. Keep uncommon cross-cell/widget messages
+        # conservative, without depending on nbclient's private display-id map.
+        if (display_id and kind in ('display_data', 'execute_result', 'update_display_data')) or kind.startswith('comm'):
+            self.dirty.update(range(len(self.nb.cells)))
         try:
             return super().process_message(msg, cell, cell_index)
         finally:
@@ -82,20 +93,24 @@ async def run_cells(message):
             runner.states[index] = 'running'
             runner.cell_index = index
             runner.started[index] = time.monotonic()
+            runner.dirty.add(index)
             runner.publish()
             await runner.async_execute_cell(cell, index)
             if interrupted:
                 raise RuntimeError('Notebook execution interrupted')
             runner.states[index] = 'succeeded'
             runner.elapsed[index] = max(0, (time.monotonic() - runner.started[index]) * 1000)
+            runner.dirty.add(index)
             runner.publish()
         emit({'id': message['id'], 'ok': True})
     except BaseException as error:
         if runner is not None and index is not None:
             runner.states[index] = 'cancelled' if interrupted or isinstance(error, asyncio.CancelledError) else 'failed'
-            runner.elapsed[index] = max(0, (time.monotonic() - runner.started[index]) * 1000)
+            runner.elapsed[index] = max(0, (time.monotonic() - runner.started.get(index, time.monotonic())) * 1000)
+            runner.dirty.add(index)
             for at in range(index + 1, len(runner.states)):
                 runner.states[at] = 'cancelled'
+                runner.dirty.add(at)
             runner.publish()
         if manager is not None:
             try:
