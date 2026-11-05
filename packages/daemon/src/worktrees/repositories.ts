@@ -175,7 +175,9 @@ export async function discoverRepositories(visibleRoot: string): Promise<Discove
   if (owner) {
     roots.set(owner, { root: owner, owning: true, submodule: false, initialised: true });
   }
-  const scanned = owner ? await nestedGitRoots(owner, visible) : await scanGitRoots(visible);
+  // The expansion queue scans the owner below. Only an ownerless directory
+  // needs a filesystem walk to seed that queue.
+  const scanned = owner ? [] : await scanGitRoots(visible);
   for (const root of scanned) {
     const actual = await gitRootAt(root);
     if (!actual || actual !== root) continue;

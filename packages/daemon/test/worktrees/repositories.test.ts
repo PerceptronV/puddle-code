@@ -2,7 +2,8 @@ import { execFileSync } from 'node:child_process';
 import { mkdtempSync, realpathSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterAll, describe, expect, it } from 'vitest';
+import { afterAll, describe, expect, it, vi } from 'vitest';
+import * as gitExec from '../../src/git/exec.js';
 import {
   commitRepository,
   discoverRepositories,
@@ -57,6 +58,35 @@ describe('porcelain-v2 status parsing', () => {
 });
 
 describe('repository discovery and precedence', () => {
+  it('scans each owner once and discovers multiple repositories without an owner', async () => {
+    const root = mkdtempSync(join(tmpdir(), 'puddle-discovery-'));
+    cleanup.push(root);
+    for (const name of ['first', 'second']) {
+      execFileSync('git', ['init', '-b', 'main', join(root, name)], { stdio: 'ignore' });
+    }
+    const spy = vi.spyOn(gitExec, 'git');
+    try {
+      const repositories = await discoverRepositories(root);
+      const expectedRoots = ['first', 'second'].map((name) => realpathSync(join(root, name)));
+      expect(repositories.map((repo) => repo.root)).toEqual(expectedRoots);
+      expect(repositories.every((repo) => !repo.owning && repo.initialised)).toBe(true);
+      const scans = () => spy.mock.calls.filter(([args]) => args.includes('--ignored=matching'));
+      expect(
+        scans()
+          .map(([, opts]) => opts?.cwd)
+          .sort(),
+      ).toEqual(expectedRoots);
+      spy.mockClear();
+      const owned = await discoverRepositories(join(root, 'first'));
+      expect(owned).toEqual([
+        { root: expectedRoots[0], owning: true, submodule: false, initialised: true },
+      ]);
+      expect(scans()).toHaveLength(1);
+    } finally {
+      spy.mockRestore();
+    }
+  });
+
   it('covers an outer modification and an ignored nested repository', async () => {
     const outer = initRepo();
     cleanup.push(outer);
