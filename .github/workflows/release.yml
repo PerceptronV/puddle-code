@@ -81,7 +81,7 @@ jobs:
   tarball-darwin:
     # darwin-x64 is unpublished while GitHub's last Intel runner queues too
     # slowly to block releases; restore it (or build under Rosetta) if needed.
-    runs-on: macos-14
+    runs-on: macos-15
     steps:
       - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
@@ -123,7 +123,7 @@ jobs:
     strategy:
       matrix:
         include:
-          - { runner: macos-14, target: darwin-arm64 }
+          - { runner: macos-15, target: darwin-arm64 }
           - { runner: ubuntu-22.04, target: linux-x64 }
     runs-on: ${{ matrix.runner }}
     steps:

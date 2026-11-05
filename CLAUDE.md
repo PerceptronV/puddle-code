@@ -497,9 +497,10 @@ CI and release jobs install dependencies through `scripts/install-ci.mjs`, which
 uses the running Node installation's bundled headers for native source builds.
 Keep that header override scoped to installation so Electron packaging can use
 its own headers; preserve the Linux release compiler and ABI settings.
-Linux archive CI and release jobs use the same Rocky container with `--init` and
+Linux archive release jobs use a Rocky container with `--init` and
 `procps-ng`. Run `scripts/check-runtime-test-host.mjs` before packaging and the
-packaged runtime continuity test afterwards in both workflows. Detached fixture
+packaged runtime continuity test afterwards in the release workflow. Ordinary CI
+retains archive smoke tests on its hosted Ubuntu runner. Detached fixture
 services need actual orphan reaping; never accept a zombie PID/group as absent
 or relax production lifetime checks to accommodate a container without an init.
 
