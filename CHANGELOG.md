@@ -11,4 +11,5 @@ Past releases: see docs/changelogs/.
 
 ### Cockpit
 
+- Fetch a fresh session list for notifications from uncached sessions so an incomplete cache cannot silently drop alerts from other projects.
 - Recognise terminal paths containing spaces and multiline paths split before or after `/`, preserving full clickable ranges and resolve-validated fallbacks.

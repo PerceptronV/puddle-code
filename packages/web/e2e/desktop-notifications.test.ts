@@ -31,6 +31,41 @@ test.beforeAll(async () => {
 });
 test.afterAll(async () => server?.close());
 
+test('delivers an uncached cross-project session despite a fresh incomplete session list', async ({
+  page,
+}) => {
+  const requests: string[] = [];
+  await page.route(`${origin}/api/**`, (route) => {
+    const path = new URL(route.request().url()).pathname;
+    requests.push(path);
+    if (path === '/api/sessions')
+      return route.fulfill({
+        json: [{ id: sessionIds[2], project_id: '1000000002', title: 'Uncached conversation' }],
+      });
+    if (path === '/api/projects/1000000002')
+      return route.fulfill({
+        json: {
+          project: { id: '1000000002', profile_id: '0123456789', name: 'Second project' },
+          sessions: [],
+        },
+      });
+    return route.fulfill({ status: 500, json: {} });
+  });
+  await page.goto(`${origin}/e2e/fixtures/desktop-notifications.html?uncached`);
+  await expect(page.locator('textarea').first()).toBeAttached();
+  await page.evaluate(() => window.notificationFixture.emit(2));
+  await expect
+    .poll(() => page.evaluate(() => window.notificationFixture.messages()))
+    .toMatchObject([
+      {
+        title: 'Test host · Second project',
+        subtitle: 'Uncached conversation',
+        target: { project: '1000000002', session: sessionIds[2] },
+      },
+    ]);
+  expect(requests).toEqual(['/api/sessions', '/api/projects/1000000002']);
+});
+
 test('only recent human input in the notifying terminal suppresses desktop delivery', async ({
   page,
 }) => {

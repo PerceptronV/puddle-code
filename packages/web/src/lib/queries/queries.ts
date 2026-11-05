@@ -142,7 +142,9 @@ export function useAllSessions(enabled = true) {
  * in any mounted query's cache).
  */
 export function fetchAllSessions(qc: QueryClient): Promise<Session[]> {
-  return qc.fetchQuery(allSessionsQuery);
+  // A notification already missed the cached lists. Status patches can keep an
+  // incomplete list fresh, so its timestamp cannot satisfy this lookup.
+  return qc.fetchQuery({ ...allSessionsQuery, staleTime: 0 });
 }
 
 export function useConfig() {

@@ -21,6 +21,7 @@ import { TooltipProvider } from '../../src/components/ui/tooltip';
 import '../../src/styles/app.css';
 
 const workspace = new URLSearchParams(location.search).has('workspace');
+const uncached = new URLSearchParams(location.search).has('uncached');
 const otherProjectId = '1000000002';
 export const projectId = '1000000001';
 export const profileId = '0123456789';
@@ -59,8 +60,8 @@ const sessions = sessionIds.map((id, i) =>
 const query = new QueryClient({
   defaultOptions: { queries: { retry: false, staleTime: Infinity } },
 });
-query.setQueryData(['sessions', 'all'], sessions);
-for (const project of projects)
+query.setQueryData(['sessions', 'all'], uncached ? sessions.slice(0, 2) : sessions);
+for (const project of uncached ? projects.slice(0, 1) : projects)
   query.setQueryData(['project', project.id], {
     project,
     sessions: sessions.filter((s) => s.project_id === project.id),
