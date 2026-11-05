@@ -28,7 +28,7 @@ import { PaneSessionOverlay } from './PaneSessionOverlay';
 import { PaneTabStrip } from './PaneTabStrip';
 import { tabRefKey, type DropEdge } from '../layout/layout-tree';
 import { decodeTabTransfer, hasTabTransfer, TAB_MIME } from '../tabs/tab-transfer';
-import { useActiveDragRef, useDropIndicator } from '../layout/TilingDnd';
+import { useTilingDragging, useDropIndicator } from '../layout/TilingDnd';
 import { paneInteractionIntent } from './pane-interaction';
 
 /**
@@ -110,7 +110,7 @@ export function PaneLeaf({
   const slotRef = useKeepAliveSlot(terminalKey);
   const { setNodeRef } = useDroppable({ id: `leaf:${leaf.id}` });
   const indicator = useDropIndicator();
-  const activeDragRef = useActiveDragRef();
+  const isDragging = useTilingDragging();
   const paletteKey = useHotkeyLabel('palette.toggle');
   const activeEditor = activeRef?.type === 'editor' ? activeRef.tab : null;
   const activeView = activeEditor?.view ?? 'source';
@@ -218,7 +218,7 @@ export function PaneLeaf({
 
   return (
     <div
-      className="flex h-full flex-col bg-ground"
+      className="workspace-surface island-outline flex h-full flex-col bg-surface"
       onMouseDownCapture={() => interact('press')}
       // A wheel/trackpad gesture need not be preceded by a click. Promote an
       // eligible receiver to scroll driver, but leave logical pane focus alone.
@@ -250,10 +250,14 @@ export function PaneLeaf({
           bodyRef.current = el;
           setNodeRef(el);
         }}
-        className="relative min-h-0 flex-1"
+        data-editor-surface={activeRef?.type === 'editor' || undefined}
+        className={cn(
+          'relative min-h-0 flex-1',
+          activeRef && 'mx-1 mb-1 overflow-hidden rounded-[var(--ui-radius)] bg-ground',
+        )}
       >
         {activeRef?.type === 'editor' && (
-          <div className="absolute inset-0">
+          <div className="absolute inset-1 overflow-hidden rounded-[var(--ui-radius)]">
             <TabViewStateContext.Provider
               value={JSON.stringify([scrollChannel, leaf.id, tabRefKey(activeRef)])}
             >
@@ -297,9 +301,7 @@ export function PaneLeaf({
             duration of a strip drag so HTML iframes remain
             ordinary move/split destinations. The registered leaf beneath this
             transparent shield still supplies collision geometry. */}
-        {activeDragRef && (
-          <div className="absolute inset-0 z-10 cursor-grabbing" aria-hidden="true" />
-        )}
+        {isDragging && <div className="absolute inset-0 z-10 cursor-grabbing" aria-hidden="true" />}
         {/* A strip insertion (index set) is marked by the strip's caret instead
             of the pane-body highlight. */}
         {indicator?.leafId === leaf.id && indicator.index === undefined && (

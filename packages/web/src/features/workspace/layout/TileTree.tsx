@@ -17,8 +17,6 @@ import type { EditorPosition, RevealTarget } from '../editor-context';
 import { flattenTabs, type DropEdge } from './layout-tree';
 import { PaneLeaf } from '../panes/PaneLeaf';
 
-const SEP = 'bg-border transition-colors hover:bg-accent data-[resizing]:bg-accent';
-
 export interface TileHandlers {
   sessions: Session[];
   reveal: RevealTarget | null;
@@ -146,7 +144,13 @@ function TileNode({ node, ...handlers }: { node: LayoutNode } & TileHandlers) {
       {node.children.map((child, i) => (
         <Fragment key={child.id}>
           {i > 0 && (
-            <Separator className={orientation === 'horizontal' ? `w-px ${SEP}` : `h-px ${SEP}`} />
+            <Separator
+              className={
+                orientation === 'horizontal'
+                  ? 'workspace-divider-vertical'
+                  : 'workspace-divider-horizontal'
+              }
+            />
           )}
           <Panel id={child.id} minSize={64}>
             <TileNode node={child} {...handlers} />

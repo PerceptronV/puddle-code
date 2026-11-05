@@ -1,3 +1,4 @@
+import { ControlTray } from '../../../../components/ui/control-tray';
 import { latexSynctexResponseSchema, type LatexSynctexResponse } from '@puddle/shared';
 import {
   useCallback,
@@ -305,7 +306,11 @@ function PdfZoomControls({
 }) {
   const zoomLabel = formatPdfZoom(zoom);
   return (
-    <div className="absolute right-3 top-3 z-10 flex items-center gap-0.5 rounded-md bg-surface/90 p-1 shadow-sm backdrop-blur-sm">
+    <ControlTray
+      variant="overlay"
+      label="PDF zoom"
+      className="absolute right-3 top-3 z-10 shadow-sm"
+    >
       <button
         type="button"
         disabled={zoom <= minimum}
@@ -335,7 +340,7 @@ function PdfZoomControls({
       >
         <ZoomIn className="size-3.5" />
       </button>
-    </div>
+    </ControlTray>
   );
 }
 

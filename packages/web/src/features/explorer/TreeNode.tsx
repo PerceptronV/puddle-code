@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronRight, FolderClosed, FolderOpen, Link2 } from 'lucide-react';
+import { ChevronRight, Link2 } from 'lucide-react';
 import type { TreeEntry } from '@puddle/shared';
 import {
   ContextMenu,
@@ -24,11 +24,11 @@ import {
   pruneNested,
   type VisibleRow,
 } from './explorer-paths';
-import { FileTypeIcon } from './file-icons';
+import { FileTypeIcon, FolderIcon } from './file-icons';
 import { FileMenuItems } from './FileMenuItems';
 import { folderStatus, gitDecoration } from './git-decoration';
 
-const INDENT_PX = 14;
+const INDENT_PX = 16;
 
 // A clipped name eases into view on ITS OWN row's hover, at the app's one
 // marquee speed — the treatment every other sidebar list already gives clipped
@@ -94,8 +94,8 @@ function EditRow({
   };
   return (
     <div
-      className="flex h-6 items-center gap-1 pr-2 compact:h-5"
-      style={{ paddingLeft: depth * INDENT_PX + 8 }}
+      className="flex h-[var(--ui-row-height)] items-center gap-[var(--ui-item-gap)] rounded-[var(--ui-radius)] pr-2"
+      style={{ paddingLeft: depth * INDENT_PX + 4 }}
     >
       <span className="size-3.5 shrink-0" />
       {icon}
@@ -150,7 +150,7 @@ export function TreeNode({
     ? decoration.colourClass
     : entry.name.startsWith('.')
       ? 'text-fg-muted'
-      : 'text-fg';
+      : 'text-explorer-fg';
 
   // The paste target and the entries a menu action operates on (respect a
   // multi-selection that includes this row; otherwise just this row).
@@ -175,7 +175,7 @@ export function TreeNode({
         initial={entry.name}
         icon={
           isDir ? (
-            <FolderClosed className="size-3.5 shrink-0 text-fg" />
+            <FolderIcon className={decoration?.colourClass} />
           ) : (
             <FileTypeIcon name={entry.name} />
           )
@@ -248,10 +248,11 @@ export function TreeNode({
         if (dragged.length > 0) ex.onInternalDrop(path, dragged);
         else ex.onDropUpload(path, e.dataTransfer.items, e.dataTransfer.files);
       }}
-      style={{ paddingLeft: depth * INDENT_PX + 8 }}
+      style={{ paddingLeft: depth * INDENT_PX + 4 }}
       className={cn(
-        'group/treerow flex h-6 cursor-pointer items-center gap-1 pr-2 text-sm transition-colors hover:bg-elevated compact:h-5',
-        isSelected ? 'bg-selection' : isActive && 'bg-elevated',
+        'group/treerow flex h-[var(--ui-row-height)] cursor-pointer items-center gap-[var(--ui-item-gap)] rounded-[var(--ui-radius)] pr-2 text-sm transition-colors',
+        isSelected ? 'bg-explorer-selection' : 'hover:bg-explorer-hover',
+        !isSelected && isActive && 'bg-explorer-hover',
         isDropTarget && 'bg-selection',
         isCut && 'opacity-50',
       )}
@@ -259,30 +260,26 @@ export function TreeNode({
       {isDir ? (
         <ChevronRight
           className={cn(
-            'size-3.5 shrink-0 text-fg-gold transition-transform duration-150',
+            'size-3.5 shrink-0 text-fg-muted transition-transform duration-150',
             isOpen && 'rotate-90',
           )}
         />
       ) : (
         <span className="size-3.5 shrink-0" />
       )}
-      {/* Untinted icons wear the heading colour (text-fg), never gold — colour
-          on a tree icon means git status (a gold default read as "modified").
-          The link icon marks the symlink ROOT and wins over the folder glyph,
-          so a symlinked directory reads as a link while its (normal) children
-          keep their own icons; the chevron above still makes it explorable. */}
-      {entry.symlink || entry.type === 'symlink' ? (
-        <Link2 className="size-3.5 shrink-0 text-fg" />
-      ) : isDir ? (
-        isOpen ? (
-          <FolderOpen
-            className={cn('size-3.5 shrink-0', folderTint ? decoration?.colourClass : 'text-fg')}
+      {isDir ? (
+        <span className="relative flex shrink-0">
+          <FolderIcon
+            open={isOpen}
+            dimmed={status === 'ignored'}
+            className={decoration?.colourClass}
           />
-        ) : (
-          <FolderClosed
-            className={cn('size-3.5 shrink-0', folderTint ? decoration?.colourClass : 'text-fg')}
-          />
-        )
+          {entry.symlink && (
+            <Link2 aria-hidden="true" className="absolute -bottom-0.5 -right-1 size-2.5 text-fg" />
+          )}
+        </span>
+      ) : entry.symlink || entry.type === 'symlink' ? (
+        <Link2 aria-hidden="true" className="size-4.5 shrink-0 text-fg-muted" />
       ) : (
         <FileTypeIcon name={entry.name} dimmed={status === 'ignored'} />
       )}
@@ -354,7 +351,7 @@ export function DirEntries({ sid, path, depth }: { sid: string; path: string; de
   // `ex.root` is undefined in the worktree and the browse root above it, so one
   // tree serves both (SPEC §8) — the query key follows suit.
   const tree = useWorktreeTree(sid, path, ex.root);
-  const pad = { paddingLeft: depth * INDENT_PX + 8 };
+  const pad = { paddingLeft: depth * INDENT_PX + 4 };
 
   const editing = ex.editing;
   const createRow =
@@ -405,13 +402,7 @@ function CreateRow({ depth, kind }: { depth: number; kind: 'file' | 'dir' }) {
     <EditRow
       depth={depth}
       initial={name}
-      icon={
-        kind === 'dir' ? (
-          <FolderClosed className="size-3.5 shrink-0 text-fg" />
-        ) : (
-          <FileTypeIcon name={name || 'file'} />
-        )
-      }
+      icon={kind === 'dir' ? <FolderIcon /> : <FileTypeIcon name={name || 'file'} />}
       onCommit={(value) => {
         setName(value);
         ex.commitEdit(value);

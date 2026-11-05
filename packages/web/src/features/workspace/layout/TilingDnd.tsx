@@ -15,7 +15,7 @@ import {
 } from '@dnd-kit/core';
 import type { TabRef } from '@puddle/shared';
 import { zoneForPointer } from './layout-dnd';
-import type { DropEdge, DropSpec } from './layout-tree';
+import type { DropEdge, DropSpec, PaneDropSpec } from './layout-tree';
 
 /**
  * Drag-and-drop for the tiling layout (SPEC §8): dragging a tab over a pane
@@ -46,6 +46,11 @@ export function useDropIndicator(): DropIndicator | null {
 }
 
 const ActiveRefCtx = createContext<TabRef | null>(null);
+const DraggingCtx = createContext(false);
+
+export function useTilingDragging(): boolean {
+  return useContext(DraggingCtx);
+}
 
 /**
  * The tab currently mid-drag (dnd-kit strip drags only), for targets outside
@@ -68,6 +73,8 @@ export const ARCHIVE_DROP_PREFIX = 'archive:';
  */
 const collisions: CollisionDetection = (args) => {
   const within = pointerWithin(args);
+  // A whole pane released outside the grid stays put, even if its wide strip overlaps a target.
+  if (args.active.data.current?.['paneId'] && within.length === 0) return [];
   for (const prefix of [TAB_PREFIX, STRIP_PREFIX]) {
     const hits = within.filter((c) => String(c.id).startsWith(prefix));
     if (hits.length > 0) return hits;
@@ -77,11 +84,13 @@ const collisions: CollisionDetection = (args) => {
 
 export function TilingDnd({
   onDrop,
+  onDropPane,
   onArchive,
   renderOverlay,
   children,
 }: {
   onDrop: (spec: DropSpec) => void;
+  onDropPane?: (spec: PaneDropSpec) => void;
   /** A terminal tab released over an archive target (SPEC §12). */
   onArchive?: (session: string) => void;
   renderOverlay: (ref: TabRef) => React.ReactNode;
@@ -91,24 +100,35 @@ export function TilingDnd({
   const sensors = useSensors(useSensor(PointerSensor, { activationConstraint: { distance: 4 } }));
   const [indicator, setIndicator] = useState<DropIndicator | null>(null);
   const [activeRef, setActiveRef] = useState<TabRef | null>(null);
+  const [activePane, setActivePane] = useState<{ id: string; count: number } | null>(null);
   const latest = useRef<DropIndicator | null>(null);
 
   const clear = () => {
     setIndicator(null);
     setActiveRef(null);
+    setActivePane(null);
     latest.current = null;
   };
 
-  const onDragStart = (e: DragStartEvent) =>
+  const onDragStart = (e: DragStartEvent) => {
     setActiveRef((e.active.data.current?.['ref'] as TabRef | undefined) ?? null);
+    const paneId = e.active.data.current?.['paneId'] as string | undefined;
+    setActivePane(
+      paneId ? { id: paneId, count: e.active.data.current?.['tabCount'] as number } : null,
+    );
+  };
 
   const onDragMove = (e: DragMoveEvent) => {
     const over = e.over;
     const pointer = pointerPosition(e);
-    const next =
+    let next =
       over && pointer
         ? resolveIndicator(String(over.id), over.rect, over.data.current, pointer)
         : null;
+    const paneId = e.active.data.current?.['paneId'] as string | undefined;
+    if (paneId && next) {
+      next = next.leafId === paneId ? null : { leafId: next.leafId, zone: next.zone };
+    }
     // Bail on no-change: a fresh object per pointermove would re-render every
     // strip (context subscribers) at mouse-move frequency for nothing.
     if (sameIndicator(latest.current, next)) return;
@@ -122,6 +142,13 @@ export function TilingDnd({
     const fromLeafId = e.active.data.current?.['fromLeafId'] as string | undefined;
     const overId = e.over !== null ? String(e.over.id) : null;
     clear();
+    const paneId = e.active.data.current?.['paneId'] as string | undefined;
+    if (paneId) {
+      if (ind && overId && !overId.startsWith(ARCHIVE_DROP_PREFIX)) {
+        onDropPane?.({ fromLeafId: paneId, toLeafId: ind.leafId, edge: ind.zone });
+      }
+      return;
+    }
     // Released over an archive target: archive the session instead of moving
     // the tab (editor tabs have no session to archive — ignored).
     if (overId !== null && overId.startsWith(ARCHIVE_DROP_PREFIX)) {
@@ -143,9 +170,19 @@ export function TilingDnd({
       onDragCancel={clear}
     >
       <IndicatorCtx.Provider value={indicator}>
-        <ActiveRefCtx.Provider value={activeRef}>{children}</ActiveRefCtx.Provider>
+        <DraggingCtx.Provider value={activeRef !== null || activePane !== null}>
+          <ActiveRefCtx.Provider value={activeRef}>{children}</ActiveRefCtx.Provider>
+        </DraggingCtx.Provider>
       </IndicatorCtx.Provider>
-      <DragOverlay dropAnimation={null}>{activeRef ? renderOverlay(activeRef) : null}</DragOverlay>
+      <DragOverlay dropAnimation={null}>
+        {activePane ? (
+          <div className="rounded-md bg-elevated px-3 py-2 text-xs text-fg shadow-lg">
+            Move pane · {activePane.count} {activePane.count === 1 ? 'tab' : 'tabs'}
+          </div>
+        ) : activeRef ? (
+          renderOverlay(activeRef)
+        ) : null}
+      </DragOverlay>
     </DndContext>
   );
 }

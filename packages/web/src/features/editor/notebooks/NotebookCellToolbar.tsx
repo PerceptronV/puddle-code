@@ -34,7 +34,7 @@ export function NotebookCellToolbar({
   const action = (label: string, icon: ReactNode, handler: () => void, disabled = false) => (
     <button
       type="button"
-      className="cursor-pointer rounded-sm p-1 text-fg-muted hover:bg-surface hover:text-fg disabled:cursor-default disabled:opacity-40"
+      className="cursor-pointer rounded-sm p-1 text-fg-muted hover:bg-elevated hover:text-fg disabled:cursor-default disabled:opacity-40"
       title={label}
       aria-label={label}
       onClick={handler}

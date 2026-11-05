@@ -22,6 +22,7 @@
   /* 'ground' not 'base': text-base is Tailwind's font-size utility. */
   --color-ground: var(--bg-base);
   --color-surface: var(--bg-surface);
+  --color-tray: var(--bg-tray);
   --color-elevated: var(--bg-elevated);
   --color-border: var(--border);
   --color-fg: var(--text-primary);
@@ -43,15 +44,18 @@
   --color-idle: var(--status-idle);
   --color-terminal: var(--status-terminal);
   --color-selection: var(--selection);
+  --color-explorer-folder: var(--explorer-folder);
+  --color-explorer-fg: var(--explorer-foreground);
+  --color-explorer-selection: var(--explorer-selection);
+  --color-explorer-hover: var(--explorer-hover);
   --color-diff-added: var(--diff-added);
   --color-diff-removed: var(--diff-removed);
   --color-transparent: transparent;
   --color-current: currentColor;
   --color-paper: var(--paper);
 
-  /* File-type icon hues (SPEC §8/§12): the explorer's coloured file glyphs
-     draw from the theme-aware ANSI ramp so they recolour with the theme and
-     add no new raw colours. */
+  /* Theme-aware hues for application glyphs; vendored file-type artwork
+     preserves its upstream colours. */
   --color-icon-blue: var(--ansi-blue);
   --color-icon-green: var(--ansi-green);
   --color-icon-amber: var(--ansi-yellow);
@@ -412,4 +416,42 @@
     font-family: var(--font-mono);
     font-size: 0.92em;
   }
+}
+
+/* Shared geometry for inset navigator rows; content may grow beyond one line. */
+@utility sidebar-row {
+  min-height: var(--ui-row-height);
+  width: calc(100% - var(--ui-list-inset) * 2);
+  margin-inline: var(--ui-list-inset);
+  border-radius: var(--ui-radius);
+}
+
+@utility island-outline {
+  outline: 1px solid var(--border);
+  outline-offset: -1px;
+}
+
+@utility workspace-surface {
+  border-radius: var(--ui-surface-radius);
+  overflow: hidden;
+}
+
+/* Invisible resize targets preserve the gap between floating surfaces. */
+.workspace-divider-vertical,
+.workspace-divider-horizontal {
+  flex-shrink: 0;
+  background: transparent;
+}
+.workspace-divider-vertical {
+  width: var(--ui-surface-gap);
+}
+.workspace-divider-horizontal {
+  height: var(--ui-surface-gap);
+}
+
+/* Let each notebook cell's island surface continue through its source editor. */
+[data-notebook-cell] .monaco-editor,
+[data-notebook-cell] .monaco-editor-background,
+[data-notebook-cell] .monaco-editor .margin {
+  background-color: transparent !important;
 }

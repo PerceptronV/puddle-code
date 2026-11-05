@@ -32,7 +32,7 @@ function ActionTile({
       onClick={onClick}
       // flex-col so the stretched cell top-aligns the content like a card
       // (a button vertically centres its content by default).
-      className="group flex flex-col rounded-lg bg-surface p-4 text-left transition-colors hover:bg-elevated"
+      className="group flex flex-col island-outline rounded-[var(--ui-surface-radius)] bg-surface p-4 text-left transition-colors hover:bg-elevated"
     >
       <h2 className="flex items-center gap-2 truncate text-base font-semibold text-fg group-hover:text-accent">
         <Icon className="size-4 shrink-0" />

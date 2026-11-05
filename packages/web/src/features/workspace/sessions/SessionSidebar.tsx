@@ -1,3 +1,4 @@
+import { ControlTray } from '../../../components/ui/control-tray';
 import { useEffect, useMemo, useState, type DragEvent, type ReactNode } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { Link } from 'react-router';
@@ -260,7 +261,7 @@ function RailArchiveTarget({
           onClick={onExpand}
           {...drop.props}
           className={cn(
-            'mt-1 flex shrink-0 items-center rounded-md p-1.5 text-fg-muted transition-colors hover:bg-elevated hover:text-fg compact:p-1',
+            'island-outline mt-1 flex min-h-9 w-full shrink-0 items-center justify-center rounded-[var(--ui-surface-radius)] bg-tray p-1.5 text-fg-muted transition-colors hover:bg-elevated hover:text-fg compact:p-1',
             drop.armed && 'bg-selection text-fg',
           )}
         >
@@ -322,7 +323,7 @@ function IconButton({
           aria-pressed={active}
           className={cn(
             'flex items-center rounded-md p-1.5 transition-colors',
-            active ? 'bg-elevated text-fg' : 'text-fg-gold hover:bg-elevated hover:text-fg',
+            active ? 'bg-elevated text-fg' : 'text-fg hover:bg-elevated',
           )}
         >
           <Icon className="size-4" />
@@ -423,14 +424,16 @@ function CollapsedSessionDot({
               aria-selected={selected}
               className={cn(
                 'flex items-center rounded-md p-1 transition-colors hover:bg-elevated',
-                selected ? 'bg-selection' : session.id === activeSessionId && 'bg-elevated',
+                selected
+                  ? 'bg-explorer-selection'
+                  : session.id === activeSessionId && 'bg-explorer-hover',
               )}
             >
               {/* Active session marked with the same bg-elevated fill-shift the
                   expanded list and the navigator's mode icons use — a theme
                   colour, no border, no default-blue ring (HUMANS.md). Sizing
                   settled by eye against the live rail (2026-08-06, three
-                  rounds): 16px marks comfortable / 12px compact at 0.75×
+                  rounds): 20px marks comfortable / 16px compact at 0.75×
                   stroke — the mark full-bleeds its box rather than floating a
                   12px icon in a 16px one, which is what made the marks swim in
                   their chips. */}
@@ -440,7 +443,7 @@ function CollapsedSessionDot({
                 agentType={session.agent_type}
                 detectedAgentType={session.detected_agent_type}
                 stale={session.stale_running}
-                className="size-4 compact:size-3"
+                className="size-5 shrink-0 compact:size-4"
                 iconClassName="size-full"
                 iconStrokeScale={0.75}
               />
@@ -520,29 +523,32 @@ export function CollapsedSessionsRail({
     patchProject.mutate({ id: group.projectId, abbrev: next }, { onError: (e) => toastError(e) });
   };
   return (
-    <div className="flex h-full min-h-0 w-9 shrink-0 flex-col items-center overflow-hidden bg-surface py-1.5 compact:py-1">
-      <div className="flex flex-col items-center gap-1 compact:gap-0.5">
-        <IconButton
-          icon={PanelRightOpen}
-          label="Show sessions"
-          onClick={onExpand}
-          tooltipSide="left"
-        />
-        <IconButton icon={Bot} label="New agent" onClick={onNewSession} tooltipSide="left" />
-        <IconButton
-          icon={SquareTerminal}
-          label="New terminal"
-          onClick={onNewTerminal}
-          tooltipSide="left"
-        />
+    <div className="flex h-full min-h-0 w-9 shrink-0 flex-col items-center gap-[var(--ui-surface-gap)] overflow-hidden">
+      <div className="relative flex w-full shrink-0 flex-col items-center gap-1 compact:gap-0.5">
+        <ControlTray label="New sessions" variant="island" vertical>
+          <IconButton
+            icon={PanelRightOpen}
+            label="Show sessions"
+            onClick={onExpand}
+            tooltipSide="left"
+          />
+          <div aria-hidden="true" className="mx-1 h-px self-stretch bg-border" />
+          <IconButton icon={Bot} label="New agent" onClick={onNewSession} tooltipSide="left" />
+          <IconButton
+            icon={SquareTerminal}
+            label="New terminal"
+            onClick={onNewTerminal}
+            tooltipSide="left"
+          />
+        </ControlTray>
       </div>
-      <div className="no-scrollbar flex min-h-0 flex-1 flex-col items-center gap-1 overflow-y-auto overscroll-contain compact:gap-0.5">
+      <div className="no-scrollbar flex min-h-0 flex-1 flex-col items-center gap-[var(--ui-surface-gap)] overflow-y-auto overscroll-contain">
         {groups.map((group) => (
           // A divider precedes every group (the first one separates glyphs
           // from the controls above; the rest separate projects).
           <div
             key={group.projectId}
-            className="flex flex-col items-center gap-1 compact:gap-0.5"
+            className="workspace-surface island-outline relative flex w-9 shrink-0 flex-col items-center gap-1 bg-tray py-1.5 compact:gap-0.5"
             onDragOver={(e) => {
               if (!dragProject) return;
               e.preventDefault();
@@ -550,7 +556,6 @@ export function CollapsedSessionsRail({
                 projectActions.onMoveProject(dragProject, group.projectId);
             }}
           >
-            <div className="my-0.5 h-px w-7 shrink-0 bg-border" />
             {/* Both triggers stack over the single <Link> (as the dots do): the
                 tooltip shows the FULL project name the abbreviation stands for;
                 right-click opens the new-agent/terminal menu; the label drags
@@ -739,8 +744,10 @@ function SessionRow({
           to={`/project/${session.project_id}/session/${session.id}`}
           aria-selected={selection ? selected : undefined}
           className={cn(
-            'group flex items-center gap-2 px-3 py-1.5 transition-colors hover:bg-elevated compact:gap-1.5 compact:py-1',
-            selected ? 'bg-selection' : session.id === activeSessionId && 'bg-elevated',
+            'sidebar-row group flex items-center gap-[var(--ui-item-gap)] px-2 py-2 transition-colors hover:bg-explorer-hover compact:py-1.5',
+            selected
+              ? 'bg-explorer-selection'
+              : session.id === activeSessionId && 'bg-explorer-hover',
           )}
         >
           <SessionGlyph
@@ -855,19 +862,19 @@ export function SessionSidebar({
   selection: SidebarSessionSelection;
   projectActions: ProjectHeaderActions;
 }) {
+  const controls = (
+    <div className="flex shrink-0 items-center gap-1 px-2 py-1.5">
+      <IconButton icon={PanelRightClose} label="Hide sessions" onClick={onCollapse} />
+      <ControlTray label="New sessions" variant="selection" className="ml-auto">
+        <IconButton icon={Bot} label="New agent" onClick={onNewSession} />
+        <IconButton icon={SquareTerminal} label="New terminal" onClick={onNewTerminal} />
+      </ControlTray>
+    </div>
+  );
   return (
-    <div className="flex h-full min-h-0 flex-col overflow-hidden bg-surface">
-      {/* Fixed controls: collapse on the left edge; the Agent · Terminal
-          symbols on the right (SPEC §8) — the Scratchpad lives in the top bar
-          (SPEC §11), not here. */}
-      <div className="flex shrink-0 items-center gap-1 px-2 py-1.5">
-        <IconButton icon={PanelRightClose} label="Hide sessions" onClick={onCollapse} />
-        <div className="ml-auto flex items-center gap-1">
-          <IconButton icon={Bot} label="New agent" onClick={onNewSession} />
-          <IconButton icon={SquareTerminal} label="New terminal" onClick={onNewTerminal} />
-        </div>
-      </div>
+    <div className="flex h-full min-h-0 flex-col">
       <SessionListBody
+        header={controls}
         groups={groups}
         accounts={accounts}
         activeSessionId={activeSessionId}
@@ -885,6 +892,7 @@ export function SessionSidebar({
 
 /** The session-list body (extracted so the sidebar shell can swap in Scratchpad). */
 function SessionListBody({
+  header,
   groups,
   accounts,
   activeSessionId,
@@ -896,6 +904,7 @@ function SessionListBody({
   selection,
   projectActions,
 }: {
+  header: ReactNode;
   groups: SessionGroup[];
   accounts: Account[];
   activeSessionId: string | null;
@@ -967,125 +976,129 @@ function SessionListBody({
 
   return (
     <>
-      {/* body */}
-      {/* No horizontal padding: the active/hover fill-shift bleeds to both
+      <div className="workspace-surface island-outline flex min-h-0 flex-1 flex-col bg-surface">
+        {header}
+        {/* body */}
+        {/* No horizontal padding: the active/hover fill-shift bleeds to both
           sidebar edges (each row carries its own px-3). Scrolls without a
           visible scrollbar so a long cross-project list still works. */}
-      <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain py-1.5">
-        {total === 0 && archived.length === 0 && (
-          <p className="px-3 py-3 text-xs text-fg-muted">
-            No sessions yet — press {paletteKey} to start one.
-          </p>
-        )}
-        {groups.map((group) => (
-          <div
-            key={group.projectId}
-            onDragOver={(e) => {
-              if (!dragProject) return;
-              e.preventDefault();
-              if (dragProject !== group.projectId)
-                projectActions.onMoveProject(dragProject, group.projectId);
-            }}
-          >
-            {/* The header right-clicks into the new-agent/terminal menu and
+        <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain py-1.5">
+          {total === 0 && archived.length === 0 && (
+            <p className="px-3 py-3 text-xs text-fg-muted">
+              No sessions yet — press {paletteKey} to start one.
+            </p>
+          )}
+          {groups.map((group) => (
+            <div
+              key={group.projectId}
+              className="mx-2 border-t border-border py-1 first:border-t-0"
+              onDragOver={(e) => {
+                if (!dragProject) return;
+                e.preventDefault();
+                if (dragProject !== group.projectId)
+                  projectActions.onMoveProject(dragProject, group.projectId);
+              }}
+            >
+              {/* The header right-clicks into the new-agent/terminal menu and
                 drags to reorder projects (the same projectOrder the homescreen
                 cards persist); while any header drags, the session lists
                 collapse so only the names reposition. A single click navigates
                 (any project); a DOUBLE-click opens the same menu, where Change
                 project name sits among the other actions (decision
                 2026-08-05 — see the collapsed rail's abbreviation). */}
-            {editingName === group.projectId ? (
-              <InlineLabelEdit
-                initial={group.name}
-                maxLength={100}
-                className="block w-full px-3 pb-1 pt-2 text-2xs font-medium tracking-wide text-fg"
-                onCommit={(v) => commitName(group, v)}
-                onCancel={() => setEditingName(null)}
-              />
-            ) : (
-              <ContextMenu>
-                <ContextMenuTrigger asChild>
-                  <Link
-                    to={`/project/${group.projectId}`}
-                    {...menuOnDoubleClick()}
-                    draggable
-                    onDragStart={(e) => {
-                      e.dataTransfer.setData(PROJECT_MIME, group.projectId);
-                      setDragProject(group.projectId);
-                    }}
-                    onDragEnd={() => setDragProject(null)}
-                    className={cn(
-                      'block truncate px-3 pb-1 pt-2 text-2xs font-medium uppercase tracking-wide transition-colors compact:pb-0.5 compact:pt-1.5',
-                      appearanceColourClass(group.colour)
-                        ? cn(appearanceColourClass(group.colour), 'hover:opacity-75')
-                        : 'text-fg-gold hover:text-fg',
-                      dragProject === group.projectId && 'opacity-50',
-                    )}
-                  >
-                    {group.name}
-                  </Link>
-                </ContextMenuTrigger>
-                <ProjectMenuBody
-                  projectId={group.projectId}
-                  name={group.name}
-                  colour={group.colour}
-                  actions={projectActions}
-                  editLabel={{
-                    label: 'Change project name',
-                    onSelect: () => setEditingName(group.projectId),
-                  }}
+              {editingName === group.projectId ? (
+                <InlineLabelEdit
+                  initial={group.name}
+                  maxLength={100}
+                  className="block w-full px-3 pb-1 pt-2 text-2xs font-medium tracking-wide text-fg"
+                  onCommit={(v) => commitName(group, v)}
+                  onCancel={() => setEditingName(null)}
                 />
-              </ContextMenu>
-            )}
-            <CollapsibleSessions collapsed={dragProject !== null}>
-              <ul className="flex flex-col gap-0.5 overflow-hidden compact:gap-0">
-                {group.sessions.map((session) => (
-                  <li
-                    key={session.id}
-                    draggable
-                    onDragStart={(e) => {
-                      const sessionIds = sessionsForDrag(visibleIds, selection.ids, session.id);
-                      // Reorders within the list AND, dropped on a tiling pane,
-                      // opens the grabbed session there as a permanent tab. A
-                      // selected batch travels beside that single-tab payload
-                      // for the archive target.
-                      e.dataTransfer.setData(
-                        TAB_MIME,
-                        encodeTabTransfer({ type: 'terminal', session: session.id }),
-                      );
-                      e.dataTransfer.setData(SESSION_DRAG_MIME, encodeSessionDrag(sessionIds));
-                      e.dataTransfer.effectAllowed = 'copyMove';
-                      if (sessionIds.length > 1) setCountDragImage(e, sessionIds.length);
-                      if (!selection.ids.has(session.id)) selection.onSelectOnly(session.id);
-                      setDragging({ sourceId: session.id, sessionIds });
+              ) : (
+                <ContextMenu>
+                  <ContextMenuTrigger asChild>
+                    <Link
+                      to={`/project/${group.projectId}`}
+                      {...menuOnDoubleClick()}
+                      draggable
+                      onDragStart={(e) => {
+                        e.dataTransfer.setData(PROJECT_MIME, group.projectId);
+                        setDragProject(group.projectId);
+                      }}
+                      onDragEnd={() => setDragProject(null)}
+                      className={cn(
+                        'block truncate px-3 pb-1 pt-2 text-2xs font-medium uppercase tracking-wide transition-colors compact:pb-0.5 compact:pt-1.5',
+                        appearanceColourClass(group.colour)
+                          ? cn(appearanceColourClass(group.colour), 'hover:opacity-75')
+                          : 'text-fg-gold hover:text-fg',
+                        dragProject === group.projectId && 'opacity-50',
+                      )}
+                    >
+                      {group.name}
+                    </Link>
+                  </ContextMenuTrigger>
+                  <ProjectMenuBody
+                    projectId={group.projectId}
+                    name={group.name}
+                    colour={group.colour}
+                    actions={projectActions}
+                    editLabel={{
+                      label: 'Change project name',
+                      onSelect: () => setEditingName(group.projectId),
                     }}
-                    onDragEnd={() => setDragging(null)}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      if (dragging?.sessionIds.length === 1 && dragging.sourceId !== session.id)
-                        move(dragging.sourceId, session.id);
-                    }}
-                    className={cn(
-                      'transition-opacity',
-                      dragging?.sessionIds.includes(session.id) && 'opacity-50',
-                    )}
-                  >
-                    <SessionRow
-                      session={session}
-                      activeSessionId={activeSessionId}
-                      accountLabel={accountLabel}
-                      onPromote={onPromote}
-                      onArchived={onArchived}
-                      selectedIds={selectedIds}
-                      selection={selection}
-                      ellipsis
-                    />
-                  </li>
-                ))}
-              </ul>
-            </CollapsibleSessions>
-          </div>
-        ))}
+                  />
+                </ContextMenu>
+              )}
+              <CollapsibleSessions collapsed={dragProject !== null}>
+                <ul className="flex flex-col gap-0.5 overflow-hidden compact:gap-0">
+                  {group.sessions.map((session) => (
+                    <li
+                      key={session.id}
+                      draggable
+                      onDragStart={(e) => {
+                        const sessionIds = sessionsForDrag(visibleIds, selection.ids, session.id);
+                        // Reorders within the list AND, dropped on a tiling pane,
+                        // opens the grabbed session there as a permanent tab. A
+                        // selected batch travels beside that single-tab payload
+                        // for the archive target.
+                        e.dataTransfer.setData(
+                          TAB_MIME,
+                          encodeTabTransfer({ type: 'terminal', session: session.id }),
+                        );
+                        e.dataTransfer.setData(SESSION_DRAG_MIME, encodeSessionDrag(sessionIds));
+                        e.dataTransfer.effectAllowed = 'copyMove';
+                        if (sessionIds.length > 1) setCountDragImage(e, sessionIds.length);
+                        if (!selection.ids.has(session.id)) selection.onSelectOnly(session.id);
+                        setDragging({ sourceId: session.id, sessionIds });
+                      }}
+                      onDragEnd={() => setDragging(null)}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        if (dragging?.sessionIds.length === 1 && dragging.sourceId !== session.id)
+                          move(dragging.sourceId, session.id);
+                      }}
+                      className={cn(
+                        'transition-opacity',
+                        dragging?.sessionIds.includes(session.id) && 'opacity-50',
+                      )}
+                    >
+                      <SessionRow
+                        session={session}
+                        activeSessionId={activeSessionId}
+                        accountLabel={accountLabel}
+                        onPromote={onPromote}
+                        onArchived={onArchived}
+                        selectedIds={selectedIds}
+                        selection={selection}
+                        ellipsis
+                      />
+                    </li>
+                  ))}
+                </ul>
+              </CollapsibleSessions>
+            </div>
+          ))}
+        </div>
       </div>
       {/* Archived sessions: hidden by default under a collapsible header at the
           bottom, never deleted — click one to reopen it and read its history
@@ -1094,9 +1107,16 @@ function SessionListBody({
           drags to give the pane more (or less) of the sidebar. */}
       {(archived.length > 0 || sessionDragActive) && (
         <>
-          {showArchived && <HeightHandle handle={handle} label="Resize the archived sessions" />}
+          {!showArchived && <div className="h-[var(--ui-surface-gap)] shrink-0" />}
+          {showArchived && (
+            <HeightHandle
+              handle={handle}
+              label="Resize the archived sessions"
+              className="h-[var(--ui-surface-gap)] bg-transparent hover:bg-transparent"
+            />
+          )}
           <div
-            className="flex shrink-0 flex-col pb-1.5"
+            className="workspace-surface island-outline flex shrink-0 flex-col bg-surface pb-1.5"
             // Sized only while open (closed, the header is all there is). The
             // percentage cap resolves against the sidebar's own definite height,
             // so a pane dragged tall elsewhere cannot swallow the live list here.
@@ -1122,7 +1142,10 @@ function SessionListBody({
             {showArchived && (
               <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 {archivedGroups.map((group) => (
-                  <div key={group.projectId}>
+                  <div
+                    key={group.projectId}
+                    className="mx-2 border-t border-border py-1 first:border-t-0"
+                  >
                     {/* Dimmer than a live group's header and inert: archived rows
                         are for finding one session again, not for navigating
                         projects (that is the live list's header, right above). */}

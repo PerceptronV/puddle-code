@@ -12,6 +12,7 @@ const TOKENS_FILE = fileURLToPath(new URL('../src/styles/tokens.css', import.met
 
 const REQUIRED_SEMANTIC_TOKENS = [
   '--bg-base',
+  '--bg-tray',
   '--bg-surface',
   '--bg-elevated',
   '--border',
@@ -34,6 +35,10 @@ const REQUIRED_SEMANTIC_TOKENS = [
   '--status-idle',
   '--status-terminal',
   '--selection',
+  '--explorer-folder',
+  '--explorer-foreground',
+  '--explorer-selection',
+  '--explorer-hover',
   '--diff-added',
   '--diff-removed',
   '--ansi-black',
@@ -58,6 +63,7 @@ const BACKGROUNDS = ['--bg-base', '--bg-surface', '--bg-elevated'];
 // token → minimum ratio against every background (WCAG AA).
 const CONTRAST_FLOORS = {
   '--text-primary': 4.5,
+  '--explorer-foreground': 4.5,
   '--text-secondary': 4.5,
   '--text-muted': 3,
   '--text-gold': 3,

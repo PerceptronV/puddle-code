@@ -1,0 +1,58 @@
+.control-tray {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 0.375rem;
+  padding: 0.1875rem 0.375rem;
+  border-radius: var(--ui-surface-radius);
+  background: transparent;
+}
+.control-tray[data-variant='selection'],
+.control-tray[data-variant='overlay'] {
+  background: var(--bg-elevated);
+}
+.control-tray[data-variant='island'] {
+  background: var(--bg-tray);
+}
+.control-tray > button {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: var(--ui-control-height);
+  min-width: var(--ui-control-height);
+  width: auto;
+  border-radius: 999px;
+  color: var(--text-primary);
+  cursor: pointer;
+}
+.control-tray > button:disabled {
+  cursor: default;
+}
+.control-tray > button:not(:disabled):hover {
+  background: var(--bg-base);
+}
+.control-tray[data-variant='actions'] > button:not(:disabled):hover {
+  background: var(--bg-elevated);
+}
+.control-tray > button:is([aria-current='page'], [aria-pressed='true'], [data-state='open']) {
+  background: var(--action);
+  color: var(--action-ink);
+}
+.control-tray > button:is([aria-current='page'], [aria-pressed='true'], [data-state='open']):hover {
+  background: var(--action-hover);
+}
+.control-tray-vertical {
+  flex-direction: column;
+  padding: 0.375rem 0.1875rem;
+}
+
+.control-tray > button[aria-current='page'],
+.control-tray > button[aria-current='page']:hover {
+  background: var(--text-gold);
+  color: var(--bg-base);
+}
+
+.control-tray > button > svg {
+  flex-shrink: 0;
+}

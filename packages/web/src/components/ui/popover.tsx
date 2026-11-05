@@ -6,7 +6,7 @@ export const Popover = PopoverPrimitive.Root;
 export const PopoverTrigger = PopoverPrimitive.Trigger;
 export const PopoverAnchor = PopoverPrimitive.Anchor;
 
-/** Anchored panel: elevated surface, no border, no overlay (HUMANS.md). */
+/** Anchored island with an elevated surface and shadow to denote overlap. */
 export function PopoverContent({
   className,
   align = 'end',
@@ -18,7 +18,10 @@ export function PopoverContent({
       <PopoverPrimitive.Content
         align={align}
         sideOffset={sideOffset}
-        className={cn('z-50 rounded-lg bg-elevated p-5 shadow-2xl outline-none', className)}
+        className={cn(
+          'island-outline z-50 rounded-[var(--ui-surface-radius)] bg-elevated p-5 shadow-2xl',
+          className,
+        )}
         {...props}
       />
     </PopoverPrimitive.Portal>

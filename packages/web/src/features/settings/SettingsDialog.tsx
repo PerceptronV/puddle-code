@@ -84,7 +84,7 @@ export function SettingsDialog() {
         className="grid h-[34rem] grid-cols-[14rem_1fr] gap-0 overflow-hidden p-0"
       >
         <DialogTitle className="sr-only">Settings</DialogTitle>
-        <nav className="flex flex-col gap-1 bg-surface p-2.5 pr-6">
+        <nav className="flex flex-col gap-1 border-r border-border bg-surface p-2.5 pr-6">
           <span className="px-2.5 py-2 text-2xs font-medium uppercase tracking-wide text-fg-muted">
             Settings
           </span>

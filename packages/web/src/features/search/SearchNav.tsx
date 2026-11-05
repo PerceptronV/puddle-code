@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react';
-import { CaseSensitive, File as FileIcon, Regex, WholeWord } from 'lucide-react';
+import { CaseSensitive, Regex, WholeWord } from 'lucide-react';
+import { FileTypeIcon } from '../explorer/file-icons';
 import { HoverMarquee } from '../../components/hover-marquee';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { requestReveal } from '../../lib/navigation/reveal-in-tree';
@@ -147,9 +148,9 @@ export function SearchNav({
                     title={path}
                     onClick={() => open(path)}
                     onDoubleClick={() => open(path, undefined, false)}
-                    className="group flex w-full items-center gap-1.5 px-3 py-1 text-left transition-colors hover:bg-elevated"
+                    className="sidebar-row group flex items-center gap-2 px-2 py-1 text-left transition-colors hover:bg-explorer-hover"
                   >
-                    <FileIcon className="size-3.5 shrink-0 text-fg-gold" />
+                    <FileTypeIcon name={path.split('/').pop() ?? path} className="size-4" />
                     <HoverMarquee
                       text={path}
                       className="text-xs text-fg"
@@ -176,8 +177,12 @@ export function SearchNav({
                       title={file.path}
                       onClick={() => open(file.path)}
                       onDoubleClick={() => open(file.path, undefined, false)}
-                      className="group flex w-full px-3 py-1 text-left transition-colors hover:bg-elevated"
+                      className="sidebar-row group flex items-center gap-2 px-2 py-1 text-left transition-colors hover:bg-explorer-hover"
                     >
+                      <FileTypeIcon
+                        name={file.path.split('/').pop() ?? file.path}
+                        className="size-4"
+                      />
                       <HoverMarquee
                         text={file.path}
                         className="text-2xs text-fg-secondary"

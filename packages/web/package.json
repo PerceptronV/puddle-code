@@ -5,6 +5,8 @@
   "type": "module",
   "scripts": {
     "dev": "vite",
+    "dev:preview": "vite --mode ui-preview",
+    "test:preview": "node test/dev/browser.mjs && node test/dev/pane-drag.mjs && node test/dev/dirty-peek.mjs",
     "build": "vite build --config vite.build.config.ts",
     "typecheck": "tsc --noEmit",
     "check-tokens": "node scripts/check-tokens.mjs"

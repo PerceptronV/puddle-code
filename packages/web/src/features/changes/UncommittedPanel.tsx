@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { ChevronDown, ChevronRight, FolderTree, List } from 'lucide-react';
+import { FileTypeIcon } from '../explorer/file-icons';
 import { HoverMarquee } from '../../components/hover-marquee';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { requestReveal } from '../../lib/navigation/reveal-in-tree';
@@ -37,14 +38,15 @@ function FileRow({
       onClick={() => onOpen(fullPath)}
       onDoubleClick={() => onOpen(fullPath, { preview: false })}
       className={cn(
-        'group flex w-full items-center gap-1.5 py-1 pr-3 text-left transition-colors hover:bg-elevated',
-        active && 'bg-selection',
+        'sidebar-row group flex items-center gap-2 py-1 pr-2 text-left transition-colors hover:bg-explorer-hover',
+        active && 'bg-explorer-selection',
       )}
       style={{ paddingLeft: 8 + depth * 12 }}
     >
       <span className={cn('w-3 shrink-0 text-center font-mono text-xs', style.colourClass)}>
         {style.letter}
       </span>
+      <FileTypeIcon name={fullPath.split('/').pop() ?? fullPath} className="size-4" />
       <HoverMarquee text={name} className="text-xs text-fg" hoverClass={ROW_MARQUEE} />
     </button>
   );

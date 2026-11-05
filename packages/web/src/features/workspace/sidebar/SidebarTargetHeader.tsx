@@ -8,37 +8,31 @@ import {
   DropdownMenuTrigger,
 } from '../../../components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../../components/ui/tooltip';
-import { useHostInfo } from '../../../lib/queries/queries';
-import { tildify } from '../../../lib/tildify';
 import { cn } from '../../../lib/utils';
 import { useExplorerOptional } from '../../explorer/explorer-context';
 import type { ExplorerTarget } from '../../explorer/use-explorer-target';
 import { useSessionTitleRenderer } from '../../profile/use-session-title';
 import { TabTooltipBody } from '../panes/TabTooltip';
 
-/**
- * The bound-worktree title: a horizontally scrollable strip (no scrollbar) that
- * ANCHORS to its right end, so the deepest, most identifying part of an absolute
- * path stays visible; scroll left to read the root. No auto-scroll — that read
- * as distracting.
- */
-function PathScroller({ text, className }: { text: string; className?: string }) {
+/** The folder name starts at its left edge; hover reveals the full location. */
+function PathScroller({ text, path }: { text: string; path: string | null }) {
   const ref = useRef<HTMLDivElement>(null);
   useEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const anchorRight = () => {
-      el.scrollLeft = el.scrollWidth;
-    };
-    anchorRight();
-    const ro = new ResizeObserver(anchorRight);
-    ro.observe(el);
-    return () => ro.disconnect();
-  }, [text]);
+    if (ref.current) ref.current.scrollLeft = 0;
+  }, [text, path]);
   return (
-    <div ref={ref} className="no-scrollbar min-w-0 flex-1 overflow-x-auto">
-      <span className={cn('inline-block whitespace-nowrap', className)}>{text}</span>
-    </div>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <div ref={ref} dir="ltr" className="no-scrollbar min-w-0 flex-1 overflow-x-auto">
+          <span className="inline-block whitespace-nowrap text-sm font-bold text-fg-secondary">
+            {text}
+          </span>
+        </div>
+      </TooltipTrigger>
+      <TooltipContent side="right" align="center" sideOffset={4}>
+        {path ?? text}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -65,17 +59,17 @@ export function SidebarTargetHeader({
 }) {
   const { session, pinned, pin, unpin, isProjectDirectory } = target;
   const renderTitle = useSessionTitleRenderer();
-  const home = useHostInfo().data?.home;
   const pickable = sessions.filter((s) => s.status !== 'archived');
-  // ~-compress the daemon home so the identifying tail gets the width (SPEC §8).
   // `location` overrides the bound worktree while Files is browsing elsewhere;
   // every navigator receives the same value from NavigatorSidebar.
   const resolvedLocation = location ?? target.root ?? session?.worktree_path ?? null;
-  const title = resolvedLocation ? tildify(resolvedLocation, home) : 'No worktree';
+  const title = resolvedLocation
+    ? (resolvedLocation.split(/[\\/]/).filter(Boolean).at(-1) ?? resolvedLocation)
+    : 'No worktree';
 
   return (
     <div className="group relative flex h-8 shrink-0 items-center px-2">
-      <PathScroller text={title} className="text-xs text-fg-secondary" />
+      <PathScroller text={title} path={resolvedLocation} />
       {/* Controls overlay the right edge, revealed on hover/focus, so at rest
           the title uses the full width — no hidden icon reserves space (the pin
           stays shown while pinned to keep that state visible). The `bg-surface`

@@ -105,7 +105,7 @@ export function NotebookCellEditor({
     <div
       ref={host}
       style={{ height }}
-      className="relative min-w-0 rounded-md bg-surface"
+      className="relative min-w-0 rounded-md"
       onWheelCapture={(event) => {
         // Vertical gestures belong to the notebook even during an editor relayout.
         // Leave horizontal gestures to Monaco for unwrapped source lines.

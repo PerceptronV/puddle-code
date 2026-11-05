@@ -1,3 +1,4 @@
+import { ControlTray } from '../../../components/ui/control-tray';
 import { useState } from 'react';
 import { ListTree, MoreHorizontal, Play, Plus, Trash2 } from 'lucide-react';
 import type { CompilationFileTarget } from '@puddle/shared';
@@ -65,7 +66,7 @@ export function NotebookToolbar({
       aria-label="Notebook"
     >
       {onChange && (
-        <>
+        <ControlTray label="Add notebook cells">
           <button
             type="button"
             className={control}
@@ -86,99 +87,103 @@ export function NotebookToolbar({
             <Plus className="size-3.5" />
             Markdown
           </button>
-        </>
+        </ControlTray>
       )}
-      {onRun && (
-        <button
-          type="button"
-          className={control}
-          disabled={busy || missingPackages}
-          onClick={onRun}
-        >
-          <Play className="size-3.5" />
-          {busy ? 'Running…' : 'Run All'}
-        </button>
-      )}
-      {onChange && (
-        <button
-          type="button"
-          className={control}
-          disabled={!hasOutputs}
-          onClick={() => onChange(clearNotebookOutputs(notebook))}
-        >
-          <Trash2 className="size-3.5" />
-          Clear All Outputs
-        </button>
-      )}
-      <Popover open={outlineOpen} onOpenChange={setOutlineOpen}>
-        <PopoverTrigger asChild>
-          <button type="button" className={control} disabled={outline.length === 0}>
-            <ListTree className="size-3.5" />
-            Outline
+      <ControlTray label="Notebook actions" className="flex-wrap !rounded-[var(--ui-radius)]">
+        {onRun && (
+          <button
+            type="button"
+            className={control}
+            disabled={busy || missingPackages}
+            onClick={onRun}
+          >
+            <Play className="size-3.5" />
+            {busy ? 'Running…' : 'Run All'}
           </button>
-        </PopoverTrigger>
-        <PopoverContent align="start" className="max-h-72 w-72 overflow-y-auto p-1">
-          <nav aria-label="Notebook outline" className="flex flex-col">
-            {outline.map((item) => (
-              <div
-                key={item.index}
-                className="group/outline flex items-center"
-                style={{ paddingLeft: `calc(var(--spacing) * ${Math.max(0, item.level - 1) * 3})` }}
-              >
-                <button
-                  type="button"
-                  className={`${control} min-w-0 flex-1 text-left`}
-                  onClick={() => {
-                    onRevealCell(item.index);
-                    setOutlineOpen(false);
+        )}
+        {onChange && (
+          <button
+            type="button"
+            className={control}
+            disabled={!hasOutputs}
+            onClick={() => onChange(clearNotebookOutputs(notebook))}
+          >
+            <Trash2 className="size-3.5" />
+            Clear All Outputs
+          </button>
+        )}
+        <Popover open={outlineOpen} onOpenChange={setOutlineOpen}>
+          <PopoverTrigger asChild>
+            <button type="button" className={control} disabled={outline.length === 0}>
+              <ListTree className="size-3.5" />
+              Outline
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="start" className="max-h-72 w-72 overflow-y-auto p-1">
+            <nav aria-label="Notebook outline" className="flex flex-col">
+              {outline.map((item) => (
+                <div
+                  key={item.index}
+                  className="group/outline flex items-center"
+                  style={{
+                    paddingLeft: `calc(var(--spacing) * ${Math.max(0, item.level - 1) * 3})`,
                   }}
                 >
-                  <span className="w-5 shrink-0 text-fg-muted">{item.index + 1}</span>
-                  <span className="truncate">{item.label}</span>
-                </button>
-                {!!item.level && onRunSection && (
                   <button
                     type="button"
-                    disabled={busy}
-                    title="Run Section"
-                    aria-label={`Run section ${item.label}`}
-                    className={`${control} opacity-0 group-hover/outline:opacity-100 focus:opacity-100 pointer-coarse:opacity-100`}
+                    className={`${control} min-w-0 flex-1 text-left`}
                     onClick={() => {
-                      onRunSection(item.index);
+                      onRevealCell(item.index);
                       setOutlineOpen(false);
                     }}
                   >
-                    <Play className="size-3.5" />
+                    <span className="w-5 shrink-0 text-fg-muted">{item.index + 1}</span>
+                    <span className="truncate">{item.label}</span>
                   </button>
-                )}
-              </div>
-            ))}
-          </nav>
-        </PopoverContent>
-      </Popover>
-      {onChange && (
-        <DropdownMenu>
-          <DropdownMenuTrigger asChild>
-            <button type="button" className={control} aria-label="More notebook actions">
-              <MoreHorizontal className="size-3.5" />
-            </button>
-          </DropdownMenuTrigger>
-          <DropdownMenuContent align="start">
-            {onRunCopy && (
-              <DropdownMenuItem disabled={busy} onSelect={onRunCopy}>
-                Run to Executed Copy
+                  {!!item.level && onRunSection && (
+                    <button
+                      type="button"
+                      disabled={busy}
+                      title="Run Section"
+                      aria-label={`Run section ${item.label}`}
+                      className={`${control} opacity-0 group-hover/outline:opacity-100 focus:opacity-100 pointer-coarse:opacity-100`}
+                      onClick={() => {
+                        onRunSection(item.index);
+                        setOutlineOpen(false);
+                      }}
+                    >
+                      <Play className="size-3.5" />
+                    </button>
+                  )}
+                </div>
+              ))}
+            </nav>
+          </PopoverContent>
+        </Popover>
+        {onChange && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <button type="button" className={control} aria-label="More notebook actions">
+                <MoreHorizontal className="size-3.5" />
+              </button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              {onRunCopy && (
+                <DropdownMenuItem disabled={busy} onSelect={onRunCopy}>
+                  Run to Executed Copy
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem
+                disabled={notebook.cells.length >= 2000}
+                onSelect={() => onAdd('raw')}
+              >
+                <Plus />
+                Add raw cell
               </DropdownMenuItem>
-            )}
-            <DropdownMenuItem
-              disabled={notebook.cells.length >= 2000}
-              onSelect={() => onAdd('raw')}
-            >
-              <Plus />
-              Add raw cell
-            </DropdownMenuItem>
-          </DropdownMenuContent>
-        </DropdownMenu>
-      )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
+      </ControlTray>
       {onChange && onRun && (
         <NotebookKernelControls
           key={JSON.stringify(source)}

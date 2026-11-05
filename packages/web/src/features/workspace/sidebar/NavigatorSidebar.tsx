@@ -10,6 +10,7 @@ import {
   type LucideIcon,
 } from 'lucide-react';
 import type { CompilationFileTarget, Session } from '@puddle/shared';
+import { ControlTray } from '../../../components/ui/control-tray';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../../components/ui/tooltip';
 import { useDaemonVersion } from '../../../lib/queries/queries';
 import { onReveal } from '../../../lib/navigation/reveal-in-tree';
@@ -54,7 +55,7 @@ export function normalizeSidebarMode(mode: string): SidebarMode {
  * The collapsed left navigator: a slim rail with the expand control on top
  * (mirroring the right sidebar, so the toggle stays visible when collapsed),
  * then the same mode icons — Files · Search · Changes — stacked vertically
- * (HUMANS.md minimalism, no border, a fill-shift on hover). The expand button
+ * in a floating vertical control tray. The expand button
  * reopens to the last navigator; clicking a mode icon reopens straight to it
  * (SPEC §8).
  */
@@ -68,41 +69,44 @@ export function CollapsedSidebarRail({
   onSelect: (mode: SidebarMode) => void;
 }) {
   return (
-    <div className="flex h-full w-9 shrink-0 flex-col items-center gap-1 bg-surface py-1.5">
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <button
-            type="button"
-            onClick={onExpand}
-            className="flex items-center rounded-md p-1.5 text-fg-gold transition-colors hover:bg-elevated hover:text-fg"
-          >
-            <PanelLeftOpen className="size-4" />
-            <span className="sr-only">Show sidebar</span>
-          </button>
-        </TooltipTrigger>
-        <TooltipContent side="right">Show sidebar</TooltipContent>
-      </Tooltip>
-      {MODES.map(({ key, label, icon: Icon }) => (
-        <Tooltip key={key}>
+    <div className="workspace-surface relative flex w-9 shrink-0 self-start flex-col items-center gap-1">
+      <ControlTray label="Navigators" variant="island" vertical>
+        <Tooltip>
           <TooltipTrigger asChild>
             <button
               type="button"
-              aria-current={mode === key ? 'page' : undefined}
-              onClick={() => onSelect(key)}
-              className={cn(
-                'flex items-center rounded-md p-1.5 transition-colors',
-                mode === key
-                  ? 'bg-elevated text-fg'
-                  : 'text-fg-gold hover:bg-elevated hover:text-fg',
-              )}
+              onClick={onExpand}
+              className="flex items-center rounded-md p-1.5 text-fg transition-colors hover:bg-elevated hover:text-fg"
             >
-              <Icon className="size-4" />
-              <span className="sr-only">{label}</span>
+              <PanelLeftOpen className="size-4" />
+              <span className="sr-only">Show sidebar</span>
             </button>
           </TooltipTrigger>
-          <TooltipContent side="right">{label}</TooltipContent>
+          <TooltipContent side="right">Show sidebar</TooltipContent>
         </Tooltip>
-      ))}
+        <div aria-hidden="true" className="mx-1 h-px self-stretch bg-border" />
+        {MODES.map(({ key, label, icon: Icon }) => (
+          <Tooltip key={key}>
+            <TooltipTrigger asChild>
+              <button
+                type="button"
+                aria-current={mode === key ? 'page' : undefined}
+                onClick={() => onSelect(key)}
+                className={cn(
+                  'flex items-center rounded-md p-1.5 transition-colors',
+                  mode === key
+                    ? 'bg-elevated text-fg'
+                    : 'text-fg-gold hover:bg-elevated hover:text-fg',
+                )}
+              >
+                <Icon className="size-4" />
+                <span className="sr-only">{label}</span>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="right">{label}</TooltipContent>
+          </Tooltip>
+        ))}
+      </ControlTray>
     </div>
   );
 }
@@ -270,9 +274,9 @@ export function NavigatorSidebar({
   // resets the graph's expansion and the search box.
   const navigatorScope = `${session?.worktree_path ?? ''}:${requestRoot ?? ''}`;
 
-  return (
-    <div className="flex h-full flex-col bg-surface">
-      <div className="flex items-center gap-1 px-2 py-1.5">
+  const controls = (
+    <div className="flex items-center gap-1 px-2 py-1.5">
+      <ControlTray label="Navigators" variant="selection">
         {MODES.map(({ key, label, icon: Icon }) => (
           <Tooltip key={key}>
             <TooltipTrigger asChild>
@@ -297,20 +301,47 @@ export function NavigatorSidebar({
             <TooltipContent side="bottom">{label}</TooltipContent>
           </Tooltip>
         ))}
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              type="button"
-              onClick={onCollapse}
-              className="ml-auto flex items-center rounded-md p-1.5 text-fg-gold transition-colors hover:bg-elevated hover:text-fg"
-            >
-              <PanelLeftClose className="size-4" />
-              <span className="sr-only">Hide sidebar</span>
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">Hide sidebar</TooltipContent>
-        </Tooltip>
-      </div>
+      </ControlTray>
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <button
+            type="button"
+            onClick={onCollapse}
+            className="ml-auto flex items-center rounded-md p-1.5 text-fg transition-colors hover:bg-elevated hover:text-fg"
+          >
+            <PanelLeftClose className="size-4" />
+            <span className="sr-only">Hide sidebar</span>
+          </button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Hide sidebar</TooltipContent>
+      </Tooltip>
+    </div>
+  );
+  if (mode === 'changes' && session) {
+    return (
+      <ChangesNav
+        key={navigatorScope}
+        header={
+          <>
+            {controls}
+            <SidebarTargetHeader
+              sessions={sessions}
+              target={sidebarTarget}
+              location={locationPath}
+            />
+          </>
+        }
+        session={session.id}
+        root={requestRoot}
+        activeDiffPath={activeDiffPath}
+        onOpenDiff={onOpenDiff}
+        onOpenCommitFile={onOpenCommitFile}
+      />
+    );
+  }
+  return (
+    <div className="workspace-surface island-outline flex h-full flex-col bg-surface">
+      {controls}
 
       {/* The bound-worktree header applies to the worktree-scoped navigators;
           the Worktrees manager is repo-wide, so it has none. Files mode renders
@@ -421,19 +452,9 @@ export function NavigatorSidebar({
           </>
         ))}
 
-      {mode === 'changes' &&
-        (session ? (
-          <ChangesNav
-            key={navigatorScope}
-            session={session.id}
-            root={requestRoot}
-            activeDiffPath={activeDiffPath}
-            onOpenDiff={onOpenDiff}
-            onOpenCommitFile={onOpenCommitFile}
-          />
-        ) : (
-          <div className="px-3 py-2 text-xs text-fg-muted">No worktree to show.</div>
-        ))}
+      {mode === 'changes' && (
+        <div className="px-3 py-2 text-xs text-fg-muted">No worktree to show.</div>
+      )}
 
       {mode === 'search' &&
         (session ? (

@@ -9,7 +9,9 @@ initTheme();
 initClientSettings();
 // Order matters: captureHostParam reads the #invite= fragment (its local-mode
 // signal) that bootstrapToken strips.
-if (import.meta.env.VITE_PUDDLE_REMOTE_SERVICE) {
+if (import.meta.env.DEV && import.meta.env.MODE === 'ui-preview') {
+  void import('./dev/preview/start').then(({ startPreview }) => startPreview());
+} else if (import.meta.env.VITE_PUDDLE_REMOTE_SERVICE) {
   if (/^\/(?:guide|faq)\/?$/.test(location.pathname)) {
     if (/^\/faq\/?$/.test(location.pathname)) {
       history.replaceState(null, '', `/guide${location.search}${location.hash}`);

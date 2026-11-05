@@ -102,7 +102,9 @@ fixtures, build tooling and current documentation whenever files move.
 
 ```
 pnpm install            # workspace install
-pnpm dev                # daemon (watch) + web (vite) for local development
+pnpm dev                # daemon TypeScript watch + web (Vite); start daemon separately
+pnpm --filter @puddle/web dev:preview # UI with sample data, no daemon; localhost:5174
+pnpm --filter @puddle/web test:preview # browser checks against the running preview
 pnpm build              # all packages; web assets land inside the CLI (packages/cli/dist/public)
 pnpm test               # vitest across workspaces
 pnpm lint               # eslint + prettier check
@@ -354,6 +356,8 @@ supervised one.
 > **Never launch `puddled` from inside a coding-agent session** (e.g. a Claude Code terminal, including these dev sessions). The daemon inherits that agent's orchestration env vars — `CLAUDECODE=1`, `CLAUDE_CODE_*` — and passes them to the agents it spawns (PtyManager uses `{...process.env}` by design). A `claude` that sees `CLAUDECODE`/`CLAUDE_CODE_CHILD_SESSION` treats itself as a nested child and **does not write a resumable conversation transcript**, so `--resume` silently fails with "no conversation found" (verified against Claude Code 2.1.209: the identical session persists a transcript with these unset and writes nothing with them set). Start the daemon from a plain shell (systemd/launchd does this in production, so real deployments are unaffected). If a session won't resume during development, check the daemon's env first (`ps eww <pid> | tr ' ' '\n' | grep CLAUDE`).
 
 ## Conventions
+
+- UI iteration: apply the requested visual change to the live development preview first, then review related surfaces and suggest consistency improvements before broadening the change. Related header/sidebar action groups share `web/src/components/ui/control-tray.tsx` and its theme-token CSS, including vertical collapsed-rail layouts. Use unfilled action groups in headers/notebooks and filled trays for sidebar controls; navigator selections use gold, and PDF overlays retain a legible backing. Island outlines, radii and tray fills come from shared tokens; overlays keep their shadows. Shared `--ui-*` geometry tokens govern row/control/tab sizes and rounded insets.
 
 - **0.4.0 release requirement:** persistent runtimes and cockpit-managed host
   updates are standard functionality for all users, with no enable/disable setting

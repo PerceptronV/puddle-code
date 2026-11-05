@@ -12,6 +12,7 @@ import {
   Upload,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { FileTypeIcon } from '../explorer/file-icons';
 import { HoverMarquee } from '../../components/hover-marquee';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { useGitMutation } from '../../lib/queries/worktree-queries';
@@ -173,8 +174,8 @@ function ChangeFileRow({
   return (
     <div
       className={cn(
-        'group flex items-center gap-1 pr-3 transition-colors hover:bg-elevated',
-        active && 'bg-selection',
+        'sidebar-row group flex items-center gap-1 pr-2 transition-colors hover:bg-explorer-hover',
+        active && 'bg-explorer-selection',
       )}
       style={{ paddingLeft: 12 + depth * 12 }}
     >
@@ -188,6 +189,7 @@ function ChangeFileRow({
         <span className={cn('w-3 shrink-0 text-center font-mono text-xs', decoration.colourClass)}>
           {decoration.letter}
         </span>
+        <FileTypeIcon name={entry.path.split('/').pop() ?? entry.path} className="size-4" />
         <HoverMarquee text={name} className="text-xs text-fg" hoverClass={CHANGE_MARQUEE} />
       </button>
       <IconAction
@@ -394,7 +396,11 @@ export function SourceControlRepository({
     onOpen(path, { ...opts, root: repository.root });
 
   return (
-    <section className={cn('py-0.5', selected && 'bg-surface/40')} onFocus={onSelect}>
+    <section
+      className="mx-2 border-t border-border py-1 first:border-t-0"
+      data-selected={selected || undefined}
+      onFocus={onSelect}
+    >
       <div className="flex h-8 items-center gap-1 pl-2 pr-2">
         <button
           type="button"

@@ -23,6 +23,7 @@ import {
   isCompilableSource,
   sourceExtension,
 } from '../../editor/compilation/compilation-kind';
+import { FileTypeIcon } from '../../explorer/file-icons';
 import { FileTabContextMenu } from '../../explorer/FileTabContextMenu';
 import { SessionContextMenu } from '../sessions/SessionActions';
 import { SessionTabActions } from '../sessions/SessionTabActions';
@@ -39,7 +40,7 @@ import { useDropIndicator } from '../layout/TilingDnd';
 // tab would be left with a highlighted filename nobody asked to select and no
 // way to copy it from anyway.
 const TAB_CLASS =
-  'group relative flex min-w-[calc(var(--spacing)*28.8)] max-w-52 cursor-pointer select-none items-center gap-1.5 rounded-t-md px-2.5 text-xs transition-colors';
+  'group relative flex min-w-[calc(var(--spacing)*28.8)] max-w-52 cursor-pointer select-none items-center gap-1.5 rounded-[var(--ui-radius)] px-2.5 text-xs transition-colors';
 
 // The same constant-speed reveal as a too-long commit/file name in History,
 // driven by this tab chip's own hover. Literal so Tailwind generates it.
@@ -98,6 +99,10 @@ export function PaneTabStrip({
   const directories = new Map(sessions.map((s) => [s.id, s.worktree_path]));
   const editorTabs = leaf.tabs.flatMap((t) => (t.type === 'editor' ? [t.tab] : []));
   const indicator = useDropIndicator();
+  const paneDrag = useDraggable({
+    id: `pane:${leaf.id}`,
+    data: { paneId: leaf.id, tabCount: leaf.tabs.length },
+  });
   const caretAt =
     indicator?.leafId === leaf.id && indicator.index !== undefined ? indicator.index : null;
   // The strip itself (its tail, past the last chip) drops as "append".
@@ -115,8 +120,15 @@ export function PaneTabStrip({
 
   return (
     <div
-      ref={setStripRef}
-      className="flex h-9 shrink-0 items-stretch gap-0.5 overflow-x-auto bg-surface px-1 pt-1"
+      ref={(node) => {
+        setStripRef(node);
+        paneDrag.setNodeRef(node);
+      }}
+      data-pane-drag-handle={leaf.id}
+      onPointerDown={(event) => {
+        if (event.target === event.currentTarget) paneDrag.listeners?.onPointerDown?.(event);
+      }}
+      className="flex h-[var(--ui-tab-strip-height)] shrink-0 cursor-grab items-stretch gap-1 overflow-x-auto bg-surface p-1 active:cursor-grabbing"
       // Blank space only: a double-click on a tab bubbles here with the tab
       // as the target, and that gesture is already "promote to permanent".
       onDoubleClick={(e) => {
@@ -223,8 +235,7 @@ function InsertionCaret() {
  * exactly its title with nothing trailing it (HUMANS.md). It fades in from the
  * left rather than starting as a hard edge, so a truncated title slides under
  * the icons instead of being chopped. It also carries the chip's own
- * `rounded-tr-md`: laid over the chip's top-right corner, a square overlay
- * squared the tab off the moment it was hovered.
+ * rounded right corners, so revealing the overlay preserves the floating shape.
  */
 function TabControls({ active, children }: { active: boolean; children: ReactNode }) {
   const fade = active
@@ -233,7 +244,7 @@ function TabControls({ active, children }: { active: boolean; children: ReactNod
   return (
     <span
       className={cn(
-        'pointer-events-none absolute inset-y-0 right-0 flex items-center gap-1 rounded-tr-md pl-5 pr-2.5',
+        'pointer-events-none absolute inset-y-0 right-0 flex items-center gap-1 rounded-r-[var(--ui-radius)] pl-5 pr-2.5',
         // Only the controls themselves take clicks; the masked title beneath
         // stays draggable and clickable like the rest of the chip.
         '[&>*]:pointer-events-auto',
@@ -498,6 +509,14 @@ function PaneTab({
         </>
       ) : (
         <>
+          <FileTypeIcon
+            name={
+              tabKind(tab.tab) === 'untitled'
+                ? label
+                : (tab.tab.path.split('/').pop() ?? tab.tab.path)
+            }
+            className="size-4"
+          />
           {/* A following slot names whatever it currently follows, so its
               glyph distinguishes the stable slot from an ordinary second tab
               of that file (SPEC §8). */}

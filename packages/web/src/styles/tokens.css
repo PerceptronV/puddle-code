@@ -11,10 +11,19 @@
  *      theme is one such block plus one entry in src/lib/theme.ts.
  *
  * scripts/check-tokens.mjs asserts each theme block is complete and that text
- * pairings meet WCAG AA. No hex values may appear outside this file.
+ * pairings meet WCAG AA. UI colours live here; vendored brand/file-type SVG artwork retains its original colours.
  */
 
 :root {
+  /* Shared cockpit rhythm; scales with the user's UI font size. */
+  --ui-row-height: 1.875rem;
+  --ui-tab-strip-height: 2.75rem;
+  --ui-control-height: 1.75rem;
+  --ui-radius: 0.5rem;
+  --ui-surface-radius: 0.75rem;
+  --ui-surface-gap: 0.375rem;
+  --ui-list-inset: 0.5rem;
+  --ui-item-gap: 0.5rem;
   /* Mobile terminal strip spacing. */
   --phone-key-min-width: 2.25rem;
   --phone-key-padding-inline: 0.375rem;
@@ -102,7 +111,12 @@
   --bg-base: var(--navy-950);
   --bg-surface: var(--navy-900);
   --bg-elevated: var(--navy-800);
+  --bg-tray: var(--navy-800);
   --border: var(--navy-600);
+  --explorer-folder: var(--text-primary);
+  --explorer-foreground: var(--mist-100);
+  --explorer-selection: #ffffff24;
+  --explorer-hover: #ffffff0d;
   --text-primary: var(--mist-100);
   --text-secondary: var(--mist-300);
   --text-muted: var(--mist-500);
@@ -164,7 +178,12 @@
   --bg-base: var(--neutral-0);
   --bg-surface: var(--neutral-50);
   --bg-elevated: var(--neutral-100);
+  --bg-tray: var(--neutral-50);
   --border: var(--neutral-200);
+  --explorer-folder: var(--text-primary);
+  --explorer-foreground: #4c4c4c;
+  --explorer-selection: #0000001c;
+  --explorer-hover: #00000008;
   /* Text hierarchy is navy ink throughout; muted is a neutral GREY (2026-07-16,
      superseding the golden bark — that warm gold read as distracting for hints,
      placeholders, gitignored files, and metadata). Gold stays a deliberate
@@ -295,6 +314,11 @@
   font-size: 12px;
 }
 
+/* View zones sit beneath Monaco's text layer unless explicitly raised. */
+.puddle-dirty-peek {
+  z-index: 10;
+}
+
 .puddle-dirty-peek-title {
   min-width: 0;
   overflow: hidden;
@@ -322,4 +346,9 @@
 
 .puddle-dirty-peek-editor {
   height: calc(100% - 28px);
+}
+
+[data-density='compact'] {
+  --ui-row-height: 1.625rem;
+  --ui-tab-strip-height: 2.5rem;
 }

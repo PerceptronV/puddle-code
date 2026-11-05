@@ -6,6 +6,7 @@ import { Settings } from 'lucide-react';
 import type { Account, ProjectDetail, Session } from '@puddle/shared';
 import { ErrorBoundary } from '../../components/error-boundary';
 import { InlineLabelEdit, editOnDoubleClick } from '../../components/inline-label-edit';
+import { ControlTray } from '../../components/ui/control-tray';
 import { Button } from '../../components/ui/button';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
 import { openCommandPalette } from '../../lib/navigation/command-palette';
@@ -159,7 +160,7 @@ function HomeButton() {
     'flex shrink-0 items-center gap-2',
     shellTitleBar && '[-webkit-app-region:no-drag]',
   );
-  const type = 'truncate text-sm font-semibold text-fg-secondary';
+  const type = 'truncate font-sans text-sm font-semibold text-fg-secondary';
 
   if (editing && label !== undefined) {
     return (
@@ -190,7 +191,7 @@ function HomeButton() {
 }
 
 /**
- * The centre command field (SPEC §12): a thin, background-dimmed pseudo-input
+ * The centre command area (SPEC §12): a full-height, unfilled button
  * that opens the command palette on click. Its centred hint names the active project
  * so the bar always says where you are — no border, a fill-shift on hover
  * (HUMANS.md).
@@ -210,16 +211,18 @@ function CommandField() {
       type="button"
       onClick={openCommandPalette}
       className={cn(
-        'absolute left-1/2 flex h-6 w-[min(30rem,42%)] -translate-x-1/2 items-center justify-center gap-2 rounded-md bg-ground text-fg-muted transition-colors hover:bg-elevated hover:text-fg-secondary',
+        'flex h-full min-w-0 w-full cursor-pointer items-center justify-center gap-2 bg-transparent px-2 text-fg-muted transition-colors hover:bg-elevated hover:text-fg-secondary',
         shellTitleBar && '[-webkit-app-region:no-drag]',
       )}
     >
-      <span
-        className={cn('truncate text-xs', projectName && appearanceColourClass(project?.colour))}
-      >
-        {projectName ?? 'Puddle'}
+      <span className="pointer-events-none absolute left-1/2 top-1/2 flex max-w-[40%] -translate-x-1/2 -translate-y-1/2 items-center gap-2">
+        <span
+          className={cn('truncate text-xs', projectName && appearanceColourClass(project?.colour))}
+        >
+          {projectName ?? 'Puddle'}
+        </span>
+        <span className="shrink-0 text-2xs">{paletteKey}</span>
       </span>
-      <span className="text-2xs">{paletteKey}</span>
     </button>
   );
 }
@@ -239,10 +242,22 @@ function TopBar() {
   const { fullScreen, animate } = useDesktopFullScreen();
   const inlaidLights = shellTitleBar && !fullScreen;
   return (
-    // pl-3 ≈ the right side's visual inset (pr-3 + the ghost buttons' own padding).
     <header
+      onClick={(event) => {
+        const target = event.target as HTMLElement;
+        if (!event.currentTarget.contains(target)) return;
+        if (
+          target.closest(
+            '[data-header-section], [aria-label="Workspace controls"], button, a, input',
+          )
+        )
+          return;
+        openCommandPalette();
+      }}
       className={cn(
-        'relative flex h-9 shrink-0 items-center gap-3 bg-surface pl-3 pr-3',
+        'island-outline relative grid shrink-0 cursor-pointer grid-cols-[auto_1px_minmax(0,1fr)_1px_auto] items-center overflow-hidden rounded-[var(--ui-surface-radius)] bg-surface',
+        'h-9',
+        !shellTitleBar && 'mx-1.5 mt-1.5',
         inlaidLights && 'pl-[88px] [-webkit-app-region:drag]',
         // Only a real enter/leave animates: the padding IS the name's position,
         // so easing it slides the name between the two edges instead of
@@ -251,15 +266,21 @@ function TopBar() {
         animate && 'transition-[padding] duration-200 ease-out',
       )}
     >
-      <HomeButton />
-      <CommandField />
-      {/* These four sit as one cluster: no gap at all, because each control
-          already carries 9px of its own padding around a 14px glyph — a gap on
-          top of that read as four separate things adrift in the corner.
-          Compact density (SPEC §12) narrows the boxes themselves, which is what
-          closes the cluster up further. */}
       <div
-        className={cn('ml-auto flex items-center', shellTitleBar && '[-webkit-app-region:no-drag]')}
+        data-header-section
+        className="flex h-full min-w-0 cursor-default items-center overflow-hidden px-3"
+      >
+        <HomeButton />
+      </div>
+      <div aria-hidden="true" className="h-5 w-px bg-border" />
+      <CommandField />
+      <div aria-hidden="true" className="h-5 w-px bg-border" />
+      <ControlTray
+        label="Workspace controls"
+        className={cn(
+          'h-full justify-self-end rounded-none!',
+          shellTitleBar && '[-webkit-app-region:no-drag]',
+        )}
       >
         <Tooltip>
           <TooltipTrigger asChild>
@@ -280,7 +301,7 @@ function TopBar() {
         <LayoutsPopover />
         <ScratchpadPopover />
         <ProfilePanel />
-      </div>
+      </ControlTray>
     </header>
   );
 }

@@ -4,7 +4,7 @@ import { cn } from '../../lib/utils';
 
 /** Shared by the desktop dashboard and the host-grouped remote dashboard. */
 export const projectCardSurface =
-  'group block w-full rounded-lg bg-surface p-4 text-left transition-colors hover:bg-elevated';
+  'group block w-full island-outline rounded-[var(--ui-surface-radius)] bg-surface p-4 text-left transition-colors hover:bg-elevated';
 
 const COUNTED: Array<{ status: SessionStatus; colour: string }> = [
   { status: 'running', colour: 'bg-running' },

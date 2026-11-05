@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useLayoutEffect, useState } from 'react';
 import { useDaemonVersion } from '../../../lib/queries/queries';
 import { sourceControlSupported } from '../../../lib/transport/protocol-support';
 import { useGitOriginal } from '../../../lib/queries/worktree-queries';
@@ -33,7 +33,10 @@ export function useDirtyDiff(
     setEditor(mounted);
   }, []);
 
-  useEffect(() => {
+  // Responsive layout changes unmount the editor subtree. Detach the hidden
+  // diff and any open peek in the layout phase, before passive buffer cleanup
+  // can dispose the shared modified model (DiffEditor does not auto-detach).
+  useLayoutEffect(() => {
     const data = baseline.data;
     if (!editor || !model || !data || data.repository === null || data.ignored || data.binary) {
       return;

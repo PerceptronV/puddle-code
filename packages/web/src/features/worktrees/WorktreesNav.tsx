@@ -184,7 +184,7 @@ export function WorktreesNav({
             return (
               <div
                 key={wt.path}
-                className="group flex items-center gap-2 px-3 py-1 pl-6 transition-colors hover:bg-elevated"
+                className="sidebar-row group flex items-center gap-2 px-2 py-1 pl-4 transition-colors hover:bg-explorer-hover"
               >
                 <HoverMarquee
                   text={basename(wt.path)}
@@ -231,7 +231,7 @@ export function WorktreesNav({
           {orphans.map((b) => (
             <div
               key={`br:${b.name}`}
-              className="group flex items-center gap-2 px-3 py-1 transition-colors hover:bg-elevated"
+              className="sidebar-row group flex items-center gap-2 px-2 py-1 transition-colors hover:bg-explorer-hover"
             >
               <GitBranch className="size-3 shrink-0 text-fg-gold" />
               <HoverMarquee text={b.name} className="text-xs text-fg" hoverClass={ROW_MARQUEE} />

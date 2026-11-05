@@ -1,4 +1,4 @@
-import { Fragment, useEffect, useState } from 'react';
+import { useEffect, useState, type ReactNode } from 'react';
 import { HeightHandle, useResizableHeight } from '../../components/resizable-height';
 import { useDaemonVersion } from '../../lib/queries/queries';
 import { sourceControlSupported } from '../../lib/transport/protocol-support';
@@ -16,12 +16,14 @@ import { SourceControlRepository, type SourceControlOpenOptions } from './Source
  * single content surface.
  */
 export function ChangesNav({
+  header,
   session,
   root,
   activeDiffPath,
   onOpenDiff,
   onOpenCommitFile,
 }: {
+  header?: ReactNode;
   session: string;
   /**
    * `?root=` for a directory target — the project's own repository, when no
@@ -53,8 +55,12 @@ export function ChangesNav({
   }, [modern, repositories.data, selectedRoot]);
   const historyRoot = modern ? (selectedRoot ?? root) : root;
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <section className="flex shrink-0 flex-col" style={{ height, maxHeight: '70%' }}>
+    <div className="flex h-full min-h-0 flex-1 flex-col">
+      <section
+        className="workspace-surface island-outline flex shrink-0 flex-col bg-surface"
+        style={{ height, maxHeight: '70%' }}
+      >
+        {header}
         {modern ? (
           <div className="min-h-0 flex-1 overflow-y-auto pb-1">
             {repositories.isPending ? (
@@ -68,19 +74,17 @@ export function ChangesNav({
             ) : repositories.data.repositories.length === 0 ? (
               <div className="px-3 py-2 text-xs text-fg-muted">No Git repositories.</div>
             ) : (
-              repositories.data.repositories.map((repository, index) => (
-                <Fragment key={repository.root}>
-                  {index > 0 && <div className="mx-3 my-2 h-px bg-border" />}
-                  <SourceControlRepository
-                    session={session}
-                    targetRoot={root}
-                    repository={repository}
-                    selected={selectedRoot === repository.root}
-                    activePath={activeDiffPath}
-                    onSelect={() => setSelectedRoot(repository.root)}
-                    onOpen={onOpenDiff}
-                  />
-                </Fragment>
+              repositories.data.repositories.map((repository) => (
+                <SourceControlRepository
+                  key={repository.root}
+                  session={session}
+                  targetRoot={root}
+                  repository={repository}
+                  selected={selectedRoot === repository.root}
+                  activePath={activeDiffPath}
+                  onSelect={() => setSelectedRoot(repository.root)}
+                  onOpen={onOpenDiff}
+                />
               ))
             )}
           </div>
@@ -93,8 +97,12 @@ export function ChangesNav({
           />
         )}
       </section>
-      <HeightHandle handle={handle} label="Resize the uncommitted changes" />
-      <div className="flex min-h-0 flex-1 flex-col">
+      <HeightHandle
+        handle={handle}
+        label="Resize the uncommitted changes"
+        className="h-[var(--ui-surface-gap)] bg-transparent hover:bg-transparent"
+      />
+      <div className="workspace-surface island-outline flex min-h-0 flex-1 flex-col bg-surface">
         <div className="flex h-7 shrink-0 items-center px-3">
           <span className="text-2xs font-medium uppercase tracking-wide text-fg-gold">History</span>
         </div>

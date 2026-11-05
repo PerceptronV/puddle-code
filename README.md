@@ -143,6 +143,8 @@ Everything lives under `~/.puddle` on the host, installed without sudo — and `
 
 ## Development & teardown
 
+**UI preview without a daemon.** Run `pnpm --filter @puddle/web dev:preview` and open <http://localhost:5174>. The real cockpit opens a sample project with coloured file icons, expandable folders and editable sample files. Appearance settings work normally. Sample saves last until reload; terminals, agents and host operations are unavailable. This mode uses browser-only fixtures, has no host gateway and is excluded from production builds. The sample `examples/` folder includes a notebook and PDF; Search, Changes, Worktrees and ended sample sessions exercise the navigator layouts. With the preview running, `pnpm --filter @puddle/web test:preview` checks the sample screens, repeated editor resizing, whole-pane dragging and inline diff close controls in Chromium. Use `pnpm --filter @puddle/web dev` to work against a compatible local daemon instead.
+
 **One daemon, many clients.** There is a single local daemon per machine, living under `~/.puddle` and run by one supervised service (launchd's `dev.puddle.puddled` on macOS, systemd's `puddled` on Linux). The global `puddle` and a repo-run `node packages/cli/dist/index.js` are **both just clients** that talk to — and, when needed, install — that same daemon. Multiple clients can share that daemon; there is no automatically separate "dev daemon" alongside a "production daemon".
 
 **Dev build vs. production.** The standalone installer or `npm i -g @puddle-code/cli` is the production path — its `puddle` fetches and upgrades the daemon from this repo's GitHub Releases. To exercise uncommitted changes, build and run from the repo:

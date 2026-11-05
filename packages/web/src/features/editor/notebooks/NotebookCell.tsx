@@ -16,7 +16,7 @@ import {
 
 export type NotebookRunRange = 'cell' | 'above' | 'below';
 export const notebookControl =
-  'cursor-pointer rounded-sm p-1 text-fg-muted transition-colors hover:bg-surface hover:text-fg disabled:cursor-default disabled:opacity-40';
+  'cursor-pointer rounded-sm p-1 text-fg-muted transition-colors hover:bg-elevated hover:text-fg disabled:cursor-default disabled:opacity-40';
 
 export function NotebookCell({
   cell,
@@ -100,7 +100,7 @@ export function NotebookCell({
       tabIndex={active ? 0 : -1}
       aria-label={`Cell ${index + 1}`}
       aria-current={active || undefined}
-      className={`group/cell relative min-w-0 outline-none ${selected ? 'bg-surface' : ''}`}
+      className="group/cell relative min-w-0 outline-none"
       onMouseDown={(event) => {
         if (event.shiftKey && !(event.target as HTMLElement).closest('.monaco-editor,input,button'))
           event.preventDefault();
@@ -210,43 +210,51 @@ export function NotebookCell({
           />
         )}
       </div>
-      {editable && (code || editing) ? (
-        <NotebookCellEditor
-          value={source}
-          match={match && !match.output ? match : undefined}
-          language={language}
-          label={`Cell ${index + 1} source`}
-          focus={active && editing && !match}
-          onChange={(value) => {
-            if (value !== source) onSource(value);
-          }}
-          onExecute={onExecute}
-          onEscape={() => {
-            onEdit(false);
-            section.current?.focus();
-          }}
-          onSave={onSave}
-          onSplit={onSplit}
-        />
-      ) : cell.cell_type === 'markdown' ? (
-        <div
-          onDoubleClick={() => {
-            if (editable) onEdit(true);
-          }}
-          className={editable ? 'cursor-text' : ''}
-        >
-          <NotebookHtml text={source} markdown attachments={cell.attachments} />
-        </div>
-      ) : (
-        <pre
-          className="overflow-x-auto whitespace-pre-wrap font-mono text-sm"
-          onDoubleClick={() => {
-            if (editable) onEdit(true);
-          }}
-        >
-          {source}
-        </pre>
-      )}
+      <div
+        className={
+          code || editing || cell.cell_type === 'raw'
+            ? `rounded-[var(--ui-radius)] p-3 ${selected ? 'bg-elevated' : 'bg-surface'}`
+            : undefined
+        }
+      >
+        {editable && (code || editing) ? (
+          <NotebookCellEditor
+            value={source}
+            match={match && !match.output ? match : undefined}
+            language={language}
+            label={`Cell ${index + 1} source`}
+            focus={active && editing && !match}
+            onChange={(value) => {
+              if (value !== source) onSource(value);
+            }}
+            onExecute={onExecute}
+            onEscape={() => {
+              onEdit(false);
+              section.current?.focus();
+            }}
+            onSave={onSave}
+            onSplit={onSplit}
+          />
+        ) : cell.cell_type === 'markdown' ? (
+          <div
+            onDoubleClick={() => {
+              if (editable) onEdit(true);
+            }}
+            className={editable ? 'cursor-text' : ''}
+          >
+            <NotebookHtml text={source} markdown attachments={cell.attachments} />
+          </div>
+        ) : (
+          <pre
+            className="overflow-x-auto whitespace-pre-wrap font-mono text-sm"
+            onDoubleClick={() => {
+              if (editable) onEdit(true);
+            }}
+          >
+            {source}
+          </pre>
+        )}
+      </div>
       {(!!cell.outputs?.length || input) && (
         <div className="mt-2" role="group" aria-label={`Cell ${index + 1} output`}>
           <div className="flex items-center gap-2 text-xs text-fg-muted">
@@ -267,9 +275,9 @@ export function NotebookCell({
               )}
           </div>
           {!outputCollapsed && (
-            <div className="max-h-96 overflow-auto">
+            <div className="mt-2 max-h-96 overflow-auto rounded-[var(--ui-radius)] bg-surface p-3">
               {cell.outputs?.map((output, at) => (
-                <div key={at} className="mt-2">
+                <div key={at} className="mt-2 first:mt-0">
                   <NotebookOutputView output={output} />
                 </div>
               ))}

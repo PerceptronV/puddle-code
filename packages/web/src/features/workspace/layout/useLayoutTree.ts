@@ -11,6 +11,7 @@ import {
   closeTab,
   dedupeIds,
   dropTab,
+  dropPane,
   findLeaf,
   flattenTabs,
   focusTab,
@@ -29,6 +30,7 @@ import {
   tabRefKey,
   updateTabInLeaf,
   type DropSpec,
+  type PaneDropSpec,
 } from './layout-tree';
 
 /**
@@ -74,6 +76,7 @@ export interface LayoutController {
   pruneSessions(alive: ReadonlySet<string>): void;
   resize(splitId: string, sizes: number[]): void;
   drop(spec: DropSpec): void;
+  dropPane(spec: PaneDropSpec): void;
 }
 
 function sameFollowingTarget(left: EditorTab, right: EditorTab): boolean {
@@ -322,6 +325,12 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
         setFocusedLeafId(spec.toLeafId);
         rememberLinkable(spec.toLeafId, spec.ref);
         persist(retargetFollowingTabs(dropTab(tree, spec), spec.ref));
+      },
+      dropPane: (spec) => {
+        const next = dropPane(tree, spec);
+        if (next === tree) return;
+        setFocusedLeafId(spec.fromLeafId);
+        persist(next);
       },
     }),
     [tree, focusedLeaf, activeEditorTab, persist],

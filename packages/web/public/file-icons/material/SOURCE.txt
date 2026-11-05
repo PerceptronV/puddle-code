@@ -1,0 +1,4 @@
+Material Icon Theme
+https://github.com/material-extensions/vscode-material-icon-theme
+Revision: f368264282ef14ee7feb012fd54e825181eff9c3
+Unmodified SVG subset, distributed under the accompanying MIT licence.

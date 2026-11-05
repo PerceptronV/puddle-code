@@ -266,6 +266,45 @@ export function splitLeaf(
   return normalise(next);
 }
 
+export interface PaneDropSpec {
+  fromLeafId: string;
+  toLeafId: string;
+  edge: DropEdge;
+}
+
+/** Move a whole pane beside another, or swap their positions on a centre drop. */
+export function dropPane(tree: LayoutNode, spec: PaneDropSpec): LayoutNode {
+  const { fromLeafId, toLeafId, edge } = spec;
+  if (fromLeafId === toLeafId) return tree;
+  const source = findLeaf(tree, fromLeafId);
+  const target = findLeaf(tree, toLeafId);
+  if (!source || !target) return tree;
+  if (edge === 'center') {
+    const swap = (node: LayoutNode): LayoutNode => {
+      if (node.kind === 'leaf') {
+        return node.id === fromLeafId ? target : node.id === toLeafId ? source : node;
+      }
+      return { ...node, children: node.children.map(swap) };
+    };
+    return swap(tree);
+  }
+  const withoutSource = normalise(
+    transformLeaf(tree, fromLeafId, (leaf) => ({
+      ...leaf,
+      tabs: [],
+      activeKey: null,
+      previewKey: null,
+    })),
+  );
+  const direction = edge === 'left' || edge === 'right' ? 'row' : 'col';
+  const before = edge === 'left' || edge === 'top';
+  return normalise(
+    transformLeaf(withoutSource, toLeafId, (leaf) =>
+      makeSplit(direction, before ? [source, leaf] : [leaf, source], [50, 50]),
+    ),
+  );
+}
+
 export interface DropSpec {
   ref: TabRef;
   /** The leaf the tab was dragged from — a move removes the key from THIS leaf only. */

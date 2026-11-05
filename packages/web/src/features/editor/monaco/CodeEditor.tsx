@@ -217,7 +217,7 @@ export function CodeEditor({
         </div>
       )}
       {badgeText && <div className="bg-surface px-3 py-1 text-xs text-fg-muted">{badgeText}</div>}
-      <div className="min-h-0 flex-1">
+      <div className="min-h-0 flex-1 pl-1">
         {buffer.model && (
           <Editor
             path={buffer.model.uri.toString()}
@@ -240,7 +240,9 @@ export function CodeEditor({
               wordWrap: settings.editorWordWrap ? 'on' : 'off',
               minimap: { enabled: false },
               glyphMargin: false,
-              lineDecorationsWidth: 10,
+              // Monaco grows this gutter automatically with the line count.
+              lineNumbersMinChars: 1,
+              lineDecorationsWidth: 5,
               fixedOverflowWidgets: true,
               scrollBeyondLastLine: false,
             }}

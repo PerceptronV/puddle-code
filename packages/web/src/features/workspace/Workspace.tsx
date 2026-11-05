@@ -1904,6 +1904,7 @@ function WorkspaceInner() {
     >
       <TilingDnd
         onDrop={layout.drop}
+        onDropPane={layout.dropPane}
         onArchive={(id) => void archiveSidebarSessions([id])}
         renderOverlay={(ref) => {
           const s =
@@ -1921,7 +1922,7 @@ function WorkspaceInner() {
           );
         }}
       >
-        <div className="relative flex h-full min-h-0 overflow-hidden">
+        <div className="relative flex h-full min-h-0 gap-[var(--ui-surface-gap)] overflow-hidden p-[var(--ui-surface-gap)]">
           {isNarrow ? (
             /* Narrow (SPEC §12): both rails stay put; expanding opens the sidebar
              as an overlay above the tiling area — a translucent ground dims
@@ -1958,7 +1959,7 @@ function WorkspaceInner() {
                     className="absolute inset-0 z-30 bg-ground/60"
                     onClick={() => setNarrowNav(false)}
                   />
-                  <div className="absolute inset-y-0 left-9 z-40 w-[min(20rem,calc(100%-4.5rem))] shadow-xl">
+                  <div className="absolute inset-y-1.5 left-11 z-40 w-[min(20rem,calc(100%-4.5rem))] shadow-xl">
                     {navigatorPanel(() => setNarrowNav(false))}
                   </div>
                 </>
@@ -1971,7 +1972,7 @@ function WorkspaceInner() {
                     className="absolute inset-0 z-30 bg-ground/60"
                     onClick={() => setNarrowSessions(false)}
                   />
-                  <div className="absolute inset-y-0 right-9 z-40 w-[min(20rem,calc(100%-4.5rem))] shadow-xl">
+                  <div className="absolute inset-y-1.5 right-11 z-40 w-[min(20rem,calc(100%-4.5rem))] shadow-xl">
                     {sessionsPanel(() => setNarrowSessions(false))}
                   </div>
                 </>
@@ -1997,13 +1998,13 @@ function WorkspaceInner() {
                     <Panel id="nav" defaultSize={280} minSize={200} maxSize={560}>
                       {navigatorPanel(() => uiState.update({ sidebar_collapsed: true }))}
                     </Panel>
-                    <Separator className="w-px bg-border transition-colors hover:bg-accent data-[resizing]:bg-accent" />
+                    <Separator className="workspace-divider-vertical" />
                   </>
                 )}
                 <Panel id="main">{mainArea}</Panel>
                 {!sessionsCollapsed && (
                   <>
-                    <Separator className="w-px bg-border transition-colors hover:bg-accent data-[resizing]:bg-accent" />
+                    <Separator className="workspace-divider-vertical" />
                     <Panel id="sessions" defaultSize={260} minSize={180} maxSize={480}>
                       {sessionsPanel(() => uiState.update({ sessions_collapsed: true }))}
                     </Panel>

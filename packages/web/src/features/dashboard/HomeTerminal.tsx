@@ -61,7 +61,7 @@ export function useHomeTerminal(): {
   };
 }
 
-/** The bottom pane: the shell alone on the page ground — no tab heading, no box. */
+/** The bottom terminal island, aligned with the project tiles above. */
 export function HomeTerminalPane({ term, onExit }: { term: string | null; onExit: () => void }) {
   return (
     // The same column geometry as the projects grid above (`mx-auto max-w-4xl
@@ -69,7 +69,11 @@ export function HomeTerminalPane({ term, onExit }: { term: string | null; onExit
     // with the tiles' — not with the column's outer edge.
     <div className="h-72 shrink-0 pb-6">
       <div className="mx-auto size-full max-w-4xl px-6">
-        {term !== null && <LazyTerminal stream={HOME_STREAM} term={term} onExit={onExit} />}
+        <div className="workspace-surface island-outline size-full bg-surface p-1">
+          <div className="size-full overflow-hidden rounded-[var(--ui-radius)] bg-ground p-1">
+            {term !== null && <LazyTerminal stream={HOME_STREAM} term={term} onExit={onExit} />}
+          </div>
+        </div>
       </div>
     </div>
   );

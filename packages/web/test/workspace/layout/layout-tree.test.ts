@@ -10,6 +10,7 @@ import {
   retargetFollowingTabs,
   dedupeIds,
   dropTab,
+  dropPane,
   findLeaf,
   hasDuplicateIds,
   reidNodes,
@@ -42,6 +43,42 @@ const asSplit = (n: LayoutNode): LayoutSplit => {
   return n;
 };
 const leafWith = (tree: LayoutNode, ref: TabRef) => leafContainingKey(tree, tabRefKey(ref))!;
+
+describe('whole-pane drops', () => {
+  const setup = () => {
+    const a = makeLeaf([ed('a.ts'), ed('b.ts')], tabRefKey(ed('b.ts')));
+    a.previewKey = tabRefKey(ed('a.ts'));
+    const tree = splitLeaf(a, a.id, 'right', term('terminal'));
+    return { tree, a, b: leafWith(tree, term('terminal')) };
+  };
+
+  it('swaps panes without merging tabs or changing their identities and active/preview tabs', () => {
+    const { tree, a, b } = setup();
+    const next = dropPane(tree, { fromLeafId: a.id, toLeafId: b.id, edge: 'center' });
+    expect(allLeaves(next)).toEqual([b, a]);
+    expect(asSplit(next).sizes).toEqual(asSplit(tree).sizes);
+  });
+
+  it.each(['left', 'right', 'top', 'bottom'] as const)('moves all tabs to the %s edge', (edge) => {
+    const { tree, a, b } = setup();
+    const next = dropPane(tree, { fromLeafId: a.id, toLeafId: b.id, edge });
+    expect(findLeaf(next, a.id)).toEqual(a);
+    expect(findLeaf(next, b.id)).toEqual(b);
+    expect(allLeaves(next).map((leaf) => leaf.id)).toEqual(
+      edge === 'left' || edge === 'top' ? [a.id, b.id] : [b.id, a.id],
+    );
+    expect(asSplit(next).direction).toBe(edge === 'left' || edge === 'right' ? 'row' : 'col');
+    expect(hasDuplicateIds(next)).toBe(false);
+    expect(flattenTabs(next)).toHaveLength(3);
+  });
+
+  it('ignores self-drops and panes that disappeared during a drag', () => {
+    const { tree, a, b } = setup();
+    expect(dropPane(tree, { fromLeafId: a.id, toLeafId: a.id, edge: 'top' })).toBe(tree);
+    expect(dropPane(tree, { fromLeafId: 'missing', toLeafId: b.id, edge: 'left' })).toBe(tree);
+    expect(dropPane(tree, { fromLeafId: a.id, toLeafId: 'missing', edge: 'center' })).toBe(tree);
+  });
+});
 
 describe('tab identity', () => {
   it('keys editors by tab identity and terminals by session', () => {
