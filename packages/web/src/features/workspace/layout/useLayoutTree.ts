@@ -314,8 +314,12 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
         if (next !== tree) persist(next);
       },
       removeTerminal: (session) => {
-        const leaf = leafContainingKey(tree, `term:${session}`);
-        if (leaf) persist(closeTab(tree, leaf.id, `term:${session}`));
+        // Archive completion can arrive after other tabs were closed or opened.
+        // Read through the handle so overlapping replies (even in one tick)
+        // cannot restore the layout captured when their requests began.
+        const current = uiState.current().layout_tree ?? tree;
+        const leaf = leafContainingKey(current, `term:${session}`);
+        if (leaf) persist(closeTab(current, leaf.id, `term:${session}`));
       },
       // Session-less tabs (untitled drafts, directory targets) survive: the nil
       // uuid names no session, so no session of theirs can have died.

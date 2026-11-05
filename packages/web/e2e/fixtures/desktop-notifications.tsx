@@ -49,7 +49,7 @@ const sessions = sessionIds.map((id, i) =>
     agent_type: 'codex',
     agent_session_ref: id,
     title: `Conversation ${i + 1}`,
-    status: 'waiting_input',
+    status: new URLSearchParams(location.search).has('stopped') ? 'exited' : 'waiting_input',
     skip_permissions: false,
     created_at: stamp,
     updated_at: stamp,
@@ -135,6 +135,7 @@ wsManager.write = () => {};
 wsManager.isConnected = () => true;
 Object.assign(window, {
   notificationFixture: {
+    data: () => ({ sessions, projects }),
     delivered: () => delivered.map((request) => request.target?.session),
     messages: () => delivered,
     async emit(index: number) {

@@ -10,6 +10,10 @@ const sessionIds = [1, 2, 3].map((id) => `20000000-0000-4000-8000-00000000000${i
 declare global {
   interface Window {
     notificationFixture: {
+      data(): {
+        sessions: import('@puddle/shared').Session[];
+        projects: import('@puddle/shared').Project[];
+      };
       delivered(): (string | undefined)[];
       messages(): DesktopNotificationRequest[];
       emit(index: number): Promise<void>;
