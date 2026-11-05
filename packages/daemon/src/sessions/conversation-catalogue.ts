@@ -37,6 +37,13 @@ export interface SessionsChangedEvent {
   projectIds: string[];
 }
 
+type MappedWorktree = {
+  repo: Repo;
+  worktreePath: string;
+  canonicalPath: string;
+  branch: string;
+};
+
 /**
  * Activation-driven, watched native conversation catalogue. Adapters own
  * storage parsing; this coordinator owns profile/project eligibility,
@@ -280,6 +287,10 @@ export class ConversationCatalogue extends EventEmitter {
     if (this.inactive) return;
     const changedProjects = new Set<string>();
     const seenRefs = new Set<string>();
+    const discovered: Array<{
+      conversation: AgentConversation;
+      metadata: NativeConversationMetadata;
+    }> = [];
     for (const metadata of native) {
       seenRefs.add(metadata.ref);
       const before = this.deps.conversations.getByRef(
@@ -303,7 +314,27 @@ export class ConversationCatalogue extends EventEmitter {
           changedProjects.add(this.deps.sessions.get(sessionId).project_id);
         }
       }
-      for (const projectId of await this.materialisePlacements(account, conversation, metadata)) {
+      discovered.push({ conversation, metadata });
+    }
+    // Existing placements already have everything needed to display native
+    // metadata. Publish it before filesystem/Git discovery for new placements.
+    if (changedProjects.size > 0) {
+      this.emit('sessions-changed', {
+        projectIds: [...changedProjects],
+      } satisfies SessionsChangedEvent);
+      changedProjects.clear();
+    }
+    // Share lookups within this observation only; a later scan must see moves,
+    // branch changes and newly exposed worktrees rather than a stale mapping.
+    const mappings = new Map<string, MappedWorktree | null>();
+    for (const { conversation, metadata } of discovered) {
+      if (this.inactive) return;
+      for (const projectId of await this.materialisePlacements(
+        account,
+        conversation,
+        metadata,
+        mappings,
+      )) {
         changedProjects.add(projectId);
       }
       if (this.inactive) return;
@@ -355,8 +386,10 @@ export class ConversationCatalogue extends EventEmitter {
     account: Account,
     conversation: AgentConversation,
     metadata: NativeConversationMetadata,
+    mappings: Map<string, MappedWorktree | null>,
   ): Promise<string[]> {
-    const mapped = await this.mapCwd(metadata.cwd);
+    if (!mappings.has(metadata.cwd)) mappings.set(metadata.cwd, await this.mapCwd(metadata.cwd));
+    const mapped = mappings.get(metadata.cwd);
     if (this.inactive || !mapped) return [];
     const projects = this.deps.projects
       .list(account.profile_id)
@@ -389,9 +422,7 @@ export class ConversationCatalogue extends EventEmitter {
   }
 
   /** Native cwd → containing registered canonical Git worktree. */
-  private async mapCwd(
-    cwd: string,
-  ): Promise<{ repo: Repo; worktreePath: string; canonicalPath: string; branch: string } | null> {
+  private async mapCwd(cwd: string): Promise<MappedWorktree | null> {
     let worktreePath: string;
     let commonKey: string;
     try {

@@ -96,6 +96,67 @@ function setup(
 }
 
 describe('ConversationCatalogue', () => {
+  it('publishes renames before slow placement discovery and shares mappings only within a scan', async () => {
+    const { f, catalogue, setNative } = setup({ fakeWatch: 'healthy' });
+    const first: NativeConversation = {
+      ref: 'first',
+      cwd: f.repoPath,
+      title: 'First title',
+      parentRef: null,
+      createdAt: null,
+      updatedAt: null,
+    };
+    const second = { ...first, ref: 'second', title: 'Second title' };
+    setNative([first, second]);
+    const complete = vi.spyOn(f.stores.conversations, 'completeSuccessfulScan');
+    catalogue.refreshProject(f.ids.project);
+    await waitFor(() => complete.mock.calls.length === 1);
+    const placement = f.service.list().find((session) => session.agent_session_ref === 'second')!;
+    const rows = await f.worktrees.listWorktrees(f.stores.repos.get(f.ids.repo));
+    let release!: () => void;
+    const blocked = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    const listing = vi.spyOn(f.worktrees, 'listWorktrees').mockImplementation(async () => {
+      await blocked;
+      return rows;
+    });
+    const changed = vi.fn();
+    catalogue.on('sessions-changed', changed);
+    complete.mockClear();
+    setNative([first, { ...second, title: 'Renamed' }, { ...first, ref: 'new-placement' }]);
+    catalogue.refreshProject(f.ids.project);
+    try {
+      await waitFor(() => listing.mock.calls.length === 1);
+      // Even a rename later in the account's catalogue is visible while the
+      // first conversation's worktree inspection is still blocked.
+      expect(f.service.get(placement.id).agent_title).toBe('Renamed');
+      expect(changed).toHaveBeenCalledExactlyOnceWith({ projectIds: [f.ids.project] });
+      expect(
+        f.service.list().some((session) => session.agent_session_ref === 'new-placement'),
+      ).toBe(false);
+      expect(complete).not.toHaveBeenCalled();
+      release();
+      await waitFor(() => complete.mock.calls.length === 1);
+      expect(listing).toHaveBeenCalledOnce();
+      expect(
+        f.service.list().some((session) => session.agent_session_ref === 'new-placement'),
+      ).toBe(true);
+      expect(changed).toHaveBeenCalledTimes(2);
+
+      // Reuse must not hide a filesystem change in the next observation.
+      listing.mockResolvedValue([]);
+      catalogue.refreshProject(f.ids.project);
+      await waitFor(() => complete.mock.calls.length === 2);
+      expect(listing).toHaveBeenCalledTimes(2);
+      expect(changed).toHaveBeenCalledTimes(2);
+    } finally {
+      release();
+      await catalogue.dispose();
+      listing.mockRestore();
+    }
+  });
+
   it('pauses scans and restores watchers with fresh discovery after release', async () => {
     const { f, catalogue, discover, setNative, blockNext, watchRoots, currentWatch } = setup({
       fakeWatch: 'healthy',
