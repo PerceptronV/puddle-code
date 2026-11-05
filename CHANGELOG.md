@@ -11,6 +11,7 @@ Past releases: see docs/changelogs/.
 
 ### Cockpit
 
+- Search displayed sidebar sessions by title, branch, agent, account, and project from an expanding search tray, respecting project scope and archived visibility.
 - Preserve current tabs when archive requests overlap so a late response cannot restore a previously closed session tab.
 - Highlight draggable dividers between workspace islands with a bold rule on hover, keyboard focus, and while resizing.
 - Float session sidebar controls above scrolling content, give the collapse control a matching square island, and preserve initial clearance above project titles.

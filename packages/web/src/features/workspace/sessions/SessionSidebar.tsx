@@ -1,5 +1,6 @@
+import './session-sidebar.css';
 import { ControlTray } from '../../../components/ui/control-tray';
-import { useEffect, useMemo, useState, type DragEvent, type ReactNode } from 'react';
+import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { Link } from 'react-router';
 import {
@@ -16,6 +17,8 @@ import {
   MessageCircleX,
   TriangleAlert,
   SquareTerminal,
+  Search,
+  X,
   type LucideIcon,
 } from 'lucide-react';
 import type { Account, Project, Session } from '@puddle/shared';
@@ -864,18 +867,70 @@ export function SessionSidebar({
   selection: SidebarSessionSelection;
   projectActions: ProjectHeaderActions;
 }) {
+  const [searching, setSearching] = useState(false);
+  const [query, setQuery] = useState('');
+  const controlsRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  useEffect(() => {
+    if (searching) inputRef.current?.focus();
+  }, [searching]);
+  const closeSearch = () => {
+    setSearching(false);
+    setQuery('');
+    requestAnimationFrame(() => {
+      controlsRef.current
+        ?.querySelector<HTMLButtonElement>('[aria-label="New sessions"] > button:last-child')
+        ?.focus();
+    });
+  };
   const controls = (
-    <div className="pointer-events-none z-10 col-start-1 row-start-1 flex items-center gap-1 self-start px-2 py-1.5">
+    <div
+      ref={controlsRef}
+      className="session-sidebar-controls pointer-events-none z-10 col-start-1 row-start-1 self-start"
+      data-searching={searching}
+    >
+      {!searching && (
+        <ControlTray
+          label="Session sidebar"
+          variant="selection"
+          className="control-tray-square pointer-events-auto"
+        >
+          <IconButton icon={PanelRightClose} label="Hide sessions" onClick={onCollapse} />
+        </ControlTray>
+      )}
       <ControlTray
-        label="Session sidebar"
+        label={searching ? 'Search sessions' : 'New sessions'}
         variant="selection"
-        className="control-tray-square pointer-events-auto"
+        className="session-sidebar-search-tray pointer-events-auto"
       >
-        <IconButton icon={PanelRightClose} label="Hide sessions" onClick={onCollapse} />
-      </ControlTray>
-      <ControlTray label="New sessions" variant="selection" className="pointer-events-auto ml-auto">
-        <IconButton icon={Bot} label="New agent" onClick={onNewSession} />
-        <IconButton icon={SquareTerminal} label="New terminal" onClick={onNewTerminal} />
+        {searching ? (
+          <>
+            <Search className="ml-1 size-4 shrink-0 text-fg-muted" />
+            <input
+              ref={inputRef}
+              type="search"
+              aria-label="Search displayed sessions"
+              placeholder="Search sessions…"
+              value={query}
+              onChange={(event) => setQuery(event.target.value)}
+              onKeyDown={(event) => {
+                if (event.key === 'Escape') {
+                  event.preventDefault();
+                  event.stopPropagation();
+                  closeSearch();
+                }
+              }}
+              className="h-[var(--ui-control-height)] min-w-0 flex-1 bg-transparent text-xs text-fg outline-none"
+            />
+            <IconButton icon={X} label="Close session search" onClick={closeSearch} />
+          </>
+        ) : (
+          <>
+            <IconButton icon={Bot} label="New agent" onClick={onNewSession} />
+            <IconButton icon={SquareTerminal} label="New terminal" onClick={onNewTerminal} />
+            <IconButton icon={Search} label="Search sessions" onClick={() => setSearching(true)} />
+          </>
+        )}
       </ControlTray>
     </div>
   );
@@ -883,6 +938,7 @@ export function SessionSidebar({
     <div className="flex h-full min-h-0 flex-col">
       <SessionListBody
         header={controls}
+        query={query}
         groups={groups}
         accounts={accounts}
         activeSessionId={activeSessionId}
@@ -901,6 +957,7 @@ export function SessionSidebar({
 /** The session-list body (extracted so the sidebar shell can swap in Scratchpad). */
 function SessionListBody({
   header,
+  query,
   groups,
   accounts,
   activeSessionId,
@@ -913,6 +970,7 @@ function SessionListBody({
   projectActions,
 }: {
   header: ReactNode;
+  query: string;
   groups: SessionGroup[];
   accounts: Account[];
   activeSessionId: string | null;
@@ -940,10 +998,39 @@ function SessionListBody({
   const patchProject = usePatchProject();
   const paletteKey = useHotkeyLabel('palette.toggle');
   const accountLabel = new Map(accounts.map((a) => [a.id, a.label]));
+  const renderTitle = useSessionTitleRenderer();
+  const terms = query.toLocaleLowerCase().trim().split(/\s+/).filter(Boolean);
+  const filterGroups = (source: SessionGroup[], isArchived = false) => {
+    if (terms.length === 0) return source;
+    return source
+      .map((group) => ({
+        ...group,
+        sessions: group.sessions.filter((session) => {
+          const details = [
+            group.name,
+            renderTitle(session),
+            session.branch,
+            session.kind === 'terminal' ? 'terminal' : (session.agent_type ?? 'agent'),
+            isArchived
+              ? session.last_activity_at === null
+                ? ''
+                : relativeTime(session.last_activity_at)
+              : session.account_id === null
+                ? ''
+                : accountLabel.get(session.account_id),
+          ]
+            .join(' ')
+            .toLocaleLowerCase();
+          return terms.every((term) => details.includes(term));
+        }),
+      }))
+      .filter((group) => group.sessions.length > 0);
+  };
+  const displayedGroups = filterGroups(groups);
   const total = groups.reduce((n, g) => n + g.sessions.length, 0);
   const visibleIds = useMemo(
-    () => groups.flatMap((group) => group.sessions.map((session) => session.id)),
-    [groups],
+    () => displayedGroups.flatMap((group) => group.sessions.map((session) => session.id)),
+    [displayedGroups],
   );
   const selectedIds = visibleIds.filter((id) => selection.ids.has(id));
   // The open archived pane's height, dragged by the border above its header.
@@ -971,6 +1058,12 @@ function SessionListBody({
     ];
   }, [groups, archived]);
 
+  const displayedArchivedGroups = filterGroups(archivedGroups, true);
+  const noMatches =
+    terms.length > 0 &&
+    displayedGroups.length === 0 &&
+    (!showArchived || displayedArchivedGroups.length === 0);
+
   const move = (id: string, before: string) => {
     const next = moveWithinGroups(groups, id, before);
     if (next) onReorder(next);
@@ -993,12 +1086,17 @@ function SessionListBody({
         {/* Initial clearance scrolls away with the list, leaving only the two
             control islands above the content. Include tray and header padding. */}
         <div className="no-scrollbar col-start-1 row-start-1 min-h-0 overflow-y-auto overscroll-contain pb-1.5 pt-[calc(var(--ui-control-height)+1.5rem)]">
-          {total === 0 && archived.length === 0 && (
+          {terms.length === 0 && total === 0 && archived.length === 0 && (
             <p className="px-3 py-3 text-xs text-fg-muted">
               No sessions yet — press {paletteKey} to start one.
             </p>
           )}
-          {groups.map((group) => (
+          {noMatches && (
+            <p role="status" className="px-3 py-3 text-xs text-fg-muted">
+              No matching sessions.
+            </p>
+          )}
+          {displayedGroups.map((group) => (
             <div
               key={group.projectId}
               className="mx-2 border-t border-border py-1 first:border-t-0"
@@ -1151,7 +1249,7 @@ function SessionListBody({
             </button>
             {showArchived && (
               <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
-                {archivedGroups.map((group) => (
+                {displayedArchivedGroups.map((group) => (
                   <div
                     key={group.projectId}
                     className="mx-2 border-t border-border py-1 first:border-t-0"
