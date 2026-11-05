@@ -208,6 +208,10 @@ export class PtyManager extends EventEmitter {
     });
   }
 
+  statusOutput(stream: string): Promise<string> {
+    return this.screens.textTail(stream, 'agent', true);
+  }
+
   notificationOutput(stream: string): Promise<string> {
     return this.screens.textTail(stream, 'agent');
   }

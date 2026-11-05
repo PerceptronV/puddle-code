@@ -359,6 +359,11 @@ export const codex: AgentAdapter = {
    * these patterns remain the fallback and support manually launched terminals.
    */
   statusPatterns: {
+    screen: {
+      // The composer stays visible during a turn, so a live spinner wins regardless of order.
+      waitingInput: [/^›[^\n]*\n(?:[^\n]*\n){0,3}\s*[^\n]+ · [^\n]+/m],
+      busy: [/^\s*[•◦]\s*[^\n]*esc to interrupt[^\n]*$/m],
+    },
     waitingInput: [/›[^›\r\n]{0,1000}\s·\s/],
     busy: [/to interrupt/i],
     limitReached: [/you've (hit|reached) your usage limit/i],

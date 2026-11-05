@@ -31,9 +31,14 @@ function lastMatchIndex(patterns: RegExp[], text: string): number {
  * any output means running; waiting_input is declared only after a
  * waitingInput pattern matches the ANSI-stripped tail and ~quietMs pass with
  * no further output. A busy pattern in the tail suppresses the transition.
+ * Adapters with rendered-footer patterns can instead inspect the canonical
+ * screen after quiet, avoiding stale text from cursor-addressed redraws.
  */
 export class StatusDetector {
   private tail = '';
+  private revision = 0;
+  private disposed = false;
+  private reading = false;
   private timer: NodeJS.Timeout | null = null;
   private last: DetectedStatus | null = null;
   private limitFired = false;
@@ -49,12 +54,15 @@ export class StatusDetector {
       onBusy?: () => void;
     },
     private readonly quietMs = 2000,
+    private readonly readScreen?: () => Promise<string>,
   ) {
     this.busy = globalise(patterns.busy ?? []);
     this.waiting = globalise(patterns.waitingInput);
   }
 
   feed(chunk: string): void {
+    if (this.disposed) return;
+    this.revision++;
     this.tail = (this.tail + stripAnsi(chunk)).slice(-2000);
     if (this.timer) {
       clearTimeout(this.timer);
@@ -71,12 +79,42 @@ export class StatusDetector {
     const busyIdx = lastMatchIndex(this.busy, this.tail);
     const waitingIdx = lastMatchIndex(this.waiting, this.tail);
     if (busyIdx > waitingIdx) this.callbacks.onBusy?.();
-    if (waitingIdx > busyIdx) {
+    if (this.readScreen && this.patterns.screen) {
+      this.timer = setTimeout(() => void this.inspectScreen(), this.quietMs);
+    } else if (waitingIdx > busyIdx) {
       this.timer = setTimeout(() => this.emit('waiting_input'), this.quietMs);
     }
   }
 
+  private async inspectScreen(): Promise<void> {
+    if (this.disposed || this.reading) return;
+    const revision = this.revision;
+    this.reading = true;
+    try {
+      const screen = await this.readScreen!();
+      if (this.disposed || revision !== this.revision) return;
+      // Inspect only the live footer, not old prompts or quoted output in scrollback.
+      const footer = screen.trimEnd().split('\n').slice(-12).join('\n');
+      const patterns = this.patterns.screen!;
+      if (patterns.busy.some((pattern) => pattern.test(footer))) {
+        this.emit('running');
+        this.callbacks.onBusy?.();
+      } else if (patterns.waitingInput.some((pattern) => pattern.test(footer))) {
+        this.emit('waiting_input');
+      }
+    } catch {
+      // Missing or unavailable screen evidence cannot establish that a turn finished.
+    } finally {
+      this.reading = false;
+      if (!this.disposed && revision !== this.revision) {
+        if (this.timer) clearTimeout(this.timer);
+        this.timer = setTimeout(() => void this.inspectScreen(), this.quietMs);
+      }
+    }
+  }
+
   dispose(): void {
+    this.disposed = true;
     if (this.timer) clearTimeout(this.timer);
     this.timer = null;
   }

@@ -32,6 +32,24 @@ async function visibleLines(snapshot: string, cols: number, rows: number): Promi
 }
 
 describe('TerminalScreenStateStore', () => {
+  it('reads a rendered status footer below the cursor without changing the screen', async () => {
+    const store = new TerminalScreenStateStore();
+    try {
+      store.resize('session', 'agent', 80, 8);
+      store.write(
+        'session',
+        'agent',
+        '\u001b[5;1H› Ask Codex to do anything\u001b[7;1HGPT-6 · ~/project\u001b[5;3H',
+      );
+      expect(await store.textTail('session', 'agent')).not.toContain('GPT-6');
+      const before = await store.snapshot('session', 'agent');
+      expect(await store.textTail('session', 'agent', true)).toContain('GPT-6 · ~/project');
+      expect(await store.snapshot('session', 'agent')).toBe(before);
+    } finally {
+      await store.closeAll();
+    }
+  });
+
   it('reads a bounded plain notification tail after redraws without resizing the screen', async () => {
     const store = new TerminalScreenStateStore();
     try {

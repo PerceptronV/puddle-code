@@ -206,6 +206,7 @@ export class RuntimeHost {
           adapters.get(host.launch.provider.id),
           {
             writeInput: (data) => host.ptys.write(id, 'agent', data, 'script'),
+            screen: () => host.ptys.statusOutput(id),
             lifecycle: (lifecycle) => {
               host.turns.lifecycle(lifecycle);
               const cursor = ++host.eventCursor;

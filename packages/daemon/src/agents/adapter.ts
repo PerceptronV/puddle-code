@@ -37,6 +37,8 @@ export interface LaunchOpts {
 }
 
 export interface StatusPatterns {
+  /** Optional rendered-footer fallback; native lifecycle signals remain authoritative. */
+  screen?: { waitingInput: RegExp[]; busy: RegExp[] };
   waitingInput: RegExp[];
   busy?: RegExp[];
   limitReached?: RegExp[];

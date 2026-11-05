@@ -20,4 +20,6 @@ Past releases: see docs/changelogs/.
 
 ### Runtime
 
+- Detect idle Codex conversations from the rendered footer when native status signals are unavailable, preventing partial terminal redraws from leaving them marked busy.
+
 - Preserve the launch environment for provider version checks and Codex conversation-sync sidecars under macOS and Linux service managers.

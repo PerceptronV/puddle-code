@@ -17,6 +17,7 @@ import { runtimeDirectory } from '../ownership/storage.js';
 import type { RuntimeByteAllowance } from '../resources/budget.js';
 
 interface AgentObservers {
+  screen?(): Promise<string>;
   writeInput(data: string): void;
   lifecycle(signal: RuntimeLifecycle): void;
   state(state: RuntimeAgentState): void;
@@ -53,11 +54,18 @@ export class RuntimeAgent {
       (signal) => this.receive(signal),
       bufferAllowance,
     );
-    this.detector = new StatusDetector(adapter.statusPatterns, {
-      onStatus: (status) => {
-        if (!this.signalled) this.setStatus(status);
+    this.detector = new StatusDetector(
+      adapter.statusPatterns,
+      {
+        onStatus: (status) => {
+          if (!this.signalled) this.setStatus(status);
+        },
       },
-    });
+      2000,
+      observers.screen
+        ? () => (this.signalled ? Promise.resolve('') : observers.screen!())
+        : undefined,
+    );
   }
 
   async prepare(): Promise<RuntimeCommand> {

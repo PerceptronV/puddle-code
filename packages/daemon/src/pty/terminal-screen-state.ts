@@ -255,8 +255,8 @@ export class TerminalScreenStateStore {
     });
   }
 
-  /** Bounded plain text for notification previews, without changing terminal geometry. */
-  async textTail(stream: string, term: string): Promise<string> {
+  /** Bounded plain text without resizing; visible mode includes the footer below the cursor. */
+  async textTail(stream: string, term: string, visible = false): Promise<string> {
     const state = this.states.get(this.key(stream, term));
     if (!state) return '';
     if (state.unavailable || state.forgotten) return '';
@@ -265,7 +265,10 @@ export class TerminalScreenStateStore {
       const buffer = state.terminal.buffer.active;
       const lines: string[] = [];
       // Reading the parsed screen avoids ANSI redraw fragments and OSC payloads.
-      const end = Math.min(buffer.length, buffer.baseY + buffer.cursorY + 1);
+      const end = Math.min(
+        buffer.length,
+        buffer.baseY + (visible ? state.rows : buffer.cursorY + 1),
+      );
       for (let row = Math.max(0, end - 32); row < end; row++) {
         const line = buffer.getLine(row);
         const text = line?.translateToString(true) ?? '';
