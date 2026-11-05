@@ -103,6 +103,91 @@ it('bounds output held behind a snapshot and requests a fresh attachment on over
   }
 });
 
+it('keeps a confirmed exit readable across owner shutdown without reconnecting other panes', async () => {
+  const f = fixture();
+  try {
+    const start = f.view.start(100, 30);
+    f.finish();
+    await start;
+    f.output(6, 'last output');
+    f.client.emit('event', {
+      t: 'exit',
+      cursor: 7,
+      term: 'agent',
+      generation: f.generation,
+      exit_code: 0,
+    } satisfies RuntimeEvent);
+    f.connections.emit('disconnected', f.binding.runtime_id);
+    expect(f.send.mock.calls.map(([message]) => message.t)).toEqual(['replay', 'output', 'exit']);
+    await expect(f.view.resize(120, 40)).resolves.toBeUndefined();
+    await expect(f.view.input('after exit')).rejects.toThrow(/unavailable/);
+    expect(f.reconnect).not.toHaveBeenCalled();
+    expect(f.client.request.mock.calls.map(([request]) => request.t)).toEqual([
+      'snapshot',
+      'resize',
+    ]);
+  } finally {
+    await f.close();
+  }
+});
+
+it.each(['queued', 'in-flight'] as const)(
+  'ignores a %s resize when its terminal exits',
+  async (phase) => {
+    const f = fixture();
+    try {
+      const start = f.view.start(100, 30);
+      f.finish();
+      await start;
+      let reject!: (error: Error) => void;
+      if (phase === 'in-flight')
+        f.client.request.mockImplementationOnce(
+          () =>
+            new Promise((_, fail) => {
+              reject = fail;
+            }),
+        );
+      const resizing = f.view.resize(120, 40);
+      if (phase === 'in-flight') await Promise.resolve();
+      f.client.emit('event', {
+        t: 'exit',
+        cursor: 6,
+        term: 'agent',
+        generation: f.generation,
+        exit_code: 0,
+      } satisfies RuntimeEvent);
+      f.connections.emit('disconnected', f.binding.runtime_id);
+      if (phase === 'in-flight') reject(new Error('Owner stopped'));
+      await expect(resizing).resolves.toBeUndefined();
+      expect(f.reconnect).not.toHaveBeenCalled();
+      expect(f.client.request).toHaveBeenCalledTimes(phase === 'in-flight' ? 3 : 2);
+    } finally {
+      await f.close();
+    }
+  },
+);
+
+it('still reconnects if shutdown interrupts an unfinished snapshot despite an exit event', async () => {
+  const f = fixture();
+  try {
+    const start = f.view.start(100, 30);
+    f.client.emit('event', {
+      t: 'exit',
+      cursor: 6,
+      term: 'agent',
+      generation: f.generation,
+      exit_code: 0,
+    } satisfies RuntimeEvent);
+    f.connections.emit('disconnected', f.binding.runtime_id);
+    f.finish();
+    await start;
+    expect(f.reconnect).toHaveBeenCalledOnce();
+    expect(f.send).not.toHaveBeenCalled();
+  } finally {
+    await f.close();
+  }
+});
+
 it('preserves large Unicode paste ordering and abandons queued input after an uncertain chunk', async () => {
   const f = fixture();
   try {

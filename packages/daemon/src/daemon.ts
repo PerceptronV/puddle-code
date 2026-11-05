@@ -370,6 +370,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       service.emit('sessions-changed', { projectIds: [projectId] }),
     );
     runtimeReconciler.on('session-switched', (event) => service.emit('session-switched', event));
+    runtimeReconciler.on('status', (event) => service.emit('status', event));
     runtimeConnections.on('disconnected', (id: string) => {
       const owner = runtimes.get(id);
       if (owner) service.emit('sessions-changed', { projectIds: [owner.project_id] });

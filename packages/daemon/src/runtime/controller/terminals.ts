@@ -45,7 +45,7 @@ export class RuntimeTerminals {
     });
     connections.on('disconnected', (id: string) => {
       for (const view of [...this.views])
-        if (view.address.runtime_id === id && view.client) view.invalidate();
+        if (view.address.runtime_id === id && view.client) view.disconnected();
     });
   }
 
@@ -158,6 +158,14 @@ export class RuntimeTerminalView {
 
   private valid(): boolean {
     return !this.closed && this.viewer.valid();
+  }
+
+  disconnected(): void {
+    // A completely restored terminal with a confirmed exit is already a
+    // readable transcript. Its owner's normal shutdown must not disconnect
+    // every other terminal sharing this browser socket.
+    if (this.valid() && this.ready && this.ended) return;
+    this.invalidate();
   }
 
   async start(cols: number, rows: number): Promise<void> {
@@ -348,7 +356,12 @@ export class RuntimeTerminalView {
     return this.client;
   }
 
-  private mutate(bytes: number, retainedBytes: number, action: () => Promise<void>): Promise<void> {
+  private mutate(
+    bytes: number,
+    retainedBytes: number,
+    action: () => Promise<void>,
+    skipEnded = false,
+  ): Promise<void> {
     this.mutable();
     if (
       this.pendingMutations >= RUNTIME_LIMITS.pendingRequests ||
@@ -366,10 +379,12 @@ export class RuntimeTerminalView {
     this.inputBytes += bytes;
     const pending = this.mutationTail
       .then(async () => {
+        if (skipEnded && this.valid() && this.ended) return;
         this.mutable();
         await action();
       })
       .catch((error: unknown) => {
+        if (skipEnded && this.valid() && this.ended) return;
         this.invalidate();
         throw error;
       })
@@ -406,16 +421,21 @@ export class RuntimeTerminalView {
     // Recorded/ended terminals remain readable and their browser pane can fit
     // locally. There is no live PTY whose geometry should be changed.
     if (this.valid() && (this.ended || !this.client)) return;
-    await this.mutate(0, 256, async () => {
-      await this.mutable().request({
-        t: 'resize',
-        placement: { session_id: this.address.session_id, segment_id: this.address.segment_id },
-        term: this.address.term,
-        generation: this.address.generation,
-        cols,
-        rows,
-      });
-    });
+    await this.mutate(
+      0,
+      256,
+      async () => {
+        await this.mutable().request({
+          t: 'resize',
+          placement: { session_id: this.address.session_id, segment_id: this.address.segment_id },
+          term: this.address.term,
+          generation: this.address.generation,
+          cols,
+          rows,
+        });
+      },
+      true,
+    );
   }
 
   async kill(): Promise<void> {

@@ -70,6 +70,73 @@ async function manager() {
 }
 
 describe('WsManager', () => {
+  it.each(['exit', 'status', 'historical'] as const)(
+    'reattaches a resumed session after %s without disconnecting other sessions',
+    async (ended) => {
+      const ws = await manager();
+      const onData = vi.fn();
+      ws.attach('session-1', 'agent', 80, 24, { onData });
+      ws.attach('session-1', 'shell-1', 90, 25, { onData });
+      ws.attach('other', 'agent', 100, 30, { onData });
+      const socket = FakeWebSocket.instances[0]!;
+      const send = (msg: unknown) => socket.emit('message', { data: JSON.stringify(msg) });
+      const status = (value: string) =>
+        send({
+          t: 'status',
+          session: 'session-1',
+          status: value,
+          last_activity_at: null,
+        });
+      const replay = (term: string) =>
+        send({
+          t: 'replay',
+          session: 'session-1',
+          term,
+          data: '',
+        });
+      socket.emit('open', {});
+      send({ t: 'authenticated' });
+      ws.write('session-1', 'agent', 'before snapshot');
+      expect(socket.messages.some((m) => m.t === 'stdin')).toBe(false);
+      if (ended !== 'historical') status('running');
+      replay('agent');
+      replay('shell-1');
+      send({ t: 'replay', session: 'other', term: 'agent', data: '' });
+      ws.write('session-1', 'agent', 'before exit');
+      expect(socket.messages.at(-1)).toMatchObject({ t: 'stdin', data: 'before exit' });
+      if (ended === 'exit') {
+        send({ t: 'exit', session: 'session-1', term: 'agent', code: 0 });
+        ws.write('session-1', 'agent', 'after exit');
+        expect(socket.messages.at(-1)).toMatchObject({ t: 'stdin', data: 'before exit' });
+      } else if (ended === 'status') status('interrupted');
+      const beforeResume = socket.messages.length;
+      ws.onStatus(() => ws.resize('session-1', 'agent', 132, 43));
+      status('starting');
+      expect(socket.messages.slice(beforeResume)).toEqual([
+        { t: 'attach', session: 'session-1', term: 'agent', cols: 80, rows: 24 },
+      ]);
+      ws.write('session-1', 'agent', 'during replacement');
+      expect(socket.messages).toHaveLength(beforeResume + 1);
+      ws.write('other', 'agent', 'unaffected');
+      expect(socket.messages.at(-1)).toMatchObject({ t: 'stdin', session: 'other' });
+      replay('agent');
+      expect(socket.messages.at(-1)).toMatchObject({ t: 'resize', cols: 132, rows: 43 });
+      ws.write('session-1', 'agent', 'new process');
+      expect(socket.messages.at(-1)).toMatchObject({ t: 'stdin', data: 'new process' });
+      const attachments = socket.messages.filter((m) => m.t === 'attach').length;
+      status('running');
+      status('waiting_input');
+      status('running');
+      expect(socket.messages.filter((m) => m.t === 'attach')).toHaveLength(attachments);
+      expect(FakeWebSocket.instances).toHaveLength(1);
+      expect(socket.messages.filter((m) => m.t === 'stdin').map((m) => m.data)).toEqual([
+        'before exit',
+        'unaffected',
+        'new process',
+      ]);
+    },
+  );
+
   it('defers fitting until replay and never resizes an unattached terminal', async () => {
     const ws = await manager();
     ws.onStatus(() => undefined);

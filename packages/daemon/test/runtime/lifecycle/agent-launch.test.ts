@@ -2,13 +2,16 @@ import { once } from 'node:events';
 import { writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
+import WebSocket from 'ws';
 import {
   runtimeLaunchSchema,
   runtimeStateSchema,
   sessionSchema,
   sessionRuntimeInspectionSchema,
   type SessionRuntimeInspection,
+  type WsServerMessage,
 } from '@puddle/shared';
+import { secret } from '@puddle/shared/node';
 import { AccountStore } from '../../../src/db/stores/accounts.js';
 import { readRuntimeJson, runtimeDirectory } from '../../../src/runtime/ownership/storage.js';
 import { runtimeDatabase } from '../../helpers/runtime-database.js';
@@ -20,6 +23,7 @@ it('launches interactive providers, adopts offline native switches and resumes t
   const f = runtimeDatabase('interactive');
   let daemon: ReturnType<typeof launchOwner> | undefined;
   let ready: { port: number; token: string } | undefined;
+  let viewer: WebSocket | undefined;
   const runtimeIds = new Set<string>();
   const request = (path: string, body?: object) =>
     fetch(`http://127.0.0.1:${ready!.port}${path}`, {
@@ -121,12 +125,47 @@ it('launches interactive providers, adopts offline native switches and resumes t
     expect(runtimeLaunchSchema.parse(readRuntimeJson(join(directory, 'launch.json')))).toEqual(
       launch,
     );
+    viewer = new WebSocket(`ws://127.0.0.1:${ready!.port}/ws`);
+    const messages: WsServerMessage[] = [];
+    let live = true;
+    const send = (message: object) => viewer!.send(JSON.stringify(message));
+    const attach = () => send({ t: 'attach', session: active, term: 'agent', cols: 90, rows: 30 });
+    viewer.on('message', (data) => {
+      const message = JSON.parse(String(data)) as WsServerMessage;
+      messages.push(message);
+      if (message.t === 'exit' && message.session === active && message.term === 'agent')
+        live = false;
+      if (message.t === 'status' && message.session === active) {
+        const next = ['starting', 'running', 'waiting_input'].includes(message.status);
+        if (next && !live) attach();
+        live = next;
+      }
+    });
+    await once(viewer, 'open');
+    send({ t: 'auth', token: ready!.token, resource: secret() });
+    await waitFor(() => messages.some((message) => message.t === 'authenticated'));
+    send({ t: 'subscribe-status' });
+    attach();
+    const replays = () => messages.filter((message) => message.t === 'replay').length;
+    const text = () =>
+      messages
+        .flatMap((message) =>
+          message.t === 'replay' || message.t === 'output' ? [message.data] : [],
+        )
+        .join('');
+    await waitFor(() => replays() === 1);
     const killed = await request(`/api/sessions/${active}/kill`);
     expect(killed.status).toBe(200);
     await killed.arrayBuffer();
+    expect(viewer.readyState).toBe(WebSocket.OPEN);
+    await waitFor(() => messages.some((message) => message.t === 'exit'));
     const resumed = await request(`/api/sessions/${active}/resume`);
     expect(resumed.status).toBe(200);
     await resumed.arrayBuffer();
+    await waitFor(() => replays() === 2);
+    send({ t: 'stdin', session: active, term: 'agent', data: "printf 'resume-%s\\n' keyboard\n" });
+    await waitFor(() => text().includes('resume-keyboard'));
+    expect(messages.filter((message) => message.t === 'error')).toEqual([]);
     const replacement = f.runtimes.ownerOf(active)!;
     runtimeIds.add(replacement.runtime_id);
     expect(replacement.runtime_id).not.toBe(owner.runtime_id);
@@ -156,6 +195,11 @@ it('launches interactive providers, adopts offline native switches and resumes t
       fingerprint: review!.restart.available ? review!.restart.fingerprint : '',
     });
     expect(restarted.status, await restarted.text()).toBe(200);
+    expect(viewer.readyState).toBe(WebSocket.OPEN);
+    await waitFor(() => replays() === 3);
+    send({ t: 'stdin', session: active, term: 'agent', data: "printf 'restart-%s\\n' keyboard\n" });
+    await waitFor(() => text().includes('restart-keyboard'));
+    expect(messages.filter((message) => message.t === 'error')).toEqual([]);
     const restartedOwner = f.runtimes.ownerOf(active)!;
     runtimeIds.add(restartedOwner.runtime_id);
     expect(restartedOwner.runtime_id).not.toBe(replacement.runtime_id);
@@ -189,6 +233,7 @@ it('launches interactive providers, adopts offline native switches and resumes t
     await ended.arrayBuffer();
     await stop();
   } finally {
+    viewer?.terminate();
     for (const id of new Set([
       ...runtimeIds,
       ...f.runtimes.live().map((runtime) => runtime.runtime_id),

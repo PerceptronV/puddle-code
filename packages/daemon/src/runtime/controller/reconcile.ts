@@ -24,7 +24,7 @@ import type { SessionStore } from '../../db/stores/sessions.js';
 import type { ConversationStore } from '../../db/stores/conversations.js';
 import type { EventStore } from '../../db/stores/events.js';
 import { isDeniedEnvName } from '../../pty/shell-hooks.js';
-import type { SessionSwitchEvent } from '../../sessions/service.js';
+import type { SessionSwitchEvent, StatusEvent } from '../../sessions/service.js';
 import type { RuntimeClient } from '../transport/client.js';
 import { readRuntimeJson, runtimeDirectory } from '../ownership/storage.js';
 import { retireMissingRuntime } from '../ownership/discovery.js';
@@ -51,6 +51,7 @@ interface Attachment {
   retryMs: number;
   disconnected: boolean;
   listen: (event: RuntimeEvent) => void;
+  publishedStatus?: StatusEvent;
 }
 
 /** Commit observations, never replay execution. One serial reconciler per owner. */
@@ -206,6 +207,26 @@ export class RuntimeReconciler extends EventEmitter {
   private publish(id: string, switches: SessionSwitchEvent[]): void {
     for (const event of switches) this.emit('session-switched', event);
     this.emit('changed', this.deps.runtimes.get(id)!.project_id);
+  }
+
+  private publishStatus(id: string): void {
+    const binding = this.deps.runtimes.get(id)!;
+    const session = this.deps.sessions.get(binding.active_session_id);
+    const entry = this.attached.get(id);
+    const status: StatusEvent = {
+      session: session.id,
+      status: session.status,
+      last_activity_at: session.last_activity_at,
+    };
+    const previous = entry?.publishedStatus;
+    if (
+      previous?.session === status.session &&
+      previous.status === status.status &&
+      previous.last_activity_at === status.last_activity_at
+    )
+      return;
+    if (entry) entry.publishedStatus = status;
+    this.emit('status', status);
   }
 
   private commitPage(id: string, input: RuntimeEventPage): SessionSwitchEvent[] {
@@ -474,6 +495,7 @@ export class RuntimeReconciler extends EventEmitter {
     )
       this.resumableLosses.add(interrupted);
     this.publish(id, switches);
+    this.publishStatus(id);
   }
 
   private native(
@@ -753,6 +775,9 @@ export class RuntimeReconciler extends EventEmitter {
       }
       await client.request({ t: 'ack-events', through: this.current(id).event_cursor });
       if (this.closed || this.paused) return;
+      // A live status prompts viewers to attach and send input. Publish only
+      // after the owner accepts the committed placement, never mid-reconcile.
+      this.publishStatus(id);
       this.emit('changed', this.current(id).project_id);
       return;
     }

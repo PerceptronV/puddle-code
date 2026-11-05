@@ -62,6 +62,7 @@ interface Registration {
   rows: number;
   handlers: TerminalHandlers;
   ready: boolean;
+  live: boolean;
   pendingResize: boolean;
 }
 
@@ -116,6 +117,7 @@ export class WsManager {
       rows,
       handlers,
       ready: false,
+      live: false,
       pendingResize: false,
     };
     this.terminals.set(key(session, term), registration);
@@ -131,7 +133,10 @@ export class WsManager {
   }
 
   write(session: string, term: string, data: string): void {
-    if (this.open) this.send({ t: 'stdin', session, term, data });
+    // Never queue keystrokes across a process replacement or send them to an
+    // attachment whose canonical screen has not arrived yet.
+    if (this.open && this.terminals.get(key(session, term))?.ready)
+      this.send({ t: 'stdin', session, term, data });
   }
 
   resize(session: string, term: string, cols: number, rows: number): void {
@@ -349,10 +354,33 @@ export class WsManager {
       case 'output':
         this.terminals.get(key(msg.session, msg.term))?.handlers.onData(msg.data, msg.t);
         break;
-      case 'exit':
-        this.terminals.get(key(msg.session, msg.term))?.handlers.onExit?.(msg.code);
+      case 'exit': {
+        const registration = this.terminals.get(key(msg.session, msg.term));
+        if (registration) {
+          registration.ready = false;
+          registration.handlers.onExit?.(msg.code);
+        }
+        // An agent exit can precede (or be coalesced out of) the status feed.
+        // Shell exits alone do not replace the session's runtime.
+        if (msg.term === 'agent' && registration) registration.live = false;
         break;
-      case 'status':
+      }
+      case 'status': {
+        const live = ['starting', 'running', 'waiting_input'].includes(msg.status);
+        for (const registration of this.terminals.values()) {
+          // Auxiliary shells are not recreated by a session restart. Keep
+          // their ended transcripts; attaching nonexistent shells is an error.
+          if (registration.session !== msg.session || registration.term !== 'agent') continue;
+          if (live && !registration.live) {
+            // Independent owners pin attachments to one terminal generation.
+            // A resume must resolve a new attachment, even on the same socket.
+            registration.ready = false;
+            registration.pendingResize = false;
+            const { session, term, cols, rows } = registration;
+            this.send({ t: 'attach', session, term, cols, rows });
+          }
+          registration.live = live;
+        }
         for (const listener of this.statusListeners) {
           listener({
             session: msg.session,
@@ -361,6 +389,7 @@ export class WsManager {
           });
         }
         break;
+      }
       case 'renamed':
         for (const listener of this.renameListeners) {
           listener({

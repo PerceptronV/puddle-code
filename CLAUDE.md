@@ -371,6 +371,14 @@ supervised one.
   covers both IPC and retained state; use supported runtime majors, not per-file
   compatibility declarations or matching release versions.
 
+- Independent runtime status broadcasts follow committed observations and confirmed
+  placement/acknowledgement. Browser resume reattaches the main terminal to its new
+  generation and waits for replay before input; never buffer keystrokes across a
+  replacement or reattach auxiliary shells that restart does not recreate. A
+  restored, confirmed-exited viewer retains its transcript through owner shutdown
+  without closing the shared socket. Only geometry failures after confirmed exit
+  are harmless; uncertain input and incomplete snapshots still require recovery.
+
 - Independent runtime PTYs use `PtyManager.spawnPrepared`: admit the canonical
   viewport and initial parser action, then await restore/geometry before native
   dispatch. Only unresolved durable admission may retry, under existing bounded

@@ -726,14 +726,9 @@ export function Terminal({
     refit();
   }, [settings.terminalFontSize, settings.terminalScrollback, refit]);
 
-  // A FRESH PTY under an attached viewer (a resume, or an account migration —
-  // "stop the process, repoint the account, resume", SPEC §5) needs the same
-  // treatment: nothing else re-sizes or repaints then, since the viewer is
-  // already attached (no new `attach`) and its container never changed (no
-  // resize). The status feed is the signal — a session becoming live again after
-  // being anything else means a new process is drawing into this buffer — and
-  // the daemon starts that PTY at the size this viewer last asked for, so the
-  // refit's job is to repaint and to re-assert the size if it drifted meanwhile.
+  // WsManager reattaches a resumed session to its new terminal generation.
+  // Repaint and reassert any changed geometry; the manager defers that resize
+  // until the replacement's canonical screen arrives.
   useEffect(() => {
     // Only a spawn can take a session from a dead status back to a live one, so
     // that edge IS the new process. `waiting_input` is a live status here on

@@ -1792,6 +1792,20 @@ Resize preservation is logical-line-aware, not a raw scrollback-row replay: xter
 
 **Mouse encoding survives replay** (2026-09-25): attach and disk snapshots preserve the emulator's selected SGR cell or pixel encoding independently of mouse tracking, including when tracking is temporarily disabled. The pinned xterm serialiser saves tracking but omits encoding, so the daemon appends the encoding from its canonical emulator through one shared serialisation path. Without it, replay silently changes SGR wheel and drag reports into legacy binary input, which the web viewer does not forward. This restores fullscreen Codex scrolling and selection without changing agent launch flags or mouse ownership. Encoding changes and terminal resets follow xterm's own state; legacy snapshots cannot recover encoding that was never saved, and require the application to enable it again (normally on resume).
 
+Independent runtimes publish the existing session `status` feed after committing
+observations and confirming the owner's placement binding and acknowledgement.
+Unchanged observations do not repeat the status event. A live status after exit,
+interruption, or attachment to recorded history makes the browser reattach the
+main terminal to its current owner/generation on the existing socket, then await
+canonical replay before forwarding input or deferred geometry. Input is never
+queued across replacement. Auxiliary shells are not recreated by session restart
+and are not reattached by that status transition. A fully restored viewer with a
+confirmed terminal exit retains its transcript when its owner disconnects; it
+does not close the shared browser socket. Queued/in-flight resize failures after
+that confirmed exit are harmless, while uncertain input, unexpected live-owner
+loss and incomplete snapshots still require recovery. These rules are shared by
+all agent adapters and plain terminal sessions.
+
 ### Connection authority (protocol 18.0)
 
 Shared schemas in `api/connection-auth.ts` define host control (`open`, explicit-resource `renew`, `close`), delegated authority/inspection replies, browser bootstrap, proxy grants/exchange, launcher invitations, cockpit status and authentication errors. `api/cockpit.ts` defines refresh correlation. Browser APIs include `POST /cockpit/remote/registration` (protocol 20.0, authenticated read-only service polling), `POST /cockpit/bootstrap`, `POST /cockpit/logout`, `GET /cockpit/status`, `POST /cockpit/proxy-grant`, `POST /cockpit/refresh` and `GET/PUT /cockpit/local-sync`. Proxy invitation exchange is `POST /proxy/:sid/:port/_puddle/exchange` on the isolated application origin. Error codes distinguish `browser_rejected`, `upstream_expired`, `upstream_unavailable` and `protocol_mismatch`.
