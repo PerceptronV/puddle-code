@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Cockpit
+
+- Preserve keyboard activation of notebook toolbar buttons instead of intercepting Enter as a cell-editing shortcut.

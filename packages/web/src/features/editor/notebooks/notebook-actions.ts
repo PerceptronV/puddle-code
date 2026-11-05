@@ -95,7 +95,9 @@ export function notebookActions({
   };
   const keyDown = (event: KeyboardEvent) => {
     const target = event.target as HTMLElement;
-    if (target.closest('.monaco-editor,input,textarea,[role=dialog],[role=menu],[cmdk-root]'))
+    if (
+      target.closest('.monaco-editor,input,textarea,button,[role=dialog],[role=menu],[cmdk-root]')
+    )
       return;
     const index = notebook.cells.findIndex((cell) => cell.id === active);
     if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {

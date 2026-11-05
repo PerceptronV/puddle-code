@@ -131,3 +131,15 @@ before Run All. Its complete real-kernel flow passed in 36.3 seconds, including
 binary uploads, extension callbacks and saved-state restoration. All 94 browser
 cases have therefore passed locally across these two runs; Linux CI remains the
 authoritative end-to-end release gate.
+
+The [dialog-fix run](https://github.com/PerceptronV/puddle-code/actions/runs/41985717163)
+passed every CI job, including browser, container and standalone packaging checks.
+Two later Linux runs intermittently failed folding a section after reloading the
+notebook input fixture. Six ordinary and two slower local pointer reproductions
+passed, so the exact pointer failure remains unproven. Exercising that focus
+journey with keyboard activation instead exposed a deterministic bug: the
+notebook's Enter-to-edit shortcut intercepted Enter on toolbar buttons. Notebook
+cell shortcuts now leave buttons alone. The input journey covers keyboard folding
+and automatic input unfolding; the earlier editing journey retains mouse-fold
+coverage. All four notebook browser tests passed locally after the fix. Failed
+notebook cases retain traces, and CI uploads browser diagnostics for seven days.

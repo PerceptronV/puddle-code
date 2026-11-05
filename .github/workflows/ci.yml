@@ -40,6 +40,14 @@ jobs:
       - name: verify installed release-note previews
         run: node packages/web/test/release-notes/browser.mjs
       - run: pnpm test:mobile
+      - name: retain browser failure diagnostics
+        if: failure()
+        uses: actions/upload-artifact@v4
+        with:
+          name: browser-failures
+          path: packages/web/test-results
+          if-no-files-found: ignore
+          retention-days: 7
       - name: validate self-hosted deployment configuration
         run: |
           # Compose also loads the service's env_file, independently of --env-file.

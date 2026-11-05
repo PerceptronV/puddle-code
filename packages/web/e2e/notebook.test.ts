@@ -8,7 +8,7 @@ async function editCell(page: Page, index: number, value: string) {
   await page.keyboard.insertText(value);
 }
 
-test.use({ viewport: { width: 1000, height: 800 } });
+test.use({ viewport: { width: 1000, height: 800 }, trace: 'retain-on-failure' });
 let server: ViteDevServer;
 let origin: string;
 test.beforeAll(async () => {
@@ -683,7 +683,9 @@ test('answers successive prompts inside cell output and interrupts without steal
   await expect(output).toContainText('Password: ••••••••');
   await expect(output.getByRole('textbox')).toHaveCount(0);
   const heading = page.getByRole('region', { name: 'Cell 2', exact: true });
-  await heading.getByRole('button', { name: 'Fold section', exact: true }).click();
+  // Pointer folding is covered above. Keyboard activation must reach the
+  // button instead of the notebook's Enter-to-edit cell shortcut.
+  await heading.getByRole('button', { name: 'Fold section', exact: true }).press('Enter');
   await expect(cell).toHaveCount(0);
   await page.getByRole('button', { name: 'Run All', exact: true }).click();
   await expect(name).toBeFocused();
