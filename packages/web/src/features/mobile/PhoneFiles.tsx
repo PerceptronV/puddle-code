@@ -124,7 +124,7 @@ export function PhoneFiles({
               {file ? <ArrowLeft /> : <ArrowUp />}
             </Button>
             <button
-              className="min-w-0 flex-1 truncate text-left font-mono text-xs text-fg-muted hover:text-fg"
+              className="min-w-0 flex-1 truncate rounded-[var(--ui-radius)] px-1 text-left font-sans text-xs font-semibold text-fg-secondary hover:bg-elevated hover:text-fg"
               title={currentPath}
               aria-label="Open file or directory"
               onClick={() => setEditingPath(true)}

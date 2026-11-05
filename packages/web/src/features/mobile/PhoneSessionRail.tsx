@@ -58,7 +58,7 @@ export function PhoneSessionRail({
         />
       )}
       <aside className={cn('phone-session-rail', expanded && 'is-expanded')} aria-label="Sessions">
-        <div className="flex shrink-0 flex-col px-1">
+        <div className="phone-rail-controls">
           <Button
             variant="ghost"
             className="rail-control rail-toggle"
@@ -90,7 +90,7 @@ export function PhoneSessionRail({
             {expanded && <span>New terminal</span>}
           </Button>
         </div>
-        <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain px-1">
+        <div className="phone-rail-projects no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {projects
             .filter((project) => !project.archived)
             .map((project) => (
@@ -130,7 +130,7 @@ export function PhoneSessionRail({
               </div>
             ))}
         </div>
-        <div className="shrink-0 p-1">
+        <div className="phone-rail-archive">
           <Button
             variant="ghost"
             className="rail-control"
@@ -261,7 +261,7 @@ function SessionButton({
         />
         {expanded && (
           <span className="min-w-0 text-left">
-            <span className="block truncate font-mono text-2xs">{name}</span>
+            <span className="block truncate text-2xs">{name}</span>
             <span className="block truncate text-2xs text-fg-muted">
               {session.branch || session.status.replace('_', ' ')}
             </span>

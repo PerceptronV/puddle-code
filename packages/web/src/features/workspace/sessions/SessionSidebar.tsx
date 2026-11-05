@@ -612,56 +612,58 @@ export function CollapsedSessionsRail({
                 />
               </ContextMenu>
             )}
-            <CollapsibleSessions collapsed={dragProject !== null}>
-              <div className="flex flex-col items-center gap-1 overflow-hidden compact:gap-0.5">
-                {group.sessions.map((session) => (
-                  <div
-                    key={session.id}
-                    draggable
-                    onDragStart={(e) => {
-                      const sessionIds = sessionsForDrag(visibleIds, selection.ids, session.id);
-                      // The same drag reorders within the rail AND, dropped on a
-                      // tiling pane, opens the grabbed session there as a
-                      // permanent tab. The companion payload lets the archive
-                      // target act on the whole selection.
-                      e.dataTransfer.setData(
-                        TAB_MIME,
-                        encodeTabTransfer({ type: 'terminal', session: session.id }),
-                      );
-                      e.dataTransfer.setData(SESSION_DRAG_MIME, encodeSessionDrag(sessionIds));
-                      e.dataTransfer.effectAllowed = 'copyMove';
-                      if (sessionIds.length > 1) setCountDragImage(e, sessionIds.length);
-                      if (!selection.ids.has(session.id)) selection.onSelectOnly(session.id);
-                      setDragging({ sourceId: session.id, sessionIds });
-                    }}
-                    onDragEnd={() => setDragging(null)}
-                    onDragOver={(e) => {
-                      e.preventDefault();
-                      if (dragging?.sessionIds.length === 1 && dragging.sourceId !== session.id)
-                        move(dragging.sourceId, session.id);
-                    }}
-                    className={cn(
-                      'transition-opacity',
-                      dragging?.sessionIds.includes(session.id) && 'opacity-50',
-                    )}
-                  >
-                    <CollapsedSessionDot
-                      session={session}
-                      accountLabel={
-                        session.account_id === null
-                          ? undefined
-                          : accountLabel.get(session.account_id)
-                      }
-                      activeSessionId={activeSessionId}
-                      onPromote={onPromote}
-                      onArchived={onArchived}
-                      selectedIds={selectedIds}
-                      selection={selection}
-                    />
-                  </div>
-                ))}
-              </div>
-            </CollapsibleSessions>
+            {group.sessions.length > 0 && (
+              <CollapsibleSessions collapsed={dragProject !== null}>
+                <div className="flex flex-col items-center gap-1 overflow-hidden compact:gap-0.5">
+                  {group.sessions.map((session) => (
+                    <div
+                      key={session.id}
+                      draggable
+                      onDragStart={(e) => {
+                        const sessionIds = sessionsForDrag(visibleIds, selection.ids, session.id);
+                        // The same drag reorders within the rail AND, dropped on a
+                        // tiling pane, opens the grabbed session there as a
+                        // permanent tab. The companion payload lets the archive
+                        // target act on the whole selection.
+                        e.dataTransfer.setData(
+                          TAB_MIME,
+                          encodeTabTransfer({ type: 'terminal', session: session.id }),
+                        );
+                        e.dataTransfer.setData(SESSION_DRAG_MIME, encodeSessionDrag(sessionIds));
+                        e.dataTransfer.effectAllowed = 'copyMove';
+                        if (sessionIds.length > 1) setCountDragImage(e, sessionIds.length);
+                        if (!selection.ids.has(session.id)) selection.onSelectOnly(session.id);
+                        setDragging({ sourceId: session.id, sessionIds });
+                      }}
+                      onDragEnd={() => setDragging(null)}
+                      onDragOver={(e) => {
+                        e.preventDefault();
+                        if (dragging?.sessionIds.length === 1 && dragging.sourceId !== session.id)
+                          move(dragging.sourceId, session.id);
+                      }}
+                      className={cn(
+                        'transition-opacity',
+                        dragging?.sessionIds.includes(session.id) && 'opacity-50',
+                      )}
+                    >
+                      <CollapsedSessionDot
+                        session={session}
+                        accountLabel={
+                          session.account_id === null
+                            ? undefined
+                            : accountLabel.get(session.account_id)
+                        }
+                        activeSessionId={activeSessionId}
+                        onPromote={onPromote}
+                        onArchived={onArchived}
+                        selectedIds={selectedIds}
+                        selection={selection}
+                      />
+                    </div>
+                  ))}
+                </div>
+              </CollapsibleSessions>
+            )}
           </div>
         ))}
       </div>

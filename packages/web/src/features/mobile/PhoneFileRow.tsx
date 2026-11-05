@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { ChevronRight, Download, Folder } from 'lucide-react';
+import { ChevronRight, Download } from 'lucide-react';
 import { MAX_PREVIEW_ASSET_BYTES, type TreeEntry } from '@puddle/shared';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/button';
@@ -15,7 +15,7 @@ import { downloadBlob } from '../../lib/download-blob';
 import { rootParam } from '../../lib/queries/worktree-queries';
 import { cn } from '../../lib/utils';
 import { fetchPreviewAsset } from '../editor/previews/preview-assets';
-import { FileTypeIcon } from '../explorer/file-icons';
+import { FileTypeIcon, FolderIcon } from '../explorer/file-icons';
 
 /** The shared menu supplies touch holds, movement cancellation and right-click. */
 export function PhoneFileRow({
@@ -125,7 +125,7 @@ export function PhoneFileRow({
             }}
           >
             {entry.type === 'dir' ? (
-              <Folder className="size-4 shrink-0" />
+              <FolderIcon className="size-4 shrink-0" />
             ) : (
               <FileTypeIcon name={entry.name} />
             )}

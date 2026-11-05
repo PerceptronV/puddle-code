@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { House, Monitor, Settings2, ShieldCheck } from 'lucide-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { ControlTray } from '../../components/ui/control-tray';
 import { Button } from '../../components/ui/button';
 import {
   Dialog,
@@ -89,7 +90,7 @@ export function ConnectedHost({
               <House />
             </Button>
             <button
-              className="min-w-0 flex-1 truncate text-left text-xs text-fg-muted hover:text-fg"
+              className="min-w-0 flex-1 truncate rounded-[var(--ui-radius)] px-2 text-left font-sans text-xs text-fg-muted hover:bg-elevated hover:text-fg"
               aria-label="Back to all projects"
               title={projectName ? `${hostName}/${projectName}` : hostName}
               onClick={leave}
@@ -100,19 +101,21 @@ export function ConnectedHost({
             <span role="status" className={state === 'ready' ? 'sr-only' : 'text-xs text-fg-muted'}>
               {status}
             </span>
-            <Button
-              variant="ghost"
-              size="icon"
-              aria-label="Paired browsers"
-              disabled={state !== 'ready'}
-              onClick={() => setDevices(true)}
-            >
-              <ShieldCheck />
-            </Button>
-            <Button variant="ghost" size="icon" aria-label="Settings" onClick={settings}>
-              <Settings2 />
-            </Button>
-            {admitted && <RemoteHostUpdates hostName={hostName} />}
+            <ControlTray label="Host controls" variant="selection" className="remote-controls">
+              <Button
+                variant="ghost"
+                size="icon"
+                aria-label="Paired browsers"
+                disabled={state !== 'ready'}
+                onClick={() => setDevices(true)}
+              >
+                <ShieldCheck />
+              </Button>
+              <Button variant="ghost" size="icon" aria-label="Settings" onClick={settings}>
+                <Settings2 />
+              </Button>
+              {admitted && <RemoteHostUpdates hostName={hostName} />}
+            </ControlTray>
           </header>
           {!admitted && (
             <div className="flex min-h-0 flex-1 items-center justify-center p-6">

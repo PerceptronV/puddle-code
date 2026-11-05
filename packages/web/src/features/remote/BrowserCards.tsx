@@ -90,7 +90,10 @@ function BrowserCard({
     </div>
   );
   return (
-    <article aria-label={device.label} className="min-w-0 rounded-md bg-surface px-3 py-2">
+    <article
+      aria-label={device.label}
+      className="min-w-0 rounded-[var(--ui-radius)] bg-ground px-3 py-2"
+    >
       <div className="flex items-start gap-2">
         {pending ? (
           label

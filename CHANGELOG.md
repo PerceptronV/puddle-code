@@ -9,3 +9,7 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Cockpit
+
+- Centre collapsed project-island labels when no sessions are listed.
+- Align the remote web app with cockpit islands, inset editor surfaces, action trays and separated session groups, retaining touch targets and overlay shadows.

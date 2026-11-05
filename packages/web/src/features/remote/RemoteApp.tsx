@@ -16,6 +16,7 @@ import { loadBrowserHost, saveBrowserHost } from './identity-store';
 import { RemoteClient } from './client';
 import { ConnectedHost } from './ConnectedHost';
 import { Settings2, Laptop, ScanLine } from 'lucide-react';
+import { ControlTray } from '../../components/ui/control-tray';
 import { Button } from '../../components/ui/button';
 import { TooltipProvider } from '../../components/ui/tooltip';
 import { Toaster } from '../../components/ui/sonner';
@@ -235,9 +236,13 @@ export function RemoteApp() {
               />
             ) : (
               <main className="remote-dashboard" aria-label="Hosts and projects">
-                <header className="mb-3 flex items-center justify-between">
+                <header className="remote-dashboard-header">
                   <RemoteBrand />
-                  <div className="flex">
+                  <ControlTray
+                    label="Remote controls"
+                    variant="selection"
+                    className="remote-controls"
+                  >
                     <Button
                       variant="ghost"
                       size="icon"
@@ -254,7 +259,7 @@ export function RemoteApp() {
                     >
                       <Settings2 />
                     </Button>
-                  </div>
+                  </ControlTray>
                 </header>
                 <GuideLink className="mb-4" />
                 {hosts.map((host) => (
