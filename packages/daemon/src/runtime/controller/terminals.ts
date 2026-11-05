@@ -361,6 +361,7 @@ export class RuntimeTerminalView {
     retainedBytes: number,
     action: () => Promise<void>,
     skipEnded = false,
+    tolerateEndedFailure = false,
   ): Promise<void> {
     this.mutable();
     if (
@@ -384,7 +385,7 @@ export class RuntimeTerminalView {
         await action();
       })
       .catch((error: unknown) => {
-        if (skipEnded && this.valid() && this.ended) return;
+        if (tolerateEndedFailure && this.valid() && this.ended) return;
         this.invalidate();
         throw error;
       })
@@ -398,23 +399,34 @@ export class RuntimeTerminalView {
   }
 
   async input(data: string): Promise<void> {
-    await this.mutate(Buffer.byteLength(data), terminalInputBytes(data), async () => {
-      const bytes = Buffer.from(data);
-      for (let offset = 0; offset < bytes.length;) {
-        let end = Math.min(offset + RUNTIME_LIMITS.inputBytes, bytes.length);
-        // Split only between UTF-8 characters; each admitted chunk is bounded.
-        while (end < bytes.length && (bytes[end]! & 0xc0) === 0x80) end--;
-        await this.mutable().request({
-          t: 'input',
-          placement: { session_id: this.address.session_id, segment_id: this.address.segment_id },
-          term: this.address.term,
-          generation: this.address.generation,
-          data: bytes.subarray(offset, end).toString('utf8'),
-          source: 'human',
-        });
-        offset = end;
-      }
-    });
+    // Restored xterm modes include focus reporting. Clicking into or away
+    // from a transcript emits these even though the user has typed nothing.
+    // Only these exact reports are harmless after exit; real input must still
+    // fail, including mixed report/input messages and uncertain delivery.
+    const focusReport = data === '\x1b[I' || data === '\x1b[O';
+    if (focusReport && this.valid() && this.ready && (this.ended || !this.client)) return;
+    await this.mutate(
+      Buffer.byteLength(data),
+      terminalInputBytes(data),
+      async () => {
+        const bytes = Buffer.from(data);
+        for (let offset = 0; offset < bytes.length;) {
+          let end = Math.min(offset + RUNTIME_LIMITS.inputBytes, bytes.length);
+          // Split only between UTF-8 characters; each admitted chunk is bounded.
+          while (end < bytes.length && (bytes[end]! & 0xc0) === 0x80) end--;
+          await this.mutable().request({
+            t: 'input',
+            placement: { session_id: this.address.session_id, segment_id: this.address.segment_id },
+            term: this.address.term,
+            generation: this.address.generation,
+            data: bytes.subarray(offset, end).toString('utf8'),
+            source: 'human',
+          });
+          offset = end;
+        }
+      },
+      focusReport,
+    );
   }
 
   async resize(cols: number, rows: number): Promise<void> {
@@ -434,6 +446,7 @@ export class RuntimeTerminalView {
           rows,
         });
       },
+      true,
       true,
     );
   }

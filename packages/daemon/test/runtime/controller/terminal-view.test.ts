@@ -120,6 +120,9 @@ it('keeps a confirmed exit readable across owner shutdown without reconnecting o
     f.connections.emit('disconnected', f.binding.runtime_id);
     expect(f.send.mock.calls.map(([message]) => message.t)).toEqual(['replay', 'output', 'exit']);
     await expect(f.view.resize(120, 40)).resolves.toBeUndefined();
+    await expect(f.view.input('\x1b[I')).resolves.toBeUndefined();
+    await expect(f.view.input('\x1b[O')).resolves.toBeUndefined();
+    await expect(f.view.input('\x1b[Ityped')).rejects.toThrow(/unavailable/);
     await expect(f.view.input('after exit')).rejects.toThrow(/unavailable/);
     expect(f.reconnect).not.toHaveBeenCalled();
     expect(f.client.request.mock.calls.map(([request]) => request.t)).toEqual([
@@ -257,6 +260,8 @@ it('keeps historical snapshots readable when the browser resizes without allowin
     vi.spyOn(f.terminals, 'checkpoint').mockResolvedValue('historical screen');
     await view.start(100, 30);
     await expect(view.resize(120, 40)).resolves.toBeUndefined();
+    await expect(view.input('\x1b[I')).resolves.toBeUndefined();
+    await expect(view.input('\x1b[O')).resolves.toBeUndefined();
     expect(send).toHaveBeenCalledWith(
       expect.objectContaining({ t: 'replay', data: 'historical screen' }),
     );
@@ -265,6 +270,66 @@ it('keeps historical snapshots readable when the browser resizes without allowin
     await expect(view.input('must not execute')).rejects.toThrow(/unavailable/);
   } finally {
     view.dispose();
+    await f.close();
+  }
+});
+
+it('forwards live focus reports but ignores one queued across a confirmed exit', async () => {
+  const f = fixture();
+  try {
+    const start = f.view.start(100, 30);
+    await expect(f.view.input('\x1b[I')).rejects.toThrow(/unavailable/);
+    f.finish();
+    await start;
+    await f.view.input('\x1b[I');
+    expect(f.client.request).toHaveBeenLastCalledWith(
+      expect.objectContaining({ t: 'input', data: '\x1b[I' }),
+    );
+    const blur = f.view.input('\x1b[O');
+    f.client.emit('event', {
+      t: 'exit',
+      cursor: 6,
+      term: 'agent',
+      generation: f.generation,
+      exit_code: 0,
+    } satisfies RuntimeEvent);
+    f.connections.emit('disconnected', f.binding.runtime_id);
+    await expect(blur).resolves.toBeUndefined();
+    expect(f.client.request).toHaveBeenCalledTimes(3);
+    expect(f.reconnect).not.toHaveBeenCalled();
+  } finally {
+    await f.close();
+  }
+});
+
+it('still reports uncertain focus delivery even if the terminal subsequently exits', async () => {
+  const f = fixture();
+  try {
+    const start = f.view.start(100, 30);
+    f.finish();
+    await start;
+    let reject!: (error: Error) => void;
+    f.client.request.mockImplementationOnce(
+      () =>
+        new Promise((_, fail) => {
+          reject = fail;
+        }),
+    );
+    const focus = f.view.input('\x1b[I');
+    const result = expect(focus).rejects.toThrow('Lost reply');
+    await Promise.resolve();
+    f.client.emit('event', {
+      t: 'exit',
+      cursor: 6,
+      term: 'agent',
+      generation: f.generation,
+      exit_code: 0,
+    } satisfies RuntimeEvent);
+    reject(new Error('Lost reply'));
+    await result;
+    expect(f.reconnect).toHaveBeenCalledOnce();
+    expect(f.client.request).toHaveBeenCalledTimes(3);
+  } finally {
     await f.close();
   }
 });
