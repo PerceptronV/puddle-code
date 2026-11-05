@@ -1,3 +1,4 @@
+import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
 
@@ -9,11 +10,17 @@ export function lifecycleVersionAtLeast(
   binary: string,
   args: string[],
   minimum: readonly [number, number, number],
+  environment?: Record<string, string>,
 ): Promise<boolean> {
-  const key = `${binary}\0${args.join('\0')}\0${minimum.join('.')}`;
+  const env = environment ? { ...process.env, ...environment } : process.env;
+  const environmentKey = createHash('sha256')
+    .update(JSON.stringify(Object.entries(env).sort(([a], [b]) => a.localeCompare(b))))
+    .digest('hex');
+  const key = `${environmentKey}\0${binary}\0${args.join('\0')}\0${minimum.join('.')}`;
   const active = checks.get(key);
   if (active) return active;
   const check = execFileAsync(binary, args, {
+    env,
     encoding: 'utf8',
     timeout: 3_000,
     maxBuffer: 64 * 1024,
@@ -29,6 +36,8 @@ export function lifecycleVersionAtLeast(
       return true;
     })
     .catch(() => false);
+  // Captured launch environments can vary for every session in a legacy daemon.
+  if (checks.size >= 64) checks.delete(checks.keys().next().value!);
   checks.set(key, check);
   return check;
 }

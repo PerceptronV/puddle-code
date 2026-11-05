@@ -41,7 +41,7 @@ export function codexDriver(context: LifecycleLaunchContext): HeadlessDriver {
 }
 
 export async function prepareCodexHeadless(context: LifecycleLaunchContext) {
-  if (!(await lifecycleVersionAtLeast('codex', ['--version'], [0, 159, 0])))
+  if (!(await lifecycleVersionAtLeast('codex', ['--version'], [0, 159, 0], context.env)))
     throw new Error('Codex 0.159.0+ is required for headless mode');
   return prepareHeadless(context, codexDriver(context));
 }

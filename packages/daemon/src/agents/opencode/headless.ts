@@ -52,7 +52,7 @@ export function openCodeDriver(context: LifecycleLaunchContext): HeadlessDriver 
 }
 
 export async function prepareOpenCodeHeadless(context: LifecycleLaunchContext) {
-  if (!(await lifecycleVersionAtLeast('opencode', ['--version'], [1, 18, 10])))
+  if (!(await lifecycleVersionAtLeast('opencode', ['--version'], [1, 18, 10], context.env)))
     throw new Error('OpenCode 1.18.10+ is required for headless mode');
   return prepareHeadless(context, openCodeDriver(context));
 }

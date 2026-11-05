@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { expect, it, vi } from 'vitest';
 import type { RuntimeEvent, RuntimeResponse } from '@puddle/shared';
+import { RuntimeTerminalView } from '../../../src/runtime/controller/terminals.js';
 import { terminalViewFixture as fixture } from '../../helpers/runtime/terminal-view.js';
 
 it('delivers snapshot plus later output exactly once and resizes only after replay', async () => {
@@ -149,8 +150,36 @@ it('delivers an exit during snapshot capture without attempting a later resize',
     await start;
     expect(f.send.mock.calls.map(([message]) => message.t)).toEqual(['replay', 'exit']);
     expect(f.client.request.mock.calls.map(([request]) => request.t)).toEqual(['snapshot']);
+    await expect(f.view.resize(120, 40)).resolves.toBeUndefined();
+    expect(f.client.request.mock.calls.map(([request]) => request.t)).toEqual(['snapshot']);
+    expect(f.reconnect).not.toHaveBeenCalled();
     await expect(f.view.input('after exit')).rejects.toThrow(/unavailable/);
   } finally {
+    await f.close();
+  }
+});
+
+it('keeps historical snapshots readable when the browser resizes without allowing input', async () => {
+  const f = fixture();
+  const send = vi.fn();
+  const reconnect = vi.fn();
+  const view = new RuntimeTerminalView(f.terminals, f.view.address, null, {
+    valid: () => true,
+    send,
+    reconnect,
+  });
+  try {
+    vi.spyOn(f.terminals, 'checkpoint').mockResolvedValue('historical screen');
+    await view.start(100, 30);
+    await expect(view.resize(120, 40)).resolves.toBeUndefined();
+    expect(send).toHaveBeenCalledWith(
+      expect.objectContaining({ t: 'replay', data: 'historical screen' }),
+    );
+    expect(f.client.request).not.toHaveBeenCalled();
+    expect(reconnect).not.toHaveBeenCalled();
+    await expect(view.input('must not execute')).rejects.toThrow(/unavailable/);
+  } finally {
+    view.dispose();
     await f.close();
   }
 });

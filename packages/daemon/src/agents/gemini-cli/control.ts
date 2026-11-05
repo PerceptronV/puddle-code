@@ -54,7 +54,7 @@ export function installGeminiTurnHooks(configDir: string): void {
 }
 
 export async function prepareGeminiInteractive(context: LifecycleLaunchContext) {
-  if (!(await lifecycleVersionAtLeast('gemini', ['--version'], [0, 53, 1])))
+  if (!(await lifecycleVersionAtLeast('gemini', ['--version'], [0, 53, 1], context.env)))
     throw new Error('Gemini CLI 0.53.1+ is required for interactive puddlang turns');
   return interactiveResource(context, join(context.account.config_dir, '.gemini'), '\x03');
 }

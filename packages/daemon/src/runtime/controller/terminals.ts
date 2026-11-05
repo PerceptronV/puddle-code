@@ -403,6 +403,9 @@ export class RuntimeTerminalView {
   }
 
   async resize(cols: number, rows: number): Promise<void> {
+    // Recorded/ended terminals remain readable and their browser pane can fit
+    // locally. There is no live PTY whose geometry should be changed.
+    if (this.valid() && (this.ended || !this.client)) return;
     await this.mutate(0, 256, async () => {
       await this.mutable().request({
         t: 'resize',

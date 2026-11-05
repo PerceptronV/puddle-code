@@ -144,6 +144,25 @@ describe('codex adapter — args', () => {
     expect(spawn.env?.['CODEX_HOME']).toBe('/cfg');
   });
 
+  it('starts the sidecar with the launch environment under a minimal service PATH', () => {
+    vi.stubEnv('PATH', '/usr/bin:/bin');
+    const spawn = codexAppServerSpawnOptions({
+      account: account('/cfg'),
+      opts,
+      env: {
+        PATH: '/home/user/.local/bin:/usr/bin:/bin',
+        CODEX_HOME: '/wrong',
+        PROJECT_ENV: 'kept',
+      },
+    });
+    expect(spawn.env).toMatchObject({
+      PATH: '/home/user/.local/bin:/usr/bin:/bin',
+      CODEX_HOME: '/cfg',
+      PROJECT_ENV: 'kept',
+    });
+    expect(process.env.PATH).toBe('/usr/bin:/bin');
+  });
+
   it('pins the remote TUI to the agent worktree before launch or resume args', () => {
     expect(codexRemoteArgs('ws://bridge', { opts, args: [] })).toEqual([
       '--remote',

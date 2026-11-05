@@ -61,7 +61,7 @@ export function claudeDriver(context: LifecycleLaunchContext): HeadlessDriver {
 }
 
 export async function prepareClaudeHeadless(context: LifecycleLaunchContext) {
-  if (!(await lifecycleVersionAtLeast('claude', ['--version'], [2, 1, 300])))
+  if (!(await lifecycleVersionAtLeast('claude', ['--version'], [2, 1, 300], context.env)))
     throw new Error('Claude Code 2.1.300+ is required for headless mode');
   return prepareHeadless(context, claudeDriver(context));
 }

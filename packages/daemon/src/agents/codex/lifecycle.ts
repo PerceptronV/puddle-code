@@ -29,7 +29,12 @@ export async function prepareCodexLifecycle(
   context: LifecycleLaunchContext,
 ): Promise<LifecycleLaunchResource> {
   // Exact turn injection/outputSchema verified against codex-cli 0.159.0.
-  const scriptedTurns = await lifecycleVersionAtLeast('codex', ['--version'], [0, 159, 0]);
+  const scriptedTurns = await lifecycleVersionAtLeast(
+    'codex',
+    ['--version'],
+    [0, 159, 0],
+    context.env,
+  );
   const appPort = await freePort();
   const appUrl = `ws://127.0.0.1:${appPort}`;
   const appServer = spawn(
@@ -290,11 +295,11 @@ export function codexRemoteArgs(
 
 /** Load-bearing spawn context for the remote Codex workspace. */
 export function codexAppServerSpawnOptions(
-  context: Pick<LifecycleLaunchContext, 'account' | 'opts'>,
+  context: Pick<LifecycleLaunchContext, 'account' | 'opts' | 'env'>,
 ): SpawnOptions {
   return {
     cwd: context.opts.worktreePath,
-    env: { ...process.env, CODEX_HOME: context.account.config_dir },
+    env: { ...process.env, ...context.env, CODEX_HOME: context.account.config_dir },
     stdio: ['ignore', 'ignore', 'pipe'],
   };
 }

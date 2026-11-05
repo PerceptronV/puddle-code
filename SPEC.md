@@ -748,7 +748,9 @@ proved unused; ambiguous references and rollback pins remain retained. Native
 service-retirement, reboot and remaining recovery acceptance are still required.
 
 The runtime agent state reports sidecar roots and hidden ports, and retains
-interactive fallback when installed-version checks fail. Codex lifecycle cleanup
+interactive fallback when installed-version checks fail. Provider version probes and
+Codex sidecars use the launch environment, including its executable search path,
+rather than relying on the service manager environment. Codex lifecycle cleanup
 waits for app-server exit and escalates to SIGKILL after 1.5 seconds if needed.
 Runtime IPC admits one provider turn at a time using a monotonic runtime-local
 identity and exact native-ref check. It reserves bounded journal space before
@@ -767,6 +769,10 @@ control boundaries. Current captured values seed new PTYs; values stay out of
 ordinary runtime inspection and terminal logs/screens. These records and explicit
 capture/purge controls are routed for adopted owners. Reconciliation commits
 observations to the application database and converges the profile capture policy.
+
+Cockpit terminal fits send no resize before attachment; pending geometry is
+coalesced until the replay arrives, including after reconnect. Resizing ended or
+historical views changes only the browser grid, with no live runtime mutation.
 
 The runtime owner tags output/snapshots with a native-lifecycle segment id,
 writes separate raw logs per segment and terminal generation, and saves immutable

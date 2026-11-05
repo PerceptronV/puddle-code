@@ -70,6 +70,45 @@ async function manager() {
 }
 
 describe('WsManager', () => {
+  it('defers fitting until replay and never resizes an unattached terminal', async () => {
+    const ws = await manager();
+    ws.onStatus(() => undefined);
+    const socket = FakeWebSocket.instances[0]!;
+    socket.emit('open', {});
+    socket.emit('message', { data: JSON.stringify({ t: 'authenticated' }) });
+    ws.resize('session-1', 'agent', 80, 24);
+    expect(socket.messages.filter((m) => m.t === 'resize')).toEqual([]);
+    const detach = ws.attach('session-1', 'agent', 80, 24, { onData: () => undefined });
+    ws.resize('session-1', 'agent', 100, 30);
+    ws.resize('session-1', 'agent', 120, 40);
+    expect(socket.messages.filter((m) => m.t === 'resize')).toEqual([]);
+    socket.emit('message', {
+      data: JSON.stringify({ t: 'replay', session: 'session-1', term: 'agent', data: '' }),
+    });
+    expect(socket.messages.filter((m) => m.t === 'resize')).toEqual([
+      { t: 'resize', session: 'session-1', term: 'agent', cols: 120, rows: 40 },
+    ]);
+    ws.resize('session-1', 'agent', 140, 50);
+    expect(socket.messages.at(-1)).toMatchObject({ t: 'resize', cols: 140, rows: 50 });
+    detach();
+    ws.resize('session-1', 'agent', 80, 24);
+    expect(socket.messages.at(-1)?.t).toBe('detach');
+    // Returning to a parked tab creates a fresh attachment on the same socket.
+    ws.attach('session-1', 'agent', 80, 24, { onData: () => undefined });
+    ws.resize('session-1', 'agent', 132, 43);
+    expect(socket.messages.at(-1)?.t).toBe('attach');
+    socket.emit('message', {
+      data: JSON.stringify({ t: 'replay', session: 'session-1', term: 'agent', data: '' }),
+    });
+    expect(socket.messages.at(-1)).toEqual({
+      t: 'resize',
+      session: 'session-1',
+      term: 'agent',
+      cols: 132,
+      rows: 43,
+    });
+  });
+
   it('routes host update invalidations and removes disposed listeners', async () => {
     const ws = await manager();
     const changed = vi.fn();
@@ -132,6 +171,9 @@ describe('WsManager', () => {
     const first = FakeWebSocket.instances[0]!;
     first.emit('open', {});
     first.emit('message', { data: JSON.stringify({ t: 'authenticated' }) });
+    first.emit('message', {
+      data: JSON.stringify({ t: 'replay', session: 'session-1', term: 'agent', data: '' }),
+    });
     ws.resize('session-1', 'agent', 132, 43);
 
     first.close();
@@ -149,6 +191,12 @@ describe('WsManager', () => {
       cols: 132,
       rows: 43,
     });
+    ws.resize('session-1', 'agent', 144, 45);
+    expect(second.messages.filter((m) => m.t === 'resize')).toEqual([]);
+    second.emit('message', {
+      data: JSON.stringify({ t: 'replay', session: 'session-1', term: 'agent', data: '' }),
+    });
+    expect(second.messages.at(-1)).toMatchObject({ t: 'resize', cols: 144, rows: 45 });
   });
 
   it('fans status broadcasts out to listeners and resolves spawn-shell', async () => {

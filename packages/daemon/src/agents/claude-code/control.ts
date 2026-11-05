@@ -49,8 +49,8 @@ export function installClaudeTurnHooks(configDir: string): void {
 }
 
 export async function prepareClaudeInteractive(context: LifecycleLaunchContext) {
-  if (!(await lifecycleVersionAtLeast('claude', ['--version'], [2, 1, 300]))) {
-    if (await lifecycleVersionAtLeast('claude', ['--version'], [2, 1, 238]))
+  if (!(await lifecycleVersionAtLeast('claude', ['--version'], [2, 1, 300], context.env))) {
+    if (await lifecycleVersionAtLeast('claude', ['--version'], [2, 1, 238], context.env))
       return { args: context.args, dispose() {} };
     throw new Error('Claude Code lifecycle hooks are unavailable');
   }

@@ -61,6 +61,8 @@ interface Registration {
   cols: number;
   rows: number;
   handlers: TerminalHandlers;
+  ready: boolean;
+  pendingResize: boolean;
 }
 
 type ConnectionListener = (connected: boolean) => void;
@@ -107,7 +109,15 @@ export class WsManager {
     rows: number,
     handlers: TerminalHandlers,
   ): () => void {
-    const registration: Registration = { session, term, cols, rows, handlers };
+    const registration: Registration = {
+      session,
+      term,
+      cols,
+      rows,
+      handlers,
+      ready: false,
+      pendingResize: false,
+    };
     this.terminals.set(key(session, term), registration);
     this.ensureConnected();
     if (this.open) this.send({ t: 'attach', session, term, cols, rows });
@@ -126,11 +136,13 @@ export class WsManager {
 
   resize(session: string, term: string, cols: number, rows: number): void {
     const registration = this.terminals.get(key(session, term));
-    if (registration) {
-      registration.cols = cols;
-      registration.rows = rows;
-    }
-    if (this.open) this.send({ t: 'resize', session, term, cols, rows });
+    // Fits also run before attachment and while a snapshot is in flight. Keep
+    // only the latest geometry until the runtime has restored this viewer.
+    if (!registration) return;
+    registration.cols = cols;
+    registration.rows = rows;
+    if (this.open && registration.ready) this.send({ t: 'resize', session, term, cols, rows });
+    else registration.pendingResize = true;
   }
 
   spawnShell(session: string): Promise<string> {
@@ -266,8 +278,12 @@ export class WsManager {
         this.backoff = INITIAL_BACKOFF_MS;
         this.send({ t: 'subscribe-status' });
         if (this.theme) this.send({ t: 'theme', ...this.theme });
-        for (const { session, term, cols, rows } of this.terminals.values())
+        for (const registration of this.terminals.values()) {
+          registration.ready = false;
+          registration.pendingResize = false;
+          const { session, term, cols, rows } = registration;
           this.send({ t: 'attach', session, term, cols, rows });
+        }
         for (const listener of this.connectionListeners) listener(true);
       } else if (this.open) this.handle(message);
     });
@@ -318,7 +334,18 @@ export class WsManager {
       case 'agent-notification':
         for (const listener of this.notificationListeners) listener(msg);
         break;
-      case 'replay':
+      case 'replay': {
+        const registration = this.terminals.get(key(msg.session, msg.term));
+        if (!registration) break;
+        registration.ready = true;
+        if (registration.pendingResize) {
+          registration.pendingResize = false;
+          const { session, term, cols, rows } = registration;
+          this.send({ t: 'resize', session, term, cols, rows });
+        }
+        registration.handlers.onData(msg.data, msg.t);
+        break;
+      }
       case 'output':
         this.terminals.get(key(msg.session, msg.term))?.handlers.onData(msg.data, msg.t);
         break;
