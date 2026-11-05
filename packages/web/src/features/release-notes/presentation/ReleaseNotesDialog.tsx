@@ -9,6 +9,7 @@ import {
 import { COMPONENT_LABELS, RELEASE_COMPONENTS } from '../markdown/sections';
 import { ReleaseNotesPreview } from '../markdown/ReleaseNotesPreview';
 import { releaseNotesQueue, type ReleaseNotesGroup } from '../state/queue';
+import { usePresentationSlot } from './use-presentation-slot';
 
 function Presented({ group }: { group: ReleaseNotesGroup }) {
   useEffect(() => releaseNotesQueue.presented(group), [group]);
@@ -16,10 +17,12 @@ function Presented({ group }: { group: ReleaseNotesGroup }) {
 }
 
 export function ReleaseNotesDialog({ current }: { current: ReleaseNotesGroup }) {
+  const available = usePresentationSlot();
   const sections = RELEASE_COMPONENTS.flatMap((component) => {
     const entry = current.entries.find((value) => value.component === component);
     return entry ? [entry] : [];
   });
+  if (!available) return null;
   return (
     <Dialog
       open
@@ -27,7 +30,7 @@ export function ReleaseNotesDialog({ current }: { current: ReleaseNotesGroup }) 
         if (!open) releaseNotesQueue.dismiss(current);
       }}
     >
-      <DialogContent wide className="gap-6">
+      <DialogContent wide className="gap-6" data-release-notes="">
         <Presented group={current} />
         <DialogHeader>
           <DialogTitle>What’s new in {current.version}</DialogTitle>

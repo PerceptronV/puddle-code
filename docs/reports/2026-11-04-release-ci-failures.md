@@ -103,3 +103,11 @@ normal/mouse/alternate-screen selection, clipboard operations, Unicode input,
 file previews and live viewer revocation. The notebook browser test now checks
 the active cell's accessibility state instead of a removed outer background class;
 its existing multi-cell clipboard and save assertions passed unchanged.
+
+A serial browser run exposed a second release-note interaction: the lazy preview
+and pairing dialog could commit together, causing both Radix dialogs to become
+accessibility-hidden. Eight bounded traced reproductions failed. Pending notes
+now observe other open dialogs and wait for them to close, retaining the same
+queue and dismissal rules. All eight reproductions passed after this change.
+Dedicated rendered acceptance also verifies deferred notes behind Settings,
+preserved focus and subsequent version delivery.

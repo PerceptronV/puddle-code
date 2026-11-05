@@ -13,6 +13,7 @@ Past releases: see docs/changelogs/.
 
 - Keep five-character project abbreviations readable inside the mobile session rail.
 - Dismiss terminal selection actions after copying or clearing a touch selection, without reopening an empty toolbar.
+- Wait for active dialogs to close before showing automatic release notes, preserving pairing and settings interactions.
 
 ### Daemon
 

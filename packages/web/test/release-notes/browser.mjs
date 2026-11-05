@@ -44,19 +44,33 @@ try {
         import { HostReleaseNotes } from './src/features/release-notes/HostReleaseNotes';
         import { reportInstalledReleaseNotes } from './src/features/release-notes/state/queue';
         import { tokenStore } from './src/lib/transport/auth';
+        import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './src/components/ui/dialog';
         tokenStore.set('isolated-release-notes-fixture');
         const client = new QueryClient();
         window.releaseFixture = {
           report: reportInstalledReleaseNotes,
           refresh: () => client.invalidateQueries({queryKey:['release-notes']}),
         };
-        createRoot(document.getElementById('root')).render(
+        function Fixture() {
+          const [settings, setSettings] = React.useState(false);
+          return (
           <QueryClientProvider client={client}>
-            <main>Project overview</main>
+            <main>Project overview<button onClick={() => setSettings(true)}>Open settings</button></main>
+            <Dialog open={settings} onOpenChange={setSettings}>
+              <DialogContent>
+                <DialogHeader>
+                  <DialogTitle>Fixture settings</DialogTitle>
+                  <DialogDescription>Keep this dialog usable while release notes arrive.</DialogDescription>
+                </DialogHeader>
+                <input aria-label="Setting value" />
+              </DialogContent>
+            </Dialog>
             <ReleaseNotesHost remote={location.search.includes('remote')} />
             <HostReleaseNotes hostKey="stable-fixture-host" />
           </QueryClientProvider>
-        );`,
+          );
+        }
+        createRoot(document.getElementById('root')).render(<Fixture />);`,
       resolveDir: join(root, 'packages/web'),
       loader: 'tsx',
     },
@@ -176,6 +190,9 @@ try {
   await expect(dialog).toHaveCount(0);
   assert.equal(previewRequests, loadedPreviews, 'Seen notes must not load the preview chunk');
 
+  await page.getByRole('button', { name: 'Open settings', exact: true }).click();
+  const settings = page.getByRole('dialog', { name: 'Fixture settings', exact: true });
+  await expect(settings.getByRole('textbox')).toBeFocused();
   await page.evaluate(
     ({ markdown }) => {
       window.releaseFixture.report('stable-fixture-host', {
@@ -187,6 +204,10 @@ try {
     },
     { markdown },
   );
+  // Pending notes preserve the active dialog and appear after its ordinary close.
+  await expect(settings.getByRole('textbox')).toBeFocused();
+  await expect(page.locator('[data-release-notes]')).toHaveCount(0);
+  await settings.getByRole('button', { name: 'Close', exact: true }).click();
   await expect(dialog).toHaveCount(1);
   await expect(dialog.getByRole('heading', { name: 'What’s new in 0.4.1' })).toBeVisible();
   await expect(dialog.getByRole('heading', { name: 'Runtime', exact: true })).toBeVisible();
@@ -227,7 +248,7 @@ try {
     ),
   );
   console.log(
-    'Release notes browser acceptance passed: delayed merge, persistent deduplication, serial versions, target scoping, Markdown safety and mobile overview.',
+    'Release notes browser acceptance passed: delayed merge, dialog deferral, persistent deduplication, serial versions, target scoping, Markdown safety and mobile overview.',
   );
 } finally {
   await browser?.close();
