@@ -23,6 +23,8 @@ Past releases: see docs/changelogs/.
 
 ### Daemon
 
+- Avoid writing conversation presence twice during one catalogue scan, preserving newer lifecycle observations and two-scan deletion confirmation.
+
 - Publish changed notebook cells without repeatedly serialising every completed cell; preserve shared display updates, output clearing and cancellation.
 
 - Avoid scanning the owning Git repository twice during repository discovery.

@@ -184,14 +184,17 @@ export class ConversationStore {
    * rows recover immediately. Returns conversation ids whose public missing
    * flag changed.
    */
-  completeSuccessfulScan(accountId: number, seenRefs: ReadonlySet<string>): number[] {
+  completeSuccessfulScan(
+    accountId: number,
+    seenRefs: ReadonlySet<string>,
+    seenAt = new Date().toISOString(),
+  ): number[] {
     const changed: number[] = [];
     const rows = this.list({ preferredAccountId: accountId });
-    const now = new Date().toISOString();
     const seen = this.db.prepare(
       `UPDATE agent_conversations
-       SET last_seen_at = ?, missing_scan_count = 0, missing = 0
-       WHERE id = ?`,
+       SET last_seen_at = MAX(last_seen_at, ?), missing_scan_count = 0, missing = 0
+       WHERE id = ? AND (last_seen_at < ? OR missing_scan_count != 0 OR missing != 0)`,
     );
     const missed = this.db.prepare(
       `UPDATE agent_conversations
@@ -202,7 +205,7 @@ export class ConversationStore {
     this.db.transaction(() => {
       for (const row of rows) {
         const before = row.missing;
-        if (seenRefs.has(row.agent_session_ref)) seen.run(now, row.id);
+        if (seenRefs.has(row.agent_session_ref)) seen.run(seenAt, row.id, seenAt);
         else missed.run(row.id);
         if (this.get(row.id)?.missing !== before) changed.push(row.id);
       }

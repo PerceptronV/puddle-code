@@ -285,6 +285,9 @@ export class ConversationCatalogue extends EventEmitter {
     // Adapter discovery and Git mapping yield independently of the watcher.
     // Disposal must fence their continuations before any application-store access.
     if (this.inactive) return;
+    // One observation timestamp lets completion avoid rewriting presence that
+    // metadata ingestion already persisted. A newer lifecycle observation wins.
+    const seenAt = new Date().toISOString();
     const changedProjects = new Set<string>();
     const seenRefs = new Set<string>();
     const discovered: Array<{
@@ -303,6 +306,7 @@ export class ConversationCatalogue extends EventEmitter {
         account.agent_type,
         account.id,
         metadata,
+        seenAt,
       );
       if (
         before &&
@@ -342,6 +346,7 @@ export class ConversationCatalogue extends EventEmitter {
     for (const conversationId of this.deps.conversations.completeSuccessfulScan(
       account.id,
       seenRefs,
+      seenAt,
     )) {
       for (const sessionId of this.deps.conversations.placements(conversationId)) {
         changedProjects.add(this.deps.sessions.get(sessionId).project_id);

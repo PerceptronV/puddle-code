@@ -1,7 +1,8 @@
 import { mkdtempSync, type FSWatcher } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, describe, expect, it, vi } from 'vitest';
+import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
+import { openDatabase } from '../../src/db/db.js';
 import type { NativeConversation } from '../../src/agents/adapter.js';
 import { ConversationCatalogue } from '../../src/sessions/conversation-catalogue.js';
 import { fakeAdapter, fixture, waitFor } from '../helpers/daemon-fixtures.js';
@@ -96,6 +97,50 @@ function setup(
 }
 
 describe('ConversationCatalogue', () => {
+  it('writes presence once per discovered row and retains newer lifecycle observations', async () => {
+    const { f, catalogue, setNative } = setup({ fakeWatch: 'healthy' });
+    const db = openDatabase(f.paths.dbFile, { migrate: false });
+    onTestFinished(() => db.close());
+    const native: NativeConversation[] = Array.from({ length: 100 }, (_, i) => ({
+      ref: `conversation-${i}`,
+      cwd: f.repoPath,
+      title: 'Synthetic',
+      parentRef: null,
+      createdAt: null,
+      updatedAt: null,
+    }));
+    setNative(native);
+    const complete = vi.spyOn(f.stores.conversations, 'completeSuccessfulScan');
+    catalogue.refreshProject(f.ids.project);
+    await waitFor(() => complete.mock.calls.length === 1);
+    // Count actual SQLite row updates independently of the store's implementation.
+    db.exec(`CREATE TABLE observation_writes (count INTEGER NOT NULL);
+      INSERT INTO observation_writes VALUES (0);
+      CREATE TRIGGER count_observation_writes AFTER UPDATE ON agent_conversations BEGIN
+        UPDATE observation_writes SET count = count + 1;
+      END;`);
+    catalogue.refreshProject(f.ids.project);
+    await waitFor(() => complete.mock.calls.length === 2);
+    expect(db.prepare('SELECT count FROM observation_writes').get()).toEqual({ count: 100 });
+
+    const store = f.stores.conversations;
+    const future = '2099-01-01T00:00:00.000Z';
+    const row = store.upsert(f.ids.profile, 'fake', f.ids.account, native[0]!, future);
+    const refs = new Set(native.map((entry) => entry.ref));
+    store.completeSuccessfulScan(f.ids.account, refs, '2098-01-01T00:00:00.000Z');
+    expect(store.get(row.id)?.last_seen_at).toBe(future);
+    refs.delete(native[0]!.ref);
+    expect(store.completeSuccessfulScan(f.ids.account, refs)).toEqual([]);
+    expect(store.completeSuccessfulScan(f.ids.account, refs)).toEqual([row.id]);
+    refs.add(native[0]!.ref);
+    expect(store.completeSuccessfulScan(f.ids.account, refs)).toEqual([row.id]);
+    expect(store.get(row.id)).toMatchObject({
+      missing: false,
+      missing_scan_count: 0,
+      last_seen_at: future,
+    });
+  });
+
   it('publishes renames before slow placement discovery and shares mappings only within a scan', async () => {
     const { f, catalogue, setNative } = setup({ fakeWatch: 'healthy' });
     const first: NativeConversation = {
