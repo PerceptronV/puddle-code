@@ -1,12 +1,11 @@
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { sha256File } from './file-hash.mjs';
 import {
   chmodSync,
   cpSync,
   createWriteStream,
   existsSync,
   mkdirSync,
-  readFileSync,
   rmSync,
   statSync,
 } from 'node:fs';
@@ -42,7 +41,7 @@ export async function stageNodeRuntime(repoRoot, stage, target, log = console.lo
       .find((line) => line.endsWith(`  ${tarName}`))
       ?.split(/\s+/)[0];
     if (expected === undefined) fail(`SHASUMS256.txt has no entry for ${tarName}`);
-    const actual = createHash('sha256').update(readFileSync(tarPath)).digest('hex');
+    const actual = await sha256File(tarPath);
     if (actual !== expected) fail(`checksum mismatch for ${tarName}`);
 
     execFileSync('tar', ['-xzf', tarPath, '-C', cacheDir, `${distName}/bin/node`]);

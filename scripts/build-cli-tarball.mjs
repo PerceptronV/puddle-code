@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Package the built cockpit with its own Node; no npm or system Node at runtime.
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { sha256File } from './lib/file-hash.mjs';
 import {
   chmodSync,
   cpSync,
@@ -79,7 +79,7 @@ if (!args.includes('--stage-only')) {
   execFileSync('tar', ['-czf', tarball, '-C', dirname(stage), name], {
     env: { ...process.env, COPYFILE_DISABLE: '1' },
   });
-  const digest = createHash('sha256').update(readFileSync(tarball)).digest('hex');
+  const digest = await sha256File(tarball);
   writeFileSync(`${tarball}.sha256`, `${digest}  ${file}\n`);
   console.log(`CLI archive: ${tarball}`);
 }

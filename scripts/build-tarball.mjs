@@ -28,7 +28,7 @@
  *       └── node_modules/  # pruned node-pty, better-sqlite3, bindings, file-uri-to-path
  */
 import { execFileSync } from 'node:child_process';
-import { createHash } from 'node:crypto';
+import { sha256File } from './lib/file-hash.mjs';
 import {
   chmodSync,
   cpSync,
@@ -273,13 +273,13 @@ function smokeTest() {
 }
 
 /* 6 — tar + checksum. */
-function pack() {
+async function pack() {
   const tarball = join(outDir, `${name}.tar.gz`);
   execFileSync('tar', ['-czf', tarball, '-C', join(outDir, 'stage'), `puddled-v${version}`], {
     // Prevents AppleDouble ._* entries in tarballs built on macOS.
     env: { ...process.env, COPYFILE_DISABLE: '1' },
   });
-  const digest = createHash('sha256').update(readFileSync(tarball)).digest('hex');
+  const digest = await sha256File(tarball);
   // sha256sum -c compatible: "<hex>  <filename>".
   writeFileSync(`${tarball}.sha256`, `${digest}  ${name}.tar.gz\n`);
   log(`wrote ${tarball} (${(statSync(tarball).size / 1e6).toFixed(1)} MB)`);
@@ -339,4 +339,4 @@ writeMetadata();
 smokeTest();
 await smokePuddlang(stage);
 log('puddlang runner smoke test passed');
-if (!stageOnly) pack();
+if (!stageOnly) await pack();
