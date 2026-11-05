@@ -1,3 +1,4 @@
+import './shell-header.css';
 import { StorageBanner } from './StorageBanner';
 import { useEffect } from 'react';
 import { Link, Outlet, useLocation, useParams } from 'react-router';
@@ -45,8 +46,8 @@ import { appearanceColourClass } from '../../lib/appearance/appearance-colours';
 
 // Under the macOS desktop shell the native title bar is hidden and the top
 // bar IS the title bar: draggable, inset on the left for the inlaid traffic
-// lights (positioned by the shell at x:12 — three 12px buttons + gaps end
-// around 64px, so 88px gives the host name clear air after them).
+// lights (positioned by the shell at x:12 and ending at x:72; the divider
+// at x:84 leaves the same 12px of space on either side).
 const shellTitleBar = desktopBridge() !== undefined && /Mac/.test(navigator.platform);
 
 // Settings (all eight sections) load only when the dialog first opens.
@@ -139,7 +140,7 @@ function useStatusCacheSync() {
  * double-click's own first click still navigates; the label is in the persistent
  * top bar, so it stays under the cursor.
  */
-function HomeButton() {
+function HomeButton({ projectColour }: { projectColour: string }) {
   const host = useHostInfo();
   const patchConfig = usePatchConfig();
   const [editing, setEditing] = useState(false);
@@ -157,10 +158,10 @@ function HomeButton() {
 
   const mark = !shellTitleBar && <img src="/puddle.svg" alt="Puddle" className="size-4" />;
   const box = cn(
-    'flex shrink-0 items-center gap-2',
+    'flex h-full shrink-0 items-center gap-2 px-4',
     shellTitleBar && '[-webkit-app-region:no-drag]',
   );
-  const type = 'truncate font-sans text-sm font-semibold text-fg-secondary';
+  const type = cn('truncate font-sans text-xs font-normal text-fg', projectColour);
 
   if (editing && label !== undefined) {
     return (
@@ -177,7 +178,11 @@ function HomeButton() {
     );
   }
   return (
-    <Link to="/" className={cn(box, 'transition-opacity hover:opacity-70')} title="All projects">
+    <Link
+      to="/"
+      className={cn(box, 'hover:bg-elevated focus-visible:bg-elevated')}
+      title="All projects"
+    >
       {/* Under the macOS shell the app's own chrome already says puddle —
           the title bar shows the host name alone. */}
       {mark}
@@ -211,16 +216,17 @@ function CommandField() {
       type="button"
       onClick={openCommandPalette}
       className={cn(
-        'flex h-full min-w-0 w-full cursor-pointer items-center justify-center gap-2 bg-transparent px-2 text-fg-muted transition-colors hover:bg-elevated hover:text-fg-secondary',
+        'flex h-full min-w-0 w-full cursor-pointer items-center justify-center gap-2 bg-transparent px-2 font-normal text-fg-muted transition-colors hover:bg-elevated focus-visible:bg-elevated',
         shellTitleBar && '[-webkit-app-region:no-drag]',
       )}
     >
-      <span className="pointer-events-none absolute left-1/2 top-1/2 flex max-w-[40%] -translate-x-1/2 -translate-y-1/2 items-center gap-2">
-        <span
-          className={cn('truncate text-xs', projectName && appearanceColourClass(project?.colour))}
-        >
-          {projectName ?? 'Puddle'}
-        </span>
+      <span
+        className={cn(
+          'pointer-events-none absolute left-1/2 top-1/2 flex max-w-[40%] -translate-x-1/2 -translate-y-1/2 items-center gap-2',
+          projectName && appearanceColourClass(project?.colour),
+        )}
+      >
+        <span className="truncate text-xs">{projectName ?? 'Puddle'}</span>
         <span className="shrink-0 text-2xs">{paletteKey}</span>
       </span>
     </button>
@@ -228,6 +234,10 @@ function CommandField() {
 }
 
 function TopBar() {
+  const params = useParams();
+  const detail = useProjectDetail(params['id']);
+  const project = detail.data?.project;
+  const projectColour = project?.id === params['id'] ? appearanceColourClass(project?.colour) : '';
   // macOS hides the inlaid traffic lights in full-screen, so the inset kept for
   // them would indent the host name against nothing. Full-screen therefore drops
   // the inset — the name slides to the left edge — but NOT the height: the bar is
@@ -236,7 +246,7 @@ function TopBar() {
   // there is no window to move.
   //
   // 36px is also what keeps the traffic lights centred on the host name: the
-  // shell insets them at y = (36 - 12) / 2 = 12 (`main.ts`), and the name is
+  // shell insets them at y = (36 - 14) / 2 = 11 (`main.ts`), and the name is
   // centred in the same box, so the two agree by construction. Changing this
   // height means changing `trafficLightPosition` in the same commit.
   const { fullScreen, animate } = useDesktopFullScreen();
@@ -258,7 +268,7 @@ function TopBar() {
         'island-outline relative grid shrink-0 cursor-pointer grid-cols-[auto_1px_minmax(0,1fr)_1px_auto] items-center overflow-hidden rounded-[var(--ui-surface-radius)] bg-surface',
         'h-9',
         !shellTitleBar && 'mx-1.5 mt-1.5',
-        inlaidLights && 'pl-[88px] [-webkit-app-region:drag]',
+        inlaidLights && 'pl-[84px] [-webkit-app-region:drag]',
         // Only a real enter/leave animates: the padding IS the name's position,
         // so easing it slides the name between the two edges instead of
         // teleporting it. A window restored already full-screen lands with no
@@ -266,11 +276,17 @@ function TopBar() {
         animate && 'transition-[padding] duration-200 ease-out',
       )}
     >
+      {inlaidLights && (
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute left-[84px] top-1/2 h-5 w-px -translate-y-1/2 bg-border"
+        />
+      )}
       <div
         data-header-section
-        className="flex h-full min-w-0 cursor-default items-center overflow-hidden px-3"
+        className="flex h-full min-w-0 cursor-default items-center overflow-hidden"
       >
-        <HomeButton />
+        <HomeButton projectColour={projectColour} />
       </div>
       <div aria-hidden="true" className="h-5 w-px bg-border" />
       <CommandField />
@@ -278,7 +294,7 @@ function TopBar() {
       <ControlTray
         label="Workspace controls"
         className={cn(
-          'h-full justify-self-end rounded-none!',
+          'shell-header-actions h-full justify-self-end rounded-none!',
           shellTitleBar && '[-webkit-app-region:no-drag]',
         )}
       >

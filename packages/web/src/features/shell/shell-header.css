@@ -1,0 +1,21 @@
+.shell-header-actions .profile-trigger {
+  /* Match the inset around the Settings glyph at the other end of the tray. */
+  padding-inline: calc((var(--ui-control-height) - 0.875rem) / 2);
+}
+
+.shell-header-actions.control-tray > button {
+  color: var(--text-primary);
+  font-weight: 400;
+}
+
+.shell-header-actions.control-tray > button:is(:hover, :focus-visible) {
+  color: var(--text-primary);
+}
+
+.shell-header-actions.control-tray > button svg.text-fg-muted {
+  color: inherit;
+}
+
+.shell-header-actions.control-tray > button:is([aria-pressed='true'], [data-state='open']) {
+  color: var(--action-ink);
+}

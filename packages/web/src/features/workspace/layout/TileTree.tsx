@@ -1,5 +1,6 @@
+import { IslandSeparator } from './IslandSeparator';
 import { Fragment, useMemo } from 'react';
-import { Group, Panel, Separator, type Layout } from 'react-resizable-panels';
+import { Group, Panel, type Layout } from 'react-resizable-panels';
 import type {
   CompilationMode,
   CompilationProvider,
@@ -144,7 +145,7 @@ function TileNode({ node, ...handlers }: { node: LayoutNode } & TileHandlers) {
       {node.children.map((child, i) => (
         <Fragment key={child.id}>
           {i > 0 && (
-            <Separator
+            <IslandSeparator
               className={
                 orientation === 'horizontal'
                   ? 'workspace-divider-vertical'

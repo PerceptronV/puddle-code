@@ -11,6 +11,7 @@ import {
  */
 export interface ClientSettings {
   uiFontSize: number;
+  reduceMotion: boolean;
   /** Pointer, interactive-hover, and text-caret treatment across the UI. */
   cursorPackage: CursorPackageId;
   terminalFontSize: number;
@@ -42,6 +43,7 @@ export interface ClientSettings {
 export const DEFAULT_CLIENT_SETTINGS: ClientSettings = {
   // 1.1× the browser default (16px) — the whole rem-based scale follows.
   uiFontSize: 16,
+  reduceMotion: false,
   cursorPackage: DEFAULT_CURSOR_PACKAGE,
   terminalFontSize: 13,
   editorFontSize: 14,
@@ -120,6 +122,9 @@ function applyToDocument(settings: ClientSettings): void {
   document.documentElement.style.setProperty('--ui-font-size', `${settings.uiFontSize}px`);
   // Drives the `compact:` utilities (app.css @custom-variant).
   document.documentElement.dataset['density'] = settings.density;
+  document.documentElement.dataset['reduceMotion'] = String(
+    settings.reduceMotion || matchMedia('(prefers-reduced-motion: reduce)').matches,
+  );
   document.documentElement.dataset['cursorPackage'] = settings.cursorPackage;
 }
 
@@ -137,6 +142,9 @@ export function updateClientSettings(patch: Partial<ClientSettings>): void {
 
 export function initClientSettings(): void {
   applyToDocument(load());
+  matchMedia('(prefers-reduced-motion: reduce)').addEventListener('change', () =>
+    applyToDocument(load()),
+  );
 }
 
 export function useClientSettings(): ClientSettings {

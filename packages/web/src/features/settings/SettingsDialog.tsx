@@ -1,3 +1,5 @@
+import './settings-navigation.css';
+import { ControlTray } from '../../components/ui/control-tray';
 import {
   Bell,
   Code,
@@ -9,12 +11,12 @@ import {
   SlidersHorizontal,
   UserRound,
   Users,
+  X,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { ReactElement } from 'react';
-import { Dialog, DialogContent, DialogTitle } from '../../components/ui/dialog';
+import { Dialog, DialogClose, DialogContent, DialogTitle } from '../../components/ui/dialog';
 import { closeSettings, openSettings, useSettingsSection } from '../../lib/navigation/hash-route';
-import { cn } from '../../lib/utils';
 import { AppearanceSection } from './sections/appearance';
 import { ProfileSection } from './sections/profile';
 import { AccountsSection } from './sections/accounts';
@@ -81,30 +83,44 @@ export function SettingsDialog() {
     <Dialog open={sectionId !== null} onOpenChange={(open) => !open && closeSettings()}>
       <DialogContent
         wide
-        className="grid h-[34rem] grid-cols-[14rem_1fr] gap-0 overflow-hidden p-0"
+        surface={false}
+        showCloseButton={false}
+        className="grid h-[34rem] grid-cols-[14rem_minmax(0,1fr)] items-start gap-[var(--ui-surface-gap)] overflow-visible p-0"
       >
-        <DialogTitle className="sr-only">Settings</DialogTitle>
-        <nav className="flex flex-col gap-1 border-r border-border bg-surface p-2.5 pr-6">
-          <span className="px-2.5 py-2 text-2xs font-medium uppercase tracking-wide text-fg-muted">
-            Settings
-          </span>
-          {SECTIONS.map(({ id, label, icon: Icon }) => (
-            <button
-              key={id}
-              onClick={() => openSettings(id)}
-              className={cn(
-                'flex items-center gap-2.5 rounded-md px-2.5 py-1.5 text-left text-sm transition-colors',
-                id === section.id
-                  ? 'bg-elevated text-fg'
-                  : 'text-fg-secondary hover:bg-elevated hover:text-fg',
-              )}
-            >
-              <Icon className="size-4 shrink-0" />
-              {label}
-            </button>
-          ))}
+        <nav className="max-h-full min-h-0 overflow-y-auto rounded-[var(--ui-surface-radius)] shadow-2xl">
+          <ControlTray
+            label="Settings sections"
+            variant="selection"
+            vertical
+            className="settings-navigation"
+          >
+            <div className="flex w-full items-center justify-between px-2.5 py-1.5">
+              <DialogTitle className="text-2xs font-medium uppercase tracking-wide text-fg-muted">
+                Settings
+              </DialogTitle>
+              <DialogClose className="flex items-center rounded-md p-1.5 text-fg transition-colors hover:bg-ground">
+                <X className="size-4" />
+                <span className="sr-only">Close</span>
+              </DialogClose>
+            </div>
+            {SECTIONS.map(({ id, label, icon: Icon }) => (
+              <button
+                key={id}
+                type="button"
+                data-tray-slot
+                aria-current={id === section.id ? 'page' : undefined}
+                onClick={() => openSettings(id)}
+                className="text-left text-sm transition-colors"
+              >
+                <Icon className="size-4 shrink-0" />
+                {label}
+              </button>
+            ))}
+          </ControlTray>
         </nav>
-        <div className="overflow-y-auto p-5">{section.render()}</div>
+        <div className="island-outline h-full min-h-0 overflow-y-auto rounded-[var(--ui-surface-radius)] bg-surface p-5 shadow-2xl">
+          {section.render()}
+        </div>
       </DialogContent>
     </Dialog>
   );

@@ -184,7 +184,7 @@ export function ProfilePanel() {
   };
 
   // The trigger's own row, minus the popover, while the name is being typed.
-  const triggerClassName = 'font-sans compact:h-7 compact:px-1.5';
+  const triggerClassName = 'profile-trigger font-sans compact:h-7 compact:px-1.5';
   if (renaming && currentProfile) {
     return (
       <div

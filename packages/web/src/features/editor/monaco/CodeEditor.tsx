@@ -1,3 +1,4 @@
+import { useReducedMotion } from '../../../lib/appearance/motion';
 import { useEffect, useMemo, useState } from 'react';
 import Editor from '@monaco-editor/react';
 import { Download } from 'lucide-react';
@@ -80,6 +81,7 @@ export function CodeEditor({
   scrollChannel?: string;
 }) {
   const settings = useClientSettings();
+  const reduceMotion = useReducedMotion();
   const restoreView = useCodeViewState([session, root, path]);
   const buffer = useEditorBuffer(session, path, reveal, root, { focused });
   const compilationDiagnostics = useCompilationDiagnostics(session, path, root);
@@ -233,6 +235,9 @@ export function CodeEditor({
             }}
             loading={<div className="p-3 text-xs text-fg-muted">…</div>}
             options={{
+              cursorBlinking: reduceMotion ? 'solid' : 'blink',
+              cursorSmoothCaretAnimation: 'off',
+              smoothScrolling: false,
               automaticLayout: true,
               fontFamily: fontMono,
               fontSize: settings.editorFontSize,

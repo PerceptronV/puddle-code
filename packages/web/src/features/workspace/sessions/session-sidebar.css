@@ -13,6 +13,10 @@
 .session-sidebar-controls[data-searching='true'] .session-sidebar-search-tray {
   width: calc(100% - 1rem);
 }
+
+.session-sidebar-search-tray input[type='search']::-webkit-search-cancel-button {
+  -webkit-appearance: none;
+}
 @media (prefers-reduced-motion: reduce) {
   .session-sidebar-search-tray {
     transition: none;

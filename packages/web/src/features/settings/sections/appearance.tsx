@@ -104,6 +104,13 @@ export function AppearanceSection() {
           </SelectContent>
         </Select>
       </SettingRow>
+      <SettingRow label="Reduced animation and motion" htmlFor="reduce-motion">
+        <Switch
+          id="reduce-motion"
+          checked={settings.reduceMotion}
+          onCheckedChange={(reduceMotion) => updateClientSettings({ reduceMotion })}
+        />
+      </SettingRow>
       <SettingRow
         label="Project-based layout"
         description="Editor layouts are separated across projects."

@@ -600,7 +600,12 @@ export function SessionActionsEllipsis({ menu }: { menu: SessionMenu }) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
-        <Button variant="ghost" size="icon" className="size-6" onClick={(e) => e.preventDefault()}>
+        <Button
+          variant="ghost"
+          size="icon"
+          className="island-outline size-7 rounded-full bg-elevated shadow-sm hover:bg-surface"
+          onClick={(e) => e.preventDefault()}
+        >
           <MoreHorizontal />
           <span className="sr-only">Session actions</span>
         </Button>

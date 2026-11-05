@@ -76,6 +76,7 @@ export function CollapsedSidebarRail({
             <button
               type="button"
               onClick={onExpand}
+              data-sidebar-motion="navigator-toggle"
               className="flex items-center rounded-md p-1.5 text-fg transition-colors hover:bg-elevated hover:text-fg"
             >
               <PanelLeftOpen className="size-4" />
@@ -90,7 +91,9 @@ export function CollapsedSidebarRail({
             <TooltipTrigger asChild>
               <button
                 type="button"
+                data-tray-slot
                 aria-current={mode === key ? 'page' : undefined}
+                data-sidebar-motion={`navigator-mode-${key}`}
                 onClick={() => onSelect(key)}
                 className={cn(
                   'flex items-center rounded-md p-1.5 transition-colors',
@@ -282,7 +285,9 @@ export function NavigatorSidebar({
             <TooltipTrigger asChild>
               <button
                 type="button"
+                data-tray-slot
                 aria-current={mode === key ? 'page' : undefined}
+                data-sidebar-motion={`navigator-mode-${key}`}
                 onClick={() => onModeChange(key)}
                 className={cn(
                   'flex items-center rounded-md p-1.5 transition-colors',
@@ -307,6 +312,7 @@ export function NavigatorSidebar({
           <button
             type="button"
             onClick={onCollapse}
+            data-sidebar-motion="navigator-toggle"
             className="ml-auto flex items-center rounded-md p-1.5 text-fg transition-colors hover:bg-elevated hover:text-fg"
           >
             <PanelLeftClose className="size-4" />

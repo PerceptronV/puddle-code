@@ -1,0 +1,36 @@
+html.sidebar-transition::view-transition {
+  pointer-events: none;
+}
+
+/* The shared-element transition owns this motion while the rail changes shape. */
+html.sidebar-transition .control-tray-selection {
+  transition: none;
+}
+
+html.sidebar-transition::view-transition-group(*) {
+  animation-duration: 280ms;
+  animation-timing-function: ease-out;
+}
+
+html.sidebar-transition::view-transition-old(root) {
+  display: none;
+}
+
+html.sidebar-transition::view-transition-new(root) {
+  animation: none;
+}
+
+html.sidebar-transition::view-transition-old(*.sidebar-item),
+html.sidebar-transition::view-transition-new(*.sidebar-item) {
+  object-fit: none;
+  object-position: left center;
+  width: 100%;
+  height: 100%;
+  animation-duration: 140ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.sidebar-transition::view-transition-group(*) {
+    animation-duration: 0s;
+  }
+}

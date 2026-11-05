@@ -1,0 +1,4 @@
+/* A lone close action is its own small island, without a padded outer tray. */
+.pane-tab-controls:has(> button):not(:has(> button ~ button)) {
+  padding: 0;
+}

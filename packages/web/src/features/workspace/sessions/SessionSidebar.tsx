@@ -259,6 +259,7 @@ function RailArchiveTarget({
     <Tooltip>
       <TooltipTrigger asChild>
         <button
+          data-sidebar-motion="sessions-archive"
           ref={drop.setNodeRef}
           type="button"
           onClick={onExpand}
@@ -323,6 +324,7 @@ function IconButton({
         <button
           type="button"
           onClick={onClick}
+          data-sidebar-motion={`sessions-control-${label === 'Show sessions' || label === 'Hide sessions' ? 'toggle' : label}`}
           aria-pressed={active}
           className={cn(
             'flex items-center rounded-md p-1.5 transition-colors',
@@ -424,6 +426,7 @@ function CollapsedSessionDot({
                 if (!selected) selection.onSelectOnly(session.id);
               }}
               to={`/project/${session.project_id}/session/${session.id}`}
+              data-sidebar-motion={`sessions-item-${session.id}`}
               aria-selected={selected}
               className={cn(
                 'flex items-center rounded-md p-1 transition-colors hover:bg-elevated',
@@ -480,6 +483,7 @@ export function CollapsedSessionsRail({
   onReorder,
   onPromote,
   onExpand,
+  onSearch,
   onNewTerminal,
   onNewSession,
   onArchived,
@@ -494,6 +498,7 @@ export function CollapsedSessionsRail({
   /** Double-click: pin the session's (preview) terminal tab. */
   onPromote: (id: string) => void;
   onExpand: () => void;
+  onSearch: () => void;
   onNewTerminal: () => void;
   onNewSession: () => void;
   onArchived: (id: string) => void;
@@ -543,6 +548,7 @@ export function CollapsedSessionsRail({
             onClick={onNewTerminal}
             tooltipSide="left"
           />
+          <IconButton icon={Search} label="Search sessions" onClick={onSearch} tooltipSide="left" />
         </ControlTray>
       </div>
       <div className="no-scrollbar flex min-h-0 flex-1 flex-col items-center gap-[var(--ui-surface-gap)] overflow-y-auto overscroll-contain">
@@ -582,6 +588,7 @@ export function CollapsedSessionsRail({
                     <TooltipTrigger asChild>
                       <Link
                         to={`/project/${group.projectId}`}
+                        data-sidebar-motion={`sessions-project-${group.projectId}`}
                         {...menuOnDoubleClick()}
                         draggable
                         onDragStart={(e) => {
@@ -747,9 +754,10 @@ function SessionRow({
             if (selection && !selected) selection.onSelectOnly(session.id);
           }}
           to={`/project/${session.project_id}/session/${session.id}`}
+          data-sidebar-motion={`sessions-item-${session.id}`}
           aria-selected={selection ? selected : undefined}
           className={cn(
-            'sidebar-row group flex items-center gap-[var(--ui-item-gap)] px-2 py-2 transition-colors hover:bg-explorer-hover compact:py-1.5',
+            'sidebar-row group relative flex items-center gap-[var(--ui-item-gap)] px-2 py-2 transition-colors hover:bg-explorer-hover compact:py-1.5',
             selected
               ? 'bg-explorer-selection'
               : session.id === activeSessionId && 'bg-explorer-hover',
@@ -812,11 +820,10 @@ function SessionRow({
               <TooltipContent>In-agent conversation switches are not synchronised</TooltipContent>
             </Tooltip>
           )}
-          {/* Reserves no width until hover, so the title/branch/badges fill the
-              row's whole width; on hover it appears and shoves them left. Stays
-              shown while its menu is open even if the pointer has left the row. */}
+          {/* Float over the row without changing title width. Keep the island
+              visible while focused or while its menu is open. */}
           {ellipsis && (
-            <span className="hidden group-hover:inline-flex has-[[data-state=open]]:inline-flex pointer-coarse:inline-flex">
+            <span className="absolute right-2 top-1/2 z-10 -translate-y-1/2 opacity-0 pointer-events-none group-hover:opacity-100 group-hover:pointer-events-auto focus-within:opacity-100 focus-within:pointer-events-auto has-[[data-state=open]]:opacity-100 has-[[data-state=open]]:pointer-events-auto pointer-coarse:opacity-100 pointer-coarse:pointer-events-auto">
               <SessionActionsEllipsis menu={menu} />
             </span>
           )}
@@ -835,6 +842,8 @@ function SessionRow({
  * the bottom so they stay reachable (SPEC §4, §12).
  */
 export function SessionSidebar({
+  searching,
+  setSearching,
   groups,
   accounts,
   activeSessionId,
@@ -849,6 +858,8 @@ export function SessionSidebar({
   selection,
   projectActions,
 }: {
+  searching: boolean;
+  setSearching: (value: boolean) => void;
   groups: SessionGroup[];
   accounts: Account[];
   activeSessionId: string | null;
@@ -867,7 +878,6 @@ export function SessionSidebar({
   selection: SidebarSessionSelection;
   projectActions: ProjectHeaderActions;
 }) {
-  const [searching, setSearching] = useState(false);
   const [query, setQuery] = useState('');
   const controlsRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
@@ -890,13 +900,9 @@ export function SessionSidebar({
       data-searching={searching}
     >
       {!searching && (
-        <ControlTray
-          label="Session sidebar"
-          variant="selection"
-          className="control-tray-square pointer-events-auto"
-        >
+        <div className="pointer-events-auto flex items-center">
           <IconButton icon={PanelRightClose} label="Hide sessions" onClick={onCollapse} />
-        </ControlTray>
+        </div>
       )}
       <ControlTray
         label={searching ? 'Search sessions' : 'New sessions'}
@@ -1127,6 +1133,7 @@ function SessionListBody({
                   <ContextMenuTrigger asChild>
                     <Link
                       to={`/project/${group.projectId}`}
+                      data-sidebar-motion={`sessions-project-${group.projectId}`}
                       {...menuOnDoubleClick()}
                       draggable
                       onDragStart={(e) => {
@@ -1231,6 +1238,7 @@ function SessionListBody({
             style={showArchived ? { height: archivedHeight, maxHeight: '70%' } : undefined}
           >
             <button
+              data-sidebar-motion="sessions-archive"
               ref={archiveDrop.setNodeRef}
               type="button"
               onClick={() => setShowArchived((v) => !v)}

@@ -13,7 +13,7 @@ export function Switch({ className, ...props }: React.ComponentProps<typeof Swit
     >
       {/* A larger touch target must not stretch the visible track. */}
       <span className="pointer-events-none inline-flex h-5 w-9 shrink-0 items-center rounded-full bg-border transition-colors group-hover/switch:bg-border/70 group-data-[state=checked]/switch:bg-action">
-        <SwitchPrimitive.Thumb className="block size-4 rounded-full bg-ground shadow-sm transition-transform data-[state=checked]:translate-x-[1.125rem] data-[state=unchecked]:translate-x-0.5" />
+        <SwitchPrimitive.Thumb className="block size-4 rounded-full bg-ground shadow-sm transition-[translate] duration-200 ease-out data-[state=checked]:translate-x-[1.125rem] data-[state=unchecked]:translate-x-0.5" />
       </span>
     </SwitchPrimitive.Root>
   );

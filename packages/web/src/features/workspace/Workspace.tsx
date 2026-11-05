@@ -1,8 +1,10 @@
+import { animateSidebar } from './layout/animate-sidebar';
+import { IslandSeparator } from './layout/IslandSeparator';
 import { runOpenNotebook } from '../editor/notebooks/notebook-run-registry';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
-import { Group, Panel, Separator, type Layout } from 'react-resizable-panels';
+import { Group, Panel, type Layout } from 'react-resizable-panels';
 import {
   UNTITLED_SESSION,
   type CompilationFileTarget,
@@ -1512,6 +1514,7 @@ function WorkspaceInner() {
   const sidebarMode: SidebarMode = normalizeSidebarMode(uiState.snapshot.sidebar_mode);
   const sidebarCollapsed = uiState.snapshot.sidebar_collapsed;
   const sessionsCollapsed = uiState.snapshot.sessions_collapsed;
+  const [searchingSessions, setSearchingSessions] = useState(false);
 
   // Insert a Scratchpad entry into the focused terminal's stdin, wrapped in
   // bracketed-paste so a multi-line prompt lands as one paste and the agent
@@ -1621,7 +1624,7 @@ function WorkspaceInner() {
   const openNavigator = (mode: SidebarMode) => {
     if (isNarrow) {
       uiState.update({ sidebar_mode: mode });
-      setNarrowNav(true);
+      animateSidebar(() => setNarrowNav(true));
     } else {
       uiState.update({ sidebar_mode: mode, sidebar_collapsed: false });
     }
@@ -1647,12 +1650,16 @@ function WorkspaceInner() {
     },
     'sidebar.left': () =>
       isNarrow
-        ? setNarrowNav((v) => !v)
-        : uiState.update({ sidebar_collapsed: !uiState.snapshot.sidebar_collapsed }),
+        ? animateSidebar(() => setNarrowNav((v) => !v))
+        : animateSidebar(() =>
+            uiState.update({ sidebar_collapsed: !uiState.snapshot.sidebar_collapsed }),
+          ),
     'sidebar.right': () =>
       isNarrow
-        ? setNarrowSessions((v) => !v)
-        : uiState.update({ sessions_collapsed: !uiState.snapshot.sessions_collapsed }),
+        ? animateSidebar(() => setNarrowSessions((v) => !v))
+        : animateSidebar(() =>
+            uiState.update({ sessions_collapsed: !uiState.snapshot.sessions_collapsed }),
+          ),
     'nav.files': () => openNavigator('files'),
     'nav.search': () => openNavigator('search'),
     'nav.changes': () => openNavigator('changes'),
@@ -1809,6 +1816,8 @@ function WorkspaceInner() {
   };
   const sessionsPanel = (onCollapse: () => void) => (
     <SessionSidebar
+      searching={searchingSessions}
+      setSearching={setSearchingSessions}
       groups={sessionGroups}
       accounts={accounts}
       activeSessionId={activeSessionId}
@@ -1930,10 +1939,10 @@ function WorkspaceInner() {
             <>
               <CollapsedSidebarRail
                 mode={sidebarMode}
-                onExpand={() => setNarrowNav(true)}
+                onExpand={() => animateSidebar(() => setNarrowNav(true))}
                 onSelect={(m) => {
                   uiState.update({ sidebar_mode: m });
-                  setNarrowNav(true);
+                  animateSidebar(() => setNarrowNav(true));
                 }}
               />
               <div className="min-w-0 flex-1">{mainArea}</div>
@@ -1943,7 +1952,11 @@ function WorkspaceInner() {
                 activeSessionId={activeSessionId}
                 onReorder={persistReorder}
                 onPromote={(id) => layout.ensureTerminal(id)}
-                onExpand={() => setNarrowSessions(true)}
+                onExpand={() => animateSidebar(() => setNarrowSessions(true))}
+                onSearch={() => {
+                  setSearchingSessions(true);
+                  animateSidebar(() => setNarrowSessions(true));
+                }}
                 onNewTerminal={() => openCreate('terminal')}
                 onNewSession={() => openCreate('agent')}
                 onArchived={closeTab}
@@ -1957,10 +1970,13 @@ function WorkspaceInner() {
                     type="button"
                     aria-label="Close the navigator"
                     className="absolute inset-0 z-30 bg-ground/60"
-                    onClick={() => setNarrowNav(false)}
+                    onClick={() => animateSidebar(() => setNarrowNav(false))}
                   />
-                  <div className="absolute inset-y-1.5 left-11 z-40 w-[min(20rem,calc(100%-4.5rem))] shadow-xl">
-                    {navigatorPanel(() => setNarrowNav(false))}
+                  <div
+                    style={{ viewTransitionName: 'workspace-navigator' }}
+                    className="absolute inset-y-1.5 left-11 z-40 w-[min(20rem,calc(100%-4.5rem))] shadow-xl"
+                  >
+                    {navigatorPanel(() => animateSidebar(() => setNarrowNav(false)))}
                   </div>
                 </>
               )}
@@ -1970,10 +1986,13 @@ function WorkspaceInner() {
                     type="button"
                     aria-label="Close the session list"
                     className="absolute inset-0 z-30 bg-ground/60"
-                    onClick={() => setNarrowSessions(false)}
+                    onClick={() => animateSidebar(() => setNarrowSessions(false))}
                   />
-                  <div className="absolute inset-y-1.5 right-11 z-40 w-[min(20rem,calc(100%-4.5rem))] shadow-xl">
-                    {sessionsPanel(() => setNarrowSessions(false))}
+                  <div
+                    style={{ viewTransitionName: 'workspace-sessions' }}
+                    className="absolute inset-y-1.5 right-11 z-40 w-[min(20rem,calc(100%-4.5rem))] shadow-xl"
+                  >
+                    {sessionsPanel(() => animateSidebar(() => setNarrowSessions(false)))}
                   </div>
                 </>
               )}
@@ -1981,11 +2000,22 @@ function WorkspaceInner() {
           ) : (
             <>
               {sidebarCollapsed && (
-                <CollapsedSidebarRail
-                  mode={sidebarMode}
-                  onExpand={() => uiState.update({ sidebar_collapsed: false })}
-                  onSelect={(m) => uiState.update({ sidebar_collapsed: false, sidebar_mode: m })}
-                />
+                <div
+                  className="flex h-full shrink-0"
+                  style={{ viewTransitionName: 'workspace-navigator' }}
+                >
+                  <CollapsedSidebarRail
+                    mode={sidebarMode}
+                    onExpand={() =>
+                      animateSidebar(() => uiState.update({ sidebar_collapsed: false }))
+                    }
+                    onSelect={(m) =>
+                      animateSidebar(() =>
+                        uiState.update({ sidebar_collapsed: false, sidebar_mode: m }),
+                      )
+                    }
+                  />
+                </div>
               )}
               <Group
                 orientation="horizontal"
@@ -1995,37 +2025,68 @@ function WorkspaceInner() {
               >
                 {!sidebarCollapsed && (
                   <>
-                    <Panel id="nav" defaultSize={280} minSize={200} maxSize={560}>
-                      {navigatorPanel(() => uiState.update({ sidebar_collapsed: true }))}
+                    <Panel
+                      id="nav"
+                      defaultSize={280}
+                      minSize={200}
+                      maxSize={560}
+                      style={{ viewTransitionName: 'workspace-navigator' }}
+                    >
+                      {navigatorPanel(() =>
+                        animateSidebar(() => uiState.update({ sidebar_collapsed: true })),
+                      )}
                     </Panel>
-                    <Separator className="workspace-divider-vertical" />
+                    <IslandSeparator className="workspace-divider-vertical" />
                   </>
                 )}
-                <Panel id="main">{mainArea}</Panel>
+                <Panel id="main">
+                  <div data-sidebar-main className="h-full w-full">
+                    {mainArea}
+                  </div>
+                </Panel>
                 {!sessionsCollapsed && (
                   <>
-                    <Separator className="workspace-divider-vertical" />
-                    <Panel id="sessions" defaultSize={260} minSize={180} maxSize={480}>
-                      {sessionsPanel(() => uiState.update({ sessions_collapsed: true }))}
+                    <IslandSeparator className="workspace-divider-vertical" />
+                    <Panel
+                      id="sessions"
+                      defaultSize={260}
+                      minSize={180}
+                      maxSize={480}
+                      style={{ viewTransitionName: 'workspace-sessions' }}
+                    >
+                      {sessionsPanel(() =>
+                        animateSidebar(() => uiState.update({ sessions_collapsed: true })),
+                      )}
                     </Panel>
                   </>
                 )}
               </Group>
               {sessionsCollapsed && (
-                <CollapsedSessionsRail
-                  groups={sessionGroups}
-                  accounts={accounts}
-                  activeSessionId={activeSessionId}
-                  onReorder={persistReorder}
-                  onPromote={(id) => layout.ensureTerminal(id)}
-                  onExpand={() => uiState.update({ sessions_collapsed: false })}
-                  onNewTerminal={() => openCreate('terminal')}
-                  onNewSession={() => openCreate('agent')}
-                  onArchived={closeTab}
-                  onArchiveDrop={(ids) => void archiveSidebarSessions(ids)}
-                  selection={sidebarSessionSelection}
-                  projectActions={projectActions}
-                />
+                <div
+                  className="flex h-full shrink-0"
+                  style={{ viewTransitionName: 'workspace-sessions' }}
+                >
+                  <CollapsedSessionsRail
+                    groups={sessionGroups}
+                    accounts={accounts}
+                    activeSessionId={activeSessionId}
+                    onReorder={persistReorder}
+                    onPromote={(id) => layout.ensureTerminal(id)}
+                    onExpand={() =>
+                      animateSidebar(() => uiState.update({ sessions_collapsed: false }))
+                    }
+                    onSearch={() => {
+                      setSearchingSessions(true);
+                      animateSidebar(() => uiState.update({ sessions_collapsed: false }));
+                    }}
+                    onNewTerminal={() => openCreate('terminal')}
+                    onNewSession={() => openCreate('agent')}
+                    onArchived={closeTab}
+                    onArchiveDrop={(ids) => void archiveSidebarSessions(ids)}
+                    selection={sidebarSessionSelection}
+                    projectActions={projectActions}
+                  />
+                </div>
               )}
             </>
           )}

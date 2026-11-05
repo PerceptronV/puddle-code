@@ -1,4 +1,5 @@
 .control-tray {
+  position: relative;
   display: flex;
   align-items: center;
   flex-shrink: 0;
@@ -6,6 +7,19 @@
   padding: 0.1875rem 0.375rem;
   border-radius: var(--ui-surface-radius);
   background: transparent;
+}
+
+.control-tray-selection {
+  position: absolute;
+  z-index: 1;
+  inset: 0 auto auto 0;
+  border-radius: 999px;
+  background: var(--text-gold);
+  pointer-events: none;
+  transition:
+    transform 180ms ease-out,
+    width 180ms ease-out,
+    height 180ms ease-out;
 }
 .control-tray[data-variant='selection'],
 .control-tray[data-variant='overlay'] {
@@ -47,10 +61,6 @@
   padding: 0.375rem 0.1875rem;
 }
 
-.control-tray-square {
-  padding: 0.1875rem;
-}
-
 .control-tray > button[aria-current='page'],
 .control-tray > button[aria-current='page']:hover {
   background: var(--text-gold);
@@ -59,4 +69,57 @@
 
 .control-tray > button > svg {
   flex-shrink: 0;
+}
+
+.control-tray[data-sliding-selection] > button,
+.control-tray[data-sliding-selection] > button[aria-current='page'] {
+  background: transparent;
+  color: var(--text-primary);
+}
+.control-tray[data-sliding-selection] > button[data-selection-highlight] {
+  color: var(--bg-base);
+}
+.control-tray[data-sliding-selection] > button[aria-current='page'] {
+  cursor: grab;
+  touch-action: none;
+}
+.control-tray[data-dragging-selection] > button {
+  cursor: grabbing;
+}
+
+.control-tray[data-sliding-selection] > button[aria-current='page']:hover {
+  background: transparent;
+}
+
+.tray-hover-surface {
+  position: absolute;
+  z-index: 0;
+  inset: 0 auto auto 0;
+  pointer-events: none;
+  opacity: 0;
+  background: var(--bg-base);
+  transition:
+    transform 150ms ease-out,
+    width 150ms ease-out,
+    height 150ms ease-out,
+    opacity 100ms ease-out;
+}
+.control-tray[data-variant='actions'] > .tray-hover-surface {
+  background: var(--bg-elevated);
+}
+.sliding-hover-tray > button {
+  position: relative;
+  z-index: 2;
+}
+
+.sliding-hover-tray {
+  isolation: isolate;
+}
+.sliding-hover-tray
+  > button:not(:disabled):not([aria-current='page']):not([aria-pressed='true']):not(
+    [data-state='open']
+  ):hover,
+.control-tray.sliding-hover-tray[data-variant='actions']
+  > button:not(:disabled):not([aria-pressed='true']):not([data-state='open']):hover {
+  background: transparent;
 }

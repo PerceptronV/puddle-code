@@ -1,3 +1,4 @@
+import { useReducedMotion } from '../../lib/appearance/motion';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Terminal as XTerm } from '@xterm/xterm';
@@ -186,6 +187,7 @@ export function Terminal({
   // replace this PTY's saved viewport from an earlier workspace mount.
   const hasReplayRef = useRef(false);
   const settings = useClientSettings();
+  const reduceMotion = useReducedMotion();
   const onExitRef = useRef(onExit);
   onExitRef.current = onExit;
   const onOpenFileRef = useRef(onOpenFile);
@@ -341,7 +343,7 @@ export function Terminal({
       fontFamily: TERMINAL_FONT,
       fontSize: settings.terminalFontSize,
       scrollback: settings.terminalScrollback,
-      cursorBlink: true,
+      cursorBlink: !reduceMotion,
       // A TUI that enables mouse reporting (Claude Code does, for wheel
       // scrolling) receives mouse drags itself — xterm then makes no local
       // selection, so ⌘C has nothing to copy even though a plain shell copies
@@ -721,10 +723,11 @@ export function Terminal({
   useEffect(() => {
     const xterm = xtermRef.current;
     if (!xterm) return;
+    xterm.options.cursorBlink = !reduceMotion;
     xterm.options.fontSize = settings.terminalFontSize;
     xterm.options.scrollback = settings.terminalScrollback;
     refit();
-  }, [settings.terminalFontSize, settings.terminalScrollback, refit]);
+  }, [settings.terminalFontSize, settings.terminalScrollback, refit, reduceMotion]);
 
   // WsManager reattaches a resumed session to its new terminal generation.
   // Repaint and reassert any changed geometry; the manager defers that resize

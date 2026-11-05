@@ -1,3 +1,4 @@
+import './overlay-motion.css';
 import * as PopoverPrimitive from '@radix-ui/react-popover';
 import * as React from 'react';
 import { cn } from '../../lib/utils';
@@ -19,7 +20,7 @@ export function PopoverContent({
         align={align}
         sideOffset={sideOffset}
         className={cn(
-          'island-outline z-50 rounded-[var(--ui-surface-radius)] bg-elevated p-5 shadow-2xl',
+          'overlay-content-motion overlay-popover-motion island-outline z-50 rounded-[var(--ui-surface-radius)] bg-elevated p-5 shadow-2xl',
           className,
         )}
         {...props}

@@ -1,3 +1,4 @@
+import './overlay-motion.css';
 import * as DialogPrimitive from '@radix-ui/react-dialog';
 import { X } from 'lucide-react';
 import * as React from 'react';
@@ -11,24 +12,33 @@ export function DialogContent({
   className,
   children,
   wide = false,
+  surface = true,
+  showCloseButton = true,
   ...props
-}: React.ComponentProps<typeof DialogPrimitive.Content> & { wide?: boolean }) {
+}: React.ComponentProps<typeof DialogPrimitive.Content> & {
+  wide?: boolean;
+  surface?: boolean;
+  showCloseButton?: boolean;
+}) {
   return (
     <DialogPrimitive.Portal>
-      <DialogPrimitive.Overlay className="fixed inset-0 z-50 bg-ground/70 backdrop-blur-[2px]" />
+      <DialogPrimitive.Overlay className="overlay-backdrop-motion fixed inset-0 z-50 bg-ground/70 backdrop-blur-[2px]" />
       <DialogPrimitive.Content
         className={cn(
-          'fixed left-1/2 top-[calc(var(--phone-top,0px)+var(--phone-height,100dvh)/2)] z-50 grid max-h-[calc(var(--phone-height,100dvh)-2rem)] w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto island-outline rounded-[var(--ui-surface-radius)] bg-surface p-5 shadow-2xl',
+          'overlay-content-motion fixed left-1/2 top-[calc(var(--phone-top,0px)+var(--phone-height,100dvh)/2)] z-50 grid max-h-[calc(var(--phone-height,100dvh)-2rem)] w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-[var(--ui-surface-radius)] p-5',
+          surface && 'island-outline bg-surface shadow-2xl',
           wide ? 'max-w-3xl' : 'max-w-md',
           className,
         )}
         {...props}
       >
         {children}
-        <DialogPrimitive.Close className="absolute right-3.5 top-3.5 rounded-sm text-fg-muted transition-colors hover:text-fg">
-          <X className="size-4" />
-          <span className="sr-only">Close</span>
-        </DialogPrimitive.Close>
+        {showCloseButton && (
+          <DialogPrimitive.Close className="absolute right-3.5 top-3.5 rounded-sm text-fg-muted transition-colors hover:text-fg">
+            <X className="size-4" />
+            <span className="sr-only">Close</span>
+          </DialogPrimitive.Close>
+        )}
       </DialogPrimitive.Content>
     </DialogPrimitive.Portal>
   );

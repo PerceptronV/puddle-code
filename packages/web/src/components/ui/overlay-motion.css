@@ -1,0 +1,43 @@
+@keyframes overlay-appear {
+  from {
+    opacity: 0;
+    scale: 0.97;
+  }
+  to {
+    opacity: 1;
+    scale: 1;
+  }
+}
+@keyframes overlay-disappear {
+  from {
+    opacity: 1;
+    scale: 1;
+  }
+  to {
+    opacity: 0;
+    scale: 0.97;
+  }
+}
+@keyframes overlay-backdrop-appear {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+.overlay-content-motion[data-state='open'] {
+  animation: overlay-appear 180ms ease-out;
+}
+.overlay-content-motion[data-state='closed'] {
+  animation: overlay-disappear 120ms ease-in;
+}
+.overlay-popover-motion {
+  transform-origin: var(--radix-popover-content-transform-origin);
+}
+.overlay-backdrop-motion[data-state='open'] {
+  animation: overlay-backdrop-appear 180ms ease-out;
+}
+.overlay-backdrop-motion[data-state='closed'] {
+  animation: overlay-backdrop-appear 120ms ease-in reverse;
+}

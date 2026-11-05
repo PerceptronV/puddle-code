@@ -1,0 +1,7 @@
+.island-resize-edge {
+  position: fixed;
+  z-index: 30;
+  pointer-events: none;
+  box-sizing: border-box;
+  border: 3px solid var(--border);
+}

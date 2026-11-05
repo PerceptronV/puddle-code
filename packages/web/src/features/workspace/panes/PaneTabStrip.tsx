@@ -1,3 +1,5 @@
+import './pane-tab-strip.css';
+import { useTrayHover } from '../../../components/ui/use-tray-hover';
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
 import { useDraggable, useDroppable } from '@dnd-kit/core';
 import { Eye, FileCode, Link, LoaderCircle, Lock, Play, Zap, X } from 'lucide-react';
@@ -222,35 +224,16 @@ function InsertionCaret() {
   return <div className="w-0.5 shrink-0 self-stretch rounded-full bg-accent" />;
 }
 
-/**
- * The chip's trailing controls, laid OVER the title rather than beside it.
- *
- * In flow they widened a short chip on hover — and shoved every tab after it
- * along — while a chip already at `max-w-52` merely truncated instead, so the
- * same gesture did two different things depending on how long the filename
- * was. Absolutely positioned, they cost no width at all, so every chip keeps a
- * fixed size and only the title underneath is masked.
- *
- * The background comes in only on hover, so a clean tab at rest is still
- * exactly its title with nothing trailing it (HUMANS.md). It fades in from the
- * left rather than starting as a hard edge, so a truncated title slides under
- * the icons instead of being chopped. It also carries the chip's own
- * rounded right corners, so revealing the overlay preserves the floating shape.
- */
-function TabControls({ active, children }: { active: boolean; children: ReactNode }) {
-  const fade = active
-    ? 'group-hover:bg-[linear-gradient(to_right,transparent,var(--color-ground)_1.25rem)]'
-    : 'group-hover:bg-[linear-gradient(to_right,transparent,var(--color-elevated)_1.25rem)]';
+/** A compact floating island; revealing actions never changes the tab width. */
+function TabControls({ children }: { children: ReactNode }) {
+  const trayRef = useRef<HTMLSpanElement>(null);
+  const hoverRef = useTrayHover(trayRef);
   return (
     <span
-      className={cn(
-        'pointer-events-none absolute inset-y-0 right-0 flex items-center gap-1 rounded-r-[var(--ui-radius)] pl-5 pr-2.5',
-        // Only the controls themselves take clicks; the masked title beneath
-        // stays draggable and clickable like the rest of the chip.
-        '[&>*]:pointer-events-auto',
-        fade,
-      )}
+      ref={trayRef}
+      className="pane-tab-controls sliding-hover-tray island-outline pointer-events-none absolute right-1 top-1/2 z-10 flex -translate-y-1/2 items-center gap-1 rounded-full bg-elevated px-1 py-1 shadow-sm opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100 pointer-coarse:pointer-events-auto pointer-coarse:opacity-100 [&_button]:size-5 [&_button]:items-center [&_button]:justify-center [&_button]:rounded-full"
     >
+      <span ref={hoverRef} aria-hidden className="tray-hover-surface" />
       {children}
     </span>
   );
@@ -490,7 +473,7 @@ function PaneTab({
           <span className="truncate">
             {session ? renderTitle(session) : tab.session.slice(0, 8)}
           </span>
-          <TabControls active={active}>
+          <TabControls>
             {session && <SessionTabActions session={session} onArchived={onArchived} />}
             <button
               type="button"
@@ -517,11 +500,6 @@ function PaneTab({
             }
             className="size-4"
           />
-          {/* A following slot names whatever it currently follows, so its
-              glyph distinguishes the stable slot from an ordinary second tab
-              of that file (SPEC §8). */}
-          {tab.tab.view === 'linked' && <Link className="size-3 shrink-0 text-fg-muted" />}
-          {tab.tab.view === 'locked' && <Lock className="size-3 shrink-0 text-fg-muted" />}
           {renaming ? (
             <TabRenameInput
               initial={tab.tab.path.split('/').pop() ?? tab.tab.path}
@@ -558,7 +536,7 @@ function PaneTab({
                 kind={tabKind(tab.tab)}
                 root={tab.tab.root}
               />
-              <TabControls active={active}>
+              <TabControls>
                 {/* `external` tabs render the same views (SPEC §8) — only diffs,
                     commits, and untitled drafts have no rendered counterpart. */}
                 {(tabKind(tab.tab) === 'file' || tabKind(tab.tab) === 'external') &&
