@@ -111,3 +111,13 @@ now observe other open dialogs and wait for them to close, retaining the same
 queue and dismissal rules. All eight reproductions passed after this change.
 Dedicated rendered acceptance also verifies deferred notes behind Settings,
 preserved focus and subsequent version delivery.
+
+The [first browser-fix CI run](https://github.com/PerceptronV/puddle-code/actions/runs/41984266954)
+passed both Linux archives but timed out in one notebook kernel test, with 3,585
+tests passing. The interrupt fixture treated the daemon's `busy` state as proof
+that Python was executing its infinite-loop cell. That state includes dispatch,
+so an idle kernel could receive SIGINT before the execution request. The fixture
+now waits, with a ten-second bound, for a marker written inside that exact cell
+before interrupting it. All four real-kernel lifecycle checks passed locally in
+26.36 seconds. The CI timeout alone does not identify its precise blocked phase;
+the subsequent Linux run remains the confirmation for this correction.

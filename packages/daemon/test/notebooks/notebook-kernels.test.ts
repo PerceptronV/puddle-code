@@ -1,7 +1,15 @@
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { NOTEBOOK_BRIDGE } from '../../src/notebooks/bridge.js';
-import { mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  mkdtempSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { expect, it, onTestFinished } from 'vitest';
@@ -153,9 +161,15 @@ it.skipIf(!findCodeExecutable(['jupyter-nbconvert']))(
     setCode('print(globals().get("counter", 0))', 'other.ipynb');
     expect((await run('other.ipynb')).cells[0].outputs[0].text).toEqual(['0\n']);
 
-    setCode('while True:\n    pass');
+    const interruptReady = join(root, 'interrupt-ready');
+    setCode(
+      `from pathlib import Path\nPath(${JSON.stringify(interruptReady)}).touch()\nwhile True:\n    pass`,
+    );
     const running = run().catch((error: unknown) => error);
     await waitFor('busy');
+    // Busy includes dispatch. Prove the Python cell is executing before testing
+    // SIGINT; an idle kernel can consume the signal before its execute request.
+    await expect.poll(() => existsSync(interruptReady), { timeout: 10_000 }).toBe(true);
     expect(kernels.interruptionInventory()).toContainEqual(
       expect.objectContaining({ path: join(root, source.path), busy: true }),
     );
