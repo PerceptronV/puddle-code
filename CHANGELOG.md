@@ -12,4 +12,9 @@ Past releases: see docs/changelogs/.
 ### Cockpit
 
 - Keep five-character project abbreviations readable inside the mobile session rail.
+- Dismiss terminal selection actions after copying or clearing a touch selection, without reopening an empty toolbar.
+
+### Daemon
+
+- Generate valid systemd working directories for independent runtimes and update workers, so Linux launches no longer fail before readiness.
 

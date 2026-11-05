@@ -64,7 +64,16 @@ export function terminalTouchSelection(
     frame = requestAnimationFrame(autoScroll);
   };
   const selection = terminal.onSelectionChange(() => {
-    if (owned) changed(terminal.getSelection());
+    if (!owned) return;
+    // Copy/clear can report asynchronously. A cleared range ends ownership;
+    // selecting a blank cell still owns a range and must continue offering Paste.
+    if (terminal.hasSelection()) changed(terminal.getSelection());
+    else {
+      stop();
+      anchor = null;
+      owned = false;
+      changed(null);
+    }
   });
   const clear = () => {
     stop();

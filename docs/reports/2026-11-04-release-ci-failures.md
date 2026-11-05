@@ -93,3 +93,13 @@ existing monospace font; expanded names retain their existing font. The real
 mobile browser fixture verifies that all five characters fit. Header assertions
 also follow the current neutral action colour and inset divider spacing while
 retaining alignment, selection and overflow checks.
+
+The mobile journey then exposed delayed xterm selection notifications reopening
+an empty action toolbar after Copy. Touch ownership now ends when the selected
+range disappears, while a selected blank cell still offers Paste. Each terminal
+mode in the browser fixture also waits for its own output marker before selecting,
+and records a screenshot. The full real mobile flow passed locally, including
+normal/mouse/alternate-screen selection, clipboard operations, Unicode input,
+file previews and live viewer revocation. The notebook browser test now checks
+the active cell's accessibility state instead of a removed outer background class;
+its existing multi-cell clipboard and save assertions passed unchanged.

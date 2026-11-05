@@ -331,7 +331,7 @@ test('edits and saves notebook cells, preserves metadata, sanitises output and h
   await expect(page.getByRole('region', { name: 'Cell 4', exact: true })).toHaveCount(0);
   await page.getByRole('region', { name: 'Cell 2', exact: true }).focus();
   await page.keyboard.press('Shift+ArrowDown');
-  await expect(third).toHaveClass(/bg-surface/);
+  await expect(third).toHaveAttribute('aria-current', 'true');
   // Exercise the native clipboard handlers without depending on the OS clipboard.
   await third.evaluate((cell) => {
     const clipboardData = new DataTransfer();

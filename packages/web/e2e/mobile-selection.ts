@@ -59,8 +59,12 @@ export async function checkTerminalSelection(
           : mode === 'alternate'
             ? '\x1b[?1000l\x1b[?1006l\x1b[?1049h'
             : '';
-      send(`${sequence}\x1b[2J\x1b[HSELECT_ALPHA SELECT_BETA 日本語\nSELECT_SECOND end\n`);
-      await expect(rows).toContainText('SELECT_SECOND');
+      const ready = `SELECTION_READY_${mode}`;
+      send(
+        `${sequence}\x1b[2J\x1b[HSELECT_ALPHA SELECT_BETA 日本語\nSELECT_SECOND end\n${ready}\n`,
+      );
+      // Repeated text from the preceding mode cannot prove this screen is ready.
+      await expect(rows).toContainText(ready);
       await terminal.locator('textarea').evaluate((element) => element.blur());
       const row = (await rows.locator(':scope > div').first().boundingBox())!;
       const screen = terminal.locator('.xterm-screen');
@@ -77,8 +81,9 @@ export async function checkTerminalSelection(
       await expect(actions).toBeVisible();
       await expect(terminal.locator('textarea')).not.toBeFocused();
       expect(await page.evaluate(() => navigator.clipboard.readText())).toBe('Unchanged clipboard');
-      if (mode === 'normal')
-        await page.screenshot({ path: testInfo.outputPath('phone-terminal-selection.png') });
+      await page.screenshot({
+        path: testInfo.outputPath(`phone-terminal-selection-${mode}.png`),
+      });
       await actions.getByRole('button', { name: 'Copy', exact: true }).tap();
       await expect(actions).toHaveCount(0);
       const copied = await page.evaluate(() => navigator.clipboard.readText());
