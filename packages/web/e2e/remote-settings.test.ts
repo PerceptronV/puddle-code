@@ -7,10 +7,12 @@ import type {
   DesktopRegistration,
 } from '@puddle/shared';
 import { createHash } from 'node:crypto';
+import { dismissReleaseNotes } from './fixtures/release-notes';
 
 test('desktop registration, re-enablement, recovery and confirmed deletion', async ({
   page,
 }, testInfo) => {
+  await dismissReleaseNotes(page);
   const local = await fixture();
   let finishRead: (() => void) | undefined;
   let finishCheck: (() => void) | undefined;

@@ -3,6 +3,7 @@ import { fileURLToPath } from 'node:url';
 import { readFile } from 'node:fs/promises';
 import type { Page } from '@playwright/test';
 import QRCode from 'qrcode';
+import { dismissReleaseNotes } from './fixtures/release-notes';
 import { REMOTE_PROTOCOL_VERSION, remoteInvitationSchema } from '@puddle/shared';
 
 export const service = 'https://relay.example.test';
@@ -42,6 +43,7 @@ export async function startPairingFixture() {
 }
 
 export async function mockPairingAccount(page: Page) {
+  await dismissReleaseNotes(page);
   await page.route(`${service}/**`, async (route) => {
     const path = new URL(route.request().url()).pathname;
     if (path === '/remote/config')

@@ -9,6 +9,7 @@ import {
   remoteServiceInfoSchema,
 } from '@puddle/shared';
 import type { RemoteClient } from '../src/features/remote/client';
+import { dismissReleaseNotes } from './fixtures/release-notes';
 
 test.use({ hasTouch: true, isMobile: true });
 const service = 'https://relay.example.test';
@@ -33,6 +34,7 @@ test.afterAll(async () => {
   await server?.close();
 });
 test.beforeEach(async ({ page }) => {
+  await dismissReleaseNotes(page);
   await page.addInitScript(
     ({ service, account }) => {
       localStorage.setItem(`puddle.push:${service}:${account}`, 'true');

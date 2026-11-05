@@ -10,6 +10,7 @@ import { checkTerminalSelection } from './mobile-selection';
 import { checkMobilePaths } from './mobile-files';
 import { checkMobilePreviews } from './mobile-previews';
 import { checkFileToolbar, checkMobileHeader, saveDesktopOrder } from './mobile-header';
+import { dismissReleaseNotes } from './fixtures/release-notes';
 
 test.use({ hasTouch: true, isMobile: true });
 
@@ -18,6 +19,7 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
 }, testInfo) => {
   test.setTimeout(150_000);
   page.setDefaultTimeout(15_000);
+  await dismissReleaseNotes(page);
   const fixture = await mobileFixture();
   const projects = projectSchema
     .array()
@@ -111,6 +113,7 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
       fixture.remote.store.register(account!.user.id, 'Offline host').code,
     );
     const desktop = await page.context().newPage();
+    await dismissReleaseNotes(desktop);
     await desktop.setViewportSize({ width: 1200, height: 850 });
     const profiles = await (await fixture.local.req('/api/profiles')).json();
     await desktop.addInitScript(

@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { dismissReleaseNotes } from './fixtures/release-notes';
 import { projectSchema, projectDetailSchema, profileSchema } from '@puddle/shared';
 import { mobileFixture } from './mobile-fixture';
 
@@ -40,6 +41,7 @@ test('keeps two remote accounts on one host scoped to their own profiles', async
     ).toBe(true);
 
     const connect = async (page: Page, email: string, scope: string, name: string) => {
+      await dismissReleaseNotes(page);
       await page.route('https://github.com/login/oauth/authorize?**', (route) =>
         route.fulfill({
           status: 302,

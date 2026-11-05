@@ -37,6 +37,8 @@ jobs:
       - run: pnpm test:ssh
       - name: install isolated mobile test browser
         run: pnpm --filter @puddle/web exec playwright install --with-deps chromium
+      - name: verify installed release-note previews
+        run: node packages/web/test/release-notes/browser.mjs
       - run: pnpm test:mobile
       - name: validate self-hosted deployment configuration
         run: |

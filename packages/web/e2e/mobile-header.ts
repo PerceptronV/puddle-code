@@ -66,23 +66,31 @@ export async function checkMobileHeader(page: Page, testInfo: TestInfo) {
       async (name) => (await rail.getByRole('button', { name, exact: true }).boundingBox())!,
     ),
   );
-  expect(controls[2]!.y - controls[0]!.y).toBeLessThanOrEqual(76);
+  for (let index = 1; index < controls.length; index++) {
+    const previous = controls[index - 1]!;
+    const current = controls[index]!;
+    expect(current.x).toBe(previous.x);
+    expect(current.width).toBe(previous.width);
+    // The toggle's divider has a small gap; the remaining actions sit together.
+    expect(current.y - (previous.y + previous.height)).toBeGreaterThanOrEqual(0);
+    expect(current.y - (previous.y + previous.height)).toBeLessThanOrEqual(8);
+  }
   await expect(
     rail.getByRole('button', { name: 'New agent', exact: true }).locator('svg'),
   ).toHaveClass(/lucide-bot/);
-  const gold = await rail.evaluate((element) => {
+  const ink = await rail.evaluate((element) => {
     const probe = document.createElement('span');
-    probe.style.color = 'var(--text-gold)';
+    probe.style.color = 'var(--text-primary)';
     element.append(probe);
     const colour = getComputedStyle(probe).color;
     probe.remove();
     return colour;
   });
-  // Hover changes desktop-style controls to primary ink; inspect them at rest.
+  // Actions use neutral ink; gold remains reserved for navigator selections.
   for (const name of ['Expand sessions', 'New agent', 'New terminal', 'Archived sessions']) {
     await expect(rail.getByRole('button', { name, exact: true }).locator('svg')).toHaveCSS(
       'color',
-      gold,
+      ink,
     );
   }
 

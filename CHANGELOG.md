@@ -9,4 +9,7 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Cockpit
+
+- Keep five-character project abbreviations readable inside the mobile session rail.
 

@@ -71,3 +71,25 @@ The corrected encrypted-update test passed locally in 36.68 seconds, including
 replacement, preserved runtime/shell state and cleanup. Strict continuity-fixture
 TypeScript, ESLint and formatting passed. Confirmation on the Linux CI runner
 remains pending for this additional fixture fix.
+
+## Browser acceptance follow-up
+
+The [0.4.3 release workflow](https://github.com/PerceptronV/puddle-code/actions/runs/41981917242)
+also passed. Subsequent general CI passed unit, process and SSH tests, including
+the encrypted-update fixture, and reached browser acceptance.
+
+Fresh browser profiles now open the installed release's notes. Unrelated remote,
+pairing and settings tests did not close that modal, so it blocked their normal
+navigation. A shared browser helper closes only the release-notes dialog through
+its ordinary Close button, preserving real display and dismissal behaviour.
+CI also runs the existing dedicated rendered release-notes acceptance script,
+which verifies delayed section merging, version sequencing, persistent dismissal,
+target scoping, Markdown safety and mobile presentation. That script and 15
+affected remote/pairing/settings browser checks passed locally.
+
+Proceeding beyond the modal exposed clipped five-character mobile project
+abbreviations after the rail gained island padding. Collapsed labels now use the
+existing monospace font; expanded names retain their existing font. The real
+mobile browser fixture verifies that all five characters fit. Header assertions
+also follow the current neutral action colour and inset divider spacing while
+retaining alignment, selection and overflow checks.

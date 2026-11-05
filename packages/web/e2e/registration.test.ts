@@ -1,7 +1,10 @@
 import { test, expect } from '@playwright/test';
+import { dismissReleaseNotes } from './fixtures/release-notes';
 import { mobileFixture } from './mobile-fixture';
 import { cockpitRemoteRequestSchema, desktopRegistrationSchema } from '@puddle/shared';
 import { createHash } from 'node:crypto';
+
+test.beforeEach(async ({ page }) => dismissReleaseNotes(page));
 
 test('desktop sign-in survives OAuth and enables through a private one-use verifier', async ({
   page,
@@ -53,6 +56,7 @@ test('desktop sign-in survives OAuth and enables through a private one-use verif
     const popup = page.context().waitForEvent('page');
     await page.getByRole('button', { name: 'Sign in and enable', exact: true }).click();
     const browser = await popup;
+    await dismissReleaseNotes(browser);
     browser.on('pageerror', (error) => errors.push(error.message));
     const link = await page.getByRole('link', { name: 'Continue in browser' }).getAttribute('href');
     const handoff = desktopRegistrationSchema.parse(

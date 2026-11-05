@@ -173,7 +173,7 @@
   min-height: 2rem;
   overflow: hidden;
   white-space: nowrap;
-  font-family: var(--font-sans);
+  font-family: var(--font-mono);
   font-size: calc(var(--text-2xs) * 0.9);
   color: var(--text-muted);
 }
