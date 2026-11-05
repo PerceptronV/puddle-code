@@ -32,6 +32,7 @@ let api: typeof import('../../src/features/remote/push-notifications');
 let request: ReturnType<typeof vi.fn<RemoteClient['request']>>;
 let client: RemoteClient;
 let unwatch: () => void;
+let stateChanged: () => void;
 
 beforeEach(async () => {
   vi.useFakeTimers();
@@ -76,7 +77,10 @@ beforeEach(async () => {
     scope: 'test-host',
     host: { account },
     request,
-    onState: () => () => {},
+    onState: (listener: () => void) => {
+      stateChanged = listener;
+      return () => {};
+    },
   } as unknown as RemoteClient;
   api = await import('../../src/features/remote/push-notifications');
   unwatch = api.watchPushNotifications(client);
@@ -106,6 +110,29 @@ it('reports progress and confirms registration afresh before every explicit test
     '/api/notifications/push',
     '/api/notifications/test',
   ]);
+});
+
+it('allows live alerts after disconnect and a failed push registration on reconnect', async () => {
+  const { remotePushReady } =
+    await import('../../src/lib/notifications/remote-notification-status');
+  await api.testPushNotifications(account);
+  expect(remotePushReady(client.scope)).toBe(true);
+  client.state = 'connecting';
+  stateChanged();
+  expect(remotePushReady(client.scope)).toBe(false);
+  Object.assign(client, { state: 'ready', generation: 'second' });
+  request.mockRejectedValueOnce(new Error('Host unavailable'));
+  stateChanged();
+  await vi.advanceTimersByTimeAsync(1);
+  expect(remotePushReady(client.scope)).toBe(false);
+  stateChanged();
+  await vi.advanceTimersByTimeAsync(1);
+  expect(remotePushReady(client.scope)).toBe(true);
+  // A repeated observation in the same generation may reuse registration,
+  // but must restore readiness after refresh clears the previous observation.
+  stateChanged();
+  await vi.advanceTimersByTimeAsync(1);
+  expect(remotePushReady(client.scope)).toBe(true);
 });
 
 function previewHost() {
@@ -195,8 +222,14 @@ it('times out a stalled subscription read without sending after a late reply', a
 });
 
 it('distinguishes a missing subscription from an OS permission grant', async () => {
+  const { remotePushReady } =
+    await import('../../src/lib/notifications/remote-notification-status');
+  await api.testPushNotifications(account);
+  expect(remotePushReady(client.scope)).toBe(true);
+  request.mockClear();
   mocks.subscription.mockResolvedValueOnce(null);
   await expect(api.testPushNotifications(account)).rejects.toThrow('no active push subscription');
+  expect(remotePushReady(client.scope)).toBe(false);
   expect(request.mock.calls.map(([, path]) => path)).toEqual(['/api/version']);
 });
 

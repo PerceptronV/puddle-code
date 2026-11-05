@@ -20,6 +20,9 @@ export const pushEnabled = (account: string) => localStorage.getItem(key(account
 type Progress = (message: string) => void;
 
 async function synchronise(client: RemoteClient, testing?: Progress): Promise<boolean> {
+  // Readiness suppresses live alerts. A previous registration cannot justify
+  // suppression while this connection and its subscription are being checked.
+  setRemotePushReady(client.scope, false);
   if (client.state !== 'ready') return false;
   const generation = client.generation;
   const enabled = pushEnabled(client.host.account);
@@ -63,7 +66,10 @@ async function synchronise(client: RemoteClient, testing?: Progress): Promise<bo
   const fingerprint = JSON.stringify([generation, value, previewKey?.id]);
   // An explicit test must confirm that the service still holds this subscription;
   // the local cache cannot prove it survived service recovery or expiry.
-  if (!testing && registrations.get(client.scope) === fingerprint) return true;
+  if (!testing && registrations.get(client.scope) === fingerprint) {
+    setRemotePushReady(client.scope, !!value);
+    return true;
+  }
   testing?.('Registering this device with the host…');
   const response = await client.request('POST', '/api/notifications/push', {
     subscription: value,
