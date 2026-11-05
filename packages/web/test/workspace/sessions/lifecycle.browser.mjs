@@ -1,0 +1,89 @@
+/* global window */
+import assert from 'node:assert/strict';
+import { fileURLToPath } from 'node:url';
+import { build } from 'esbuild';
+import { chromium, expect } from '@playwright/test';
+
+const bundle = await build({
+  entryPoints: [fileURLToPath(new URL('./lifecycle-entry.tsx', import.meta.url))],
+  bundle: true,
+  write: false,
+  platform: 'browser',
+  format: 'iife',
+  loader: { '.css': 'empty' },
+});
+const browser = await chromium.launch();
+try {
+  const page = await browser.newPage({
+    viewport: { width: 390, height: 844 },
+    hasTouch: true,
+    isMobile: true,
+  });
+  const mutations = [],
+    errors = [];
+  page.on('pageerror', (error) => errors.push(error.message));
+  await page.route('http://session.test/**', (route) => {
+    const request = route.request();
+    if (request.url().endsWith('/'))
+      return route.fulfill({ contentType: 'text/html', body: '<div id="root"></div>' });
+    if (request.method() !== 'GET') mutations.push(new URL(request.url()).pathname);
+    const path = new URL(request.url()).pathname;
+    return route.fulfill({
+      json: path.endsWith('/accounts')
+        ? []
+        : path.endsWith('/version')
+          ? { protocol: { major: 26, minor: 0 } }
+          : {},
+    });
+  });
+  await page.goto('http://session.test/');
+  await page.addScriptTag({ content: bundle.outputFiles[0].text });
+  const show = async (surface, patch, connected = true) => {
+    await page.evaluate(({ surface, patch, connected }) => window.show(surface, patch, connected), {
+      surface,
+      patch,
+      connected,
+    });
+    await page.waitForTimeout(50);
+  };
+  for (const flag of ['worktree_missing', 'conversation_missing']) {
+    const patch = { status: 'interrupted', [flag]: true };
+    await show('mobile', patch);
+    await expect(page.getByRole('button', { name: 'Resume', exact: true })).toBeDisabled();
+    await expect(page.getByText(/resume unavailable/, { exact: false })).toBeVisible();
+    await show('tab', patch);
+    await expect(page.getByRole('button', { name: 'Resume session' })).toBeDisabled();
+    await show('overlay', patch);
+    await expect(page.getByRole('button', { name: 'Resume', exact: true })).toHaveCount(0);
+    await show('desktop', patch);
+    await page.getByRole('button', { name: 'Session actions' }).click();
+    await expect(page.getByRole('menuitem', { name: 'Resume', exact: true })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+  }
+  assert.deepEqual(mutations, []);
+  await show('mobile', { status: 'running', worktree_missing: true, conversation_missing: true });
+  await page.getByRole('button', { name: 'Stop session' }).click();
+  await expect.poll(() => mutations.at(-1)).toMatch(/\/kill$/);
+  await show('mobile', { status: 'exited' }, false);
+  await expect(page.getByRole('button', { name: 'Resume', exact: true })).toBeDisabled();
+  await show('mobile', { status: 'exited' });
+  await page.getByRole('button', { name: 'Resume', exact: true }).click();
+  await expect.poll(() => mutations.at(-1)).toMatch(/\/resume$/);
+  await show('tab', { status: 'exited' });
+  await expect(page.getByRole('button', { name: 'Resume session' })).toBeEnabled();
+  await show('overlay', { status: 'exited' });
+  await expect(page.getByRole('button', { name: 'Resume', exact: true })).toBeEnabled();
+  await show('desktop', { status: 'exited' });
+  await page.getByRole('button', { name: 'Session actions' }).click();
+  await expect(page.getByRole('menuitem', { name: 'Resume', exact: true })).toBeEnabled();
+  await page.keyboard.press('Escape');
+  await show('mobile', { status: 'archived' });
+  await expect(page.getByRole('button', { name: 'Resume', exact: true })).toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Restore session' })).toBeEnabled();
+  assert.deepEqual(errors, []);
+  console.log(
+    'Mobile, menu, tab and overlay lifecycle eligibility agree; stop and resume dispatch remain correct.',
+  );
+} finally {
+  await browser.close();
+}

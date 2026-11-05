@@ -14,6 +14,7 @@ import {
 import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { SessionGlyph } from '../status/SessionGlyph';
+import { sessionLifecycle } from '../workspace/sessions/lifecycle';
 
 export function SessionActions({
   session,
@@ -42,8 +43,7 @@ export function SessionActions({
       setBusy(false);
     }
   };
-  const live = ['starting', 'running', 'waiting_input'].includes(session.status);
-  const archived = session.status === 'archived';
+  const { live, archived, resumable, resumeUnavailable } = sessionLifecycle(session);
   return (
     <Dialog
       open
@@ -99,7 +99,8 @@ export function SessionActions({
             <Button
               variant="ghost"
               className="justify-start"
-              disabled={!connected || busy}
+              disabled={!connected || busy || (!live && !resumable)}
+              title={live ? undefined : resumeUnavailable}
               onClick={() =>
                 void action(async () => {
                   await api('POST', `/api/sessions/${session.id}/${live ? 'kill' : 'resume'}`);
@@ -109,6 +110,9 @@ export function SessionActions({
               {live ? <Square /> : <Play />}
               {live ? 'Stop session' : 'Resume'}
             </Button>
+          )}
+          {!live && !archived && resumeUnavailable && (
+            <p className="text-xs text-fg-muted">{resumeUnavailable}</p>
           )}
           <Button
             variant="ghost"

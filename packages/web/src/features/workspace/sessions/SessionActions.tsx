@@ -67,9 +67,7 @@ import {
 import { browserTransport } from '../../../lib/transport/browser-transport';
 import { RuntimeDialog } from './runtime/RuntimeDialog';
 import { useCurrentProfileId } from '../../profile/profile-store';
-
-const LIVE: Session['status'][] = ['starting', 'running', 'waiting_input'];
-const RESUMABLE: Session['status'][] = ['exited', 'interrupted'];
+import { sessionLifecycle } from './lifecycle';
 
 /**
  * The shared lifecycle-menu model for one session: which actions apply, the
@@ -199,9 +197,7 @@ export function useSessionMenu(
   const menu: SessionMenu = {
     session,
     ...(runtimeInspection ? { inspectRuntime: () => setRuntimeOpen(true) } : {}),
-    resumable: RESUMABLE.includes(session.status) && !session.conversation_missing,
-    live: LIVE.includes(session.status),
-    archived: session.status === 'archived',
+    ...sessionLifecycle(session),
     canMigrate,
     sameAgent,
     handoffTargets:
@@ -455,7 +451,7 @@ function SessionMenuItems({ kit, menu }: { kit: MenuKit; menu: SessionMenu }) {
   const { session } = menu;
   return (
     <>
-      {menu.resumable && !session.worktree_missing && (
+      {menu.resumable && (
         <Item onSelect={menu.resume}>
           <Play /> Resume
         </Item>

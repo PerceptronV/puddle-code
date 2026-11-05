@@ -44,6 +44,8 @@ jobs:
         run: node packages/web/test/terminal/synchronised-output.browser.mjs
       - name: verify terminal projection updates and download cleanup
         run: node packages/web/test/terminal/rich-output.browser.mjs
+      - name: verify mobile and desktop session eligibility
+        run: node packages/web/test/workspace/sessions/lifecycle.browser.mjs
       - run: pnpm test:mobile
       - name: retain browser failure diagnostics
         if: failure()

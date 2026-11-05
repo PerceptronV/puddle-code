@@ -3,6 +3,7 @@ import { Archive, Play, Square } from 'lucide-react';
 import { useNavigate } from 'react-router';
 import { liveConversationTarget, toastError } from '../../../lib/transport/errors';
 import { useArchiveSession, useSessionAction } from '../../../lib/queries/queries';
+import { sessionLifecycle } from './lifecycle';
 
 const BUTTON_CLASS =
   'inline-flex rounded-sm p-0.5 text-fg-muted transition-colors hover:text-fg disabled:cursor-not-allowed disabled:opacity-50';
@@ -15,26 +16,18 @@ export function SessionTabActions({
   session: Session;
   onArchived: (session: string) => void;
 }) {
-  const live =
-    session.status === 'starting' ||
-    session.status === 'running' ||
-    session.status === 'waiting_input';
+  const { live, archived, resumable, resumeUnavailable } = sessionLifecycle(session);
   const action = useSessionAction(live ? 'kill' : 'resume');
   const archive = useArchiveSession();
   const navigate = useNavigate();
   const pending = action.isPending || archive.isPending;
-  const resumeUnavailable = session.worktree_missing
-    ? 'Worktree directory is gone — resume unavailable'
-    : session.conversation_missing
-      ? 'Native conversation is missing — resume unavailable'
-      : undefined;
-  if (session.status === 'archived') return null;
+  if (archived) return null;
 
   return (
     <>
       <button
         type="button"
-        disabled={pending || (!live && !!resumeUnavailable)}
+        disabled={pending || (!live && !resumable)}
         onPointerDown={(event) => event.stopPropagation()}
         onDoubleClick={(event) => event.stopPropagation()}
         onClick={async (event) => {

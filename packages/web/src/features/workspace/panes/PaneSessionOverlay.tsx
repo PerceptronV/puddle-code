@@ -4,8 +4,7 @@ import { liveConversationTarget, toastError } from '../../../lib/transport/error
 import type { Session } from '@puddle/shared';
 import { Button } from '../../../components/ui/button';
 import { useSessionAction } from '../../../lib/queries/queries';
-
-const RESUMABLE: Session['status'][] = ['interrupted', 'exited'];
+import { sessionLifecycle } from '../sessions/lifecycle';
 
 /**
  * The per-pane resume control, overlaid INSIDE the pane at its bottom-right
@@ -22,10 +21,7 @@ const RESUMABLE: Session['status'][] = ['interrupted', 'exited'];
 export function PaneSessionOverlay({ session }: { session: Session }) {
   const resume = useSessionAction('resume');
   const navigate = useNavigate();
-  const resumable =
-    RESUMABLE.includes(session.status) &&
-    !session.worktree_missing &&
-    !session.conversation_missing;
+  const { resumable } = sessionLifecycle(session);
   if (!resumable) return null;
   return (
     <div className="pointer-events-none absolute bottom-2 right-3 z-10">
