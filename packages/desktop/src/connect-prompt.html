@@ -7,40 +7,15 @@
       content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'"
     />
     <title>Connect to SSH Host</title>
+    <!-- shared-prompt-appearance -->
     <style>
-      /* Shell chrome, outside the web app's token system — a deliberately
-         tiny palette mirroring its feel (HUMANS.md: no borders, fill shifts,
-         aligned text, generous spacing). */
-      :root {
-        color-scheme: light dark;
-        --bg: #f6f6f4;
-        --fill: #e9e9e6;
-        --fill-hover: #dfdfdb;
-        --text: #1c1c1a;
-        --muted: #77776f;
-        --action: #2f6feb;
-        --action-hover: #275fd0;
-        --danger: #b3372f;
-      }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --bg: #171715;
-          --fill: #242421;
-          --fill-hover: #2d2d29;
-          --text: #e8e8e3;
-          --muted: #8f8f86;
-          --action: #4c82f0;
-          --action-hover: #6494f3;
-          --danger: #e06a60;
-        }
-      }
       * {
         margin: 0;
         box-sizing: border-box;
       }
       body {
-        background: var(--bg);
-        color: var(--text);
+        background: var(--bg-surface);
+        color: var(--text-primary);
         font:
           13px/1.45 system-ui,
           sans-serif;
@@ -49,23 +24,23 @@
       }
       label {
         display: block;
-        color: var(--muted);
+        color: var(--text-muted);
         margin-bottom: 6px;
       }
       input {
         width: 100%;
         border: 0;
         outline: 0;
-        border-radius: 6px;
-        background: var(--fill);
-        color: var(--text);
+        border-radius: var(--ui-radius);
+        background: color-mix(in srgb, var(--border) 50%, transparent);
+        color: var(--text-primary);
         font:
           13px/1 ui-monospace,
           monospace;
         padding: 9px 10px;
       }
       input:focus {
-        background: var(--fill-hover);
+        background: color-mix(in srgb, var(--border) 80%, transparent);
       }
       .row {
         display: flex;
@@ -75,7 +50,7 @@
       }
       #status {
         flex: 1;
-        color: var(--muted);
+        color: var(--text-muted);
         max-height: 3.9em;
         overflow-y: auto;
         user-select: text;
@@ -85,19 +60,19 @@
       }
       button {
         border: 0;
-        border-radius: 6px;
+        border-radius: var(--ui-radius);
         padding: 7px 14px;
         font: inherit;
         cursor: pointer;
-        background: var(--fill);
-        color: var(--text);
+        background: color-mix(in srgb, var(--border) 50%, transparent);
+        color: var(--text-primary);
       }
       button:hover {
-        background: var(--fill-hover);
+        background: color-mix(in srgb, var(--border) 80%, transparent);
       }
       button.primary {
         background: var(--action);
-        color: #fff;
+        color: var(--action-ink);
       }
       button.primary:hover {
         background: var(--action-hover);

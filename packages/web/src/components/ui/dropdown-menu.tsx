@@ -2,7 +2,7 @@ import * as DropdownMenuPrimitive from '@radix-ui/react-dropdown-menu';
 import { Check, ChevronRight } from 'lucide-react';
 import * as React from 'react';
 import { cn } from '../../lib/utils';
-import { menuHighlightRadix, menuRow } from './recipes';
+import { menuHighlightRadix, menuRow, menuSurface } from './recipes';
 
 export const DropdownMenu = DropdownMenuPrimitive.Root;
 export const DropdownMenuTrigger = DropdownMenuPrimitive.Trigger;
@@ -18,7 +18,9 @@ export function DropdownMenuContent({
       <DropdownMenuPrimitive.Content
         sideOffset={sideOffset}
         className={cn(
-          'z-50 min-w-36 overflow-hidden rounded-md bg-elevated p-1 shadow-xl',
+          'z-50 min-w-36 overflow-hidden',
+          menuSurface,
+          'overlay-dropdown-menu-motion',
           className,
         )}
         {...props}
@@ -68,7 +70,9 @@ export function DropdownMenuSubContent({
     <DropdownMenuPrimitive.Portal>
       <DropdownMenuPrimitive.SubContent
         className={cn(
-          'z-50 min-w-36 overflow-hidden rounded-md bg-elevated p-1 shadow-xl',
+          'z-50 min-w-36 overflow-hidden',
+          menuSurface,
+          'overlay-dropdown-menu-motion',
           className,
         )}
         {...props}

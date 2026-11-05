@@ -1,3 +1,4 @@
+import { SessionHoverList } from './SessionHoverList';
 import './session-sidebar.css';
 import { ControlTray } from '../../../components/ui/control-tray';
 import { useEffect, useMemo, useRef, useState, type DragEvent, type ReactNode } from 'react';
@@ -265,7 +266,7 @@ function RailArchiveTarget({
           onClick={onExpand}
           {...drop.props}
           className={cn(
-            'island-outline mt-1 flex min-h-9 w-full shrink-0 items-center justify-center rounded-[var(--ui-surface-radius)] bg-tray p-1.5 text-fg-muted transition-colors hover:bg-elevated hover:text-fg compact:p-1',
+            'island-outline mt-auto flex min-h-9 w-full shrink-0 items-center justify-center rounded-[var(--ui-surface-radius)] bg-tray p-1.5 text-fg-muted transition-colors hover:bg-elevated hover:text-fg compact:p-1',
             drop.armed && 'bg-selection text-fg',
           )}
         >
@@ -427,9 +428,11 @@ function CollapsedSessionDot({
               }}
               to={`/project/${session.project_id}/session/${session.id}`}
               data-sidebar-motion={`sessions-item-${session.id}`}
+              data-session-hover
+              data-session-active={session.id === activeSessionId || undefined}
               aria-selected={selected}
               className={cn(
-                'flex items-center rounded-md p-1 transition-colors hover:bg-elevated',
+                'session-hover-row relative flex items-center rounded-[var(--ui-radius)] p-1 transition-colors',
                 selected
                   ? 'bg-explorer-selection'
                   : session.id === activeSessionId && 'bg-explorer-hover',
@@ -551,13 +554,12 @@ export function CollapsedSessionsRail({
           <IconButton icon={Search} label="Search sessions" onClick={onSearch} tooltipSide="left" />
         </ControlTray>
       </div>
-      <div className="no-scrollbar flex min-h-0 flex-1 flex-col items-center gap-[var(--ui-surface-gap)] overflow-y-auto overscroll-contain">
+      <SessionHoverList className="collapsed-session-list workspace-surface island-outline no-scrollbar flex min-h-0 w-full shrink flex-col items-center overflow-y-auto overscroll-contain bg-tray">
         {groups.map((group) => (
-          // A divider precedes every group (the first one separates glyphs
-          // from the controls above; the rest separate projects).
+          // Projects share one scrollable island; inset dividers separate them.
           <div
             key={group.projectId}
-            className="workspace-surface island-outline relative flex w-9 shrink-0 flex-col items-center gap-1 bg-tray py-1.5 compact:gap-0.5"
+            className="collapsed-session-project relative flex w-full shrink-0 flex-col items-center gap-1 py-1.5 compact:gap-0.5"
             onDragOver={(e) => {
               if (!dragProject) return;
               e.preventDefault();
@@ -676,7 +678,7 @@ export function CollapsedSessionsRail({
             )}
           </div>
         ))}
-      </div>
+      </SessionHoverList>
       {/* The rail's foot: sessions dragged here — glyphs above or centre tab
           chips — archive; a click expands the sidebar to the full list. */}
       <RailArchiveTarget onArchiveDrop={onArchiveDrop} onExpand={onExpand} />
@@ -755,9 +757,11 @@ function SessionRow({
           }}
           to={`/project/${session.project_id}/session/${session.id}`}
           data-sidebar-motion={`sessions-item-${session.id}`}
+          data-session-hover
+          data-session-active={session.id === activeSessionId || undefined}
           aria-selected={selection ? selected : undefined}
           className={cn(
-            'sidebar-row group relative flex items-center gap-[var(--ui-item-gap)] px-2 py-2 transition-colors hover:bg-explorer-hover compact:py-1.5',
+            'session-hover-row sidebar-row group relative flex items-center gap-[var(--ui-item-gap)] px-2 py-2 transition-colors compact:py-1.5',
             selected
               ? 'bg-explorer-selection'
               : session.id === activeSessionId && 'bg-explorer-hover',
@@ -1091,7 +1095,7 @@ function SessionListBody({
           visible scrollbar so a long cross-project list still works. */}
         {/* Initial clearance scrolls away with the list, leaving only the two
             control islands above the content. Include tray and header padding. */}
-        <div className="no-scrollbar col-start-1 row-start-1 min-h-0 overflow-y-auto overscroll-contain pb-1.5 pt-[calc(var(--ui-control-height)+1.5rem)]">
+        <SessionHoverList className="no-scrollbar col-start-1 row-start-1 min-h-0 overflow-y-auto overscroll-contain pb-1.5 pt-[calc(var(--ui-control-height)+1.5rem)]">
           {terms.length === 0 && total === 0 && archived.length === 0 && (
             <p className="px-3 py-3 text-xs text-fg-muted">
               No sessions yet — press {paletteKey} to start one.
@@ -1213,7 +1217,7 @@ function SessionListBody({
               </CollapsibleSessions>
             </div>
           ))}
-        </div>
+        </SessionHoverList>
       </div>
       {/* Archived sessions: hidden by default under a collapsible header at the
           bottom, never deleted — click one to reopen it and read its history
@@ -1223,13 +1227,7 @@ function SessionListBody({
       {(archived.length > 0 || sessionDragActive) && (
         <>
           {!showArchived && <div className="h-[var(--ui-surface-gap)] shrink-0" />}
-          {showArchived && (
-            <HeightHandle
-              handle={handle}
-              label="Resize the archived sessions"
-              className="h-[var(--ui-surface-gap)] bg-transparent hover:bg-transparent"
-            />
-          )}
+          {showArchived && <HeightHandle handle={handle} label="Resize the archived sessions" />}
           <div
             className="workspace-surface island-outline flex shrink-0 flex-col bg-surface pb-1.5"
             // Sized only while open (closed, the header is all there is). The
@@ -1256,7 +1254,7 @@ function SessionListBody({
               <span className="ml-auto tabular-nums">{archived.length}</span>
             </button>
             {showArchived && (
-              <div className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
+              <SessionHoverList className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
                 {displayedArchivedGroups.map((group) => (
                   <div
                     key={group.projectId}
@@ -1293,7 +1291,7 @@ function SessionListBody({
                     </ul>
                   </div>
                 ))}
-              </div>
+              </SessionHoverList>
             )}
           </div>
         </>

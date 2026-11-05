@@ -1,3 +1,4 @@
+import { ControlTray } from '../../components/ui/control-tray';
 import { useEffect, useRef, useState } from 'react';
 import {
   Archive,
@@ -58,7 +59,12 @@ export function PhoneSessionRail({
         />
       )}
       <aside className={cn('phone-session-rail', expanded && 'is-expanded')} aria-label="Sessions">
-        <div className="phone-rail-controls">
+        <ControlTray
+          label="Session actions"
+          vertical
+          variant="island"
+          className="phone-rail-controls"
+        >
           <Button
             variant="ghost"
             className="rail-control rail-toggle"
@@ -89,7 +95,7 @@ export function PhoneSessionRail({
             <SquareTerminal />
             {expanded && <span>New terminal</span>}
           </Button>
-        </div>
+        </ControlTray>
         <div className="phone-rail-projects no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
           {projects
             .filter((project) => !project.archived)
@@ -130,7 +136,7 @@ export function PhoneSessionRail({
               </div>
             ))}
         </div>
-        <div className="phone-rail-archive">
+        <ControlTray label="Session archive" variant="island" className="phone-rail-archive">
           <Button
             variant="ghost"
             className="rail-control"
@@ -140,7 +146,7 @@ export function PhoneSessionRail({
             <Archive />
             {expanded && <span>Archived{archived.length > 0 ? ` · ${archived.length}` : ''}</span>}
           </Button>
-        </div>
+        </ControlTray>
       </aside>
       <Dialog open={archive} onOpenChange={setArchive}>
         <DialogContent>

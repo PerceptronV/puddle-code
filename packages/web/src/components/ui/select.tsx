@@ -2,7 +2,7 @@ import * as SelectPrimitive from '@radix-ui/react-select';
 import { Check, ChevronDown } from 'lucide-react';
 import * as React from 'react';
 import { cn } from '../../lib/utils';
-import { fieldSurface, menuHighlightRadix, menuRow } from './recipes';
+import { fieldSurface, menuHighlightRadix, menuRow, menuSurface } from './recipes';
 
 export const Select = SelectPrimitive.Root;
 export const SelectValue = SelectPrimitive.Value;
@@ -15,7 +15,7 @@ export function SelectTrigger({
   return (
     <SelectPrimitive.Trigger
       className={cn(
-        'flex h-8 w-full cursor-pointer items-center justify-between gap-2 px-2.5 [&>span]:truncate',
+        'flex h-[var(--ui-field-height)] w-full cursor-pointer items-center justify-between gap-2 px-2.5 [&>span]:truncate',
         fieldSurface,
         className,
       )}
@@ -41,7 +41,9 @@ export function SelectContent({
         position={position}
         sideOffset={4}
         className={cn(
-          'z-50 max-h-72 min-w-[var(--radix-select-trigger-width)] max-w-[var(--radix-select-content-available-width)] overflow-y-auto rounded-md bg-elevated p-1 shadow-xl',
+          'z-50 max-h-72 min-w-[var(--radix-select-trigger-width)] max-w-[var(--radix-select-content-available-width)] overflow-y-auto',
+          menuSurface,
+          'overlay-select-motion',
           className,
         )}
         {...props}

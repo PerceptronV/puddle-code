@@ -19,6 +19,7 @@ import { flattenTabs, type DropEdge } from './layout-tree';
 import { PaneLeaf } from '../panes/PaneLeaf';
 
 export interface TileHandlers {
+  filetreeRoot: string | null;
   sessions: Session[];
   reveal: RevealTarget | null;
   onActivateTab: (leafId: string, ref: TabRef) => void;
@@ -96,6 +97,7 @@ function TileNode({ node, ...handlers }: { node: LayoutNode } & TileHandlers) {
     return (
       <PaneLeaf
         leaf={node}
+        filetreeRoot={handlers.filetreeRoot}
         sessions={handlers.sessions}
         reveal={handlers.reveal}
         onActivateTab={handlers.onActivateTab}

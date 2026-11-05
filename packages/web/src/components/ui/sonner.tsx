@@ -13,7 +13,9 @@ export function Toaster() {
         style: {
           background: 'var(--bg-elevated)',
           border: 'none',
-          boxShadow: '0 8px 30px rgb(0 0 0 / 0.25)',
+          boxShadow: 'var(--ui-overlay-shadow)',
+          borderRadius: 'var(--ui-surface-radius)',
+          outline: '1px solid var(--border)',
           color: 'var(--text-primary)',
         },
         classNames: {

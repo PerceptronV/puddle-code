@@ -70,7 +70,7 @@ export function CollapsedSidebarRail({
 }) {
   return (
     <div className="workspace-surface relative flex w-9 shrink-0 self-start flex-col items-center gap-1">
-      <ControlTray label="Navigators" variant="island" vertical>
+      <ControlTray motionId="workspace-navigators" label="Navigators" variant="island" vertical>
         <Tooltip>
           <TooltipTrigger asChild>
             <button
@@ -279,7 +279,7 @@ export function NavigatorSidebar({
 
   const controls = (
     <div className="flex items-center gap-1 px-2 py-1.5">
-      <ControlTray label="Navigators" variant="selection">
+      <ControlTray motionId="workspace-navigators" label="Navigators" variant="selection">
         {MODES.map(({ key, label, icon: Icon }) => (
           <Tooltip key={key}>
             <TooltipTrigger asChild>

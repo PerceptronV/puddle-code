@@ -6,16 +6,13 @@ export function Input({ className, type, ...props }: React.InputHTMLAttributes<H
   return (
     <input
       type={type}
-      className={cn('flex h-8 w-full px-2.5', fieldSurface, className)}
+      className={cn('flex h-[var(--ui-field-height)] w-full px-2.5', fieldSurface, className)}
       {...props}
     />
   );
 }
 
-export function Textarea({
-  className,
-  ...props
-}: React.TextareaHTMLAttributes<HTMLTextAreaElement>) {
+export function Textarea({ className, ...props }: React.ComponentProps<'textarea'>) {
   return (
     <textarea
       className={cn('flex min-h-16 w-full px-2.5 py-2', fieldSurface, className)}

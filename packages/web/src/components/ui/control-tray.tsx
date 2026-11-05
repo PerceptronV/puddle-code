@@ -7,18 +7,21 @@ import './control-tray.css';
 /** A shared control group, with an optional island surface, in either orientation. */
 export function ControlTray({
   label,
+  motionId,
   vertical = false,
   variant = 'actions',
   className,
   children,
 }: {
   label: string;
+  /** Stable identity within a TrayMotionProvider; labels are not identities. */
+  motionId?: string;
   vertical?: boolean;
   variant?: 'actions' | 'selection' | 'overlay' | 'island';
   className?: string;
   children: ReactNode;
 }) {
-  const { trayRef, markerRef } = useTraySelection(vertical, label);
+  const { trayRef, markerRef, motionKey } = useTraySelection(vertical, motionId);
   const hoverRef = useTrayHover(trayRef);
   return (
     <div
@@ -37,7 +40,7 @@ export function ControlTray({
         ref={markerRef}
         hidden
         aria-hidden
-        data-sidebar-motion={`tray-selection-${label}`}
+        data-sidebar-motion={`tray-selection-${motionKey}`}
         className="control-tray-selection"
       />
       <span ref={hoverRef} aria-hidden className="tray-hover-surface" />

@@ -2,7 +2,7 @@ import * as ContextMenuPrimitive from '@radix-ui/react-context-menu';
 import { ChevronRight } from 'lucide-react';
 import * as React from 'react';
 import { cn } from '../../lib/utils';
-import { menuHighlightRadix, menuRow } from './recipes';
+import { menuHighlightRadix, menuRow, menuSurface } from './recipes';
 
 /** Owned shadcn-style wrapper over Radix context-menu, styled like `dropdown-menu.tsx`. */
 export const ContextMenu = ContextMenuPrimitive.Root;
@@ -17,7 +17,9 @@ export function ContextMenuContent({
     <ContextMenuPrimitive.Portal>
       <ContextMenuPrimitive.Content
         className={cn(
-          'z-50 min-w-36 overflow-hidden rounded-md bg-elevated p-1 shadow-xl',
+          'z-50 min-w-36 overflow-hidden',
+          menuSurface,
+          'overlay-context-menu-motion',
           className,
         )}
         {...props}
@@ -67,7 +69,9 @@ export function ContextMenuSubContent({
     <ContextMenuPrimitive.Portal>
       <ContextMenuPrimitive.SubContent
         className={cn(
-          'z-50 min-w-36 overflow-hidden rounded-md bg-elevated p-1 shadow-xl',
+          'z-50 min-w-36 overflow-hidden',
+          menuSurface,
+          'overlay-context-menu-motion',
           className,
         )}
         {...props}

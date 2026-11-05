@@ -140,7 +140,7 @@ function useStatusCacheSync() {
  * double-click's own first click still navigates; the label is in the persistent
  * top bar, so it stays under the cursor.
  */
-function HomeButton({ projectColour }: { projectColour: string }) {
+function HomeButton() {
   const host = useHostInfo();
   const patchConfig = usePatchConfig();
   const [editing, setEditing] = useState(false);
@@ -161,7 +161,7 @@ function HomeButton({ projectColour }: { projectColour: string }) {
     'flex h-full shrink-0 items-center gap-2 px-4',
     shellTitleBar && '[-webkit-app-region:no-drag]',
   );
-  const type = cn('truncate font-sans text-xs font-normal text-fg', projectColour);
+  const type = 'truncate font-sans text-xs font-normal text-fg';
 
   if (editing && label !== undefined) {
     return (
@@ -234,10 +234,6 @@ function CommandField() {
 }
 
 function TopBar() {
-  const params = useParams();
-  const detail = useProjectDetail(params['id']);
-  const project = detail.data?.project;
-  const projectColour = project?.id === params['id'] ? appearanceColourClass(project?.colour) : '';
   // macOS hides the inlaid traffic lights in full-screen, so the inset kept for
   // them would indent the host name against nothing. Full-screen therefore drops
   // the inset — the name slides to the left edge — but NOT the height: the bar is
@@ -286,7 +282,7 @@ function TopBar() {
         data-header-section
         className="flex h-full min-w-0 cursor-default items-center overflow-hidden"
       >
-        <HomeButton projectColour={projectColour} />
+        <HomeButton />
       </div>
       <div aria-hidden="true" className="h-5 w-px bg-border" />
       <CommandField />

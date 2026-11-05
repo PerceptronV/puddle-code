@@ -573,14 +573,16 @@ describe('preview tabs (VSCode-style ephemeral tabs)', () => {
     expect(next.previewKey).toBe(keyOf(ed('a.ts')));
   });
 
-  it('a second single-click replaces the preview tab in place (one slot)', () => {
+  it('retains a lone file when another opens, then reuses the normal preview slot', () => {
     const leaf = makeLeaf([]);
     const t1 = openPreview(leaf, leaf.id, ed('a.ts'));
     const t2 = openPreview(t1, leaf.id, ed('b.ts'));
     const l = leafWith(t2, ed('b.ts'));
-    // a.ts is gone; b.ts took its slot and is the new preview
-    expect(l.tabs.map(keyOf)).toEqual([keyOf(ed('b.ts'))]);
+    // The first file becomes permanent as the pane reveals its tab strip.
+    expect(l.tabs.map(keyOf)).toEqual([keyOf(ed('a.ts')), keyOf(ed('b.ts'))]);
     expect(l.previewKey).toBe(keyOf(ed('b.ts')));
+    const third = leafWith(openPreview(t2, leaf.id, ed('c.ts')), ed('c.ts'));
+    expect(third.tabs.map(keyOf)).toEqual([keyOf(ed('a.ts')), keyOf(ed('c.ts'))]);
   });
 
   it('does not replace a permanent tab, and re-opening a permanent tab keeps it', () => {
@@ -615,7 +617,7 @@ describe('preview tabs (VSCode-style ephemeral tabs)', () => {
       tab: { session: 's1', path: 'a.md', view: 'preview' },
     });
     const second = leafWith(openPreview(first, leaf.id, ed('b.md')), ed('b.md'));
-    const tab = second.tabs[0];
+    const tab = second.tabs[1];
     expect(tab?.type === 'editor' && tab.tab.view).toBe('preview');
   });
 
@@ -626,11 +628,11 @@ describe('preview tabs (VSCode-style ephemeral tabs)', () => {
       tab: { session: 's1', path: 'a.md', view: 'preview' },
     });
     const code = leafWith(openPreview(rendered, leaf.id, ed('b.ts')), ed('b.ts'));
-    expect(code.tabs[0]?.type === 'editor' && code.tabs[0].tab.view).toBeUndefined();
+    expect(code.tabs[1]?.type === 'editor' && code.tabs[1].tab.view).toBeUndefined();
     // and a SOURCE markdown slot passes nothing on either
     const source = openPreview(leaf, leaf.id, ed('a.md'));
     const next = leafWith(openPreview(source, leaf.id, ed('b.md')), ed('b.md'));
-    expect(next.tabs[0]?.type === 'editor' && next.tabs[0].tab.view).toBeUndefined();
+    expect(next.tabs[1]?.type === 'editor' && next.tabs[1].tab.view).toBeUndefined();
   });
 
   it('a view the caller asked for wins over the slot it replaces', () => {
@@ -644,7 +646,7 @@ describe('preview tabs (VSCode-style ephemeral tabs)', () => {
       tab: { session: 's1', path: 'b.md', view: 'source' },
     };
     const next = leafWith(openPreview(rendered, leaf.id, asked), asked);
-    expect(next.tabs[0]?.type === 'editor' && next.tabs[0].tab.view).toBe('source');
+    expect(next.tabs[1]?.type === 'editor' && next.tabs[1].tab.view).toBe('source');
   });
 
   it('double-click (promoteTab) pins the preview tab', () => {

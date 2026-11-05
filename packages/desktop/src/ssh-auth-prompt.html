@@ -7,37 +7,15 @@
       content="default-src 'none'; style-src 'unsafe-inline'; script-src 'unsafe-inline'"
     />
     <title>SSH Authentication</title>
+    <!-- shared-prompt-appearance -->
     <style>
-      /* Shell chrome, outside the web app's token system — kept in step with
-         the host dialogues and HUMANS.md's spare, fill-only interaction. */
-      :root {
-        color-scheme: light dark;
-        --bg: #f6f6f4;
-        --fill: #e9e9e6;
-        --fill-hover: #dfdfdb;
-        --text: #1c1c1a;
-        --muted: #77776f;
-        --action: #2f6feb;
-        --action-hover: #275fd0;
-      }
-      @media (prefers-color-scheme: dark) {
-        :root {
-          --bg: #171715;
-          --fill: #242421;
-          --fill-hover: #2d2d29;
-          --text: #e8e8e3;
-          --muted: #8f8f86;
-          --action: #4c82f0;
-          --action-hover: #6494f3;
-        }
-      }
       * {
         margin: 0;
         box-sizing: border-box;
       }
       body {
-        background: var(--bg);
-        color: var(--text);
+        background: var(--bg-surface);
+        color: var(--text-primary);
         font:
           13px/1.45 system-ui,
           sans-serif;
@@ -57,7 +35,7 @@
         max-height: 4.35em;
         margin-bottom: 8px;
         overflow-y: auto;
-        color: var(--muted);
+        color: var(--text-muted);
         white-space: pre-wrap;
         user-select: text;
       }
@@ -65,20 +43,20 @@
         width: 100%;
         border: 0;
         outline: 0;
-        border-radius: 6px;
-        background: var(--fill);
-        color: var(--text);
+        border-radius: var(--ui-radius);
+        background: color-mix(in srgb, var(--border) 50%, transparent);
+        color: var(--text-primary);
         font:
           13px/1 ui-monospace,
           monospace;
         padding: 9px 10px;
       }
       input:focus {
-        background: var(--fill-hover);
+        background: color-mix(in srgb, var(--border) 80%, transparent);
       }
       .note {
         flex: 1;
-        color: var(--muted);
+        color: var(--text-muted);
         font-size: 11px;
       }
       .row {
@@ -89,19 +67,19 @@
       }
       button {
         border: 0;
-        border-radius: 6px;
+        border-radius: var(--ui-radius);
         padding: 7px 14px;
         font: inherit;
         cursor: pointer;
-        background: var(--fill);
-        color: var(--text);
+        background: color-mix(in srgb, var(--border) 50%, transparent);
+        color: var(--text-primary);
       }
       button:hover {
-        background: var(--fill-hover);
+        background: color-mix(in srgb, var(--border) 80%, transparent);
       }
       button.primary {
         background: var(--action);
-        color: #fff;
+        color: var(--action-ink);
       }
       button.primary:hover {
         background: var(--action-hover);

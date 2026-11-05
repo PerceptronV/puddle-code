@@ -19,6 +19,10 @@
   --ui-row-height: 1.875rem;
   --ui-tab-strip-height: 2.75rem;
   --ui-control-height: 1.75rem;
+  --ui-field-height: 2rem;
+  --ui-large-control-height: 2.25rem;
+  --ui-menu-radius: 0.375rem;
+  --ui-overlay-shadow: 0 12px 32px var(--shadow-overlay);
   --ui-radius: 0.5rem;
   --ui-surface-radius: 0.75rem;
   --ui-surface-gap: 0.375rem;
@@ -90,6 +94,7 @@
 
   /* bark (warm grey ink for paper tones) */
   --bark-500: #8a7663;
+  --bark-600: #806d5b; /* selected small text on white meets AA */
 
   /* tertiary pastels completing the ANSI set */
   --cyan-200: #a5e4e8; /* derived: bright step */
@@ -122,6 +127,9 @@
   --text-muted: var(--mist-500);
   /* A deliberate warm GOLD accent (sidebar glyph icons), gold in both themes. */
   --text-gold: var(--khaki-300);
+  --nav-selection: var(--khaki-300);
+  --nav-selection-ink: var(--navy-950);
+  --shadow-overlay: #00000040;
   --accent: var(--blue-300);
   --accent-hover: var(--blue-200);
   --focus-ring: var(--blue-300);
@@ -130,6 +138,7 @@
   --action-hover: var(--mist-300);
   --action-ink: var(--navy-800);
   --danger: var(--ember-200);
+  --danger-ink: var(--navy-950);
   --success: var(--green-300);
   --warning: var(--amber-300);
   /* Session status inverts the naive mapping (decision 2026-07-29): a running
@@ -194,6 +203,9 @@
   --text-muted: var(--neutral-500);
   /* The warm gold that muted text used to be — kept for deliberate glyph icons. */
   --text-gold: var(--bark-500);
+  --nav-selection: var(--bark-600);
+  --nav-selection-ink: var(--neutral-0);
+  --shadow-overlay: #00000026;
   --accent: var(--blue-600);
   --accent-hover: var(--blue-500);
   --focus-ring: var(--blue-600);
@@ -202,6 +214,7 @@
   --action-hover: var(--navy-700);
   --action-ink: var(--neutral-0);
   --danger: var(--ember-500);
+  --danger-ink: var(--neutral-0);
   /* SPEC §12 lists green-600 for the green assignments, but it misses 3:1 on
      --bg-elevated; they step one deeper (ramp unchanged) to keep the AA floor. */
   --success: var(--green-700);

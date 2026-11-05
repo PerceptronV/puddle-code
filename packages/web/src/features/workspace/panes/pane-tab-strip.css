@@ -2,3 +2,26 @@
 .pane-tab-controls:has(> button):not(:has(> button ~ button)) {
   padding: 0;
 }
+
+/* A lone tab occupies the whole pane. Its thin top edge retains the path tooltip,
+   drag/context-menu access and keyboard focus without reserving a title row. */
+.pane-single-tab-edge {
+  position: absolute;
+  z-index: 20;
+  inset: 0 0 auto;
+  height: 0.5rem;
+}
+.pane-single-tab > :not(.pane-tab-controls):not(input) {
+  display: none;
+}
+.pane-single-tab > .pane-tab-controls {
+  top: 0.375rem;
+  right: 0.375rem;
+  translate: none;
+}
+.pane-single-tab.pane-tab-renaming {
+  height: var(--ui-field-height);
+  padding-inline: var(--ui-list-inset);
+  background: var(--bg-base);
+  border-radius: var(--ui-radius);
+}

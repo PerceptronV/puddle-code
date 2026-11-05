@@ -1,3 +1,5 @@
+import { compactAction, textAction } from '../../components/ui/recipes';
+import { ControlTray } from '../../components/ui/control-tray';
 import { useEffect, useMemo, useState } from 'react';
 import { CornerDownLeft, Copy, NotebookPen, Pencil, Plus, Trash2 } from 'lucide-react';
 import { useParams } from 'react-router';
@@ -163,7 +165,7 @@ export function ScratchpadPopover() {
           <button
             type="button"
             onClick={() => setEditing(editing === 'new' ? null : 'new')}
-            className="ml-auto flex items-center rounded-md p-1 text-fg-gold transition-colors hover:bg-surface hover:text-fg"
+            className={cn(compactAction, 'ml-auto')}
           >
             <Plus className="size-4" />
             <span className="sr-only">New entry</span>
@@ -323,15 +325,11 @@ function ScratchpadRow({
               setConfirming(false);
               onDelete();
             }}
-            className="text-2xs font-medium text-interrupted transition-colors hover:underline"
+            className={cn(textAction, 'text-danger')}
           >
             Delete
           </button>
-          <button
-            type="button"
-            onClick={() => setConfirming(false)}
-            className="text-2xs text-fg-muted transition-colors hover:text-fg"
-          >
+          <button type="button" onClick={() => setConfirming(false)} className={textAction}>
             Cancel
           </button>
         </div>
@@ -348,7 +346,7 @@ function ScratchpadRow({
               {tag}
             </span>
           ))}
-          <div className="ml-auto flex items-center gap-1">
+          <ControlTray label="Scratchpad entry actions" className="ml-auto">
             {onInsert && (
               <RowAction
                 icon={CornerDownLeft}
@@ -359,7 +357,7 @@ function ScratchpadRow({
             <RowAction icon={Copy} label="Copy" onClick={onCopy} />
             <RowAction icon={Pencil} label="Edit" onClick={onEdit} />
             <RowAction icon={Trash2} label="Delete" onClick={() => setConfirming(true)} />
-          </div>
+          </ControlTray>
         </div>
       )}
     </div>
@@ -378,11 +376,7 @@ function RowAction({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button
-          type="button"
-          onClick={onClick}
-          className="rounded-md p-1 text-fg-gold transition-colors hover:bg-elevated hover:text-fg"
-        >
+        <button type="button" onClick={onClick} className={compactAction}>
           <Icon className="size-3.5" />
           <span className="sr-only">{label}</span>
         </button>

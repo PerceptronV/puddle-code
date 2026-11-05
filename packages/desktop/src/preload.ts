@@ -47,3 +47,23 @@ contextBridge.exposeInMainWorld('puddleDesktop', {
     return () => ipcRenderer.removeListener('puddle:fullscreen', handler);
   },
 });
+
+// Appearance is a shell concern, not an application API. Observe the cockpit's
+// existing setting without exposing another callable bridge to page scripts.
+window.addEventListener('DOMContentLoaded', () => {
+  const report = () => {
+    try {
+      const theme = localStorage.getItem('puddle.theme');
+      if (theme === 'light' || theme === 'dark' || theme === 'system')
+        ipcRenderer.send('puddle:appearance', theme);
+    } catch {
+      // A disabled storage area leaves native prompts on their last preference.
+    }
+  };
+  report();
+  new MutationObserver(report).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-theme'],
+  });
+  window.addEventListener('focus', report);
+});

@@ -1,8 +1,16 @@
-import { useCallback, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react';
+import {
+  useCallback,
+  useLayoutEffect,
+  useRef,
+  useState,
+  type PointerEvent as ReactPointerEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
+} from 'react';
+import { IslandResizeEdges } from './ui/island-resize-edges';
 import { cn } from '../lib/utils';
 
 /**
- * A draggable horizontal border that resizes the pane on one side of it — for
+ * A draggable horizontal gutter that resizes the pane on one side of it — for
  * the two places a full `react-resizable-panels` Group would be the wrong tool:
  * a disclosure that only exists while it is open (the session sidebar's
  * Archived pane) and a section inside a navigator that has no panel context
@@ -32,6 +40,9 @@ function storedHeight(id: string): number | null {
 
 export interface HeightHandle {
   dragging: boolean;
+  height: number;
+  min: number;
+  onKeyDown: (e: ReactKeyboardEvent<HTMLElement>) => void;
   onPointerDown: (e: ReactPointerEvent<HTMLElement>) => void;
 }
 
@@ -68,7 +79,8 @@ export function useResizableHeight(
       const move = (ev: PointerEvent) => {
         const dy = ev.clientY - startY;
         const next = sized === 'below' ? startHeight - dy : startHeight + dy;
-        setHeight(Math.round(Math.min(max, Math.max(min, next))));
+        heightRef.current = Math.round(Math.min(max, Math.max(min, next)));
+        setHeight(heightRef.current);
       };
       const done = () => {
         el.removeEventListener('pointermove', move);
@@ -88,13 +100,35 @@ export function useResizableHeight(
     [id, min, sized],
   );
 
-  return { height, handle: { dragging, onPointerDown } };
+  const onKeyDown = (event: ReactKeyboardEvent<HTMLElement>) => {
+    if (!['ArrowUp', 'ArrowDown', 'Home', 'End'].includes(event.key)) return;
+    event.preventDefault();
+    const container =
+      event.currentTarget.parentElement?.getBoundingClientRect().height ?? window.innerHeight;
+    const max = Math.max(min, container - 96);
+    const step =
+      (event.key === 'ArrowUp' ? -1 : 1) *
+      (sized === 'below' ? -1 : 1) *
+      (event.shiftKey ? 40 : 10);
+    const next =
+      event.key === 'Home'
+        ? min
+        : event.key === 'End'
+          ? max
+          : Math.min(max, Math.max(min, heightRef.current + step));
+    heightRef.current = next;
+    setHeight(next);
+    try {
+      localStorage.setItem(`${STORE_PREFIX}${id}`, String(next));
+    } catch {
+      /* Storage may be disabled. */
+    }
+  };
+  return { height, handle: { dragging, height, min, onPointerDown, onKeyDown } };
 }
 
 /**
- * The border itself: a hairline that colours on hover and while dragging, with
- * an invisible 9px grab band around it (a 1px target is unhittable). No box, no
- * grip dots — the cursor is the affordance (HUMANS.md).
+ * Empty resize gutter with shared, rounded facing-edge feedback.
  */
 export function HeightHandle({
   handle,
@@ -105,19 +139,40 @@ export function HeightHandle({
   label: string;
   className?: string;
 }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [maximum, setMaximum] = useState(Math.max(handle.min, window.innerHeight - 96));
+  useLayoutEffect(() => {
+    const parent = ref.current?.parentElement;
+    if (!parent) return;
+    const refresh = () =>
+      setMaximum(Math.max(handle.min, parent.getBoundingClientRect().height - 96));
+    refresh();
+    const observer = new ResizeObserver(refresh);
+    observer.observe(parent);
+    return () => observer.disconnect();
+  }, [handle.min]);
   return (
-    <div
-      role="separator"
-      aria-orientation="horizontal"
-      aria-label={label}
-      onPointerDown={handle.onPointerDown}
-      className={cn(
-        'relative h-px shrink-0 cursor-row-resize touch-none bg-border transition-colors hover:bg-accent',
-        handle.dragging && 'bg-accent',
-        className,
-      )}
-    >
-      <div className="absolute inset-x-0 -top-1 h-[9px]" />
-    </div>
+    <>
+      <div
+        ref={ref}
+        data-separator={handle.dragging ? 'active' : 'inactive'}
+        role="separator"
+        tabIndex={0}
+        aria-valuenow={Math.min(maximum, handle.height)}
+        aria-valuemax={maximum}
+        aria-valuemin={handle.min}
+        onKeyDown={handle.onKeyDown}
+        aria-orientation="horizontal"
+        aria-label={label}
+        onPointerDown={handle.onPointerDown}
+        className={cn(
+          'relative h-[var(--ui-surface-gap)] shrink-0 cursor-row-resize touch-none bg-transparent',
+          className,
+        )}
+      >
+        <div className="absolute inset-x-0 top-1/2 h-[9px] -translate-y-1/2" />
+      </div>
+      <IslandResizeEdges separatorRef={ref} vertical={false} />
+    </>
   );
 }

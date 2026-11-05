@@ -1,3 +1,4 @@
+import { checkChromeColours } from './check-chrome-colours.mjs';
 /**
  * CI guard for src/styles/tokens.css (SPEC §12): every theme block must
  * assign the complete semantic token set, and text pairings must pass
@@ -20,6 +21,9 @@ const REQUIRED_SEMANTIC_TOKENS = [
   '--text-secondary',
   '--text-muted',
   '--text-gold',
+  '--nav-selection',
+  '--nav-selection-ink',
+  '--danger-ink',
   '--accent',
   '--accent-hover',
   '--action',
@@ -59,7 +63,7 @@ const REQUIRED_SEMANTIC_TOKENS = [
   '--ansi-bright-white',
 ];
 
-const BACKGROUNDS = ['--bg-base', '--bg-surface', '--bg-elevated'];
+const BACKGROUNDS = ['--bg-base', '--bg-surface', '--bg-elevated', '--bg-tray'];
 // token → minimum ratio against every background (WCAG AA).
 const CONTRAST_FLOORS = {
   '--text-primary': 4.5,
@@ -79,7 +83,12 @@ const CONTRAST_FLOORS = {
 };
 
 // Text sitting on a coloured fill: [text token, fill token, floor].
-const FILL_PAIRS = [['--action-ink', '--action', 4.5]];
+const FILL_PAIRS = [
+  ['--action-ink', '--action', 4.5],
+  ['--action-ink', '--action-hover', 4.5],
+  ['--nav-selection-ink', '--nav-selection', 4.5],
+  ['--danger-ink', '--danger', 4.5],
+];
 
 /** Extracts `selector { ... }` bodies (tokens.css nests no rules). */
 function blocks(css) {
@@ -174,3 +183,5 @@ console.log(
   `check-tokens: ${themes.length} theme(s) complete, ` +
     `${Object.keys(CONTRAST_FLOORS).length * BACKGROUNDS.length} contrast pairs per theme pass AA`,
 );
+
+checkChromeColours();

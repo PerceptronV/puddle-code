@@ -7,7 +7,8 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const errors = [];
   page.on('pageerror', (error) => errors.push(error.message));
-  await page.goto('http://localhost:5174/');
+  await page.goto(process.env.PREVIEW_URL ?? 'http://localhost:5174/');
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
   await page.locator('[data-path="package.json"]').dblclick();
   await page.waitForSelector('.puddle-hidden-diff-controller', { state: 'attached' });
   await page.evaluate(async () => {

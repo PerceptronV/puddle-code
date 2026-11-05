@@ -39,6 +39,7 @@ import { paneInteractionIntent } from './pane-interaction';
  */
 export function PaneLeaf({
   leaf,
+  filetreeRoot,
   sessions,
   reveal,
   onActivateTab,
@@ -65,6 +66,7 @@ export function PaneLeaf({
   scrollChannel,
 }: {
   leaf: LayoutLeaf;
+  filetreeRoot: string | null;
   sessions: Session[];
   reveal: RevealTarget | null;
   onActivateTab: (leafId: string, ref: TabRef) => void;
@@ -218,7 +220,8 @@ export function PaneLeaf({
 
   return (
     <div
-      className="workspace-surface island-outline flex h-full flex-col bg-surface"
+      className="workspace-surface island-outline relative flex h-full flex-col bg-surface"
+      data-single-tab={leaf.tabs.length === 1 || undefined}
       onMouseDownCapture={() => interact('press')}
       // A wheel/trackpad gesture need not be preceded by a click. Promote an
       // eligible receiver to scroll driver, but leave logical pane focus alone.
@@ -228,6 +231,7 @@ export function PaneLeaf({
       {leaf.tabs.length > 0 && (
         <PaneTabStrip
           leaf={leaf}
+          filetreeRoot={filetreeRoot}
           sessions={sessions}
           onActivate={(ref) => onActivateTab(leaf.id, ref)}
           onClose={(ref) => onCloseTab(leaf.id, ref)}
@@ -253,6 +257,7 @@ export function PaneLeaf({
         data-editor-surface={activeRef?.type === 'editor' || undefined}
         className={cn(
           'relative min-h-0 flex-1',
+          leaf.tabs.length === 1 && 'mt-1',
           activeRef && 'mx-1 mb-1 overflow-hidden rounded-[var(--ui-radius)] bg-ground',
         )}
       >

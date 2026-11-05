@@ -1,3 +1,4 @@
+import { panePathLabel } from './pane-path';
 import './pane-tab-strip.css';
 import { useTrayHover } from '../../../components/ui/use-tray-hover';
 import { Fragment, useEffect, useRef, useState, type ReactNode } from 'react';
@@ -59,6 +60,7 @@ const TAB_MARQUEE = 'group-hover:[transform:translateX(var(--tail))]';
  */
 export function PaneTabStrip({
   leaf,
+  filetreeRoot,
   sessions,
   onActivate,
   onClose,
@@ -76,6 +78,7 @@ export function PaneTabStrip({
   onRenameFile,
 }: {
   leaf: LayoutLeaf;
+  filetreeRoot: string | null;
   sessions: Session[];
   onActivate: (ref: TabRef) => void;
   onClose: (ref: TabRef) => void;
@@ -97,6 +100,7 @@ export function PaneTabStrip({
   /** Rename a path-backed editor tab on disk; true when the edit may close. */
   onRenameFile: (tab: EditorTab, newName: string) => Promise<boolean>;
 }) {
+  const single = leaf.tabs.length === 1;
   const branches = new Map(sessions.map((s) => [s.id, s.branch]));
   const directories = new Map(sessions.map((s) => [s.id, s.worktree_path]));
   const editorTabs = leaf.tabs.flatMap((t) => (t.type === 'editor' ? [t.tab] : []));
@@ -130,7 +134,12 @@ export function PaneTabStrip({
       onPointerDown={(event) => {
         if (event.target === event.currentTarget) paneDrag.listeners?.onPointerDown?.(event);
       }}
-      className="flex h-[var(--ui-tab-strip-height)] shrink-0 cursor-grab items-stretch gap-1 overflow-x-auto bg-surface p-1 active:cursor-grabbing"
+      data-pane-single-edge={single || undefined}
+      className={
+        single
+          ? 'pane-single-tab-edge cursor-grab'
+          : 'flex h-[var(--ui-tab-strip-height)] shrink-0 cursor-grab items-stretch gap-1 overflow-x-auto bg-surface p-1 active:cursor-grabbing'
+      }
       // Blank space only: a double-click on a tab bubbles here with the tab
       // as the target, and that gesture is already "promote to permanent".
       onDoubleClick={(e) => {
@@ -142,6 +151,8 @@ export function PaneTabStrip({
           {caretAt === index && <InsertionCaret />}
           <PaneTab
             tab={ref}
+            single={single}
+            filetreeRoot={filetreeRoot}
             leafId={leaf.id}
             index={index}
             active={tabRefKey(ref) === leaf.activeKey}
@@ -231,7 +242,7 @@ function TabControls({ children }: { children: ReactNode }) {
   return (
     <span
       ref={trayRef}
-      className="pane-tab-controls sliding-hover-tray island-outline pointer-events-none absolute right-1 top-1/2 z-10 flex -translate-y-1/2 items-center gap-1 rounded-full bg-elevated px-1 py-1 shadow-sm opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100 pointer-coarse:pointer-events-auto pointer-coarse:opacity-100 [&_button]:size-5 [&_button]:items-center [&_button]:justify-center [&_button]:rounded-full"
+      className="pane-tab-controls sliding-hover-tray island-outline pointer-events-none absolute right-1 top-1/2 z-10 flex -translate-y-1/2 items-center gap-1 rounded-full bg-elevated px-1 py-1 shadow-sm opacity-0 group-hover:pointer-events-auto group-hover:opacity-100 group-focus-within:pointer-events-auto group-focus-within:opacity-100 focus-within:pointer-events-auto focus-within:opacity-100 pointer-coarse:pointer-events-auto pointer-coarse:opacity-100 [&_button]:size-5 [&_button]:items-center [&_button]:justify-center [&_button]:rounded-full"
     >
       <span ref={hoverRef} aria-hidden className="tray-hover-surface" />
       {children}
@@ -277,22 +288,29 @@ function ViewToggle({
   onSetView: (view: EditorView) => void;
 }) {
   const Icon = VIEW_ICON[view];
+  const label = notebook
+    ? view === 'source'
+      ? 'Show notebook'
+      : 'Show JSON source'
+    : VIEW_TITLE[view];
   return (
-    <button
-      onClick={(e) => {
-        e.stopPropagation();
-        onSetView(notebook ? (view === 'source' ? 'preview' : 'source') : VIEW_CYCLE[view]);
-      }}
-      className="hidden rounded-sm p-0.5 text-fg-muted transition-colors hover:text-fg group-hover:inline-flex pointer-coarse:inline-flex"
-      aria-label={
-        notebook ? (view === 'source' ? 'Show notebook' : 'Show JSON source') : VIEW_TITLE[view]
-      }
-      title={
-        notebook ? (view === 'source' ? 'Show notebook' : 'Show JSON source') : VIEW_TITLE[view]
-      }
-    >
-      <Icon className="size-3" />
-    </button>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onSetView(notebook ? (view === 'source' ? 'preview' : 'source') : VIEW_CYCLE[view]);
+          }}
+          className="hidden rounded-sm p-0.5 text-fg-muted transition-colors hover:text-fg group-hover:inline-flex group-focus-within:inline-flex pointer-coarse:inline-flex"
+          aria-label={label}
+        >
+          <Icon className="size-3" />
+        </button>
+      </TooltipTrigger>
+      <TooltipContent side="bottom" collisionPadding={8}>
+        {label}
+      </TooltipContent>
+    </Tooltip>
   );
 }
 
@@ -321,7 +339,7 @@ function CompilationControls({
           onRun();
         }}
         className={cn(
-          'hidden rounded-sm p-0.5 transition-colors hover:text-fg disabled:cursor-wait group-hover:inline-flex pointer-coarse:inline-flex',
+          'hidden rounded-sm p-0.5 transition-colors hover:text-fg disabled:cursor-wait group-hover:inline-flex group-focus-within:inline-flex pointer-coarse:inline-flex',
           eager ? 'text-fg-muted' : 'text-accent',
         )}
         aria-label={
@@ -354,7 +372,7 @@ function CompilationControls({
             onSetMode(eager ? 'on_demand' : 'eager');
           }}
           className={cn(
-            'hidden rounded-sm p-0.5 transition-colors hover:text-fg disabled:cursor-wait group-hover:inline-flex pointer-coarse:inline-flex',
+            'hidden rounded-sm p-0.5 transition-colors hover:text-fg disabled:cursor-wait group-hover:inline-flex group-focus-within:inline-flex pointer-coarse:inline-flex',
             eager ? 'text-accent' : 'text-fg-muted',
           )}
           aria-label={eager ? 'Disable eager compilation' : 'Enable eager compilation'}
@@ -375,6 +393,8 @@ function CompilationControls({
 
 function PaneTab({
   tab,
+  single,
+  filetreeRoot,
   leafId,
   index,
   active,
@@ -398,6 +418,8 @@ function PaneTab({
   onRenameFile,
 }: {
   tab: TabRef;
+  single: boolean;
+  filetreeRoot: string | null;
   leafId: string;
   index: number;
   active: boolean;
@@ -441,8 +463,10 @@ function PaneTab({
     setDropRef(el);
   };
   const cls = cn(
-    TAB_CLASS,
-    active ? 'bg-ground text-fg' : 'text-fg-secondary hover:bg-elevated',
+    single
+      ? 'pane-single-tab group relative flex h-2 w-full cursor-grab items-center text-xs'
+      : TAB_CLASS,
+    !single && (active ? 'bg-ground text-fg' : 'text-fg-secondary hover:bg-elevated'),
     // A preview (ephemeral) tab reads as italic, like VSCode — it will be
     // replaced by the next single-click open until a double-click pins it.
     preview && 'italic',
@@ -456,7 +480,17 @@ function PaneTab({
       {...(renaming ? {} : listeners)}
       onClick={onActivate}
       onDoubleClick={onPromote}
-      className={cn(cls, renaming && 'cursor-text select-text')}
+      className={cn(cls, renaming && 'pane-tab-renaming cursor-text select-text')}
+      data-pane-tab={key}
+      aria-label={
+        single
+          ? tab.type === 'editor'
+            ? panePathLabel(tab.tab, fileDirectory, filetreeRoot)
+            : session
+              ? renderTitle(session)
+              : tab.session
+          : undefined
+      }
     >
       {tab.type === 'terminal' ? (
         <>
@@ -483,7 +517,7 @@ function PaneTab({
                 e.stopPropagation();
                 onClose();
               }}
-              className="hidden rounded-sm p-0.5 text-fg-muted transition-colors hover:text-fg group-hover:inline-flex pointer-coarse:inline-flex"
+              className="hidden rounded-sm p-0.5 text-fg-muted transition-colors hover:text-fg group-hover:inline-flex group-focus-within:inline-flex pointer-coarse:inline-flex"
               aria-label="Close tab"
             >
               <X className="size-3" />
@@ -578,9 +612,17 @@ function PaneTab({
   // sits at the top of its pane, so upwards it would cover the strip above it —
   // or, in the first pane, the window's traffic lights.
   const tooltip = (
-    <TooltipContent side="bottom">
+    <TooltipContent side="bottom" className="max-w-[calc(100vw-2rem)] break-all">
       <TabTooltipBody
-        name={tab.type === 'terminal' ? (session ? renderTitle(session) : tab.session) : label}
+        name={
+          tab.type === 'terminal'
+            ? session
+              ? renderTitle(session)
+              : tab.session
+            : single
+              ? panePathLabel(tab.tab, fileDirectory, filetreeRoot)
+              : label
+        }
         session={tab.type === 'terminal' ? session : fileSession}
       />
     </TooltipContent>

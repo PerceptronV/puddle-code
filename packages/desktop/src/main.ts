@@ -1,3 +1,4 @@
+import { isShellTheme, loadShellTheme, saveShellTheme } from './appearance.js';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { PROTOCOL_VERSION } from '@puddle/shared';
@@ -64,6 +65,8 @@ import { DesktopNotifications } from './notifications.js';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const LOCAL = 'local';
+const appearanceFile = () => join(clientHome(), 'desktop-appearance.json');
+let promptTheme = loadShellTheme(appearanceFile());
 
 const logger: Logger = {
   info: (message) => console.log(`[Puddle] ${message}`),
@@ -92,6 +95,7 @@ let windowStateLoaded = false;
 
 const sshAuthPrompter = createSshAuthPrompter({
   htmlPath: join(here, 'ssh-auth-prompt.html'),
+  theme: () => promptTheme,
   preloadPath: join(here, 'auth-preload.cjs'),
   isHostOpen: (target) => shells.has(target) || connecting.has(target),
   // Focus may belong to another app or macOS Space during a reconnect; the
@@ -369,7 +373,7 @@ function openConnectPrompt(): void {
     webPreferences: { preload: join(here, 'prompt-preload.cjs') },
   });
   promptWin.setMenuBarVisibility(false); // Windows/Linux: no menu on the dialogue
-  void promptWin.loadFile(join(here, 'connect-prompt.html'));
+  void promptWin.loadFile(join(here, 'connect-prompt.html'), { query: { theme: promptTheme } });
   promptWin.on('closed', () => {
     promptWin = null;
   });
@@ -425,7 +429,7 @@ function openHostPicker(): void {
     webPreferences: { preload: join(here, 'picker-preload.cjs') },
   });
   pickerWin.setMenuBarVisibility(false);
-  void pickerWin.loadFile(join(here, 'host-picker.html'));
+  void pickerWin.loadFile(join(here, 'host-picker.html'), { query: { theme: promptTheme } });
   pickerWin.on('closed', () => {
     pickerWin = null;
   });
@@ -758,3 +762,16 @@ if (!app.requestSingleInstanceLock()) {
     void Promise.allSettled(all.map((s) => s.cockpit.stop())).finally(() => app.exit(0));
   });
 }
+
+// Accept only a bounded preference from a registered cockpit's main frame.
+ipcMain.on('puddle:appearance', (event, value: unknown) => {
+  if (!isShellTheme(value) || event.senderFrame !== event.sender.mainFrame) return;
+  const owner = [...shells.values()].find(
+    ({ win }) => !win.isDestroyed() && win.webContents === event.sender,
+  );
+  if (!owner || new URL(event.senderFrame.url).origin !== new URL(owner.cockpit.origin).origin)
+    return;
+  if (promptTheme === value) return;
+  promptTheme = value;
+  saveShellTheme(appearanceFile(), value);
+});

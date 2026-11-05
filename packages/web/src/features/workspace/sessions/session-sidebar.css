@@ -22,3 +22,31 @@
     transition: none;
   }
 }
+
+/* One content-sized island, bounded by the controls and archive in the rail. */
+.collapsed-session-list {
+  flex-basis: auto;
+  border-radius: var(--ui-surface-radius);
+}
+.collapsed-session-project + .collapsed-session-project::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  inset-inline: var(--ui-list-inset);
+  height: 1px;
+  background: var(--border);
+}
+
+.session-hover-surface {
+  background: var(--explorer-hover);
+}
+.collapsed-session-list > .session-hover-surface {
+  background: var(--bg-elevated);
+}
+.session-hover-row {
+  z-index: 1;
+}
+.session-hover-list > :not(.session-hover-surface) {
+  position: relative;
+  z-index: 1;
+}

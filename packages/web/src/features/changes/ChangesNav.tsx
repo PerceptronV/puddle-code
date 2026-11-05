@@ -97,11 +97,7 @@ export function ChangesNav({
           />
         )}
       </section>
-      <HeightHandle
-        handle={handle}
-        label="Resize the uncommitted changes"
-        className="h-[var(--ui-surface-gap)] bg-transparent hover:bg-transparent"
-      />
+      <HeightHandle handle={handle} label="Resize the uncommitted changes" />
       <div className="workspace-surface island-outline flex min-h-0 flex-1 flex-col bg-surface">
         <div className="flex h-7 shrink-0 items-center px-3">
           <span className="text-2xs font-medium uppercase tracking-wide text-fg-gold">History</span>

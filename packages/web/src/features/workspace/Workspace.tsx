@@ -1,3 +1,4 @@
+import { TrayMotionProvider } from '../../components/ui/tray-motion';
 import { animateSidebar } from './layout/animate-sidebar';
 import { IslandSeparator } from './layout/IslandSeparator';
 import { runOpenNotebook } from '../editor/notebooks/notebook-run-registry';
@@ -164,9 +165,11 @@ import { workspaceTitle } from './workspace-title';
  */
 export function Workspace() {
   return (
-    <EditorProvider>
-      <WorkspaceInner />
-    </EditorProvider>
+    <TrayMotionProvider>
+      <EditorProvider>
+        <WorkspaceInner />
+      </EditorProvider>
+    </TrayMotionProvider>
   );
 }
 
@@ -902,8 +905,10 @@ function WorkspaceInner() {
     nonce: number;
   } | null>(null);
   const filetreeRootRef = useRef<string | null>(null);
+  const [filetreeRoot, setFiletreeRoot] = useState<string | null>(null);
   const rememberFiletreeRoot = useCallback((root: string | null) => {
     filetreeRootRef.current = root;
+    setFiletreeRoot(root);
   }, []);
   // Explorer clicks: a single click opens an ephemeral preview tab; a double
   // click opens (or promotes to) a permanent one.
@@ -1870,6 +1875,7 @@ function WorkspaceInner() {
       <div className="min-h-0 flex-1">
         <TileTree
           tree={layout.tree}
+          filetreeRoot={filetreeRoot ?? targetRoot ?? targetSession?.worktree_path ?? null}
           sessions={tabSessions}
           reveal={reveal}
           onActivateTab={onActivateTab}

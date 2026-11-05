@@ -1,3 +1,5 @@
+import { Button } from '../../components/ui/button';
+import { fieldSurface } from '../../components/ui/recipes';
 import { useEffect, useState } from 'react';
 import type { Session } from '@puddle/shared';
 import { wsManager } from '../../lib/transport/ws';
@@ -24,6 +26,7 @@ export function LocalPhonePane({
     <div className="phone-workspace">
       <nav className="phone-selectors">
         <select
+          className={fieldSurface}
           aria-label="Session"
           value={selected ?? ''}
           onChange={(event) => select(event.target.value)}
@@ -36,7 +39,9 @@ export function LocalPhonePane({
             </option>
           ))}
         </select>
-        <button onClick={() => setReview(!review)}>{review ? 'Terminal' : 'Review'}</button>
+        <Button variant="secondary" aria-pressed={review} onClick={() => setReview(!review)}>
+          {review ? 'Terminal' : 'Review'}
+        </Button>
       </nav>
       {!connected && <p role="status">Reconnecting… Your draft will stay here.</p>}
       <div className="phone-view">

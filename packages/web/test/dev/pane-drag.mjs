@@ -6,7 +6,8 @@ try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const errors = [];
   page.on('pageerror', (e) => errors.push(e.message));
-  await page.goto('http://localhost:5174/');
+  await page.goto(process.env.PREVIEW_URL ?? 'http://localhost:5174/');
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
   await page.locator('[data-path="README.md"]').dblclick();
   await page.locator('[data-path="package.json"]').dblclick();
   await page.waitForSelector('.monaco-editor');
@@ -64,7 +65,7 @@ try {
   );
   const order = await handles.evaluateAll((els) => els.map((el) => el.dataset.paneDragHandle));
   const last = await handles.last().boundingBox();
-  await page.mouse.move(last.x + last.width - 25, last.y + 15);
+  await page.mouse.move(last.x + last.width - 25, last.y + Math.min(15, last.height / 2));
   await page.mouse.down();
   await page.mouse.move(last.x + last.width - 45, last.y + 60, { steps: 6 });
   await page.keyboard.press('Escape');

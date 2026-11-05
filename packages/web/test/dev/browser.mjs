@@ -11,7 +11,8 @@ try {
     console.log('BROWSER ERROR', e.message);
   });
 
-  await page.goto('http://localhost:5174/');
+  await page.goto(process.env.PREVIEW_URL ?? 'http://localhost:5174/');
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
   await page.getByRole('group', { name: 'Workspace controls' }).waitFor();
   const actionTray = page.getByRole('group', { name: 'Workspace controls' });
   assert.equal(

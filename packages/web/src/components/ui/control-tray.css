@@ -14,7 +14,7 @@
   z-index: 1;
   inset: 0 auto auto 0;
   border-radius: 999px;
-  background: var(--text-gold);
+  background: var(--nav-selection);
   pointer-events: none;
   transition:
     transform 180ms ease-out,
@@ -63,8 +63,8 @@
 
 .control-tray > button[aria-current='page'],
 .control-tray > button[aria-current='page']:hover {
-  background: var(--text-gold);
-  color: var(--bg-base);
+  background: var(--nav-selection);
+  color: var(--nav-selection-ink);
 }
 
 .control-tray > button > svg {
@@ -77,7 +77,7 @@
   color: var(--text-primary);
 }
 .control-tray[data-sliding-selection] > button[data-selection-highlight] {
-  color: var(--bg-base);
+  color: var(--nav-selection-ink);
 }
 .control-tray[data-sliding-selection] > button[aria-current='page'] {
   cursor: grab;

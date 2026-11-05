@@ -1,3 +1,5 @@
+import { compactAction, textAction } from '../../components/ui/recipes';
+import { ControlTray } from '../../components/ui/control-tray';
 import { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Copy, LayoutTemplate, Pencil, Plus, Save, Trash2 } from 'lucide-react';
@@ -271,7 +273,7 @@ export function LayoutsPopover() {
             <button
               type="button"
               onClick={() => setComposing((c) => !c)}
-              className="ml-auto flex items-center rounded-md p-1 text-fg-gold transition-colors hover:bg-surface hover:text-fg"
+              className={cn(compactAction, 'ml-auto')}
             >
               <Plus className="size-4" />
               <span className="sr-only">Save the current layout as a new layout</span>
@@ -560,7 +562,7 @@ function LayoutRow({
             <span className="text-2xs uppercase tracking-wide text-fg-muted">{projectLabel}</span>
           )}
           {/* Same order as a Scratchpad row's tools: act, copy, edit, delete. */}
-          <div className="ml-auto flex items-center gap-1">
+          <ControlTray label="Layout actions" className="ml-auto">
             {savable && (
               <>
                 <RowAction
@@ -577,7 +579,7 @@ function LayoutRow({
             )}
             <RowAction icon={Pencil} label="Rename" onClick={() => startEditing('rename')} />
             <RowAction icon={Trash2} label="Delete" onClick={() => setConfirming('delete')} />
-          </div>
+          </ControlTray>
         </div>
       )}
     </div>
@@ -599,18 +601,10 @@ function InlineConfirm({
   return (
     <div className="mt-2 flex items-center gap-3">
       <span className="text-2xs text-fg-muted">{question}</span>
-      <button
-        type="button"
-        onClick={onConfirm}
-        className="text-2xs font-medium text-interrupted transition-colors hover:underline"
-      >
+      <button type="button" onClick={onConfirm} className={cn(textAction, 'text-danger')}>
         {verb}
       </button>
-      <button
-        type="button"
-        onClick={onCancel}
-        className="text-2xs text-fg-muted transition-colors hover:text-fg"
-      >
+      <button type="button" onClick={onCancel} className={textAction}>
         Cancel
       </button>
     </div>
@@ -653,11 +647,7 @@ function RowAction({
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <button
-          type="button"
-          onClick={onClick}
-          className="rounded-md p-1 text-fg-gold transition-colors hover:bg-elevated hover:text-fg"
-        >
+        <button type="button" onClick={onClick} className={compactAction}>
           <Icon className="size-3.5" />
           <span className="sr-only">{label}</span>
         </button>

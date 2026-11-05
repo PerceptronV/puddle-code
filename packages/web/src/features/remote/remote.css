@@ -98,7 +98,7 @@
   flex: 1;
   min-width: 0;
   align-items: center;
-  border-radius: var(--radius-md);
+  border-radius: var(--ui-radius);
   background: var(--bg-surface);
 }
 .phone-keys [aria-pressed='true'] {
@@ -196,7 +196,7 @@
   min-width: 0;
   min-height: 2rem;
   padding: 0.25rem;
-  border-radius: var(--radius-md);
+  border-radius: var(--ui-radius);
   touch-action: pan-y;
   user-select: none;
   -webkit-touch-callout: none;
@@ -394,7 +394,11 @@
 .phone-selectors select {
   flex: 1;
   min-width: 0;
-  background: var(--bg-surface);
+  min-height: 2.75rem;
+  padding: 0.5rem;
+}
+.phone-selectors > button {
+  min-height: 2.75rem;
 }
 .remote-viewport [role='dialog'] {
   overscroll-behavior: contain;
@@ -491,7 +495,7 @@
   background: var(--bg-surface);
   outline: 1px solid var(--border);
   outline-offset: -1px;
-  box-shadow: 0 12px 32px color-mix(in srgb, var(--text-primary) 20%, transparent);
+  box-shadow: var(--ui-overlay-shadow);
 }
 .is-expanded .phone-rail-controls {
   background: var(--bg-elevated);
@@ -526,4 +530,25 @@
 .phone-keys [aria-pressed='true'] {
   background: var(--action);
   color: var(--action-ink);
+}
+
+/* Shared trays retain touch-sized controls and space for expanded labels. */
+.phone-session-rail .control-tray {
+  align-items: stretch;
+}
+.phone-session-rail .control-tray > button {
+  min-height: 2.75rem;
+  height: auto;
+}
+.phone-session-rail.is-expanded .control-tray > button {
+  justify-content: flex-start;
+  gap: 0.75rem;
+  padding-inline: 0.75rem;
+}
+.phone-session-button {
+  min-height: 2.75rem;
+}
+.phone-session-group > div > button:last-child:not(:first-child) {
+  min-height: 2.75rem;
+  min-width: 2.75rem;
 }

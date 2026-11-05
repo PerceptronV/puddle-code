@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+import { renderPrompt } from './prompt-assets.mjs';
 /**
  * Builds the desktop shell, mirroring the CLI's build exactly: the main
  * process bundles the SAME `packages/cli/src/lib` sources (aliased, ws
@@ -7,7 +8,7 @@
  * built web UI is copied under dist/public — one codebase, two downstream
  * builds (SPEC §10).
  */
-import { cpSync, existsSync, readFileSync, rmSync } from 'node:fs';
+import { cpSync, existsSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
@@ -67,9 +68,9 @@ await build({
   format: 'cjs',
 });
 
-cpSync(join(pkgRoot, 'src/connect-prompt.html'), join(pkgRoot, 'dist/connect-prompt.html'));
-cpSync(join(pkgRoot, 'src/host-picker.html'), join(pkgRoot, 'dist/host-picker.html'));
-cpSync(join(pkgRoot, 'src/ssh-auth-prompt.html'), join(pkgRoot, 'dist/ssh-auth-prompt.html'));
+writeFileSync(join(pkgRoot, 'dist/connect-prompt.html'), renderPrompt('connect-prompt'));
+writeFileSync(join(pkgRoot, 'dist/host-picker.html'), renderPrompt('host-picker'));
+writeFileSync(join(pkgRoot, 'dist/ssh-auth-prompt.html'), renderPrompt('ssh-auth-prompt'));
 cpSync(join(repoRoot, 'scripts/install.sh'), join(pkgRoot, 'dist/install.sh'));
 
 const webDist = join(repoRoot, 'packages/web/dist');

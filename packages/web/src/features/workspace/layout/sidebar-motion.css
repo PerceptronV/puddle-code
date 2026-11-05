@@ -34,3 +34,9 @@ html.sidebar-transition::view-transition-new(*.sidebar-item) {
     animation-duration: 0s;
   }
 }
+
+html[data-reduce-motion='true']::view-transition-group(*),
+html[data-reduce-motion='true']::view-transition-old(*),
+html[data-reduce-motion='true']::view-transition-new(*) {
+  animation: none !important;
+}

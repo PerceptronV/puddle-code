@@ -11,6 +11,7 @@ interface PendingPrompt {
 export function createSshAuthPrompter(opts: {
   htmlPath: string;
   preloadPath: string;
+  theme?(): 'light' | 'dark' | 'system';
   isHostOpen(target: string): boolean;
   parent(target: string): BrowserWindow | null;
 }): {
@@ -65,7 +66,9 @@ export function createSshAuthPrompter(opts: {
         }
       });
       win.on('closed', () => current.finish(null));
-      void win.loadFile(opts.htmlPath).catch(() => current.finish(null));
+      void win
+        .loadFile(opts.htmlPath, { query: { theme: opts.theme?.() ?? 'system' } })
+        .catch(() => current.finish(null));
     } catch {
       current.finish(null);
     }

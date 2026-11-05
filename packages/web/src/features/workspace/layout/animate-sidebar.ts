@@ -69,6 +69,7 @@ export function animateSidebar(change: () => void) {
   const transition = document.startViewTransition(() => {
     restoreBefore();
     flushSync(change);
+    if (reducedMotion()) return;
     if (main?.isConnected && before) {
       const after = main.getBoundingClientRect();
       const parent = main.parentElement!;
@@ -94,8 +95,18 @@ export function animateSidebar(change: () => void) {
     restoreAfter = nameCounterparts();
   });
   current = transition;
+  const motionPreference = new MutationObserver(() => {
+    if (!reducedMotion()) return;
+    mainAnimation?.cancel();
+    transition.skipTransition();
+  });
+  motionPreference.observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-reduce-motion'],
+  });
   void transition.finished
     .finally(() => {
+      motionPreference.disconnect();
       if (current !== transition) return;
       restoreBefore();
       restoreAfter();

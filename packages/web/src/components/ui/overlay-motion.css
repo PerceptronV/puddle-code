@@ -26,7 +26,11 @@
     opacity: 1;
   }
 }
-.overlay-content-motion[data-state='open'] {
+.overlay-content-motion:is(
+  [data-state='open'],
+  [data-state='delayed-open'],
+  [data-state='instant-open']
+) {
   animation: overlay-appear 180ms ease-out;
 }
 .overlay-content-motion[data-state='closed'] {
@@ -40,4 +44,25 @@
 }
 .overlay-backdrop-motion[data-state='closed'] {
   animation: overlay-backdrop-appear 120ms ease-in reverse;
+}
+
+.overlay-select-motion {
+  transform-origin: var(--radix-select-content-transform-origin);
+}
+.overlay-dropdown-menu-motion {
+  transform-origin: var(--radix-dropdown-menu-content-transform-origin);
+}
+.overlay-context-menu-motion {
+  transform-origin: var(--radix-context-menu-content-transform-origin);
+}
+.overlay-tooltip-motion {
+  transform-origin: var(--radix-tooltip-content-transform-origin);
+}
+
+/* Radix content clears native focus outlines inline. Use an inset shadow for
+   the island edge so its focus management cannot erase the surface boundary. */
+.overlay-surface {
+  box-shadow:
+    var(--ui-overlay-shadow),
+    inset 0 0 0 1px var(--border);
 }

@@ -467,8 +467,9 @@ export function setCompileMode(
 /**
  * Open `ref` as leaf `leafId`'s ephemeral PREVIEW tab (VSCode single-click). If
  * `ref` is already open it is just focused (its permanent/preview state stays);
- * otherwise it replaces the leaf's current preview tab IN PLACE — so a run of
- * single-clicks reuses one slot — and becomes the new preview + active tab.
+ * otherwise it replaces the preview slot in a multi-tab pane. A lone tab is
+ * retained when another opens, revealing the normal strip; subsequent preview
+ * opens reuse the second slot.
  *
  * Exception: a preview TERMINAL is a live PTY, so it is never silently discarded
  * — instead it is PINNED (promoted) and the new tab opens alongside it. That
@@ -504,10 +505,13 @@ export function openPreview(tree: LayoutNode, leafId: string, ref: TabRef): Layo
     const idx = leaf.previewKey ? leaf.tabs.findIndex((t) => tabRefKey(t) === leaf.previewKey) : -1;
     const outgoing = idx >= 0 ? leaf.tabs[idx]! : undefined;
     const replaceInPlace =
-      outgoing !== undefined && !isTerminal(outgoing) && !isFollowing(outgoing);
+      leaf.tabs.length > 1 &&
+      outgoing !== undefined &&
+      !isTerminal(outgoing) &&
+      !isFollowing(outgoing);
     // `view` is not part of tab identity, so the key is the incoming ref's
     // either way — only the tab object it names changes.
-    const opened = replaceInPlace ? inheritView(outgoing, ref) : ref;
+    const opened = outgoing ? inheritView(outgoing, ref) : ref;
     const tabs = replaceInPlace
       ? leaf.tabs.map((t, i) => (i === idx ? opened : t))
       : [...leaf.tabs, opened];

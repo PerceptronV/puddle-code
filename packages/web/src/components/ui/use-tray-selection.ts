@@ -1,18 +1,21 @@
-import { useLayoutEffect, useRef } from 'react';
-
-const positions = new Map<string, { x: number; y: number; width: number; height: number }>();
+import { useContext, useId, useLayoutEffect, useRef } from 'react';
+import { TrayMotionContext, type TrayPosition } from './tray-motion';
 
 /** One magnetic selection marker, shared by horizontal and vertical trays. */
-export function useTraySelection(vertical: boolean, label: string) {
+export function useTraySelection(vertical: boolean, motionId?: string) {
+  const instanceId = useId();
+  const scope = useContext(TrayMotionContext);
+  const local = useRef(new Map<string, TrayPosition>());
+  const positions = motionId && scope ? scope : local.current;
+  const key = motionId ?? instanceId;
   const trayRef = useRef<HTMLDivElement>(null);
   const markerRef = useRef<HTMLSpanElement>(null);
   useLayoutEffect(() => {
     const tray = trayRef.current;
     const marker = markerRef.current;
     if (!tray || !marker) return;
-    const key = `${label}:${vertical ? 'vertical' : 'horizontal'}`;
     const previous = positions.get(key);
-    if (previous) {
+    if (previous && previous.vertical === vertical) {
       marker.hidden = false;
       marker.style.transition = 'none';
       marker.style.width = `${previous.width}px`;
@@ -21,6 +24,7 @@ export function useTraySelection(vertical: boolean, label: string) {
       void marker.offsetWidth;
       marker.style.transition = '';
     }
+    let placed = !!previous && previous.vertical === vertical;
     const buttons = () => [...tray.querySelectorAll<HTMLButtonElement>(':scope > button')];
     let drag: { id: number; start: number; moved: boolean; target: HTMLButtonElement } | null =
       null;
@@ -33,15 +37,15 @@ export function useTraySelection(vertical: boolean, label: string) {
       if (!button) return;
       const bounds = tray.getBoundingClientRect();
       const rect = button.getBoundingClientRect();
-      positions.set(key, {
-        x: rect.left - bounds.left,
-        y: rect.top - bounds.top,
-        width: rect.width,
-        height: rect.height,
-      });
+      if (!placed) marker.style.transition = 'none';
       marker.style.width = `${rect.width}px`;
       marker.style.height = `${rect.height}px`;
       marker.style.transform = `translate(${rect.left - bounds.left}px, ${rect.top - bounds.top}px)`;
+      if (!placed) {
+        void marker.offsetWidth;
+        marker.style.transition = '';
+        placed = true;
+      }
     };
     const refresh = () =>
       show(
@@ -128,10 +132,23 @@ export function useTraySelection(vertical: boolean, label: string) {
       { ...options, capture: true },
     );
     return () => {
+      if (!marker.hidden) {
+        // Read the visible, potentially interrupted transition before React
+        // removes the old node. Never cache its not-yet-reached destination.
+        const bounds = tray.getBoundingClientRect();
+        const rect = marker.getBoundingClientRect();
+        positions.set(key, {
+          x: rect.left - bounds.left,
+          y: rect.top - bounds.top,
+          width: rect.width,
+          height: rect.height,
+          vertical,
+        });
+      }
       events.abort();
       mutations.disconnect();
       resize.disconnect();
     };
-  }, [vertical, label]);
-  return { trayRef, markerRef };
+  }, [vertical, key, positions]);
+  return { trayRef, markerRef, motionKey: key };
 }

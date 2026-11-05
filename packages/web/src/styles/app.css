@@ -36,6 +36,9 @@
   --color-action-ink: var(--action-ink);
   --color-focus: var(--focus-ring);
   --color-danger: var(--danger);
+  --color-danger-ink: var(--danger-ink);
+  --color-nav-selection: var(--nav-selection);
+  --color-nav-selection-ink: var(--nav-selection-ink);
   --color-success: var(--success);
   --color-warning: var(--warning);
   --color-running: var(--status-running);
@@ -456,6 +459,17 @@ html[data-reduce-motion='true'] *::after {
   animation: none !important;
   transition: none !important;
   scroll-behavior: auto !important;
+}
+
+/* OS preference also applies before settings initialisation or change events. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Let each notebook cell's island surface continue through its source editor. */

@@ -45,7 +45,10 @@ export function EditorDirtyDot({
   const dirty = useDirty(session, path, root) && kind !== 'commit';
   if (!dirty) return null;
   return (
-    <Circle aria-hidden className="size-2 shrink-0 fill-current text-fg-muted group-hover:hidden" />
+    <Circle
+      aria-hidden
+      className="size-2 shrink-0 fill-current text-fg-muted group-hover:invisible group-focus-within:invisible"
+    />
   );
 }
 
@@ -91,11 +94,9 @@ export function EditorTabClose({
           e.stopPropagation();
           requestClose();
         }}
-        // Reveal by display, not opacity, so a tab's close reserves no width
-        // at rest (HUMANS.md). The resting dirty dot is EditorDirtyDot, in
-        // flow after the filename — never over it — so this is purely the
-        // hover ×.
-        className="hidden size-4 items-center justify-center rounded-sm text-fg-muted transition-colors hover:text-fg group-hover:flex pointer-coarse:flex"
+        // Reveal for pointer hover, keyboard focus within the tab, and touch.
+        // The floating tray reserves no label width.
+        className="hidden size-4 items-center justify-center rounded-sm text-fg-muted transition-colors hover:text-fg group-hover:flex group-focus-within:flex pointer-coarse:flex"
         aria-label={`Close ${label}`}
       >
         <X className="size-3" />

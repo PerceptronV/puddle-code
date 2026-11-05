@@ -247,7 +247,7 @@ function ChangeTreeRows({
         return (
           <div key={node.path}>
             <div
-              className="group flex items-center gap-1 pr-3 transition-colors hover:bg-elevated"
+              className="sidebar-row group flex items-center gap-1 pr-2 transition-colors hover:bg-explorer-hover"
               style={{ paddingLeft: 12 + depth * 12 }}
             >
               <button

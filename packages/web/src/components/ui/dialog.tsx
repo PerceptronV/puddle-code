@@ -26,7 +26,7 @@ export function DialogContent({
       <DialogPrimitive.Content
         className={cn(
           'overlay-content-motion fixed left-1/2 top-[calc(var(--phone-top,0px)+var(--phone-height,100dvh)/2)] z-50 grid max-h-[calc(var(--phone-height,100dvh)-2rem)] w-[calc(100%-2rem)] -translate-x-1/2 -translate-y-1/2 gap-4 overflow-y-auto rounded-[var(--ui-surface-radius)] p-5',
-          surface && 'island-outline bg-surface shadow-2xl',
+          surface && 'island-outline bg-surface shadow-[var(--ui-overlay-shadow)]',
           wide ? 'max-w-3xl' : 'max-w-md',
           className,
         )}

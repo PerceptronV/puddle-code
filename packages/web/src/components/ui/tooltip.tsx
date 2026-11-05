@@ -1,5 +1,6 @@
 import * as TooltipPrimitive from '@radix-ui/react-tooltip';
 import * as React from 'react';
+import { compactOverlaySurface, overlayMotion } from './recipes';
 import { cn } from '../../lib/utils';
 
 export const TooltipProvider = TooltipPrimitive.Provider;
@@ -16,7 +17,10 @@ export function TooltipContent({
       <TooltipPrimitive.Content
         sideOffset={sideOffset}
         className={cn(
-          'z-50 overflow-hidden rounded-md bg-elevated px-2 py-1 text-xs text-fg shadow-lg',
+          'z-50 overflow-hidden px-2 py-1 text-xs text-fg',
+          compactOverlaySurface,
+          overlayMotion,
+          'overlay-tooltip-motion',
           className,
         )}
         {...props}

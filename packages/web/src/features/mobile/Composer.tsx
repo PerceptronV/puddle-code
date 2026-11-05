@@ -1,3 +1,4 @@
+import { Textarea } from '../../components/ui/input';
 import { useEffect, useRef, useState } from 'react';
 import { browserScope } from '../../lib/transport/browser-transport';
 import { sendTerminalInput, useTerminalInputReady } from '../terminal/input/input';
@@ -98,10 +99,10 @@ export function Composer({
             if (draft) void send(draft, true);
           }}
         >
-          <textarea
+          <Textarea
             ref={prompt}
             onFocus={() => (lastInput.current = 'prompt')}
-            className="rounded-md bg-surface p-2 text-base"
+            className="text-base"
             aria-label="Prompt"
             rows={2}
             value={draft}

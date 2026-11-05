@@ -4,7 +4,7 @@ import * as React from 'react';
 import { cn } from '../../lib/utils';
 
 const buttonVariants = cva(
-  'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-md font-medium transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-3.5 [&_svg]:shrink-0',
+  'inline-flex items-center justify-center gap-1.5 whitespace-nowrap rounded-[var(--ui-radius)] font-normal transition-colors duration-150 disabled:pointer-events-none disabled:opacity-50 [&_svg]:size-3.5 [&_svg]:shrink-0',
   {
     variants: {
       // Borderless (HUMANS.md): hover/active feedback is a fill shift, never a border.
@@ -12,13 +12,13 @@ const buttonVariants = cva(
         default: 'bg-action text-action-ink hover:bg-action-hover active:opacity-85',
         secondary: 'bg-elevated text-fg hover:bg-border/70 active:bg-border',
         ghost: 'text-fg-secondary hover:bg-elevated hover:text-fg active:bg-border/70',
-        danger: 'bg-danger text-ground hover:opacity-90 active:opacity-80',
+        danger: 'bg-danger text-danger-ink hover:opacity-90 active:opacity-80',
       },
       size: {
-        default: 'h-8 px-3 text-sm',
-        sm: 'h-7 px-2 text-xs',
-        lg: 'h-9 px-4 text-sm',
-        icon: 'h-8 w-8',
+        default: 'h-[var(--ui-field-height)] px-3 text-sm',
+        sm: 'h-[var(--ui-control-height)] px-2 text-xs',
+        lg: 'h-[var(--ui-large-control-height)] px-4 text-sm',
+        icon: 'size-[var(--ui-control-height)]',
       },
     },
     defaultVariants: { variant: 'default', size: 'default' },

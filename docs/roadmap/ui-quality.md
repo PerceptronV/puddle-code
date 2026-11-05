@@ -17,8 +17,8 @@ adequate contrast for every new combination.
 
 This is a targeted source audit, not an exhaustive visual or accessibility audit.
 It covers shared components and CSS, desktop prompts, workspace controls, settings,
-mobile/remote controls, and representative older popovers. Recommendations below
-are not implemented fixes. Source references use repository-relative paths and
+mobile/remote controls, and representative older popovers. The findings below describe the reviewed baseline; implementation progress is recorded
+at the end of this document. Source references use repository-relative paths and
 review-time line numbers. Priorities express cleanup value, not incident severity.
 
 ## Proposed additions to HUMANS.md
@@ -89,7 +89,8 @@ cleanup does not undo the iteration:
 - Session controls float over scrolling content, but the initial project heading
   starts below them. Search retains the current project/archive visibility scope.
 - Header command-palette text is muted by default; an explicit project colour
-  applies to the relevant project text and shortcut. Profile colours remain separate.
+  applies to the project label and shortcut. The hostname uses the standard primary text colour and independent
+  of project colour. Profile colours remain separate.
 - Settings have separate navigation and content islands. The navigation island owns
   its title and close button; its persistent selection is gold.
 - Reduced motion sits directly below Density without explanatory body text.
@@ -331,3 +332,54 @@ touch, custom project/profile colours, and reduced motion as the review matrix.
 Include rapid hover/selection, overlay opening/closing, and sidebar reversal cases.
 Visual checks should verify stable editor controls, empty gutters, unclipped titles,
 and coherent rounded insets, not just that the destination layout is correct.
+
+## Implementation — 2026-11-05
+
+The quoted framework has been adopted in HUMANS.md, preserving the optional-field
+rule. SPEC §12 and the repository conventions now describe the shared recipes,
+selection contrast, native prompt packaging and bounded tray identities.
+
+| Finding | Implementation |
+| --- | --- |
+| 1. Native prompts | `desktop/scripts/prompt-assets.mjs` embeds master tokens and shared prompt controls; a bounded, main-frame-only preference report retains the last cockpit theme for subsequent prompts. No network resources or CSP expansion. |
+| 2. Selection contrast | Dedicated `--nav-selection` / `--nav-selection-ink` tokens; the checker now covers 56 foreground/background combinations per theme, including tray, selected text, action hover and danger. |
+| 3. Overlays | Menus, submenus, selects and tooltips share motion and rounded overlay recipes with popovers; inset surface edges survive Radix's inline focus styling. |
+| 4. Geometry | Buttons, fields, menus and compact actions use semantic size/radius tokens, retaining deliberate size variants. |
+| 5. Keyboard actions | File/session actions reveal on tab focus as well as hover/touch; the dirty indicator retains its width. |
+| 6. Resize feedback | Panel separators, Changes/History and archive handles share facing-edge rendering; internal handles also support keyboard resizing. |
+| 7. Mobile | Phone control/archive trays use ControlTray, with touch targets retained; the local native select uses the field recipe, review uses Button and the composer uses Textarea. |
+| 8. Popovers | Scratchpad/layout actions use shared compact/text recipes and action groups; destructive confirmation uses danger. Filter chips remain chips, with pressed-state semantics rather than being recast as navigation. |
+| 9. Toasts | Toasts share island radius, outline and overlay shadow while retaining multiline diagnostics and dismissal behaviour. |
+| 10. Tray identity | Workspace-owned caches use explicit identities; other instances are isolated. Cleanup captures the currently visible selection rectangle for interrupted remounts. Hover refreshes on selection/state and size changes. |
+
+The chrome-colour guard scans application sources and standalone prompt styles,
+excluding master tokens, artwork/assets, fixtures and generated/vendor code.
+The additional user-directed collapsed-rail change puts all project groups into
+one content-sized scrolling island and keeps the archive at the rail's foot.
+
+Validation covers the daemon-free preview, standalone native prompt rendering,
+40 focused appearance/prompt tests, web and desktop typechecks, formatting and lint.
+Web and desktop production builds also pass. Browser checks cover both themes and
+densities at increased UI font size, selection contrast, keyboard tab actions,
+internal resize feedback, long collapsed lists, touch rail/archive/composer controls,
+interrupted tray remounts and reduced motion. Native prompt pages are rendered in
+Chromium with their packaged HTML and mocked shell bridges; real SSH authentication
+and OS window chrome are outside those rendering checks. Browser coverage lives in
+`packages/web/test/dev/ui-quality.mjs` and `appearance-motion.mjs`; isolated fixtures
+are under `test/dev`, never imported into the production application.
+
+Follow-up refinements include full-pane single tabs with path tooltips, restored
+strips on a second opened or dropped file, vertically aligned Changes staging
+actions, primary-colour host identity independent of project/profile overrides,
+and sliding session hover in both sidebar states. Source actions now use the
+shared portalled tooltip rather than native title hints, keeping their labels
+clear of the floating tray and inside the viewport. The additional pane/path and
+layout unit checks pass (78 tests); `single-pane.mjs` exercises opening, native
+file drop, closing, tooltip placement and both session-hover layouts.
+
+Final verification: 118 focused unit tests pass, together with all six preview
+browser scripts, both package typechecks, changed-source lint/format checks,
+the semantic-colour guard and both production builds. The single-pane regression
+also asserts that its tray lies below the pane top edge: Tailwind uses the
+standalone `translate` property, so resetting `transform` alone did not remove
+the normal tab tray’s vertical offset.
