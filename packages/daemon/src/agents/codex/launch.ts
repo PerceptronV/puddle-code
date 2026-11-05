@@ -13,7 +13,7 @@ export async function prepareCodexLaunch(
     // which keeps idle conversations loaded for 60 seconds after disconnect.
     // A restarted runtime can otherwise race that daemon's writer ownership.
     // Older CLIs retain their original fallback arguments.
-    if (!(await lifecycleVersionAtLeast('codex', ['--version'], [0, 164, 0], context.env)))
+    if (!(await lifecycleVersionAtLeast('codex', ['--version'], [0, 164, 0], context.env, true)))
       throw error;
     context.reportLifecycleUnavailable?.();
     console.warn(

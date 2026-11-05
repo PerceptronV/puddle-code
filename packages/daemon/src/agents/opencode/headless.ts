@@ -4,7 +4,10 @@ import { prepareHeadless } from '../headless/control.js';
 import { record, schemaPrompt, type HeadlessDriver } from '../headless/codec.js';
 
 /** Flags checked with OpenCode 1.18.10 `run --help`; events use its JSON run protocol. */
-export function openCodeDriver(context: LifecycleLaunchContext): HeadlessDriver {
+export function openCodeDriver(
+  context: LifecycleLaunchContext,
+  standalone = false,
+): HeadlessDriver {
   return {
     binary: 'opencode',
     env: Object.fromEntries(
@@ -16,6 +19,7 @@ export function openCodeDriver(context: LifecycleLaunchContext): HeadlessDriver 
     command: (ref, prompt, schema) => ({
       args: [
         'run',
+        ...(standalone ? ['--standalone'] : []),
         '--format',
         'json',
         ...(ref ? ['--session', ref] : []),
@@ -52,7 +56,17 @@ export function openCodeDriver(context: LifecycleLaunchContext): HeadlessDriver 
 }
 
 export async function prepareOpenCodeHeadless(context: LifecycleLaunchContext) {
-  if (!(await lifecycleVersionAtLeast('opencode', ['--version'], [1, 18, 10], context.env)))
+  const standalone = await lifecycleVersionAtLeast(
+    'opencode',
+    ['--version'],
+    [2, 0, 0],
+    context.env,
+    true,
+  );
+  if (
+    !standalone &&
+    !(await lifecycleVersionAtLeast('opencode', ['--version'], [1, 18, 10], context.env))
+  )
     throw new Error('OpenCode 1.18.10+ is required for headless mode');
-  return prepareHeadless(context, openCodeDriver(context));
+  return prepareHeadless(context, openCodeDriver(context, standalone));
 }

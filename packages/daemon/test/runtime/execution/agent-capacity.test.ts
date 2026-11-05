@@ -3,9 +3,30 @@ import type { LifecycleLaunchContext } from '../../../src/agents/adapter.js';
 import { RuntimeAgent } from '../../../src/runtime/execution/agent.js';
 import { RuntimeBufferBudget } from '../../../src/runtime/resources/budget.js';
 import { fakeAdapter } from '../../helpers/daemon-fixtures.js';
+import { AgentLaunchError } from '../../../src/agents/launch-error.js';
 import { prepare } from '../../helpers/runtime-fixture.js';
 
 describe('provider-neutral runtime capacity failure', () => {
+  it('does not turn an ownership-related launch refusal into a bare interactive CLI', async () => {
+    const { home, launch } = prepare('interactive');
+    const adapter = {
+      ...fakeAdapter({ id: 'runtime-test' }),
+      prepareLifecycleLaunch: async () => {
+        throw new AgentLaunchError('Provider lifetime is unknown');
+      },
+    };
+    const runtime = new RuntimeAgent(home, launch, adapter, {
+      writeInput: vi.fn(),
+      lifecycle: vi.fn(),
+      collision: vi.fn(),
+      state: vi.fn(),
+    });
+    try {
+      await expect(runtime.prepare()).rejects.toThrow('Provider lifetime is unknown');
+    } finally {
+      await runtime.close();
+    }
+  });
   it.each(['during', 'after'] as const)(
     'keeps lifecycle failure sticky %s preparation without disposing provider resources',
     async (when) => {

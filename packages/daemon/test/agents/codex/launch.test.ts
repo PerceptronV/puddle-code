@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { LifecycleLaunchContext } from '../../../src/agents/adapter.js';
 import { prepareCodexLaunch } from '../../../src/agents/codex/launch.js';
+import { AgentLaunchError } from '../../../src/agents/launch-error.js';
 
 const homes: string[] = [];
 afterEach(() => {
@@ -63,5 +64,10 @@ describe('Codex interactive fallback lifetime', () => {
     await expect(prepareCodexLaunch(context)).rejects.toThrow('fixture startup failure');
     expect(context.reportLifecycleUnavailable).not.toHaveBeenCalled();
     expect(context.args).toEqual(['resume', 'native-ref']);
+  });
+
+  it('refuses an unverified CLI instead of allowing a shared-daemon fallback', async () => {
+    const context = fixture('unknown', []);
+    await expect(prepareCodexLaunch(context)).rejects.toBeInstanceOf(AgentLaunchError);
   });
 });

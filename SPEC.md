@@ -759,6 +759,14 @@ and remains marked as degraded synchronisation. It must not attach to the shared
 Codex daemon, whose idle conversation retention can outlive the PTY and block an
 immediate restart. Existing shared-daemon conversations may still need their
 native inactivity grace period before a replacement can acquire them.
+OpenCode 2 interactive and headless launches similarly use `--standalone` to
+keep their server inside the runtime lifetime, including degraded interactive
+launches. OpenCode 1 retains its existing private-server startup arguments;
+Claude Code and Gemini use their foreground CLI and hook-based integrations.
+If a foreground-mode version probe is inconclusive, the adapter refuses launch;
+both runtime and legacy composition preserve that refusal instead of invoking
+an unqualified CLI fallback. Ordinary unsupported hook integrations may still
+degrade without changing process ownership.
 Runtime IPC admits one provider turn at a time using a monotonic runtime-local
 identity and exact native-ref check. It reserves bounded journal space before
 dispatch, retains results across controller replacement, and records cancellation,

@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import type { LifecycleLaunchContext } from '../../src/agents/adapter.js';
 import { prepareHeadless } from '../../src/agents/headless/control.js';
+import { AgentLaunchError } from '../../src/agents/launch-error.js';
 import type { HeadlessDriver } from '../../src/agents/headless/codec.js';
 import { claudeDriver } from '../../src/agents/claude-code/headless.js';
 import { codexDriver } from '../../src/agents/codex/headless.js';
@@ -312,6 +313,27 @@ describe('headless terminal ownership', () => {
     expect(f.stores.sessions.list()).toEqual([
       expect.objectContaining({ agent_mode: 'headless', status: 'exited' }),
     ]);
+  });
+  it('preserves an interactive launch refusal instead of spawning an unowned fallback', async () => {
+    const f = fixture({
+      adapter: {
+        ...fakeAdapter(),
+        prepareLifecycleLaunch: async () => {
+          throw new AgentLaunchError('Cannot verify private server lifetime');
+        },
+      },
+    });
+    f.service.setSignalPort(1);
+    cleanups.push(async () => {
+      f.service.beginShutdown();
+      f.onboarding.dispose();
+      f.logs.closeAll();
+    });
+    await expect(
+      f.service.create({ project_id: f.ids.project, account_id: f.ids.account }),
+    ).rejects.toThrow('Cannot verify private server lifetime');
+    expect(f.ptys.liveCount()).toBe(0);
+    expect(f.stores.sessions.list()).toEqual([expect.objectContaining({ status: 'exited' })]);
   });
   it('persists the selected mode and binds identity from structured output', async () => {
     let resumed: string | undefined;

@@ -24,6 +24,7 @@ import type {
   RestartSessionRuntimeRequest,
 } from '@puddle/shared';
 import type { AgentAdapter, LaunchOpts, LifecycleLaunchResource } from '../agents/adapter.js';
+import { AgentLaunchError } from '../agents/launch-error.js';
 import { assertBinaryAvailable } from '../agents/binary.js';
 import type { AdapterRegistry } from '../agents/registry.js';
 import type { AccountStore } from '../db/stores/accounts.js';
@@ -1688,10 +1689,13 @@ export class SessionService extends EventEmitter {
           spawnArgs = lifecycleResource.args;
           nativeSync = lifecycleUnavailable ? 'fallback' : 'full';
         } catch (error) {
-          if (headless) {
+          if (headless || error instanceof AgentLaunchError) {
             this.transition(sessionId, 'exited');
             this.deps.events.record(sessionId, 'spawn_failed', { message: String(error) });
-            throw ApiError.conflict('headless_mode_unavailable', String(error));
+            throw ApiError.conflict(
+              headless ? 'headless_mode_unavailable' : 'agent_launch_failed',
+              String(error),
+            );
           }
           console.warn(
             `${adapter.displayName} lifecycle bridge unavailable: ${(error as Error).message}`,

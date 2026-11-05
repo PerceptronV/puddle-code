@@ -9,6 +9,7 @@ import {
   type RuntimeLifecycle,
 } from '@puddle/shared';
 import type { AgentAdapter, AgentControl, LifecycleLaunchResource } from '../../agents/adapter.js';
+import { AgentLaunchError } from '../../agents/launch-error.js';
 import { StatusDetector } from '../../pty/status-detector.js';
 import { RuntimeConversationClaim } from '../ownership/conversation-claim.js';
 import { RuntimeSignals } from './signals.js';
@@ -151,7 +152,7 @@ export class RuntimeAgent {
         this.nativeSync = this.lifecycleUnavailable ? 'fallback' : 'full';
       }
     } catch (error) {
-      if (headless) throw error;
+      if (headless || error instanceof AgentLaunchError) throw error;
       // Installed-version failures must still permit ordinary interactive use.
       this.nativeSync = 'fallback';
     }

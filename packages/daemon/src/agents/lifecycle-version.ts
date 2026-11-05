@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
+import { AgentLaunchError } from './launch-error.js';
 
 const execFileAsync = promisify(execFile);
 const checks = new Map<string, Promise<boolean>>();
@@ -11,12 +12,13 @@ export function lifecycleVersionAtLeast(
   args: string[],
   minimum: readonly [number, number, number],
   environment?: Record<string, string>,
+  requireVersion = false,
 ): Promise<boolean> {
   const env = environment ? { ...process.env, ...environment } : process.env;
   const environmentKey = createHash('sha256')
     .update(JSON.stringify(Object.entries(env).sort(([a], [b]) => a.localeCompare(b))))
     .digest('hex');
-  const key = `${environmentKey}\0${binary}\0${args.join('\0')}\0${minimum.join('.')}`;
+  const key = `${environmentKey}\0${binary}\0${args.join('\0')}\0${minimum.join('.')}\0${requireVersion}`;
   const active = checks.get(key);
   if (active) return active;
   const check = execFileAsync(binary, args, {
@@ -27,7 +29,7 @@ export function lifecycleVersionAtLeast(
   })
     .then(({ stdout, stderr }) => {
       const match = /(\d+)\.(\d+)\.(\d+)/.exec(`${String(stdout)}\n${String(stderr)}`);
-      if (!match) return false;
+      if (!match) throw new Error('CLI did not report a version');
       const found = [Number(match[1]), Number(match[2]), Number(match[3])] as const;
       for (let index = 0; index < minimum.length; index++) {
         if (found[index]! > minimum[index]!) return true;
@@ -35,7 +37,13 @@ export function lifecycleVersionAtLeast(
       }
       return true;
     })
-    .catch(() => false);
+    .catch(() => {
+      if (requireVersion)
+        throw new AgentLaunchError(
+          `Cannot verify ${binary} version; refusing a launch that may use an unowned background server`,
+        );
+      return false;
+    });
   // Captured launch environments can vary for every session in a legacy daemon.
   if (checks.size >= 64) checks.delete(checks.keys().next().value!);
   checks.set(key, check);
