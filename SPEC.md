@@ -267,7 +267,13 @@ remain advisory headroom, without a reservation or migration-size guarantee.
 Supervision inspection corroborates the installer marker with the current daemon
 PID and service identity, and includes that evidence in the fingerprint. It probes
 the user manager without starting services, rejects stale/unknown supervision and
-leaves manual daemons untouched during runtime-default changes. The worker
+leaves manual daemons untouched during runtime-default changes.
+Before read-only preflight, authorised daemon-update staging may repair a legacy
+group/other-writable supervisor marker. Require an owned regular single-link file
+in an owned non-shared-writable home, corroborate its kind with the exact live daemon
+and service definition, then recheck the pinned inode, contents and authority before
+removing only shared write bits. Failed repair leaves normal preflight blocked;
+status and inspection never mutate permissions or start services. The worker
 executable verifies its own PID under the recorded independent service;
 systemd scopes must not contain one another. Before daemon activation, preflight
 also fingerprints the existing unit and drop-ins or bounded launchd plist. The

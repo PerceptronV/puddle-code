@@ -14,6 +14,7 @@ import {
   inspectHostServiceManager,
 } from '../../host/supervision/inspection.js';
 import { prepareServiceReplacement } from '../../host/supervision/replacement.js';
+import { repairSupervisorMarker } from '../../host/supervision/repair-marker.js';
 
 export interface UpdateSupervision {
   worker: Pick<ServiceTarget, 'kind' | 'domain'> | null;
@@ -38,6 +39,33 @@ export class HostUpdateSupervision {
       definitionPath?: string;
     },
   ) {}
+
+  async prepare(input: HostUpdateOperation, requireAuthority: () => void): Promise<void> {
+    const operation = hostUpdateOperationSchema.parse(input);
+    if (!operation.targets.some((target) => target.component === 'daemon')) return;
+    requireAuthority();
+    try {
+      await repairSupervisorMarker(
+        this.deps.home,
+        this.deps.uid ?? process.getuid!(),
+        async (kind) => {
+          const manager = await inspectHostServiceManager(this.deps.home, this.deps);
+          if (manager.kind !== kind) throw new Error('Unknown daemon supervision');
+          const observed = await inspectRunningService(
+            this.deps.home,
+            { ...manager, name: kind === 'systemd' ? 'puddled.service' : 'dev.puddle.puddled' },
+            this.deps.pid,
+            this.deps.run,
+          );
+          await prepareServiceReplacement(this.deps.home, observed, this.deps);
+        },
+        requireAuthority,
+      );
+    } catch {
+      // Repair is best effort. Normal read-only preflight retains the blocker.
+    }
+    requireAuthority();
+  }
 
   async inspect(input: HostUpdateOperation): Promise<UpdateSupervision> {
     const operation = hostUpdateOperationSchema.parse(input);

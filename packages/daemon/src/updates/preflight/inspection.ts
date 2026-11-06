@@ -39,9 +39,14 @@ export class HostUpdateInspection {
       connector: Pick<HostUpdateConnector, 'inspect'>;
       capacity: Pick<HostUpdateCapacity, 'inspect'>;
       impact: Pick<HostUpdateImpact, 'inspect'>;
-      supervision: Pick<HostUpdateSupervision, 'inspect'>;
+      supervision: Pick<HostUpdateSupervision, 'inspect'> &
+        Partial<Pick<HostUpdateSupervision, 'prepare'>>;
     },
   ) {}
+
+  async prepare(operation: HostUpdateOperation, requireAuthority: () => void): Promise<void> {
+    await this.deps.supervision.prepare?.(operation, requireAuthority);
+  }
 
   async inspect(
     input: HostUpdateOperation,

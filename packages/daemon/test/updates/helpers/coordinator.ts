@@ -34,6 +34,9 @@ export function updateCoordinatorFixture(
     supervision: { worker: { kind: 'systemd', domain: null }, daemon: null, blockers: [] },
   };
   const inspect = vi.fn(async () => observed);
+  const repair = vi.fn(async (_operation: HostUpdateOperation, requireAuthority: () => void) => {
+    requireAuthority();
+  });
   const dispatch = vi.fn(
     async (
       operation: HostUpdateOperation,
@@ -63,7 +66,7 @@ export function updateCoordinatorFixture(
   const coordinator = new HostUpdateCoordinator({
     home: f.home,
     operations: f.store,
-    inspection: { inspect },
+    inspection: { inspect, prepare: repair },
     installedRuntime: () => f.capabilities.runtime,
     ...(catalogue ? { catalogue } : {}),
     ...(daemonAdmission ? { pauseDaemon } : {}),
@@ -117,6 +120,7 @@ export function updateCoordinatorFixture(
     outgoing,
     pauseDaemon,
     inspect,
+    repair,
     dispatch,
     coordinator,
     revoke: () => {

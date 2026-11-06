@@ -113,6 +113,42 @@ it('allows a runtime default change with an available independent manager and a 
   expect(f.run).toHaveBeenCalledOnce();
 });
 
+it.each(['linux', 'darwin'] as const)(
+  'repairs a corroborated legacy %s marker during preparation',
+  async (platform) => {
+    const f = setup(platform);
+    const marker = join(f.home, 'supervisor');
+    writeFileSync(marker, platform === 'linux' ? 'systemd\n' : 'launchd\n');
+    chmodSync(marker, 0o664);
+    await f.inspector.prepare(f.operation, () => {});
+    expect(statSync(marker).mode & 0o777).toBe(0o644);
+    expect((await f.inspector.inspect(f.operation)).blockers).toEqual([]);
+  },
+);
+
+it.each(['mismatched-service', 'revoked', 'runtime-only'] as const)(
+  'does not repair with %s',
+  async (failure) => {
+    const f = setup('linux', failure === 'runtime-only' ? 'runtime' : 'daemon');
+    const marker = join(f.home, 'supervisor');
+    writeFileSync(marker, 'systemd\n');
+    chmodSync(marker, 0o664);
+    if (failure === 'mismatched-service')
+      f.run.mockImplementation(async () => ({
+        exitCode: 0,
+        stdout: systemdObservation(456),
+        stderr: '',
+      }));
+    let calls = 0;
+    const pending = f.inspector.prepare(f.operation, () => {
+      if (failure === 'revoked' && ++calls > 1) throw new Error('revoked');
+    });
+    if (failure === 'revoked') await expect(pending).rejects.toThrow('revoked');
+    else await pending;
+    expect(statSync(marker).mode & 0o777).toBe(0o664);
+  },
+);
+
 it('refuses unavailable managers and mismatched live PIDs despite a valid marker', async () => {
   const f = setup();
   writeFileSync(join(f.home, 'supervisor'), 'systemd');

@@ -33,7 +33,8 @@ export class HostUpdateCoordinator {
     private readonly deps: {
       home: string;
       operations: HostUpdateOperations;
-      inspection: Pick<HostUpdateInspection, 'inspect'>;
+      inspection: Pick<HostUpdateInspection, 'inspect'> &
+        Partial<Pick<HostUpdateInspection, 'prepare'>>;
       installedRuntime(): HostReleaseCapabilities['runtime'] | null;
       catalogue?(): HostUpdateCatalogue;
       /** Supplied when all daemon-update admission and recovery participants are composed. */
@@ -140,7 +141,10 @@ export class HostUpdateCoordinator {
         // Corroborate client-delivered installer output with the exact host files.
         await readStageCapabilities(this.deps.home, command.receipt);
         requireAuthority();
-        return { ok: true, operation: store.staged(operation, command.receipt) };
+        operation = store.staged(operation, command.receipt);
+        await this.deps.inspection.prepare?.(operation, requireAuthority);
+        requireAuthority();
+        return { ok: true, operation };
       }
       if (!['staged', 'preflight', 'approved'].includes(operation.phase))
         throw new HostUpdateConflict('Host update is not ready for inspection', operation);

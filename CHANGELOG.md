@@ -25,4 +25,4 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
-- Identify legacy supervisor markers with group/other write permissions as a specific upgrade blocker and provide explicit host-side permission repair guidance in the CLI; keep inspection read-only and require fresh service checks after repair.
+- Automatically repair legacy supervisor marker write permissions during authorised daemon-update staging after checking ownership, unchanged file identity and the live service; keep status and preflight read-only and retain specific blockers and manual repair guidance when automatic repair is unsafe.

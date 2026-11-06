@@ -120,6 +120,28 @@ it('serialises competing mutations while status remains readable', async () => {
   expect(await pending).toMatchObject({ ok: true, operation: { phase: 'preflight' } });
 });
 
+it('repairs only during authorised staging, never status or review', async () => {
+  const f = fixture('daemon', true);
+  await f.execute({ action: 'status' });
+  expect(f.repair).not.toHaveBeenCalled();
+  const operation = await f.prepare();
+  expect(f.repair).toHaveBeenCalledOnce();
+  await f.execute({ action: 'inspect', reference: operation, cockpit: f.capabilities.application });
+  expect(f.repair).toHaveBeenCalledOnce();
+  expect(f.dispatch).not.toHaveBeenCalled();
+});
+
+it('rejects authority loss during stage repair without dispatching', async () => {
+  const f = fixture('daemon', true);
+  f.repair.mockImplementationOnce(async (_operation, requireAuthority) => {
+    f.revoke();
+    requireAuthority();
+  });
+  await expect(f.prepare()).rejects.toThrow('stage failed');
+  expect(f.dispatch).not.toHaveBeenCalled();
+  expect(f.store.read()?.phase).toBe('staged');
+});
+
 it('does not accept an unverified receipt or continue after daemon shutdown', async () => {
   const f = fixture();
   const begun = await f.execute({ action: 'begin', targets: f.operation.targets });
@@ -132,6 +154,7 @@ it('does not accept an unverified receipt or continue after daemon shutdown', as
     }),
   ).toMatchObject({ ok: false, code: 'failed' });
   expect(f.store.read()?.stages).toEqual([]);
+  expect(f.repair).not.toHaveBeenCalled();
   f.coordinator.close();
   expect(
     await f.execute({ action: 'stage', reference: begun.operation, receipt: f.stage }),
