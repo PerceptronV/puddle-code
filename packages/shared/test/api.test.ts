@@ -33,7 +33,7 @@ import {
 
 describe('shared API schemas', () => {
   it('declares protocol 25.14 for host update discovery', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 26, minor: 4 });
+    expect(PROTOCOL_VERSION).toEqual({ major: 26, minor: 5 });
   });
 
   it('accepts headless mode and rejects the previous scripted name', () => {
@@ -58,6 +58,15 @@ describe('shared API schemas', () => {
     const s = profileSettingsSchema.parse({ theme: 'dark' });
     expect(s.allowSkipPermissions).toBe(false);
     expect((s as Record<string, unknown>).theme).toBe('dark');
+  });
+
+  it('accepts six-digit custom host accents and keeps other CSS values out', () => {
+    for (const hostColour of ['blue', '#12a6Bc', '#000000', '#ffffff', null]) {
+      expect(profileSettingsSchema.parse({ hostColour }).hostColour).toBe(hostColour);
+    }
+    for (const hostColour of ['#abc', '#12345678', 'red; color: blue', 'url(example)', '']) {
+      expect(profileSettingsSchema.safeParse({ hostColour }).success).toBe(false);
+    }
   });
 
   it('session status is a closed enum', () => {

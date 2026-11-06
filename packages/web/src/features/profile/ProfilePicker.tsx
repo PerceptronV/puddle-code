@@ -5,7 +5,7 @@ import { Input } from '../../components/ui/input';
 import { Label } from '../../components/ui/label';
 import { useCreateProfile, useProfiles } from '../../lib/queries/queries';
 import { cn } from '../../lib/utils';
-import { ProfileGlyph, profileColourClass } from './ProfileGlyph';
+import { ProfileGlyph, profileColourClass, profileColourStyle } from './ProfileGlyph';
 import { selectProfile } from './profile-store';
 
 /**
@@ -49,6 +49,7 @@ export function ProfilePicker() {
                 <ProfileGlyph icon={profile.icon} colour={profile.icon_colour} className="size-5" />
                 <span
                   className={cn('text-base', profileColourClass(profile.icon_colour) || 'text-fg')}
+                  style={profileColourStyle(profile.icon_colour)}
                 >
                   {profile.name}
                 </span>

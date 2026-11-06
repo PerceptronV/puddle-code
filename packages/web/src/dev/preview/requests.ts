@@ -34,6 +34,10 @@ export async function previewRequest(
   const url = new URL(path, 'http://preview');
   const route = url.pathname;
   const patch = typeof body === 'object' && body !== null ? body : {};
+  if (route === `/api/profiles/${profile.id}` && method === 'PATCH') {
+    Object.assign(profile, patch);
+    return json(profile);
+  }
   if (route === `/api/profiles/${profile.id}/settings` && ['GET', 'PATCH'].includes(method)) {
     if (method === 'PATCH') Object.assign(settings, patch);
     return json(settings);

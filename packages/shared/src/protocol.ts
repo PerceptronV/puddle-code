@@ -332,7 +332,8 @@
 // 26.2: opt-in per-component release catalogue; legacy strict responses remain unchanged.
 // 26.3: opt-in revision-aware notebook execution observation.
 // 26.4: exact per-file Git restore with explicit untracked deletion consent.
-export const PROTOCOL_VERSION = { major: 26, minor: 4 } as const;
+// 26.5: optional six-digit hex host accents alongside the existing preset keys.
+export const PROTOCOL_VERSION = { major: 26, minor: 5 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

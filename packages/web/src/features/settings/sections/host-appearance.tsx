@@ -3,7 +3,12 @@ import { toastError } from '../../../lib/transport/errors';
 
 import { ColourPicker } from '../../../components/colour-picker';
 import { Popover, PopoverContent, PopoverTrigger } from '../../../components/ui/popover';
-import { usePatchProfileSettings, useProfileSettings } from '../../../lib/queries/queries';
+import { customHostColourSupported } from '../../../lib/transport/protocol-support';
+import {
+  useDaemonVersion,
+  usePatchProfileSettings,
+  useProfileSettings,
+} from '../../../lib/queries/queries';
 import { cn } from '../../../lib/utils';
 import { HostGlyph } from '../../host/host-appearance';
 import { useCurrentProfileId } from '../../profile/profile-store';
@@ -13,6 +18,7 @@ import { SettingRow } from '../parts';
 /** This profile's identity for the connected host, outside Settings Sync. */
 export function HostAppearance() {
   const profileId = useCurrentProfileId();
+  const version = useDaemonVersion();
   const settings = useProfileSettings(profileId ?? undefined);
   const patch = usePatchProfileSettings(profileId ?? '');
   const [open, setOpen] = useState(false);
@@ -75,7 +81,12 @@ export function HostAppearance() {
       </SettingRow>
 
       <SettingRow label="Accent">
-        <ColourPicker value={colour} onChange={setColour} label="Host accent" />
+        <ColourPicker
+          onCustomChange={customHostColourSupported(version.data?.protocol) ? setColour : undefined}
+          value={colour}
+          onChange={setColour}
+          label="Host accent"
+        />
       </SettingRow>
     </>
   );

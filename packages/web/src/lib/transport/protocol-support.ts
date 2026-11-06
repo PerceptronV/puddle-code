@@ -116,3 +116,7 @@ export const notebookObservationSupported = (p: Protocol): boolean =>
 /** Per-file working-tree restore with explicit untracked deletion (26.4). */
 export const gitRestoreSupported = (p: Protocol): boolean =>
   supportsApplicationFeature(p, { major: 26, minor: 4 });
+
+/** Custom hex host accents require a daemon accepting the extended setting (26.5). */
+export const customHostColourSupported = (p: Protocol): boolean =>
+  supportsApplicationFeature(p, { major: 26, minor: 5 });

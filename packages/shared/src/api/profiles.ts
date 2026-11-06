@@ -80,7 +80,7 @@ export const profileSchema = z.object({
   branch_prefix: z.string(),
   /** Lucide icon name (kebab-case, e.g. `rocket`); null → the default person glyph. */
   icon: z.string().nullable().default(null),
-  /** A `PROFILE_ICON_COLOURS` key; null → the default heading colour. */
+  /** A `PROFILE_ICON_COLOURS` key or six-digit hex colour; null → the default colour. */
   icon_colour: z.string().nullable().default(null),
   created_at: isoTimestamp,
 });
@@ -102,7 +102,7 @@ export const patchProfileRequestSchema = z.object({
   branch_prefix: z.string().max(64).optional(),
   /** Set/clear the profile's lucide icon (kebab-case name); null clears it. */
   icon: z.string().max(64).nullable().optional(),
-  /** Set/clear the icon colour (a `PROFILE_ICON_COLOURS` key); null clears it. */
+  /** Set/clear the icon colour (a palette key or six-digit hex); null clears it. */
   icon_colour: z.string().max(32).nullable().optional(),
 });
 
@@ -125,7 +125,10 @@ export type SessionDefaults = z.infer<typeof sessionDefaultsSchema>;
 export const profileSettingsSchema = z.looseObject({
   /** Host identity for this profile on this daemon; deliberately excluded from sync. */
   hostIcon: z.string().max(64).nullable().optional(),
-  hostColour: z.enum(PROFILE_ICON_COLOURS).nullable().optional(),
+  hostColour: z
+    .union([z.enum(PROFILE_ICON_COLOURS), z.string().regex(/^#[0-9a-fA-F]{6}$/)])
+    .nullable()
+    .optional(),
   allowSkipPermissions: z.boolean().default(false),
   /**
    * Captured session environment (SPEC §4): whether this profile's session

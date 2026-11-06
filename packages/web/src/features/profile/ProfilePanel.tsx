@@ -17,7 +17,7 @@ import {
 } from '../../lib/queries/queries';
 import { LoginDialog } from '../accounts/LoginDialog';
 import { useNewSession } from '../shell/new-session-context';
-import { ProfileGlyph, profileColourClass } from './ProfileGlyph';
+import { ProfileGlyph, profileColourClass, profileColourStyle } from './ProfileGlyph';
 import { profileStore, useCurrentProfileId } from './profile-store';
 import { UsageBar } from './UsageBar';
 
@@ -189,6 +189,7 @@ export function ProfilePanel() {
     return (
       <div
         className={buttonVariants({ variant: 'ghost', size: 'sm', className: triggerClassName })}
+        style={profileColourStyle(currentProfile.icon_colour)}
       >
         <ProfileGlyph icon={currentProfile.icon} colour={currentProfile.icon_colour} />
         <InlineLabelEdit
@@ -214,6 +215,7 @@ export function ProfilePanel() {
                 <ProfileGlyph icon={currentProfile?.icon} colour={currentProfile?.icon_colour} />
                 <span
                   className={profileColourClass(currentProfile?.icon_colour)}
+                  style={profileColourStyle(currentProfile?.icon_colour)}
                   {...editOnDoubleClick(() => {
                     setOpen(false);
                     setRenaming(true);

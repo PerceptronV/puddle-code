@@ -1,3 +1,4 @@
+import { isCustomColour } from '../../lib/appearance/appearance-colours';
 import { hostPalette } from './host-palette';
 import {
   cssTokenReader,
@@ -20,7 +21,8 @@ export function useHostAppearance(enabled = true) {
   const colour = settings.data?.hostColour;
   return {
     icon: settings.data?.hostIcon,
-    colour: PROFILE_ICON_COLOURS.some((key) => key === colour) ? colour : null,
+    colour:
+      PROFILE_ICON_COLOURS.some((key) => key === colour) || isCustomColour(colour) ? colour : null,
   };
 }
 

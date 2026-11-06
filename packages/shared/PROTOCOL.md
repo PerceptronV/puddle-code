@@ -1,5 +1,10 @@
 # The puddle communication protocol
 
+Application **26.5** allows a six-digit `#RRGGBB` value for profile settings
+`hostColour`, alongside the existing preset keys and null. New clients gate
+custom host colour writes on 26.5. Profile `icon_colour` already accepts bounded
+strings. No route, authority or remote envelope changes; remote protocol stays 5.
+
 Application **26.4** adds local/SSH `POST /api/worktrees/:sid/git-restore`
 for one exact unstaged file. Tracked files restore from the index, preserving
 staged changes; deleting an untracked file requires `delete_untracked: true`.

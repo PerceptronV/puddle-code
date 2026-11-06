@@ -15,3 +15,12 @@ const COLOUR_CLASSES: Record<string, string> = {
 export function appearanceColourClass(colour: string | null | undefined): string {
   return (colour && COLOUR_CLASSES[colour]) || '';
 }
+
+/** Explicit user colours are kept separate from theme-derived preset classes. */
+export function isCustomColour(colour: string | null | undefined): colour is string {
+  return typeof colour === 'string' && /^#[0-9a-f]{6}$/i.test(colour);
+}
+
+export function appearanceColourStyle(colour: string | null | undefined) {
+  return isCustomColour(colour) ? { color: colour } : undefined;
+}

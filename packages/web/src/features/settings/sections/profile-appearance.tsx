@@ -71,7 +71,12 @@ export function ProfileAppearance({ profile }: { profile: Profile }) {
       </SettingRow>
 
       <SettingRow label="Icon colour">
-        <ColourPicker value={profile.icon_colour} onChange={setColour} label="Icon colour" />
+        <ColourPicker
+          onCustomChange={setColour}
+          value={profile.icon_colour}
+          onChange={setColour}
+          label="Icon colour"
+        />
       </SettingRow>
     </>
   );

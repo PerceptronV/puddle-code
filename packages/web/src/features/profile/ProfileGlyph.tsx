@@ -1,9 +1,12 @@
 import { UserRound } from 'lucide-react';
 import { cn } from '../../lib/utils';
 import { PROFILE_ICON_BY_NAME } from './profile-icons';
-import { appearanceColourClass as profileColourClass } from '../../lib/appearance/appearance-colours';
+import {
+  appearanceColourClass as profileColourClass,
+  appearanceColourStyle as profileColourStyle,
+} from '../../lib/appearance/appearance-colours';
 
-export { profileColourClass };
+export { profileColourClass, profileColourStyle };
 
 /**
  * A profile's chosen glyph in its chosen theme colour (SPEC §11). The icon comes
@@ -27,5 +30,5 @@ export function ProfileGlyph({
     className,
   );
   const Icon = (icon && PROFILE_ICON_BY_NAME[icon]) || UserRound;
-  return <Icon className={cls} />;
+  return <Icon className={cls} style={profileColourStyle(colour)} />;
 }

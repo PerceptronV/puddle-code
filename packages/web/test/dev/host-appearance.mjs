@@ -1,4 +1,4 @@
-/* global document, window, navigator, getComputedStyle */
+/* global document, window, navigator, getComputedStyle, Event */
 import assert from 'node:assert/strict';
 import { chromium } from '@playwright/test';
 const browser = await chromium.launch({ headless: true });
@@ -51,8 +51,27 @@ try {
         ].map((key) => [key, style.getPropertyValue(key)]),
       );
     });
-    for (const colour of ['navy', 'gold', 'blue', 'green', 'red', 'violet', 'cyan']) {
-      await swatches.getByRole('button', { name: colour, exact: true }).click();
+    for (const colour of [
+      'navy',
+      'gold',
+      'blue',
+      'green',
+      'red',
+      'violet',
+      'cyan',
+      '#000000',
+      '#ffffff',
+      '#ff00ff',
+      '#12a6bc',
+    ]) {
+      if (colour.startsWith('#')) {
+        await swatches.locator('input[type="color"]').evaluate((input, colour) => {
+          input.value = colour;
+          input.dispatchEvent(new Event('change', { bubbles: true }));
+        }, colour);
+      } else {
+        await swatches.getByRole('button', { name: colour, exact: true }).click();
+      }
       await page.waitForFunction(
         (colour) => document.documentElement.dataset.hostColour === colour,
         colour,
@@ -134,6 +153,49 @@ try {
     await page.evaluate(() => document.documentElement.style.getPropertyValue('--bg-base')),
     '',
   );
+  await swatches.getByRole('button', { name: 'blue', exact: true }).click();
+  const hostPicker = swatches.locator('input[type="color"]');
+  await hostPicker.evaluate((input) => {
+    input.click = () => {
+      input.dataset.opened = 'true';
+    };
+  });
+  await swatches.getByRole('button', { name: 'Custom host accent', exact: true }).click();
+  const selectedBlue = await page.evaluate(() => {
+    const raw = getComputedStyle(document.documentElement).getPropertyValue('--ansi-blue').trim();
+    return raw.toLowerCase();
+  });
+  assert.equal(await hostPicker.inputValue(), selectedBlue);
+  assert.equal(await hostPicker.getAttribute('data-opened'), 'true');
+  await hostPicker.evaluate((input) => {
+    input.value = '#12a6bc';
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await page.waitForFunction(() => document.documentElement.dataset.hostColour === '#12a6bc');
+  await swatches.getByRole('button', { name: 'Custom host accent', exact: true }).click();
+  assert.equal(await hostPicker.inputValue(), '#12a6bc');
+  await nav.getByRole('button', { name: 'Profile', exact: true }).click();
+  const profileColours = page.getByRole('group', { name: 'Icon colour', exact: true });
+  await profileColours.getByRole('button', { name: 'green', exact: true }).click();
+  const profilePicker = profileColours.locator('input[type="color"]');
+  await profilePicker.evaluate((input) => {
+    input.click = () => {};
+  });
+  await profileColours.getByRole('button', { name: 'Custom icon colour', exact: true }).click();
+  const selectedGreen = await page.evaluate(() =>
+    getComputedStyle(document.documentElement).getPropertyValue('--ansi-green').trim(),
+  );
+  assert.equal(await profilePicker.inputValue(), selectedGreen);
+  await profilePicker.evaluate((input) => {
+    input.value = '#ad3768';
+    input.dispatchEvent(new Event('change', { bubbles: true }));
+  });
+  await page.waitForFunction(
+    () => document.querySelector('.profile-trigger svg')?.style.color === 'rgb(173, 55, 104)',
+  );
+  await profileColours.getByRole('button', { name: 'Custom icon colour', exact: true }).click();
+  assert.equal(await profilePicker.inputValue(), '#ad3768');
+  await nav.getByRole('button', { name: 'Host', exact: true }).click();
   await swatches.getByRole('button', { name: 'violet', exact: true }).click();
   await page.waitForTimeout(250);
   await page.screenshot({ path: '/tmp/puddle-host-appearance.png' });

@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Choose custom profile colours and host accents with a colour picker seeded from the current selection.
+
 - Restore individual files from Changes using a return-arrow action, with confirmation before discarding edits or deleting untracked files.
 
 #### Fixed
@@ -24,6 +26,8 @@ Past releases: see docs/changelogs/.
 ### Daemon
 
 #### Changed
+
+- Protocol 26.5: accept custom six-digit hex host accents alongside preset colours.
 
 - Protocol 26.4: add per-file Git restore with explicit untracked-file deletion consent and preservation of staged changes.
 
