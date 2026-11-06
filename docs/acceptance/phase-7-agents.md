@@ -175,7 +175,7 @@ second project. Keep two browser windows open for the multi-viewer checks.
    failed lifecycle bridge, verify the agent still starts directly, reports
    `fallback`, and shows one restrained warning; catalogue discovery must still
    work, but in-agent switches must not move the tab.
-2. Exercise `/new`, `/clear`, and `/fork` inside a supported agent. Both the saved
+2. Exercise `/new`, `/clear`, and foreground `/fork` inside a supported agent. Both the saved
    original and new conversation must remain live in separate permanent Puddle
    terminal tabs in the same project/worktree; `/fork` must expose the source as
    parent. The original resumes under a different runtime without a new prompt.
@@ -183,6 +183,12 @@ second project. Keep two browser windows open for the multi-viewer checks.
    Codex reuse without an active-writer error. Repeat with the source initially
    a preview tab, and with a daemon disconnect during the native command.
    `/resume` instead switches placement and leaves its source exited.
+   Claude 2.1.212+ with agent view enabled uses `/fork` for a native background
+   copy instead: verify that the original Puddle terminal retains its identity,
+   input and status while the copy waits or runs. Its inherited hooks must not
+   rebind or complete the foreground conversation. Automatic Puddle-tab attachment
+   of that Claude-owned copy is not yet supported; test this separately from
+   foreground branching.
    Shell tabs, exported environment, and detected app ports must follow. The
    target keeps its own Puddle title overlay and receives branch ownership.
 3. Exercise `/compact`. It must not create or focus another placement. Repeat

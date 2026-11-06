@@ -185,6 +185,39 @@ async function hook(
 }
 
 describe('generated native hooks', () => {
+  it('ignores Claude background copies carrying their foreground runtime nonce', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'puddle-hook-background-'));
+    cleanups.push(async () => rmSync(dir, { recursive: true, force: true }));
+    installStatusHooks(dir);
+    installClaudeTurnHooks(dir);
+    const settings = JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf8'));
+    const server = await hookServer();
+    const nonce = randomUUID();
+    const input = {
+      session_id: randomUUID(),
+      cwd: dir,
+      source: 'fork',
+      prompt: 'synthetic background prompt',
+      last_assistant_message: 'synthetic background answer',
+    };
+    const env = { PATH: process.env.PATH!, CLAUDE_JOB_DIR: join(dir, 'jobs', 'copy') };
+    for (const event of ['SessionStart', 'SessionEnd', 'UserPromptSubmit', 'Stop', 'StopFailure'])
+      for (const group of settings.hooks[event])
+        for (const entry of group.hooks)
+          expect(await hook(entry.command, input, server.url, nonce, env)).toBe('');
+    expect(server.messages).toEqual([]);
+    const command = settings.hooks.SessionStart[0].hooks[0].command;
+    await hook(command, { ...input, source: 'resume' }, server.url, nonce, { PATH: env.PATH });
+    expect(server.messages).toEqual([
+      {
+        nonce,
+        event: 'session_start',
+        agent_session_ref: input.session_id,
+        cwd: dir,
+        source: 'resume',
+      },
+    ]);
+  });
   it('ignores Claude subagent status and malformed or oversized hook input', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'puddle-hook-status-'));
     cleanups.push(async () => rmSync(dir, { recursive: true, force: true }));

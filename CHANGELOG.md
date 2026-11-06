@@ -26,3 +26,7 @@ Past releases: see docs/changelogs/.
 #### Changed
 
 - Protocol 26.4: add per-file Git restore with explicit untracked-file deletion consent and preservation of staged changes.
+
+#### Fixed
+
+- Ignore Claude-owned background copies’ inherited hooks so native `/fork` cannot rebind the original Puddle terminal or change its turn status.

@@ -12,7 +12,7 @@ import {
 
 /** Native UserPromptSubmit/Stop payloads, Claude Code 2.1.300 hook contract. */
 export const CLAUDE_TURN_SOURCE = turnHookSource(`
-  if (input.agent_id) return null;
+  if (input.agent_id || process.env.CLAUDE_JOB_DIR) return null;
   const ref = input.session_id;
   if (mode === 'start') return { kind: 'start', ref, prompt: input.prompt };
   if (mode === 'failed') return { kind: 'end', ref, error: input.error_details || input.error || 'Claude turn failed' };

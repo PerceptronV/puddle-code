@@ -44,6 +44,9 @@ for await (const chunk of process.stdin) {
   if (Buffer.byteLength(raw) > 1024 * 1024) process.exit(0);
 }
 if (!url || !nonce) process.exit(0);
+// Native background copies inherit the foreground hook URL and nonce. Their
+// lifecycle belongs to Claude's supervisor, not this terminal's runtime.
+if (process.env.CLAUDE_JOB_DIR) process.exit(0);
 let input;
 try { input = JSON.parse(raw || '{}'); } catch { process.exit(0); }
 if (!input || typeof input !== 'object' || input.agent_id) process.exit(0);
