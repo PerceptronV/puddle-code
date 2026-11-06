@@ -2295,18 +2295,21 @@ remain available alongside the custom option, and the default swatch uses a
 fixed neutral grey independent of host accents. Project custom colours carry
 through cards, the command field, expanded/collapsed sidebars and mobile labels.
 Generated host palettes retain readable text and selection contrast for arbitrary
-colours. The pane frame and tab strip share `--bg-pane`, with at least 1.2:1
-separation from active tabs/editor content in light mode and 1.3:1 in dark mode;
-this adjusts only the accent’s HSL lightness, preserving its hue and saturation
-instead of mixing the pane towards neutral grey, including pale or deep custom
-colours. Accented themes use the same gently tinted background for sidebars,
-file trees, editors and terminals: slightly deeper in light mode and lighter in
-dark mode. Pane/tab-strip contrast remains separate; the default theme is unchanged.
+colours. Host accents change palette values, never the relationships between UI
+surfaces: pane frames and tab strips share the sidebar's `--bg-surface` through
+the default `--bg-pane` alias; nested trays share `--bg-elevated` through
+`--bg-tray`. Host palettes do not override those aliases. Editor/terminal reading
+surfaces and active tabs retain the default `--bg-base` (white in light mode,
+deep navy in dark mode). All island backgrounds are deeper in light mode and
+lighter in dark mode, with nested islands one further step in the same direction;
+this applies to default and accented themes alike. A neutral foundation retains
+these steps even for white or black custom accents. There is no separate pane/tab
+contrast adjustment.
 Compact Icon and Accent rows sit below
 the display name, without a separate section or preview card. A chosen accent
 rebuilds the entire chrome palette: text hierarchy, surfaces, borders, controls,
 links, focus rings and persistent selections. File/session selections use a softer
-fill. Editor/terminal backgrounds and neutral ink update with the same palette;
+fill. Neutral ink updates with the palette while reading backgrounds remain theme-owned;
 syntax and ANSI hues, semantic status colours, explicit project/profile colours,
 brand/file artwork and document colours remain independent. Palette changes notify
 the existing editor/terminal theme subscribers using resolved hex colours.

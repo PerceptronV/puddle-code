@@ -51,37 +51,6 @@ function withContrast(colour: string, backgrounds: string[], ink: string, floor 
   return ink;
 }
 
-/** Change only the accent's HSL lightness; keep its hue and saturation intact. */
-function paneSurface(accent: string, base: string, dark: boolean): string {
-  const channels = [1, 3, 5].map((start) => parseInt(accent.slice(start, start + 2), 16) / 255);
-  const low = Math.min(...channels);
-  const high = Math.max(...channels);
-  const range = high - low;
-  const saturation = range === 0 ? 0 : range / (1 - Math.abs(high + low - 1));
-  const background = luminance(base);
-  const floor = dark ? 1.3 : 1.2;
-  for (let step = 1; step <= 100; step++) {
-    const lightness = dark ? step / 100 : 1 - step / 100;
-    const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
-    const offset = lightness - chroma / 2;
-    const candidate =
-      '#' +
-      channels
-        .map((channel) =>
-          Math.round(255 * (offset + (range === 0 ? 0 : (chroma * (channel - low)) / range)))
-            .toString(16)
-            .padStart(2, '0'),
-        )
-        .join('');
-    const light = luminance(candidate);
-    const contrast = dark
-      ? (light + 0.05) / (background + 0.05)
-      : (background + 0.05) / (light + 0.05);
-    if (contrast >= floor) return candidate;
-  }
-  return accent;
-}
-
 /** Whole-chrome palette. Semantic statuses, explicit identities and ANSI hues stay independent. */
 export function hostPalette(
   colour: string,
@@ -100,27 +69,23 @@ export function hostPalette(
   let secondary = dark ? mix(accent, white, 0.4) : mix(accent, black, 0.65);
   let selection = dark ? accent : mix(accent, black, 0.75);
   let muted = dark ? mix(accent, white, 0.55) : mix(primary, white, 0.76);
-  // One gently tinted surface for sidebars, editors and terminals. Lift dark
-  // surfaces slightly even for a black accent; deepen the light-mode tint.
-  const surface = dark ? mix(mix(accent, ground, 0.105), white, 0.98) : mix(accent, ground, 0.045);
-  const base = surface;
-  const elevated = mix(accent, ground, dark ? 0.16 : 0.065);
-  const tray = mix(accent, ground, dark ? 0.16 : 0.065);
+  // Keep the default reading surface: white in light mode, deep navy in dark.
+  // Island depth is shared by pane frames and sidebars; nested trays step once
+  // further in the same direction. A neutral foundation also gives white/black
+  // custom accents visible depth without a pane-specific contrast algorithm.
+  const base = read('--bg-base');
   const ink = dark ? white : black;
-  // Pane frames/tab strips need a visible step from active tabs and editor content.
-  // Moving a near-white/black tint towards neutral ink washes out the chosen hue.
-  const pane = paneSurface(accent, base, dark);
-  const backgrounds = [ground, base, surface, pane, elevated, tray];
+  const foundation = mix(ink, base, dark ? 0.08 : 0.06);
+  const surface = mix(accent, foundation, dark ? 0.13 : 0.05);
+  const elevated = mix(surface, ink, dark ? 0.92 : 0.96);
+  const backgrounds = [ground, base, surface, elevated];
   primary = withContrast(primary, backgrounds, ink);
   secondary = withContrast(secondary, backgrounds, ink);
   muted = withContrast(muted, backgrounds, ink);
   selection = withContrast(selection, backgrounds, ink);
   return {
-    '--bg-base': base,
     '--bg-surface': surface,
-    '--bg-pane': pane,
     '--bg-elevated': elevated,
-    '--bg-tray': tray,
     '--border': mix(accent, ground, dark ? 0.28 : 0.14),
     '--text-primary': primary,
     '--text-secondary': secondary,

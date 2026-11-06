@@ -120,10 +120,10 @@
   color-scheme: dark;
 
   --bg-base: var(--navy-950);
-  --bg-surface: var(--navy-900);
+  --bg-surface: var(--navy-800);
   --bg-pane: var(--bg-surface);
-  --bg-elevated: var(--navy-800);
-  --bg-tray: var(--navy-800);
+  --bg-elevated: var(--navy-700);
+  --bg-tray: var(--bg-elevated);
   --border: var(--navy-600);
   --explorer-folder: var(--text-primary);
   --explorer-foreground: var(--mist-100);
@@ -196,10 +196,10 @@
   color-scheme: light;
 
   --bg-base: var(--neutral-0);
-  --bg-surface: var(--neutral-50);
+  --bg-surface: var(--neutral-100);
   --bg-pane: var(--bg-surface);
-  --bg-elevated: var(--neutral-100);
-  --bg-tray: var(--neutral-50);
+  --bg-elevated: var(--neutral-200);
+  --bg-tray: var(--bg-elevated);
   --border: var(--neutral-200);
   --explorer-folder: var(--text-primary);
   --explorer-foreground: #4c4c4c;

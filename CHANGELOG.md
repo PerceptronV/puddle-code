@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
+- Preserve default surface relationships under host accents: keep reading areas and active tabs untinted, match pane frames to sidebars, and deepen island/nested-tray backgrounds in light mode with the inverse in dark mode.
+
 - Keep Ripple active for Codex and other alternate-screen agents, rendering current screen contents with copyable text, Mermaid and LaTeX while preserving native CLI controls.
 
 - Clicking, tapping or scrolling closed session transcripts no longer raises connection errors from restored terminal mouse reporting.

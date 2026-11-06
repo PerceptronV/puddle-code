@@ -8,6 +8,7 @@ try {
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(process.env.PREVIEW_URL ?? 'http://localhost:5174/');
   await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await page.locator('[data-path="README.md"]').dblclick();
   await page.locator('[data-path="package.json"]').dblclick();
   await page.locator('.monaco-editor').first().waitFor();
   await page.getByRole('button', { name: 'Settings', exact: true }).click();
@@ -28,12 +29,6 @@ try {
     const nums = value.match(/[\d.]+/g).map(Number);
     return value.startsWith('color(') ? nums.slice(0, 3) : nums.slice(0, 3).map((n) => n / 255);
   };
-  const saturation = (colour) => {
-    const channels = rgb(colour);
-    const high = Math.max(...channels);
-    const low = Math.min(...channels);
-    return high === low ? 0 : (high - low) / (1 - Math.abs(high + low - 1));
-  };
   const ratio = (a, b) => {
     const values = [luminance(rgb(a)), luminance(rgb(b))].sort((a, b) => b - a);
     return (values[0] + 0.05) / (values[1] + 0.05);
@@ -43,6 +38,16 @@ try {
       const { applyTheme } = await import('/src/lib/appearance/theme.ts');
       applyTheme(theme);
     }, theme);
+    await swatches.getByRole('button', { name: 'Default colour' }).click();
+    await page.waitForFunction(() => !document.documentElement.dataset.hostColour);
+    const defaults = await page.evaluate(() => {
+      const style = getComputedStyle(document.documentElement);
+      return ['--bg-surface', '--bg-pane', '--bg-elevated', '--bg-tray'].map((key) =>
+        style.getPropertyValue(key).trim(),
+      );
+    });
+    assert.equal(defaults[0], defaults[1], `${theme} default pane/sidebar mapping`);
+    assert.equal(defaults[2], defaults[3], `${theme} default nested/elevated mapping`);
     const held = await page.evaluate(() => {
       const style = getComputedStyle(document.documentElement);
       return Object.fromEntries(
@@ -55,6 +60,7 @@ try {
           '--status-running',
           '--status-waiting',
           '--paper',
+          '--bg-base',
         ].map((key) => [key, style.getPropertyValue(key)]),
       );
     });
@@ -96,7 +102,7 @@ try {
         held,
         'Explicit identity, semantic status, ANSI and document colours stay independent',
       );
-      const styles = await page.evaluate(() => {
+      const styles = await page.evaluate(async () => {
         const marker = document.querySelector(
           '[aria-label="Settings sections"] .control-tray-selection',
         );
@@ -105,7 +111,17 @@ try {
         );
         const identity = document.querySelector('header .host-identity');
         const header = document.querySelector('header');
+        const { xtermThemeFromCss } = await import('/src/lib/appearance/theme.ts');
         return {
+          surfaceOverrides: ['--bg-base', '--bg-pane', '--bg-tray'].map((key) =>
+            document.documentElement.style.getPropertyValue(key),
+          ),
+          terminal: xtermThemeFromCss().background,
+          pane: getComputedStyle(document.querySelector('.workspace-pane')).backgroundColor,
+          sidebar: getComputedStyle(document.querySelector('.workspace-surface.bg-surface'))
+            .backgroundColor,
+          activeTab: getComputedStyle(document.querySelector('[data-pane-tab].bg-ground'))
+            .backgroundColor,
           editor: getComputedStyle(document.querySelector('.monaco-editor-background'))
             .backgroundColor,
           palette: Object.fromEntries(
@@ -136,10 +152,15 @@ try {
         rgb(styles.palette['--bg-base']),
         `${theme}/${colour} Monaco follows the host palette`,
       );
+      assert.deepEqual(
+        styles.surfaceOverrides,
+        ['', '', ''],
+        `${theme}/${colour} accents preserve shared surface aliases and reading backgrounds`,
+      );
       assert.equal(
-        styles.palette['--bg-base'],
+        styles.palette['--bg-pane'],
         styles.palette['--bg-surface'],
-        `${theme}/${colour} editor and terminal backgrounds match sidebar surfaces`,
+        `${theme}/${colour} pane frames match sidebar surfaces`,
       );
       for (const foreground of ['--text-primary', '--text-secondary', '--text-muted']) {
         for (const background of [
@@ -155,25 +176,23 @@ try {
           );
         }
       }
-      assert.ok(
-        ratio(styles.palette['--bg-base'], styles.palette['--bg-pane']) >=
-          (theme === 'dark' ? 1.3 : 1.2),
-        `${theme}/${colour} active tab/editor separates from the pane frame`,
+      assert.deepEqual(
+        rgb(styles.editor),
+        rgb(held['--bg-base']),
+        `${theme}/${colour} reading surface keeps the default theme`,
       );
+      assert.deepEqual(rgb(styles.terminal), rgb(held['--bg-base']));
+      assert.deepEqual(rgb(styles.activeTab), rgb(styles.editor));
+      assert.deepEqual(rgb(styles.pane), rgb(styles.sidebar));
+      const baseLight = luminance(rgb(styles.palette['--bg-base']));
+      const surfaceLight = luminance(rgb(styles.palette['--bg-surface']));
+      const trayLight = luminance(rgb(styles.palette['--bg-tray']));
       assert.ok(
         theme === 'dark'
-          ? luminance(rgb(styles.palette['--bg-pane'])) >
-              luminance(rgb(styles.palette['--bg-base']))
-          : luminance(rgb(styles.palette['--bg-pane'])) <
-              luminance(rgb(styles.palette['--bg-base'])),
-        `${theme}/${colour} pane contrast follows the theme's surface direction`,
+          ? baseLight < surfaceLight && surfaceLight < trayLight
+          : baseLight > surfaceLight && surfaceLight > trayLight,
+        `${theme}/${colour} islands and nested trays step away from the reading surface`,
       );
-      if (colour.startsWith('#')) {
-        assert.ok(
-          Math.abs(saturation(styles.palette['--bg-pane']) - saturation(colour)) < 0.035,
-          `${theme}/${colour} pane preserves the chosen accent's saturation`,
-        );
-      }
       assert.ok(ratio(styles.palette['--action'], styles.palette['--action-ink']) >= 4.5);
       assert.ok(
         ratio(styles.selection, styles.ink) >= 4.5,
@@ -184,6 +203,12 @@ try {
         `${theme}/${colour} host label contrast`,
       );
     }
+    await swatches.getByRole('button', { name: 'blue', exact: true }).click();
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
+    await nav.waitFor({ state: 'hidden' });
+    await page.screenshot({ path: `/private/tmp/puddle-islands-${theme}.png` });
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await nav.getByRole('button', { name: 'Host', exact: true }).click();
   }
   await page.evaluate(() => {
     document.documentElement.dataset.theme = 'light';
