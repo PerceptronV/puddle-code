@@ -1,3 +1,4 @@
+import { ProjectAbbreviation } from './ProjectAbbreviation';
 import { SessionHoverList } from './SessionHoverList';
 import './session-sidebar.css';
 import { ControlTray } from '../../../components/ui/control-tray';
@@ -599,14 +600,14 @@ export function CollapsedSessionsRail({
                         }}
                         onDragEnd={() => setDragProject(null)}
                         className={cn(
-                          'w-full truncate px-1 text-center text-2xs uppercase transition-colors',
+                          'w-full px-1 text-center text-2xs uppercase transition-colors',
                           appearanceColourClass(group.colour)
                             ? cn(appearanceColourClass(group.colour), 'hover:opacity-75')
                             : 'text-fg-muted hover:text-fg',
                           dragProject === group.projectId && 'opacity-50',
                         )}
                       >
-                        {group.abbrev}
+                        <ProjectAbbreviation text={group.abbrev} />
                       </Link>
                     </TooltipTrigger>
                   </ContextMenuTrigger>

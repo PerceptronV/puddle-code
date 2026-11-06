@@ -61,6 +61,26 @@ try {
   assert.equal(compact.font, comfortable.font);
   assert.ok(compact.padding > comfortable.padding);
   assert.equal(compact.gap, comfortable.gap);
+  const abbreviation = project.locator('[data-project-abbreviation]');
+  const initial = await abbreviation.evaluate((el) => parseFloat(getComputedStyle(el).fontSize));
+  for (const width of [24, 64]) {
+    await project.evaluate((el, width) => {
+      el.style.width = `${width}px`;
+    }, width);
+    await page.waitForTimeout(100);
+    const fitted = await abbreviation.evaluate((el) => ({
+      text: el.textContent,
+      width: el.getBoundingClientRect().width,
+      available: el.parentElement.getBoundingClientRect().width,
+      font: parseFloat(getComputedStyle(el).fontSize),
+      overflow: getComputedStyle(el.closest('a')).textOverflow,
+    }));
+    assert.equal(fitted.text, 'PUDDL');
+    assert.ok(fitted.width <= fitted.available + 0.2, 'Full abbreviation fits the rail');
+    assert.notEqual(fitted.overflow, 'ellipsis');
+    if (width === 24) assert.ok(fitted.font < initial, 'Narrow rail shrinks the label');
+    else assert.ok(fitted.font >= initial, 'Wider rail restores the natural size');
+  }
   console.log(
     'Scaled settings selection, pointer/keyboard tab actions and compact rail labels/spacing pass.',
   );
