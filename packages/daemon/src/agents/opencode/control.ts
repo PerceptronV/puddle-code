@@ -18,7 +18,11 @@ export async function prepareOpenCodeInteractive(context: LifecycleLaunchContext
   )
     throw new Error('OpenCode 1.18.10+ is required for interactive puddlang turns');
   const args = standalone ? ['--standalone', ...context.args] : context.args;
-  if (standalone) {
+  if (
+    standalone &&
+    (!(await lifecycleVersionAtLeast('opencode', ['--version'], [2, 2, 5], context.env)) ||
+      (await lifecycleVersionAtLeast('opencode', ['--version'], [3, 0, 0], context.env)))
+  ) {
     // OpenCode 2 rejects V1 plugin hooks. Keep its terminal private, but do not
     // advertise exact identity/turn control without a verified V2 TUI bridge.
     context.reportLifecycleUnavailable?.();

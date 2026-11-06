@@ -46,22 +46,28 @@ printf '%s\\n' '{"type":"text","sessionID":"ses_fixture","part":{"text":"answer"
 }
 
 describe('OpenCode server lifetime', () => {
-  it.each(['1.18.10', '2.0.0'])('keeps %s interactive launches private', async (version) => {
-    const context = fixture(version);
-    const resource = await prepareOpenCodeInteractive(context);
-    try {
-      expect(resource.args).toEqual([
-        ...(version === '2.0.0' ? ['--standalone'] : []),
-        ...context.args,
-      ]);
-      if (version === '2.0.0') {
-        expect(context.reportLifecycleUnavailable).toHaveBeenCalledOnce();
-        expect(resource.control).toBeUndefined();
-      } else expect(context.reportLifecycleUnavailable).not.toHaveBeenCalled();
-    } finally {
-      await resource.dispose();
-    }
-  });
+  it.each(['1.18.10', '2.0.0', '2.2.5', '3.0.0'])(
+    'keeps %s interactive launches private',
+    async (version) => {
+      const context = fixture(version);
+      const resource = await prepareOpenCodeInteractive(context);
+      try {
+        expect(resource.args).toEqual([
+          ...(!version.startsWith('1.') ? ['--standalone'] : []),
+          ...context.args,
+        ]);
+        if (version === '2.0.0' || version === '3.0.0') {
+          expect(context.reportLifecycleUnavailable).toHaveBeenCalledOnce();
+          expect(resource.control).toBeUndefined();
+        } else {
+          expect(context.reportLifecycleUnavailable).not.toHaveBeenCalled();
+          expect(resource.control).toBeDefined();
+        }
+      } finally {
+        await resource.dispose();
+      }
+    },
+  );
 
   it('preserves standalone mode when interactive control cannot be prepared', async () => {
     const context = fixture('2.0.0');

@@ -24,9 +24,13 @@ Codex 0.166+ also has an opt-in offline native regression:
 `PUDDLE_NATIVE_CODEX_TEST=1 pnpm exec vitest run packages/daemon/test/agents/codex/native-switch.test.ts`.
 It uses synthetic history and checks simultaneous ownership after fork/new; it
 makes no model requests. Paid-turn and full TUI acceptance remain separate.
-OpenCode 2 currently reports fallback synchronisation. Its V2 plugin API requires
-a separate, verified TUI-selection integration; a V1 plugin or `session.viewed`
-read-status event is not sufficient evidence of the selected conversation.
+OpenCode 2.2.5+ has an opt-in native TUI/runtime regression:
+`PUDDLE_NATIVE_OPENCODE_BINARY=/absolute/path/to/opencode pnpm exec vitest run packages/daemon/test/agents/opencode/native-switch.test.ts`.
+It uses an isolated account and a loopback synthetic model server to verify new,
+forked and resumed conversations in independent owners, exact automated replies
+and native catalogue ancestry. No paid provider is contacted. The V1 server
+loader and V2 TUI entry remain separate; `session.viewed` is never selection
+evidence. Installed-profile and busy-fork acceptance below remain separate.
 
 ## 1. Status regexes — OpenCode and Gemini CLI remain
 

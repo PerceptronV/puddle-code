@@ -2,6 +2,8 @@ import { mkdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { writeManagedHelper } from '../managed-helpers.js';
+import { OPENCODE_V2_PLUGIN_SOURCE } from './v2-plugin.js';
+import { OPENCODE_V2_TURNS_SOURCE } from './v2-turns.js';
 
 const PLUGIN_FILE = 'puddle-sync.js';
 
@@ -142,6 +144,37 @@ export function installOpenCodePlugin(configDir: string): void {
   mkdirSync(dir, { recursive: true });
   const fallback = join(configDir, 'config', 'opencode', 'puddle-managed', 'puddle-sync.mjs');
   writeManagedHelper(fallback, OPENCODE_PLUGIN_SOURCE);
+  const v2 = join(configDir, 'config', 'opencode', 'puddle-managed');
+  writeManagedHelper(join(v2, 'puddle-sync-v2.mjs'), OPENCODE_V2_PLUGIN_SOURCE);
+  writeManagedHelper(join(v2, 'puddle-sync-v2-turns.mjs'), OPENCODE_V2_TURNS_SOURCE);
+  const entry = join(dir, 'puddle-native-v2');
+  writeManagedHelper(
+    join(entry, 'package.json'),
+    JSON.stringify({
+      name: 'puddle-native-v2',
+      type: 'module',
+      exports: { '.': './index.js', './tui': './tui.js' },
+    }),
+  );
+  writeManagedHelper(
+    join(entry, 'index.js'),
+    "export default { id: 'puddle-native-v2', server: async () => ({}), setup() {} };\n",
+  );
+  writeManagedHelper(
+    join(entry, 'tui.js'),
+    `// Stable dispatch: older owners without V2 assets remain in fallback.
+import { existsSync } from 'node:fs';
+import { join } from 'node:path';
+import { pathToFileURL } from 'node:url';
+import { createRoot, createEffect } from 'solid-js';
+export default { id: 'puddle-native-v2', async setup(context) {
+  const source = join(process.env.PUDDLE_AGENT_HELPER_DIR || ${JSON.stringify(v2)}, 'puddle-sync-v2.mjs');
+  if (!existsSync(source)) return;
+  const plugin = await import(pathToFileURL(source).href);
+  return plugin.PuddleSyncV2(context, { createRoot, createEffect });
+}};
+`,
+  );
   // Keep this V1 loader stable: OpenCode may load shared account plugins after
   // another daemon release has reconciled the account's configuration.
   writeManagedHelper(
@@ -156,8 +189,8 @@ export const PuddleSync = async (context) => {
   const plugin = await import(source);
   return plugin.PuddleSync(context);
 };
-// OpenCode 1.18.10 selects server(); V2 selects setup(). The latter deliberately
-// registers no V1 hooks: exact V2 TUI/turn support is not yet advertised.
+// OpenCode 1.18.10 selects server(); V2 selects setup(). V2 observations are
+// registered by the separate TUI entry, never by this server-wide V1 bridge.
 export default { id: 'puddle.native-sync', server: PuddleSync, setup() {} };
 `,
   );

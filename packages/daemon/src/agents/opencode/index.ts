@@ -1,7 +1,7 @@
 import { prepareOpenCodeInteractive } from './control.js';
 import { prepareOpenCodeHeadless } from './headless.js';
 import { execFile } from 'node:child_process';
-import { mkdirSync, readFileSync, type Dirent } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, type Dirent } from 'node:fs';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
@@ -9,6 +9,9 @@ import type { AgentAdapter } from '../adapter.js';
 import { matchesAgentProcess } from '../process-match.js';
 import { installOpenCodePlugin, OPENCODE_PLUGIN_SOURCE } from './plugin.js';
 import { lifecycleVersionAtLeast } from '../lifecycle-version.js';
+import { OPENCODE_V2_PLUGIN_SOURCE } from './v2-plugin.js';
+import { OPENCODE_V2_TURNS_SOURCE } from './v2-turns.js';
+import { openCodeDatabaseSessions } from './store.js';
 
 const execFileAsync = promisify(execFile);
 
@@ -63,6 +66,8 @@ const METADATA_CONCURRENCY = 32;
 export const opencode: AgentAdapter = {
   runtimeAssets: () => ({
     'puddle-sync.mjs': OPENCODE_PLUGIN_SOURCE,
+    'puddle-sync-v2.mjs': OPENCODE_V2_PLUGIN_SOURCE,
+    'puddle-sync-v2-turns.mjs': OPENCODE_V2_TURNS_SOURCE,
   }),
   scriptedTurns: true,
   prepareHeadlessLaunch: prepareOpenCodeHeadless,
@@ -162,6 +167,8 @@ export const opencode: AgentAdapter = {
   },
 
   async hasConversation(ref, account) {
+    const native = await openCodeDatabaseSessions(account.config_dir, { ref });
+    if (native?.some((session) => session.id === ref && session.parentID === null)) return true;
     return (await sessionsFor(account.config_dir)).some((session) => session.id === ref);
   },
 
@@ -190,7 +197,14 @@ export const opencode: AgentAdapter = {
   },
 
   conversationDiscovery: {
-    watchRoots: (account) => [join(dataDir(account.config_dir), 'storage', 'session')],
+    watchRoots: (account) => {
+      const root = dataDir(account.config_dir);
+      // SQLite accounts have no JSON directory: watching that missing path
+      // would unnecessarily force the catalogue into timer-based fallback.
+      return existsSync(join(root, 'opencode.db'))
+        ? [root]
+        : [join(root, 'storage', 'session'), root];
+    },
     discover: async (account) =>
       (await allSessions(account.config_dir))
         .filter((session) => session.parentID === null)
@@ -198,15 +212,17 @@ export const opencode: AgentAdapter = {
           ref: session.id,
           cwd: session.directory,
           title: session.title,
-          parentRef: null,
+          parentRef: session.parentRef ?? null,
           createdAt: session.createdAt === null ? null : new Date(session.createdAt).toISOString(),
           updatedAt: new Date(session.updatedAt).toISOString(),
         })),
   },
   lifecycleSignals: true,
   checkLifecycleSupport: async () =>
-    !(await lifecycleVersionAtLeast('opencode', ['--version'], [2, 0, 0])) &&
-    (await lifecycleVersionAtLeast('opencode', ['--version'], [1, 18, 10])),
+    ((await lifecycleVersionAtLeast('opencode', ['--version'], [2, 2, 5])) &&
+      !(await lifecycleVersionAtLeast('opencode', ['--version'], [3, 0, 0]))) ||
+    (!(await lifecycleVersionAtLeast('opencode', ['--version'], [2, 0, 0])) &&
+      (await lifecycleVersionAtLeast('opencode', ['--version'], [1, 18, 10]))),
 
   /**
    * UNVERIFIED against a live session (opencode needs a configured provider to
@@ -267,6 +283,7 @@ interface StoredSession {
   directory: string;
   title: string | null;
   parentID: string | null;
+  parentRef?: string | null;
   createdAt: number | null;
   updatedAt: number;
 }
@@ -313,7 +330,8 @@ async function scanSessions(configDir: string): Promise<StoredSession[]> {
   const root = join(dataDir(configDir), 'storage', 'session');
   const cached = sessionCache.get(configDir) ?? new Map<string, CachedSession>();
   sessionCache.set(configDir, cached);
-  const found: StoredSession[] = [];
+  const found: StoredSession[] = (await openCodeDatabaseSessions(configDir)) ?? [];
+  const known = new Set(found.map((session) => session.id));
   const files = await walkJson(root, 3);
   const live = new Set(files);
   for (const file of cached.keys()) if (!live.has(file)) cached.delete(file);
@@ -321,7 +339,10 @@ async function scanSessions(configDir: string): Promise<StoredSession[]> {
     const batch = files.slice(offset, offset + METADATA_CONCURRENCY);
     const entries = await Promise.all(batch.map((file) => readStoredSession(file, cached)));
     for (const entry of entries) {
-      if (entry !== null) found.push(entry.session);
+      if (entry !== null && !known.has(entry.session.id)) {
+        known.add(entry.session.id);
+        found.push(entry.session);
+      }
     }
   }
   return found.sort((a, b) => b.updatedAt - a.updatedAt);
