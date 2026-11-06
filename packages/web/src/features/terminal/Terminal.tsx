@@ -1,5 +1,5 @@
 import { useReducedMotion } from '../../lib/appearance/motion';
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { Terminal as XTerm } from '@xterm/xterm';
 import { FitAddon } from '@xterm/addon-fit';
@@ -14,7 +14,7 @@ import {
   getHotkeyHandler,
 } from '../../lib/navigation/hotkeys';
 import { daemonAnswersColourQueries } from '../../lib/transport/protocol-support';
-import { useDaemonVersion, useProfileSettings } from '../../lib/queries/queries';
+import { useAllSessions, useDaemonVersion, useProfileSettings } from '../../lib/queries/queries';
 import { useCurrentProfileId } from '../profile/profile-store';
 import { FindWidget } from '../find/FindWidget';
 import { isValidFindPattern } from '../find/find-matches';
@@ -60,6 +60,7 @@ import { SelectionActions } from '../../components/selection-actions';
 import { TerminalRichOutput } from './rich-output/TerminalRichOutput';
 import { browserScope } from '../../lib/transport/browser-transport';
 import { RetainedTerminal } from './parked/RetainedTerminal';
+import { setSessionRipple, useSessionRipple } from './ripple/preferences';
 import { parkedTerminalPool } from './parked/pool';
 import {
   captureParkedTerminal,
@@ -68,6 +69,7 @@ import {
 } from './parked/snapshot';
 
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform);
+const Ripple = lazy(() => import('./ripple/Ripple').then((module) => ({ default: module.Ripple })));
 
 /**
  * The terminal typeface, and a gate on its webfont being LOADED: xterm
@@ -221,6 +223,14 @@ function TerminalView({
   // replace this PTY's saved viewport from an earlier workspace mount.
   const hasReplayRef = useRef(false);
   const settings = useClientSettings();
+  const ripplePreference = useSessionRipple(stream);
+  const sessionTerminal =
+    term === 'agent' && stream !== HOME_STREAM && !stream.startsWith('login-');
+  const sessions = useAllSessions(sessionTerminal && ripplePreference.enabled);
+  const rippleEnabled =
+    sessionTerminal &&
+    ripplePreference.enabled &&
+    sessions.data?.some((session) => session.id === stream && session.kind === 'agent');
   const reduceMotion = useReducedMotion();
   const onExitRef = useRef(onExit);
   onExitRef.current = onExit;
@@ -842,11 +852,29 @@ function TerminalView({
 
   return (
     <div
-      className={cn('puddle-terminal group/terminal relative size-full', className)}
-      data-notification-session={!paused && term === 'agent' ? stream : undefined}
+      className={cn(
+        'puddle-terminal group/terminal relative size-full',
+        rippleEnabled && 'puddle-terminal-ripple',
+        className,
+      )}
     >
-      <div ref={containerRef} className="size-full" />
-      {richTerminal && !paused && visible && <TerminalRichOutput terminal={richTerminal} />}
+      {rippleEnabled && richTerminal && (
+        <Suspense fallback={null}>
+          <Ripple
+            terminal={richTerminal}
+            stream={stream}
+            active={!paused && visible}
+            onDisable={() => setSessionRipple(stream, false)}
+          />
+        </Suspense>
+      )}
+      <div
+        className="ripple-native relative size-full"
+        data-notification-session={!paused && term === 'agent' ? stream : undefined}
+      >
+        <div ref={containerRef} className="size-full" />
+        {richTerminal && !paused && visible && <TerminalRichOutput terminal={richTerminal} />}
+      </div>
       {touchSelection !== null && !paused && (
         <SelectionActions
           label="Selected terminal text"

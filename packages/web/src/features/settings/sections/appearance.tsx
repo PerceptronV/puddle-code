@@ -88,6 +88,17 @@ export function AppearanceSection() {
           onCommit={(editorFontSize) => updateClientSettings({ editorFontSize })}
         />
       </SettingRow>
+      <SettingRow
+        label="Ripple (experimental)"
+        description="Open agent sessions with a spacious reading view above the native CLI. Right-click a session to override this default."
+        htmlFor="ripple-enabled"
+      >
+        <Switch
+          id="ripple-enabled"
+          checked={settings.rippleEnabled === true}
+          onCheckedChange={(rippleEnabled) => updateClientSettings({ rippleEnabled })}
+        />
+      </SettingRow>
       <SettingRow label="Density">
         <Select
           value={settings.density}

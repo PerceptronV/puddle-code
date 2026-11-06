@@ -17,6 +17,8 @@ export interface ClientSettings {
   /** Pointer, interactive-hover, and text-caret treatment across the UI. */
   cursorPackage: CursorPackageId;
   terminalFontSize: number;
+  /** Experimental reading view for agent main terminals; session choices override it. */
+  rippleEnabled: boolean;
   /** Monaco text size; intentionally independent from the terminal size. */
   editorFontSize: number;
   density: 'compact' | 'comfortable';
@@ -49,6 +51,7 @@ export const DEFAULT_CLIENT_SETTINGS: ClientSettings = {
   showHostOnFocus: false,
   cursorPackage: DEFAULT_CURSOR_PACKAGE,
   terminalFontSize: 13,
+  rippleEnabled: false,
   editorFontSize: 14,
   density: 'compact',
   terminalScrollback: 20000,

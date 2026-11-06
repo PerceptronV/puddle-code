@@ -49,6 +49,7 @@ export const SYNC_GROUPS: SyncGroup[] = [
       { key: 'cursorPackage', store: 'client' },
       { key: 'uiFontSize', store: 'client' },
       { key: 'terminalFontSize', store: 'client' },
+      { key: 'rippleEnabled', store: 'client' },
       { key: 'editorFontSize', store: 'client' },
       { key: 'density', store: 'client' },
       { key: 'reduceMotion', store: 'client' },

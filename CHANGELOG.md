@@ -13,7 +13,12 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Add the opt-in Ripple reading view for agent terminals, with shared Markdown, Mermaid and LaTeX rendering, browser text selection and native CLI controls; choose its default in Appearance or override it per session.
 - Add Linux arm64 AppImage releases, built on a native arm64 runner alongside Linux x64 and macOS arm64. Linux packaging verifies extraction, bundled application contents and executable architecture before publication.
+
+#### Changed
+
+- Group session menus into lifecycle, runtime/renderer/environment, and account/worktree/editor actions; label the runtime inspector “Runtime”.
 
 #### Fixed
 

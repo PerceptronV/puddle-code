@@ -3,6 +3,7 @@ import { Code, Eye } from 'lucide-react';
 import type { ThemeName } from '../../../lib/appearance/theme';
 import { cn } from '../../../lib/utils';
 import type { TerminalRichBlock as RichBlock } from './rich-output-buffer';
+import { renderRichContent } from './render-rich-content';
 
 export interface RichBlockBox {
   left: number;
@@ -38,33 +39,16 @@ export function TerminalRichBlock({
     setError('');
     body.replaceChildren();
     const render = async () => {
+      await renderRichContent(body, { kind, source, display }, theme, abort.signal, true);
+      if (abort.signal.aborted) return;
       if (kind === 'mermaid') {
-        const { renderMermaidDiagrams } =
-          await import('../../editor/previews/markdown/markdown-mermaid');
-        if (abort.signal.aborted) return;
-        const diagram = document.createElement('div');
-        diagram.setAttribute('data-puddle-mermaid', '');
-        diagram.textContent = source;
-        body.append(diagram);
-        await renderMermaidDiagrams(body, theme, abort.signal, true);
-        if (abort.signal.aborted) return;
-        const svg = diagram.querySelector('svg');
-        if (!svg) throw new Error('Unable to render Mermaid diagram');
+        const svg = body.querySelector('svg')!;
         // Mermaid normally fits to a Markdown column. Here its natural viewBox
         // is measured once and fitted to the terminal cells by the observer.
         const bounds = svg.viewBox.baseVal;
         svg.style.maxWidth = 'none';
         svg.style.width = `${bounds.width}px`;
         svg.style.height = `${bounds.height}px`;
-      } else {
-        const [{ renderMathHtml }, { default: DOMPurify }] = await Promise.all([
-          import('../../editor/previews/markdown/math'),
-          import('dompurify'),
-          import('katex/dist/katex.min.css'),
-        ]);
-        if (abort.signal.aborted) return;
-        body.innerHTML = DOMPurify.sanitize(renderMathHtml(source, display));
-        if (body.querySelector('.katex-error')) throw new Error('Unable to render LaTeX');
       }
       if (!abort.signal.aborted) setReady(true);
     };

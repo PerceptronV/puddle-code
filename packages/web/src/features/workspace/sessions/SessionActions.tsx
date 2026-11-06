@@ -14,6 +14,8 @@ import {
   SquareTerminal,
   UserRoundCog,
   Info,
+  Waves,
+  Check,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { liveConversationTarget, toastError } from '../../../lib/transport/errors';
@@ -68,6 +70,7 @@ import { browserTransport } from '../../../lib/transport/browser-transport';
 import { RuntimeDialog } from './runtime/RuntimeDialog';
 import { useCurrentProfileId } from '../../profile/profile-store';
 import { sessionLifecycle } from './lifecycle';
+import { setSessionRipple, useSessionRipple } from '../../terminal/ripple/preferences';
 
 /**
  * The shared lifecycle-menu model for one session: which actions apply, the
@@ -449,8 +452,12 @@ export function useSessionMenu(
 function SessionMenuItems({ kit, menu }: { kit: MenuKit; menu: SessionMenu }) {
   const { Item, Separator, Sub, SubTrigger, SubContent } = kit;
   const { session } = menu;
+  const ripple = useSessionRipple(session.id);
   return (
     <>
+      <Item onSelect={menu.openRename}>
+        <Pencil /> Rename
+      </Item>
       {menu.resumable && (
         <Item onSelect={menu.resume}>
           <Play /> Resume
@@ -461,18 +468,46 @@ function SessionMenuItems({ kit, menu }: { kit: MenuKit; menu: SessionMenu }) {
           <Square /> Kill
         </Item>
       )}
-      {menu.inspectRuntime && (
-        <Item onSelect={menu.inspectRuntime}>
-          <Info /> Runtime…
+      {menu.archived ? (
+        <Item onSelect={menu.unarchive}>
+          <ArchiveRestore /> Unarchive
+        </Item>
+      ) : (
+        <Item onSelect={menu.archive}>
+          <Archive /> Archive
         </Item>
       )}
-      <Item onSelect={menu.openRename}>
-        <Pencil /> Rename
-      </Item>
+      {(menu.inspectRuntime || session.kind === 'agent' || !menu.archived) && <Separator />}
+      {menu.inspectRuntime && (
+        <Item onSelect={menu.inspectRuntime}>
+          <Info /> Runtime
+        </Item>
+      )}
+      {session.kind === 'agent' && (
+        <Sub>
+          <SubTrigger>
+            <Waves /> Renderer
+          </SubTrigger>
+          <SubContent>
+            <Item onSelect={() => setSessionRipple(session.id, null)}>
+              Use appearance default {ripple.override === null && <Check className="ml-auto" />}
+            </Item>
+            <Item onSelect={() => setSessionRipple(session.id, false)}>
+              CLI {ripple.override === false && <Check className="ml-auto" />}
+            </Item>
+            <Item onSelect={() => setSessionRipple(session.id, true)}>
+              Ripple (experimental) {ripple.override === true && <Check className="ml-auto" />}
+            </Item>
+          </SubContent>
+        </Sub>
+      )}
       {!menu.archived && (
         <Item onSelect={menu.openClearEnv}>
           <Eraser /> Clear captured env
         </Item>
+      )}
+      {(menu.canMigrate || menu.handoffTargets.length > 0 || !session.worktree_missing) && (
+        <Separator />
       )}
       {menu.canMigrate && (
         <Sub>
@@ -510,7 +545,6 @@ function SessionMenuItems({ kit, menu }: { kit: MenuKit; menu: SessionMenu }) {
       )}
       {!session.worktree_missing && (
         <>
-          <Separator />
           <Item onSelect={menu.openTerminal}>
             <SquareTerminal /> Open terminal in worktree
           </Item>
@@ -555,25 +589,6 @@ function SessionMenuItems({ kit, menu }: { kit: MenuKit; menu: SessionMenu }) {
             }}
           >
             <ExternalLink /> Open in Cursor
-          </Item>
-        </>
-      )}
-      {/* Archive is always one click away, live or not — the daemon kills a
-          live session as part of archiving, and nothing is destroyed either
-          way (SPEC §4), so there is no confirmation. */}
-      {!menu.archived && (
-        <>
-          <Separator />
-          <Item onSelect={menu.archive}>
-            <Archive /> Archive
-          </Item>
-        </>
-      )}
-      {menu.archived && (
-        <>
-          <Separator />
-          <Item onSelect={menu.unarchive}>
-            <ArchiveRestore /> Unarchive
           </Item>
         </>
       )}
