@@ -83,6 +83,13 @@ docs/roadmap/         # deferred feature designs with resolved decisions and imp
 docs/reports/         # dated investigation write-ups (root cause + measurements), e.g. perf/battery
 ```
 
+Explorer composition stays in `web/features/explorer/explorer-context.tsx`;
+`use-explorer-navigation.ts` owns tree/selection state, `use-explorer-actions.ts`
+owns file-operation intent and clipboard policy, and `use-explorer-interaction.ts`
+arbitrates gestures and shortcuts. Header controls use their separate stable
+context. Session sidebar presentations live under `workspace/sessions/sidebar/`,
+sharing the workspace-owned selection controller and session action policy.
+
 Within `shared/src/api/`, schemas are grouped into `agents/`, `connection/`,
 `notebooks/`, `workspace/` and `worktrees/`; common and smaller host/execution
 schemas remain at the root. `shared/src/index.ts` remains the public export surface.

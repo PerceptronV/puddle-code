@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { toast } from 'sonner';
 import { useArchiveSession } from '../../../lib/queries/queries';
 import { toastError } from '../../../lib/transport/errors';
-import type { SessionGroup, SidebarSessionSelection } from './SessionSidebar';
+import type { SessionGroup, SidebarSessionSelection } from './sidebar/types';
 import { nextSessionSelection, retainVisibleSessions } from './session-selection';
 
 /** Shared selection and batch actions for the expanded list and collapsed rail. */

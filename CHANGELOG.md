@@ -27,6 +27,8 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
+- Keep explorer gestures, confirmations and late file-create replies scoped to their directory; recheck read-only state before committing edits or deletions.
+- Avoid refreshing explorer header controls for selection and drag-state changes.
 - Preserve draft text and original layout ownership when file renames, draft saves or archive replies finish after switching projects; discard stale path and draft-open completions.
 
 - Handle cancelled word highlighting and diff replies for disposed editor models during workspace transitions.

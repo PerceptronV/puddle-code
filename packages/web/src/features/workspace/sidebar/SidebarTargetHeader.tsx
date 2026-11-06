@@ -9,7 +9,7 @@ import {
 } from '../../../components/ui/dropdown-menu';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../../components/ui/tooltip';
 import { cn } from '../../../lib/utils';
-import { useExplorerOptional } from '../../explorer/explorer-context';
+import { useExplorerControlsOptional } from '../../explorer/explorer-context';
 import type { ExplorerTarget } from '../../explorer/use-explorer-target';
 import { useSessionTitleRenderer } from '../../profile/use-session-title';
 import { TabTooltipBody } from '../panes/TabTooltip';
@@ -141,7 +141,7 @@ const ACTIONS: { key: string; label: string; icon: LucideIcon }[] = [
 
 /** The explorer utility cluster, revealed on header hover (HUMANS.md: no borders, fill-shift). */
 function ExplorerActions() {
-  const ex = useExplorerOptional();
+  const ex = useExplorerControlsOptional();
   if (!ex) return null;
   const run = (key: string) => {
     if (key === 'refresh') ex.refresh();

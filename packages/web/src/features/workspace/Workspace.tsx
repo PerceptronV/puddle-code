@@ -54,11 +54,9 @@ import {
   type SidebarMode,
 } from './sidebar/NavigatorSidebar';
 import { NewSessionDialog } from './sessions/NewSessionDialog';
-import {
-  CollapsedSessionsRail,
-  SessionSidebar,
-  type SessionGroup,
-} from './sessions/SessionSidebar';
+import { SessionSidebar } from './sessions/SessionSidebar';
+import { CollapsedSessionsRail } from './sessions/sidebar/CollapsedSessionsRail';
+import type { SessionGroup } from './sessions/sidebar/types';
 import { useSidebarSessionSelection } from './sessions/use-sidebar-session-selection';
 import { TileTree } from './layout/TileTree';
 import { TilingDnd } from './layout/TilingDnd';
