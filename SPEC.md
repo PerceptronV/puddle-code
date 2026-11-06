@@ -2287,7 +2287,10 @@ colours. The pane frame and tab strip share `--bg-pane`, with at least 1.2:1
 separation from active tabs/editor content in light mode and 1.3:1 in dark mode;
 this adjusts only the accent’s HSL lightness, preserving its hue and saturation
 instead of mixing the pane towards neutral grey, including pale or deep custom
-colours. Other islands keep their existing surface tokens. Compact Icon and Accent rows sit below
+colours. Accented themes use the same gently tinted background for sidebars,
+file trees, editors and terminals: slightly deeper in light mode and lighter in
+dark mode. Pane/tab-strip contrast remains separate; the default theme is unchanged.
+Compact Icon and Accent rows sit below
 the display name, without a separate section or preview card. A chosen accent
 rebuilds the entire chrome palette: text hierarchy, surfaces, borders, controls,
 links, focus rings and persistent selections. File/session selections use a softer

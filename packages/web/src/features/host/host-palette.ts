@@ -74,8 +74,10 @@ function paneSurface(accent: string, base: string, dark: boolean): string {
         )
         .join('');
     const light = luminance(candidate);
-    if ((Math.max(light, background) + 0.05) / (Math.min(light, background) + 0.05) >= floor)
-      return candidate;
+    const contrast = dark
+      ? (light + 0.05) / (background + 0.05)
+      : (background + 0.05) / (light + 0.05);
+    if (contrast >= floor) return candidate;
   }
   return accent;
 }
@@ -97,11 +99,13 @@ export function hostPalette(
   let primary = dark ? mix(accent, white, 0.18) : mix(accent, black, 0.45);
   let secondary = dark ? mix(accent, white, 0.4) : mix(accent, black, 0.65);
   let selection = dark ? accent : mix(accent, black, 0.75);
-  const base = dark ? mix(accent, ground, 0.055) : white;
   let muted = dark ? mix(accent, white, 0.55) : mix(primary, white, 0.76);
-  const surface = mix(accent, ground, dark ? 0.105 : 0.025);
+  // One gently tinted surface for sidebars, editors and terminals. Lift dark
+  // surfaces slightly even for a black accent; deepen the light-mode tint.
+  const surface = dark ? mix(mix(accent, ground, 0.105), white, 0.98) : mix(accent, ground, 0.045);
+  const base = surface;
   const elevated = mix(accent, ground, dark ? 0.16 : 0.065);
-  const tray = mix(accent, ground, dark ? 0.16 : 0.04);
+  const tray = mix(accent, ground, dark ? 0.16 : 0.065);
   const ink = dark ? white : black;
   // Pane frames/tab strips need a visible step from active tabs and editor content.
   // Moving a near-white/black tint towards neutral ink washes out the chosen hue.

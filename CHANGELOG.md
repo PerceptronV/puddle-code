@@ -17,6 +17,7 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
+- Unify accented editor and terminal backgrounds with sidebar surfaces, using a slightly deeper light tint and lighter dark tint while preserving tab contrast and the default theme.
 - Keep existing-tab and pane activation immediate without fading tabs or content, including across projects in a shared layout.
 - Preserve the content fade when closing the active tab while keeping ordinary tab switches immediate.
 

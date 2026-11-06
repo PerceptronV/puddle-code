@@ -136,6 +136,11 @@ try {
         rgb(styles.palette['--bg-base']),
         `${theme}/${colour} Monaco follows the host palette`,
       );
+      assert.equal(
+        styles.palette['--bg-base'],
+        styles.palette['--bg-surface'],
+        `${theme}/${colour} editor and terminal backgrounds match sidebar surfaces`,
+      );
       for (const foreground of ['--text-primary', '--text-secondary', '--text-muted']) {
         for (const background of [
           '--bg-base',
@@ -154,6 +159,14 @@ try {
         ratio(styles.palette['--bg-base'], styles.palette['--bg-pane']) >=
           (theme === 'dark' ? 1.3 : 1.2),
         `${theme}/${colour} active tab/editor separates from the pane frame`,
+      );
+      assert.ok(
+        theme === 'dark'
+          ? luminance(rgb(styles.palette['--bg-pane'])) >
+              luminance(rgb(styles.palette['--bg-base']))
+          : luminance(rgb(styles.palette['--bg-pane'])) <
+              luminance(rgb(styles.palette['--bg-base'])),
+        `${theme}/${colour} pane contrast follows the theme's surface direction`,
       );
       if (colour.startsWith('#')) {
         assert.ok(
