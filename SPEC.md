@@ -814,6 +814,10 @@ observations to the application database and converges the profile capture polic
 Cockpit terminal fits send no resize before attachment; pending geometry is
 coalesced until the replay arrives, including after reconnect. Resizing ended or
 historical views changes only the browser grid, with no live runtime mutation.
+Restored focus and mouse modes can emit reports when browsing these transcripts;
+exact focus, click, drag and wheel reports are ignored after confirmed exit or
+on historical views. Live reports still reach the application. Typed input,
+reports mixed with input and uncertain delivery remain errors.
 
 The runtime owner tags output/snapshots with a native-lifecycle segment id,
 writes separate raw logs per segment and terminal generation, and saves immutable

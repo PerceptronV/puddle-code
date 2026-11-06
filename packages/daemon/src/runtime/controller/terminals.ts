@@ -6,6 +6,7 @@ import type { RuntimeClient } from '../transport/client.js';
 import { RuntimeConnections, runtimeBindingIdentity } from '../transport/connections.js';
 import { readRuntimeCheckpoint } from '../state/segments.js';
 import { runtimeDirectory } from '../ownership/storage.js';
+import { isTerminalInteractionReport } from './terminals/interaction-report.js';
 import {
   RuntimeTerminalBuffers,
   TERMINAL_SNAPSHOT_BYTES,
@@ -399,12 +400,12 @@ export class RuntimeTerminalView {
   }
 
   async input(data: string): Promise<void> {
-    // Restored xterm modes include focus reporting. Clicking into or away
-    // from a transcript emits these even though the user has typed nothing.
-    // Only these exact reports are harmless after exit; real input must still
-    // fail, including mixed report/input messages and uncertain delivery.
-    const focusReport = data === '\x1b[I' || data === '\x1b[O';
-    if (focusReport && this.valid() && this.ready && (this.ended || !this.client)) return;
+    // Restored xterm modes include focus and mouse reporting. Browsing a
+    // transcript can emit these even though the user has typed nothing.
+    // Only exact reports are harmless after exit; real input must still fail,
+    // including mixed report/input messages and uncertain delivery.
+    const interactionReport = isTerminalInteractionReport(data);
+    if (interactionReport && this.valid() && this.ready && (this.ended || !this.client)) return;
     await this.mutate(
       Buffer.byteLength(data),
       terminalInputBytes(data),
@@ -425,7 +426,7 @@ export class RuntimeTerminalView {
           offset = end;
         }
       },
-      focusReport,
+      interactionReport,
     );
   }
 

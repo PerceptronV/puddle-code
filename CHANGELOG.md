@@ -8,3 +8,7 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Fixed
+
+- Clicking, tapping or scrolling closed session transcripts no longer raises connection errors from restored terminal mouse reporting.
