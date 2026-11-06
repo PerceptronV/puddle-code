@@ -105,7 +105,7 @@ function state(id: string) {
   return {
     mounts: mounts.get(id) ?? 0,
     live: !!terminal,
-    parent: containers.get(id)?.parentElement?.dataset.side ?? null,
+    parent: containers.get(id)?.closest<HTMLElement>('[data-side]')?.dataset.side ?? null,
     viewport: buffer?.viewportY,
     lines: buffer
       ? Array.from({ length: buffer.length }, (_, row) =>

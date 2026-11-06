@@ -10,6 +10,8 @@ import {
   hostStageReceiptSchema,
   hostReleaseCapabilities,
   hostUpdateWorkerLifetimeSchema,
+  releaseManifestSchema,
+  releaseRepositorySchema,
   type HostUpdateWorker,
 } from '@puddle/shared';
 import { digest } from '@puddle/shared/node';
@@ -88,16 +90,30 @@ it.runIf(!!process.env.PUDDLE_TEST_RUNTIME_RELEASE)(
     let stage = resolve(process.env.PUDDLE_TEST_RUNTIME_RELEASE!);
     const f = prepare();
     const version = readFileSync(join(stage, 'VERSION'), 'utf8').trim();
+    const manifest = releaseManifestSchema.parse(
+      JSON.parse(readFileSync(join(stage, 'release-manifest.json'), 'utf8')),
+    );
+    expect(manifest.version).toBe(version);
+    let daemonStage = stage;
     const archive = process.env.PUDDLE_TEST_RUNTIME_ARCHIVE;
     // Package composition uses the existing isolated scripted manager. Native
     // launchd/systemd lifetime acceptance remains a separate explicit gate.
     const env = archive ? await continuitySupervisor(f.home) : environment(f.home);
     const install = async (component: 'daemon' | 'runtime' = 'daemon', force = false) => {
+      const componentVersion = manifest.components[component];
+      const source =
+        componentVersion === version
+          ? ['--tarball', resolve(archive!), '--sums', `${resolve(archive!)}.sha256`]
+          : [
+              '--repo',
+              releaseRepositorySchema.parse(
+                process.env.GITHUB_REPOSITORY ?? process.env.PUDDLE_REPO,
+              ),
+            ];
       const installer = resolve(
         dirname(fileURLToPath(import.meta.url)),
         '../../../../../scripts/install.sh',
       );
-      const tarball = resolve(archive!);
       const selected = join(f.home, 'bin', component === 'daemon' ? 'current' : 'runtime-current');
       const previous = force ? realpathSync(selected) : undefined;
       const result = await promisify(execFile)(
@@ -105,11 +121,8 @@ it.runIf(!!process.env.PUDDLE_TEST_RUNTIME_RELEASE)(
         [
           installer,
           '--version',
-          version,
-          '--tarball',
-          tarball,
-          '--sums',
-          `${tarball}.sha256`,
+          componentVersion,
+          ...source,
           '--no-supervisor',
           '--component',
           component,
@@ -117,7 +130,7 @@ it.runIf(!!process.env.PUDDLE_TEST_RUNTIME_RELEASE)(
         ],
         {
           env: { ...env, PUDDLE_HOME: f.home },
-          timeout: 30_000,
+          timeout: 90_000,
         },
       );
       if (force) {
@@ -131,7 +144,7 @@ it.runIf(!!process.env.PUDDLE_TEST_RUNTIME_RELEASE)(
         expect(receipt.record.checksum_verified).toBe(true);
         if (component === 'runtime') {
           const store = new HostUpdateOperations(f.home);
-          let operation = store.begin([{ component, version }]).operation;
+          let operation = store.begin([{ component, version: componentVersion }]).operation;
           operation = store.staged(operation, receipt);
           operation = store.preflight(operation, digest('isolated packaged-owner update fixture'));
           operation = store.approve(operation, operation.preflight!);
@@ -211,7 +224,7 @@ it.runIf(!!process.env.PUDDLE_TEST_RUNTIME_RELEASE)(
             '--component',
             component,
             '--version',
-            version,
+            componentVersion,
             '--activate-generation',
             receipt.record.generation,
             '--stage-digest',
@@ -223,11 +236,6 @@ it.runIf(!!process.env.PUDDLE_TEST_RUNTIME_RELEASE)(
       }
       return realpathSync(selected);
     };
-    if (archive) {
-      stage = await install();
-      expect(await install('runtime')).toBe(stage);
-      expect(resolveInstalledRuntimeRelease(f.home).releasePath).toBe(stage);
-    }
     const before = readdirSync(f.home).sort();
     const protocol = `${RUNTIME_PROTOCOL_VERSION.major}.${RUNTIME_PROTOCOL_VERSION.minor}`;
     expect(JSON.parse(readFileSync(join(stage, 'HOST_CAPABILITIES.json'), 'utf8'))).toEqual(
@@ -252,6 +260,17 @@ it.runIf(!!process.env.PUDDLE_TEST_RUNTIME_RELEASE)(
     ).toBe(`puddler ${version} (runtime protocol ${protocol})`);
     expect(readdirSync(f.home).sort()).toEqual(before);
 
+    if (archive) {
+      // Select the manifest's published runtime first, just like fresh cockpit
+      // bootstrap. A selective daemon archive cannot supply an unpublished runtime.
+      stage = await install('runtime');
+      daemonStage = await install('daemon');
+      expect(stage === daemonStage).toBe(
+        manifest.components.runtime === manifest.components.daemon,
+      );
+      expect(resolveInstalledRuntimeRelease(f.home).releasePath).toBe(stage);
+    }
+
     admitFixtureOwner(f.home, f.launch.identity.runtime_id);
     const child = spawn(
       join(stage, 'puddler'),
@@ -270,7 +289,7 @@ it.runIf(!!process.env.PUDDLE_TEST_RUNTIME_RELEASE)(
     await waitForOwner({ child, errors: () => errors }, f.directory);
     const first = await RuntimeClient.open(f.home, f.launch, f.controller.record);
     clients.push(first);
-    expect(first.state?.build).toBe(version);
+    expect(first.state?.build).toBe(archive ? manifest.components.runtime : version);
     const main = terminal(first.state);
     await first.request({
       t: 'input',
@@ -287,7 +306,7 @@ it.runIf(!!process.env.PUDDLE_TEST_RUNTIME_RELEASE)(
     if (archive) {
       const originalBundle = readFileSync(join(stage, 'daemon', 'puddler.mjs'));
       const replacement = await install('daemon', true);
-      expect(replacement).not.toBe(stage);
+      expect(replacement).not.toBe(daemonStage);
       expect(resolveInstalledRuntimeRelease(f.home).releasePath).toBe(stage);
       const newDefault = await install('runtime', true);
       expect(newDefault).not.toBe(stage);
@@ -321,7 +340,8 @@ it.runIf(!!process.env.PUDDLE_TEST_RUNTIME_RELEASE)(
     if (archive) {
       next.close();
       controller.release();
-      await verifyPackagedNotes(stage, f.home, env, version);
+      await verifyPackagedNotes(daemonStage, f.home, env, manifest.components.daemon);
     }
   },
+  240_000,
 );

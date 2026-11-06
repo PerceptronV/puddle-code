@@ -519,6 +519,10 @@ packaged runtime continuity test afterwards in the release workflow. Ordinary CI
 retains archive smoke tests on its hosted Ubuntu runner. Detached fixture
 services need actual orphan reaping; never accept a zombie PID/group as absent
 or relax production lifetime checks to accommodate a container without an init.
+Packaged continuity follows the archive's component manifest, installing the
+published runtime before the daemon. Retained components use checksummed release
+downloads from `GITHUB_REPOSITORY` (or `PUDDLE_REPO` for local acceptance); never
+select an unpublished bundled component just to make the fixture pass.
 
 The npm release job uses GitHub OIDC trusted publishing, with npm 11.21.0 and
 job-scoped `id-token: write`; it never reads `NPM_TOKEN`. Configure the package's

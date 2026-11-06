@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
-import { chromium } from '@playwright/test';
+import { chromium, expect } from '@playwright/test';
 
 const require = createRequire(import.meta.url);
 const bundle = await build({
@@ -82,7 +82,7 @@ try {
   await write('\x1b[1;1H\x1b[2K$$x^2');
   assert.equal(await page.evaluate(() => window.lastBlock), undefined);
   await write('$$');
-  assert.equal(await page.evaluate(() => window.lastBlock.block.source), 'x^2');
+  await expect.poll(() => page.evaluate(() => window.lastBlock?.block.source)).toBe('x^2');
   await write('\x1b[10;9H|');
   const richBefore = await page.evaluate(() => window.commits);
   for (const spinner of ['/', '-']) await write('\x1b[10;9H' + spinner);
@@ -92,22 +92,14 @@ try {
     'Equal rich projections do not commit on spinner output',
   );
   await write('\x1b[1;1H\x1b[2K$$y^2$$');
-  assert.equal(await page.evaluate(() => window.lastBlock.block.source), 'y^2');
+  await expect.poll(() => page.evaluate(() => window.lastBlock?.block.source)).toBe('y^2');
   await page.evaluate(() => window.terminal.select(0, 0, 2));
-  await page.waitForTimeout(50);
-  assert.equal(
-    await page
-      .locator('.xterm-screen > div')
-      .last()
-      .evaluate((el) => el.style.visibility),
-    'hidden',
-  );
+  await expect(page.locator('.xterm-screen > div').last()).toHaveCSS('visibility', 'hidden');
   await page.evaluate(() => {
     window.terminal.clearSelection();
     window.applyTheme('light');
   });
-  await page.waitForTimeout(50);
-  assert.equal(await page.evaluate(() => window.lastBlock.theme), 'light');
+  await expect.poll(() => page.evaluate(() => window.lastBlock?.theme)).toBe('light');
 
   // Exercise the shared download lifecycle with a real browser download.
   await page.clock.install();

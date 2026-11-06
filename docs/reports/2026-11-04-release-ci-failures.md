@@ -143,3 +143,28 @@ cell shortcuts now leave buttons alone. The input journey covers keyboard foldin
 and automatic input unfolding; the earlier editing journey retains mouse-fold
 coverage. All four notebook browser tests passed locally after the fix. Failed
 notebook cases retain traces, and CI uploads browser diagnostics for seven days.
+
+## Selective release follow-up, 6 November
+
+The [0.4.12 release](https://github.com/PerceptronV/puddle-code/actions/runs/42300917460)
+failed packaged continuity on all three platforms before publication. Its manifest
+published daemon 0.4.12 while retaining runtime 0.4.11, but the fixture attempted
+daemon bootstrap into an empty home and then selected both components from the
+new archive. The installer correctly rejected its unpublished runtime. Continuity
+now reads the manifest, installs the published runtime first, and uses the existing
+checksum-verifying installer to fetch retained versions from the release repository.
+It tracks daemon and runtime trees separately through immutable repairs and verifies
+the running owner's actual version. Production installation checks are unchanged.
+
+The accompanying CI failed the parked-terminal browser fixture because Ripple's
+new wrapper invalidated its fixed-depth parent lookup. The fixture now finds the
+containing pane by its existing marker, preserving the same mount-count and pane
+movement assertions. Running the later browser gates also exposed rich-output
+assertions observing an old or missing projection after a fixed 250 ms delay;
+bounded browser assertions now await the expected source, selection and theme.
+
+The corrected packaged continuity check passed locally against both 0.4.12 and
+0.4.13 archives with the actual published 0.4.11 runtime. Installer and component
+version checks passed all 44 tests, and the parked-terminal browser check, full
+build, lint and TypeScript checks passed. Linux release verification remains the
+responsibility of the new tagged workflow.

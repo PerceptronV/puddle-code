@@ -2161,6 +2161,10 @@ explicit comma-separated list overrides selection; cockpit is always included.
 `--dry-run` prints the plan without changing it. Review and commit the manifest
 with the release version/changelog. CI requires an exact version match and skips
 host archive jobs' build/continuity/ABI steps when neither host component publishes.
+Packaged continuity installs the manifest's published runtime before its daemon,
+fetching retained component versions through the checksum-verifying installer
+from the workflow repository (`PUDDLE_REPO` for local acceptance). It verifies
+owner continuity and independent selector repairs with those actual versions.
 
 The first manifest-aware release publishes all components. New readers accept
 legacy releases without a manifest; an advertised manifest that fails validation
