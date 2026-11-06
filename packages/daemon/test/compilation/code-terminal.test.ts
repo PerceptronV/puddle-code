@@ -26,8 +26,9 @@ afterEach(async () => {
   for (const f of fixtures.splice(0)) {
     f.service.beginShutdown();
     f.onboarding.dispose();
-    f.ptys.killAll();
-    await waitFor(() => f.stores.sessions.list().every((s) => !f.ptys.has(s.id, 'agent')));
+    // Use the production stop path, including escalation when an interactive
+    // shell ignores HUP while its foreground programme is exiting.
+    await Promise.all(f.stores.sessions.list().map((session) => f.service.kill(session.id)));
     f.logs.closeAll();
   }
   vi.unstubAllEnvs();

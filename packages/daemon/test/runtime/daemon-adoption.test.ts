@@ -43,7 +43,7 @@ it('reconciles offline native switches and a completed turn through real daemon 
       url: string;
       nonce: string;
     };
-    const signal = async (ref: string, source: 'startup' | 'clear' | 'fork') => {
+    const signal = async (ref: string, source: 'startup' | 'resume') => {
       const response = await fetch(hook.url, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -85,8 +85,10 @@ it('reconciles offline native switches and a completed turn through real daemon 
         ),
       'Provider turn did not finish without its controller',
     );
-    await signal('second', 'clear');
-    await signal('third', 'fork');
+    // Resume-selection preserves historical placements; new/clear/fork instead
+    // keep the source active and have separate native-creation coverage.
+    await signal('second', 'resume');
+    await signal('third', 'resume');
     const outcomes = new RuntimeObservationStore(f.db);
     let committedCursor = -1;
     let currentSession = '';
@@ -132,7 +134,7 @@ it('reconciles offline native switches and a completed turn through real daemon 
       }
       if (iteration === 0) {
         // Live observations use the same commit/bind/ack path as boot recovery.
-        await signal('fourth', 'clear');
+        await signal('fourth', 'resume');
         await until(() => {
           const current = f.runtimes.get(binding.runtime_id)!;
           return (

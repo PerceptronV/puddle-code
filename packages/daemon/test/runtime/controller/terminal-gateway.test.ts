@@ -65,7 +65,7 @@ it('routes the real daemon WebSocket to surviving PTYs and immutable native hist
       nonce: string;
       port: number;
     };
-    const signal = async (ref: string, source: 'startup' | 'clear') => {
+    const signal = async (ref: string, source: 'startup' | 'resume') => {
       const response = await fetch(hook.url, {
         method: 'POST',
         headers: { 'content-type': 'application/json' },
@@ -194,7 +194,9 @@ it('routes the real daemon WebSocket to surviving PTYs and immutable native hist
       }
       if (pass === 0) {
         const closed = once(live.ws, 'close');
-        await signal('second', 'clear');
+        // Select another saved conversation so the source remains historical.
+        // Native clear/fork intentionally resume the source in another owner.
+        await signal('second', 'resume');
         expect((await closed)[0]).toBe(1012);
         await until(
           () =>
