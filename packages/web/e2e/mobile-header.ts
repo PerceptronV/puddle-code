@@ -66,14 +66,30 @@ export async function checkMobileHeader(page: Page, testInfo: TestInfo) {
       async (name) => (await rail.getByRole('button', { name, exact: true }).boundingBox())!,
     ),
   );
+  const spacing = await rail
+    .getByRole('group', { name: 'Session actions', exact: true })
+    .evaluate((element) => {
+      const buttons = [...element.querySelectorAll('button')];
+      return {
+        gap: parseFloat(getComputedStyle(element).rowGap),
+        margins: buttons.map((button) => {
+          const style = getComputedStyle(button);
+          return { before: parseFloat(style.marginTop), after: parseFloat(style.marginBottom) };
+        }),
+      };
+    });
+  expect(spacing.gap).toBeLessThanOrEqual(8);
   for (let index = 1; index < controls.length; index++) {
     const previous = controls[index - 1]!;
     const current = controls[index]!;
     expect(current.x).toBe(previous.x);
     expect(current.width).toBe(previous.width);
-    // The toggle's divider has a small gap; the remaining actions sit together.
-    expect(current.y - (previous.y + previous.height)).toBeGreaterThanOrEqual(0);
-    expect(current.y - (previous.y + previous.height)).toBeLessThanOrEqual(8);
+    // The toggle's separation is additional to the shared tray gap. Check both
+    // independently so adopting the shared tray does not look like misalignment.
+    const margin = spacing.margins[index - 1]!.after + spacing.margins[index]!.before;
+    expect(margin).toBeGreaterThanOrEqual(0);
+    expect(margin).toBeLessThanOrEqual(index === 1 ? 8 : 0);
+    expect(current.y - (previous.y + previous.height)).toBeCloseTo(spacing.gap + margin, 0);
   }
   await expect(
     rail.getByRole('button', { name: 'New agent', exact: true }).locator('svg'),
