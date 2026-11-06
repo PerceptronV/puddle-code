@@ -2301,8 +2301,8 @@ the default `--bg-pane` alias, which host palettes never override. Nested trays
 use `--bg-tray`. Editor/terminal reading
 surfaces and active tabs retain the default `--bg-base` (white in light mode,
 deep navy in dark mode). The default theme retains its original surface colours.
-Preset and custom accents blend island, elevated and tray backgrounds halfway
-between their original theme colours and the full accent tint, with nested islands
+Preset and custom accents blend island, elevated and tray backgrounds one-third
+of the way from their original theme colours to the full accent tint, with nested islands
 one further step from the reading surface. A neutral foundation retains depth
 even for white or black custom accents. Accent borders are darker than every
 surface in light mode and lighter in dark mode, maintaining at least 1.5:1
