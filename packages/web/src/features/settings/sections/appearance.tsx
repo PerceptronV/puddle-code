@@ -90,7 +90,7 @@ export function AppearanceSection() {
       </SettingRow>
       <SettingRow
         label="Ripple (experimental)"
-        description="Open agent sessions with a spacious reading view above the native CLI. Right-click a session to override this default."
+        description="Open agent sessions with a reading view and native CLI controls. Right-click a session to override this default."
         htmlFor="ripple-enabled"
       >
         <Switch

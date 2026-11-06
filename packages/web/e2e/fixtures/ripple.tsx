@@ -97,7 +97,11 @@ class FixtureSocket implements CockpitSocket {
           t: 'replay',
           session: message.session,
           term: message.term,
-          data: new URLSearchParams(location.search).has('alternate') ? alternateSample : sample,
+          data: new URLSearchParams(location.search).has('live')
+            ? ''
+            : new URLSearchParams(location.search).has('alternate')
+              ? alternateSample
+              : sample,
         }),
       );
   }

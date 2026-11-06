@@ -123,10 +123,40 @@ describe('Ripple terminal projection', () => {
 });
 
 describe('Ripple formatting', () => {
-  it('keeps hard terminal lines separate instead of merging reply, input and status text', () => {
-    expect(rippleHtml('Agent reply\nInput >\nStatus')).toBe(
-      '<p>Agent reply<br>\nInput &gt;<br>\nStatus</p>\n',
+  it('reflows CLI hard-wrapped prose without extra HTML line breaks', () => {
+    expect(rippleHtml('A hard-wrapped\nparagraph.')).toBe('<p>A hard-wrapped\nparagraph.</p>\n');
+  });
+
+  it('restores ANSI emphasis and Codex gutters while retaining Markdown headings and lists', () => {
+    const styled = rippleHtml('  These words are bold and italic.', false, false, {
+      styles: [
+        { start: 18, end: 22, css: 'font-weight:700;color:#ff0000' },
+        { start: 27, end: 33, css: 'font-style:italic' },
+      ],
+    });
+    expect(styled).toContain('<span style="font-weight:700;color:#ff0000">bold</span>');
+    expect(styled).toContain('<span style="font-style:italic">italic</span>');
+    const html = rippleHtml(
+      '• # Heading\n  A paragraph\n  continued.\n\n  • First item\n  • Second item',
     );
+    expect(html).toContain('<h1>Heading</h1>');
+    expect(html).toContain('<li>First item</li>');
+    expect(html).not.toContain('<br>');
+  });
+
+  it('preserves syntax colours inside code without displaying markup as source', () => {
+    const html = rippleHtml('```ts\nconst x = 1;\n```', false, false, {
+      styles: [{ start: 6, end: 11, css: 'color:#ff0000' }],
+    });
+    expect(html).toContain('<code class="language-ts"><span style="color:#ff0000">const</span>');
+  });
+
+  it('shows Codex prompts as user turns without classifying other agents', () => {
+    const source = '› A long prompt\ncontinued here.\n\nA reply.';
+    expect(rippleHtml(source, false, false, { codex: true })).toContain(
+      '<div class="ripple-user-turn"><p>A long prompt\ncontinued here.</p>',
+    );
+    expect(rippleHtml(source)).not.toContain('ripple-user-turn');
   });
 
   it('renders surviving Markdown and retains code as monospace', () => {

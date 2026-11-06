@@ -79,7 +79,9 @@ try {
 
   await page.evaluate(() =>
     window.rippleFixture.output(
-      Array.from({ length: 90 }, (_, n) => `\r\nParagraph ${n}. A little room to read.`).join(''),
+      Array.from({ length: 90 }, (_, n) => `\r\n\r\nParagraph ${n}. A little room to read.`).join(
+        '',
+      ) + '\r\n'.repeat(6),
     ),
   );
   await page.locator('.ripple-prose').filter({ hasText: 'Paragraph 89' }).waitFor();
@@ -87,7 +89,7 @@ try {
   await page.mouse.wheel(0, -5000);
   await page.getByRole('button', { name: 'Latest output' }).waitFor();
   const before = await page.locator('.ripple-prose').innerText();
-  await page.evaluate(() => window.rippleFixture.output('\r\nLatest marker'));
+  await page.evaluate(() => window.rippleFixture.output('\r\nLatest marker' + '\r\n'.repeat(6)));
   await page.waitForTimeout(250);
   assert.equal(
     await page.locator('.ripple-prose').innerText(),

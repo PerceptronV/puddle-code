@@ -864,6 +864,9 @@ function TerminalView({
             terminal={richTerminal}
             stream={stream}
             active={!paused && visible}
+            agentType={
+              sessions.data?.find((session) => session.id === stream)?.agent_type ?? undefined
+            }
             onDisable={() => setSessionRipple(stream, false)}
           />
         </Suspense>

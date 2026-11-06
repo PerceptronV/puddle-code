@@ -1,4 +1,5 @@
-import type { IBuffer } from '@xterm/xterm';
+import type { IBuffer, ITheme } from '@xterm/xterm';
+import { rippleCellStyle, type RippleStyle } from './cell-style';
 import { readRow } from '../links/link-buffer';
 import { terminalRichBlocks } from '../rich-output/rich-output-buffer';
 
@@ -7,7 +8,8 @@ export const RIPPLE_MAX_ROWS = 600;
 export const RIPPLE_MAX_CHARACTERS = 32_768;
 
 export type RipplePart =
-  { kind: 'text'; source: string } | { kind: 'mermaid' | 'math'; source: string; display: boolean };
+  | { kind: 'text'; source: string; styles?: RippleStyle[] }
+  | { kind: 'mermaid' | 'math'; source: string; display: boolean };
 
 export interface RippleSnapshot {
   text: string;
@@ -17,11 +19,16 @@ export interface RippleSnapshot {
 }
 
 /** A bounded projection of the current screen, never a second terminal parser or log. */
-export function readRippleBuffer(buffer: IBuffer, cols: number): RippleSnapshot {
-  const last = buffer.length;
+export function readRippleBuffer(
+  buffer: IBuffer,
+  cols: number,
+  view?: { first: number; last: number },
+  theme: ITheme = {},
+): RippleSnapshot {
+  const last = Math.min(buffer.length, view?.last ?? buffer.length);
   // Reserve the newest rows even when a single row is extremely wide.
   const count = Math.min(RIPPLE_MAX_ROWS, Math.floor(RIPPLE_MAX_CHARACTERS / (cols + 1)));
-  let first = Math.max(0, last - count);
+  let first = Math.max(0, view?.first ?? 0, last - count);
   // A partial logical line could begin midway through code or a URL. Omit it.
   while (first < last && buffer.getLine(first)?.isWrapped) first++;
   const lines: string[] = [];
@@ -36,6 +43,7 @@ export function readRippleBuffer(buffer: IBuffer, cols: number): RippleSnapshot 
   >();
   let size = 0;
   let offset = 0;
+  const styles: RippleStyle[] = [];
   for (let row = first; row < last; row++) {
     const mapped = readRow(buffer, row, cols);
     if (!mapped) break;
@@ -56,6 +64,15 @@ export function readRippleBuffer(buffer: IBuffer, cols: number): RippleSnapshot 
     if (size + text.length + 1 > RIPPLE_MAX_CHARACTERS) break;
     size += text.length + 1;
     if (!mapped.isWrapped && lines.length) offset++;
+    for (let index = 0; index < text.length; index++) {
+      const cell = buffer.getLine(row)?.getCell(mapped.cells[index]!.col);
+      const css = rippleCellStyle(cell, theme);
+      if (!css) continue;
+      const previous = styles.at(-1);
+      const start = offset + index;
+      if (previous && previous.end === start && previous.css === css) previous.end++;
+      else styles.push({ start, end: start + 1, css });
+    }
     rows.set(row, { offset, cells: mapped.cells, length: text.length, concealed });
     offset += text.length;
     if (mapped.isWrapped && lines.length) lines[lines.length - 1] += text;
@@ -63,6 +80,20 @@ export function readRippleBuffer(buffer: IBuffer, cols: number): RippleSnapshot 
   }
   const text = lines.join('\n').trimEnd();
   const parts: RipplePart[] = [];
+  const addText = (from: number, to: number) => {
+    const ranges = styles
+      .filter((range) => range.end > from && range.start < to)
+      .map((range) => ({
+        ...range,
+        start: Math.max(from, range.start) - from,
+        end: Math.min(to, range.end) - from,
+      }));
+    parts.push({
+      kind: 'text',
+      source: text.slice(from, to),
+      ...(ranges.length ? { styles: ranges } : {}),
+    });
+  };
   let at = 0;
   for (const block of terminalRichBlocks(buffer, cols, first, last - first)) {
     const start = rows.get(block.start.row);
@@ -81,10 +112,10 @@ export function readRippleBuffer(buffer: IBuffer, cols: number): RippleSnapshot 
     const from = start.offset + Math.min(start.length, startIndex);
     const to = Math.min(text.length, end.offset + Math.min(end.length, endIndex));
     if (from < at || to <= from) continue;
-    if (from > at) parts.push({ kind: 'text', source: text.slice(at, from) });
+    if (from > at) addText(at, from);
     parts.push({ kind: block.kind, source: block.source, display: block.display });
     at = to;
   }
-  if (at < text.length) parts.push({ kind: 'text', source: text.slice(at) });
+  if (at < text.length) addText(at, text.length);
   return { text, truncated: first > 0, alternate: buffer.type === 'alternate', parts };
 }
