@@ -14,3 +14,7 @@ Past releases: see docs/changelogs/.
 #### Added
 
 - Add Linux arm64 AppImage releases, built on a native arm64 runner alongside Linux x64 and macOS arm64. Linux packaging verifies extraction, bundled application contents and executable architecture before publication.
+
+#### Fixed
+
+- Keep existing-tab and pane activation immediate without fading tabs or content, including across projects in a shared layout.

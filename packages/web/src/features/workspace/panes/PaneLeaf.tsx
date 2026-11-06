@@ -33,6 +33,9 @@ import { decodeTabTransfer, hasTabTransfer, TAB_MIME } from '../tabs/tab-transfe
 import { useTilingDragging, useDropIndicator } from '../layout/TilingDnd';
 import { paneInteractionIntent } from './pane-interaction';
 
+const contentKey = (ref: TabRef) =>
+  `${tabRefKey(ref)}:${ref.type === 'editor' ? (ref.tab.view ?? 'source') : 'source'}`;
+
 /**
  * One leaf pane (SPEC §8): its tab strip over a body that shows the active tab —
  * a terminal (its kept-alive DOM adopted into the slot) or an editor body (per
@@ -271,6 +274,7 @@ export function PaneLeaf({
         <ContentMotion
           className="absolute inset-0"
           motionKey={`${leaf.activeKey ?? ''}:${activeView}`}
+          presentKeys={leaf.tabs.map(contentKey)}
           preview={!!leaf.previewKey && leaf.previewKey === leaf.activeKey}
         >
           {activeRef?.type === 'editor' && (

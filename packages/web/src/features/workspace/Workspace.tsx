@@ -745,7 +745,6 @@ function WorkspaceInner() {
       <ContentMotion
         className="min-h-0 flex-1"
         motionKey={JSON.stringify([
-          projectId,
           scopeKey,
           uiState.snapshot.layout_ref,
           allLeaves(layout.tree).map((leaf) => leaf.id),

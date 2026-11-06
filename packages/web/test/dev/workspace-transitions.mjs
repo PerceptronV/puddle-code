@@ -1,4 +1,4 @@
-/* global window, document */
+/* global window, document, Element */
 import assert from 'node:assert/strict';
 import { chromium } from '@playwright/test';
 const browser = await chromium.launch({ headless: true });
@@ -8,6 +8,22 @@ try {
   page.on('pageerror', (error) => {
     errors.push(error.message);
     console.error(error.stack);
+  });
+  await page.addInitScript(() => {
+    window.contentFades = [];
+    window.tabEntries = [];
+    const animate = Element.prototype.animate;
+    Element.prototype.animate = function (frames, options) {
+      if (
+        this.parentElement?.hasAttribute('data-content-motion') ||
+        this.hasAttribute('data-motion-snapshot')
+      )
+        window.contentFades.push(frames);
+      return animate.call(this, frames, options);
+    };
+    document.addEventListener('animationstart', (event) => {
+      if (event.target.hasAttribute('data-pane-tab')) window.tabEntries.push(event.animationName);
+    });
   });
   await page.goto(
     new URL('/test/dev/workspace-fixture.html', process.env.PREVIEW_URL ?? 'http://localhost:5174/')
@@ -83,6 +99,26 @@ try {
   await page.evaluate(() => window.workspaceFixture.projectMode(false));
   await page.waitForFunction(() => window.workspaceFixture.state().layout_mode === 'profile');
   assert.equal(await page.evaluate(() => window.firstTerminal.isConnected), true);
+  await page.waitForTimeout(250);
+  await page.evaluate(() => {
+    window.contentFades = [];
+    window.tabEntries = [];
+  });
+  assert.equal(await page.locator('[data-workspace-pane]').count(), 2);
+  const tabs = page.locator('[data-pane-tab]');
+  const tabCount = await tabs.count();
+  assert.equal(tabCount, 3);
+  // Alternate existing editor/terminal tabs and panes belonging to different
+  // projects. Neither content nor the surrounding workspace should cross-fade.
+  for (let round = 0; round < 2; round++) {
+    for (let index = 0; index < tabCount; index++) {
+      await tabs.nth(index).click();
+      await page.waitForTimeout(50);
+    }
+  }
+  assert.deepEqual(await page.evaluate(() => window.contentFades), []);
+  assert.deepEqual(await page.evaluate(() => window.tabEntries), []);
+  assert.equal(await page.locator('[data-motion-snapshot]').count(), 0);
   assert.equal(await page.evaluate(() => window.workspaceFixture.load()), true);
   await page.waitForFunction(() => window.workspaceFixture.state().layout_mode === 'project');
   assert.equal(await page.evaluate(() => window.workspaceFixture.bridge().scope), 'project');

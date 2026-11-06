@@ -2236,15 +2236,17 @@ The new-session account picker sorts alphabetically by its displayed `agent-type
 
 ### Workspace and inline motion
 
-Project changes, saved-layout changes, project/profile layout mode changes and
+Project-scoped layout changes, saved-layout changes, project/profile layout mode changes and
 dashboard/workspace navigation and the full-screen profile picker cross-fade
 outgoing and incoming content together,
 using the modals’ 180 ms fade and gentle growth. Outgoing layers are inert,
 short-lived visual copies; live editor models and terminal portals retain their
 existing lifetimes. Copies never mount browsing contexts, media or interactive
 controls. New tabs and their viewing areas fade in; replacing the content of an
-existing italic preview slot stays immediate. File-tree Up/Down previews the
-selected file without moving keyboard focus; Enter pins it, Space previews it,
+existing italic preview slot stays immediate. Activating an existing tab or focusing
+another pane is immediate, including across projects in a profile-wide layout.
+File-tree Up/Down previews the selected file without moving keyboard focus;
+Enter pins it, Space previews it,
 and modified/range selection does not open files. Directories retain their
 expand/collapse behaviour.
 
