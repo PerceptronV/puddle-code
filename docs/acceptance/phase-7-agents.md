@@ -20,6 +20,14 @@ verified against 0.146.0 and remains a pinned regression. The items below need
 real logged-in agents and remain manual even though their storage and lifecycle
 parsers have fixtures.
 
+Codex 0.166+ also has an opt-in offline native regression:
+`PUDDLE_NATIVE_CODEX_TEST=1 pnpm exec vitest run packages/daemon/test/agents/codex/native-switch.test.ts`.
+It uses synthetic history and checks simultaneous ownership after fork/new; it
+makes no model requests. Paid-turn and full TUI acceptance remain separate.
+OpenCode 2 currently reports fallback synchronisation. Its V2 plugin API requires
+a separate, verified TUI-selection integration; a V1 plugin or `session.viewed`
+read-status event is not sufficient evidence of the selected conversation.
+
 ## 1. Status regexes — OpenCode and Gemini CLI remain
 
 Codex, OpenCode, and Gemini still use `statusPatterns` for working/waiting
@@ -167,9 +175,14 @@ second project. Keep two browser windows open for the multi-viewer checks.
    failed lifecycle bridge, verify the agent still starts directly, reports
    `fallback`, and shows one restrained warning; catalogue discovery must still
    work, but in-agent switches must not move the tab.
-2. Exercise `/clear`, `/resume`, and `/fork` inside the agent. The old placement
-   must freeze as `exited`; the target must become live and unarchived in the
-   same project/worktree; `/fork` must expose the source conversation as parent.
+2. Exercise `/new`, `/clear`, and `/fork` inside a supported agent. Both the saved
+   original and new conversation must remain live in separate permanent Puddle
+   terminal tabs in the same project/worktree; `/fork` must expose the source as
+   parent. The original resumes under a different runtime without a new prompt.
+   Type into both chats and verify independent responses, including immediate
+   Codex reuse without an active-writer error. Repeat with the source initially
+   a preview tab, and with a daemon disconnect during the native command.
+   `/resume` instead switches placement and leaves its source exited.
    Shell tabs, exported environment, and detected app ports must follow. The
    target keeps its own Puddle title overlay and receives branch ownership.
 3. Exercise `/compact`. It must not create or focus another placement. Repeat

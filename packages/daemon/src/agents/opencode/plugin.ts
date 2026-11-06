@@ -13,6 +13,7 @@ export const PuddleSync = async ({ directory, client }) => {
   const url = process.env.PUDDLE_AGENT_SIGNAL_URL;
   const nonce = process.env.PUDDLE_AGENT_SIGNAL_NONCE;
   let active = null;
+  let selection = 0;
   const sessions = new Map();
   const turns = new Map();
   const signal = async (body) => {
@@ -30,7 +31,7 @@ export const PuddleSync = async ({ directory, client }) => {
       if (error) throw new Error(error);
       if (!turn.assistant) throw new Error('OpenCode completed without a final assistant message');
       const result = await client.session.message({ path: { id: ref, messageID: turn.assistant }, signal: AbortSignal.timeout(5000) });
-      if (turns.get(ref) !== turn) return;
+      if (turns.get(ref) !== turn || ref !== active) return;
       const message = result.data;
       if (message?.info?.parentID !== turn.message || message.info.finish !== 'stop')
         throw new Error('OpenCode reply does not match the submitted message');
@@ -38,6 +39,7 @@ export const PuddleSync = async ({ directory, client }) => {
       if (Buffer.byteLength(reply) > 256 * 1024) throw new Error('Agent reply exceeds 256 KiB');
       await signal({ event: 'turn_complete', agent_session_ref: ref, turn_id: turn.id, reply });
     } catch (error) {
+      if (turns.get(ref) !== turn || ref !== active) return;
       await signal({ event: 'turn_failed', agent_session_ref: ref, turn_id: turn.id, error: String(error).slice(0, 4096) });
     } finally { if (turns.get(ref) === turn) turns.delete(ref); }
   };
@@ -46,6 +48,7 @@ export const PuddleSync = async ({ directory, client }) => {
     const ref = info.id || info.sessionID;
     if (typeof ref !== 'string' || ref.length === 0) return;
     const changed = active !== null && active !== ref;
+    if (changed) turns.clear();
     active = ref;
     try {
       await fetch(url, {
@@ -70,9 +73,15 @@ export const PuddleSync = async ({ directory, client }) => {
   return {
     'chat.message': async (input, output) => {
       const ref = input.sessionID;
-      const info = sessions.get(ref);
-      if (!info || info.parentID) return;
+      const selecting = ++selection;
+      let info = sessions.get(ref);
+      if (!info) {
+        try { info = (await client.session.get({ path: { id: ref }, signal: AbortSignal.timeout(1500) })).data; }
+        catch { return; }
+      }
+      if (selecting !== selection || !info || info.parentID) return;
       await post(info, 'resume');
+      if (selecting !== selection || ref !== active) return;
       const prompt = output.parts.filter((p) => p.type === 'text' && !p.synthetic).map((p) => p.text || '').join('');
       const id = /\\[puddle-turn:([0-9a-f-]{36})\\]$/.exec(prompt)?.[1] || randomUUID();
       turns.set(ref, { id, message: output.message.id });
@@ -82,11 +91,27 @@ export const PuddleSync = async ({ directory, client }) => {
     event: async ({ event }) => {
       const properties = event?.properties || {};
       const info = properties.info;
-      if (event?.type?.startsWith('session.') && info && !info.parentID) sessions.set(info.id, info);
-      if (event?.type === 'session.created') await post(info, 'clear');
-      if (event?.type === 'session.updated') await post(info, 'resume');
+      if (event?.type?.startsWith('session.') && info && !info.parentID) {
+        sessions.delete(info.id);
+        sessions.set(info.id, info);
+        if (sessions.size > 128) sessions.delete(sessions.keys().next().value);
+      }
+      if (event?.type === 'session.created' && info && !info.parentID) {
+        selection++;
+        await post(info, 'clear');
+      }
+      // Metadata/status for another top-level conversation does not select it.
+      if (event?.type === 'session.updated' && (active === null || info?.id === active))
+        await post(info, 'resume');
+      if (event?.type === 'tui.session.select') {
+        const selecting = ++selection;
+        try {
+          const selected = await client.session.get({ path: { id: properties.sessionID }, signal: AbortSignal.timeout(1500) });
+          if (selecting === selection) await post(selected.data, 'resume');
+        } catch { /* Keep the current identity when selection cannot be inspected. */ }
+      }
       if (event?.type === 'session.status') {
-        await post(sessions.get(properties.sessionID), 'resume');
+        if (properties.sessionID === active) await post(sessions.get(active), 'resume');
         if (properties.status?.type === 'idle') await finish(properties.sessionID);
       }
       if (event?.type === 'message.updated' && info?.role === 'assistant') {
@@ -95,10 +120,16 @@ export const PuddleSync = async ({ directory, client }) => {
           turn.assistant = info.id;
       }
       if (event?.type === 'session.error') await finish(properties.sessionID, 'OpenCode turn failed');
-      if (event?.type === 'session.deleted' && properties.info?.id === active) {
-        await finish(active, 'Native conversation deleted');
-        sessions.delete(active);
-        active = null;
+      if (event?.type === 'session.deleted') {
+        const ref = info?.id;
+        sessions.delete(ref);
+        if (ref === active) {
+          selection++;
+          await finish(ref, 'Native conversation deleted');
+          await signal({ event: 'session_end', agent_session_ref: ref, cwd: info.directory || directory, source: 'exit' });
+          if (active === ref) active = null;
+        }
+        turns.delete(ref);
       }
     },
   };

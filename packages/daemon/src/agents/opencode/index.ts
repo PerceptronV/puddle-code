@@ -61,7 +61,9 @@ const METADATA_CONCURRENCY = 32;
  * does not apply and `migratableSessions` is false.
  */
 export const opencode: AgentAdapter = {
-  runtimeAssets: () => ({ 'puddle-sync.mjs': OPENCODE_PLUGIN_SOURCE }),
+  runtimeAssets: () => ({
+    'puddle-sync.mjs': OPENCODE_PLUGIN_SOURCE,
+  }),
   scriptedTurns: true,
   prepareHeadlessLaunch: prepareOpenCodeHeadless,
   prepareLifecycleLaunch: prepareOpenCodeInteractive,
@@ -202,7 +204,9 @@ export const opencode: AgentAdapter = {
         })),
   },
   lifecycleSignals: true,
-  checkLifecycleSupport: () => lifecycleVersionAtLeast('opencode', ['--version'], [1, 18, 10]),
+  checkLifecycleSupport: async () =>
+    !(await lifecycleVersionAtLeast('opencode', ['--version'], [2, 0, 0])) &&
+    (await lifecycleVersionAtLeast('opencode', ['--version'], [1, 18, 10])),
 
   /**
    * UNVERIFIED against a live session (opencode needs a configured provider to

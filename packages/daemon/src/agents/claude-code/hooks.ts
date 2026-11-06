@@ -39,15 +39,18 @@ const value = process.argv[3];
 const url = process.env.PUDDLE_AGENT_SIGNAL_URL;
 const nonce = process.env.PUDDLE_AGENT_SIGNAL_NONCE;
 let raw = '';
-for await (const chunk of process.stdin) raw += chunk;
+for await (const chunk of process.stdin) {
+  raw += chunk;
+  if (Buffer.byteLength(raw) > 1024 * 1024) process.exit(0);
+}
 if (!url || !nonce) process.exit(0);
+let input;
+try { input = JSON.parse(raw || '{}'); } catch { process.exit(0); }
+if (!input || typeof input !== 'object' || input.agent_id) process.exit(0);
 let body;
 if (mode === 'status' && (value === 'working' || value === 'waiting_input')) {
   body = { nonce, state: value };
 } else if (mode === 'lifecycle') {
-  let input;
-  try { input = JSON.parse(raw || '{}'); } catch { process.exit(0); }
-  if (input.agent_id) process.exit(0);
   const start = value === 'session_start';
   const allowed = new Set(['startup', 'resume', 'clear', 'fork', 'compact']);
   const source = start && allowed.has(input.source) ? input.source : 'exit';

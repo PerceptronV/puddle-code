@@ -50,6 +50,18 @@ function setup() {
 }
 
 describe('interactive exact prompt observation', () => {
+  it('ignores an old conversation ending during a new automated turn', async () => {
+    const s = setup();
+    const pending = s.control.ask('question', new AbortController().signal);
+    const identity = s.submitted();
+    s.control.signal({ ...identity, event: 'turn_start' });
+    s.control.lifecycle(randomUUID(), true);
+    s.control.signal({ ...identity, event: 'turn_complete', reply: 'still current' });
+    expect(await pending).toBe('still current');
+    expect(s.control.ready).toBe(true);
+    s.control.lifecycle(s.ref, true);
+    expect(s.control.ready).toBe(false);
+  });
   it('waits for the initial onboarding turn before accepting automated input', async () => {
     const control = new InteractiveControl(() => {}, '\x1b', true);
     const ref = randomUUID();
@@ -173,6 +185,38 @@ async function hook(
 }
 
 describe('generated native hooks', () => {
+  it('ignores Claude subagent status and malformed or oversized hook input', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'puddle-hook-status-'));
+    cleanups.push(async () => rmSync(dir, { recursive: true, force: true }));
+    installStatusHooks(dir);
+    const server = await hookServer();
+    const settings = JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf8'));
+    const command = settings.hooks.PreToolUse[0].hooks[0].command as string;
+    const env = { PATH: process.env.PATH! };
+    const nonce = randomUUID();
+    await hook(command, { agent_id: 'child', session_id: 'parent' }, server.url, nonce, env);
+    await hook(command, null, server.url, nonce, env);
+    await hook(command, { data: 'x'.repeat(1024 * 1024) }, server.url, nonce, env);
+    expect(server.messages).toEqual([]);
+    await hook(command, { session_id: 'parent' }, server.url, nonce, env);
+    expect(server.messages).toEqual([{ nonce, state: 'working' }]);
+  });
+  it('keeps Gemini JSON output for oversized lifecycle and turn hooks', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'puddle-hook-gemini-bound-'));
+    cleanups.push(async () => rmSync(dir, { recursive: true, force: true }));
+    installGeminiLifecycleHooks(dir);
+    const server = await hookServer();
+    const settings = JSON.parse(readFileSync(join(dir, '.gemini/settings.json'), 'utf8'));
+    for (const event of ['SessionStart', 'BeforeAgent']) {
+      const command = settings.hooks[event][0].hooks[0].command as string;
+      expect(
+        await hook(command, { data: 'x'.repeat(1024 * 1024) }, server.url, randomUUID(), {
+          PATH: process.env.PATH!,
+        }),
+      ).toBe('{}\n');
+    }
+    expect(server.messages).toEqual([]);
+  });
   for (const provider of ['claude', 'gemini']) {
     it(`${provider} keeps exact lifecycle reporting on its pinned helper after an account update`, async () => {
       const dir = mkdtempSync(join(tmpdir(), 'puddle-lifecycle-assets-'));
@@ -433,6 +477,14 @@ describe('generated native hooks', () => {
     });
     const runtime = f.service.scriptRuntime(session.id);
     expect(runtime.ready).toBe(true);
+    await f.service.signalAgentLifecycle({
+      nonce,
+      event: 'session_end',
+      agent_session_ref: 'previous-conversation',
+      cwd: session.worktree_path,
+      source: 'exit',
+    });
+    expect(f.service.scriptRuntime(session.id).ready).toBe(true);
     expect(
       f.service.signalAgentTurn({
         nonce: randomUUID(),

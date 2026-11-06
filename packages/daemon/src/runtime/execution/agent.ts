@@ -205,6 +205,13 @@ export class RuntimeAgent {
     const parsed = runtimeLifecycleSchema.safeParse(signal);
     if (!parsed.success) return false;
     const lifecycle = parsed.data;
+    // Hooks from the previous conversation may finish after a native switch.
+    if (
+      lifecycle.event === 'session_end' &&
+      lifecycle.agent_session_ref !== undefined &&
+      lifecycle.agent_session_ref !== this.ref
+    )
+      return true;
     if (lifecycle.event === 'session_start' && lifecycle.agent_session_ref !== this.ref) {
       const ref = lifecycle.agent_session_ref!;
       if (!this.claim.switch(ref)) {

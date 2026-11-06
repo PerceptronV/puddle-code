@@ -57,7 +57,7 @@ import { ConversationCatalogue } from './sessions/conversation-catalogue.js';
 import { MarkerFileSync } from './sessions/onboarding.js';
 import { reconcilePass } from './sessions/reconcile.js';
 import { subscribePushNotifications } from './sessions/push-notifications.js';
-import { SessionService } from './sessions/service.js';
+import { SessionService, type SessionSwitchEvent } from './sessions/service.js';
 import { RuntimeStore } from './db/stores/runtimes.js';
 import { hostReleaseCapabilities } from '@puddle/shared';
 import { HostUpdateCompatibility } from './updates/preflight/compatibility.js';
@@ -241,6 +241,11 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       runtimeConnections,
       runtimeReconciler.observations,
     );
+    const bootSwitches: SessionSwitchEvent[] = [];
+    const captureBootSwitch = (event: SessionSwitchEvent) => {
+      if (event.outcome === 'rebound' && event.cause !== 'resume') bootSwitches.push(event);
+    };
+    runtimeReconciler.on('session-switched', captureBootSwitch);
     await runtimeConnections.connect();
     const runtimeControls = new RuntimeControls(runtimes, runtimeConnections, runtimeReconciler);
     failedStartup.push(() => runtimeControls.close());
@@ -342,6 +347,21 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       runtimeTerminalAgent: (id) => runtimeTerminals.detectedAgent(id),
       runtimeShellHooks: (id) => readRuntimeShellHooks(runtimeDirectory(paths.home, id)),
       runtimePriorRefs: (id) => runtimePriorRefs(paths.home, runtimes, id),
+      runtimeSwitchSettled: async (id) => {
+        await runtimeReconciler.refresh(id);
+        const client = runtimeConnections.get(id);
+        if (!client || runtimeReconciler.pendingIds().includes(id)) return false;
+        // The state cached before bind-placement still names the old segment.
+        // Read the owner's acknowledged binding before starting another owner.
+        const reply = await client.request({ t: 'inspect' });
+        const current = runtimes.get(id);
+        return (
+          reply.t === 'state' &&
+          !!current &&
+          reply.state.binding?.session_id === current.active_session_id &&
+          reply.state.binding.segment_id === current.active_segment_id
+        );
+      },
       runtimeProgrammeTurns: new RuntimeProgrammeTurns(
         runtimes,
         runtimeConnections,
@@ -369,6 +389,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     runtimeReconciler.on('changed', (projectId: string) =>
       service.emit('sessions-changed', { projectIds: [projectId] }),
     );
+    runtimeReconciler.off('session-switched', captureBootSwitch);
     runtimeReconciler.on('session-switched', (event) => service.emit('session-switched', event));
     runtimeReconciler.on('status', (event) => service.emit('status', event));
     runtimeConnections.on('disconnected', (id: string) => {
@@ -590,6 +611,8 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     // restart brings interrupted sessions straight back; any that fail surface
     // in the UI for one-click resume. Runs AFTER the bind on purpose, so
     // auto-resumed agents get the signal env too.
+    for (const event of bootSwitches) service.emit('session-switched', event);
+    bootSwitches.length = 0;
     if (config.autoResume) {
       for (const id of new Set([...reconciled.interrupted, ...runtimeReconciler.autoResumeIds()])) {
         await service

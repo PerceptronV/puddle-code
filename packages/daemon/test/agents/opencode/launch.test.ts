@@ -54,7 +54,10 @@ describe('OpenCode server lifetime', () => {
         ...(version === '2.0.0' ? ['--standalone'] : []),
         ...context.args,
       ]);
-      expect(context.reportLifecycleUnavailable).not.toHaveBeenCalled();
+      if (version === '2.0.0') {
+        expect(context.reportLifecycleUnavailable).toHaveBeenCalledOnce();
+        expect(resource.control).toBeUndefined();
+      } else expect(context.reportLifecycleUnavailable).not.toHaveBeenCalled();
     } finally {
       await resource.dispose();
     }

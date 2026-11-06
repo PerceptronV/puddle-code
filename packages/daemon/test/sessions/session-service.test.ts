@@ -691,11 +691,12 @@ describe('native conversation lifecycle', () => {
     expect(target!.id).not.toBe(source.id);
     expect(target!.worktree_path).toBe(source.worktree_path);
     expect(target!.native_sync).toBe('full');
-    expect(f.service.get(source.id)).toMatchObject({ status: 'exited', branch_owner: false });
+    expect(f.service.get(source.id).branch_owner).toBe(false);
     expect(f.service.get(target!.id).branch_owner).toBe(true);
     expect(f.ptys.pidsFor(target!.id).sort((a, b) => a - b)).toEqual(originalPids);
     expect(f.ptys.liveTerms(target!.id)).toContain(shell);
-    expect(f.ptys.liveTerms(source.id)).toEqual([]);
+    await waitFor(() => f.service.get(source.id).status === 'waiting_input');
+    expect(f.ptys.liveTerms(source.id)).toEqual(['agent']);
     expect(switched).toContainEqual(
       expect.objectContaining({ targetSession: target!.id, outcome: 'rebound' }),
     );
@@ -724,6 +725,15 @@ describe('native conversation lifecycle', () => {
     });
     expect(f.service.signalNonceFor(target!.id)).toBe(nonce);
 
+    // The fake provider must persist the exact native refs just as a real CLI does.
+    writeFileSync(
+      join(f.stores.accounts.get(f.ids.account).config_dir, 'conv-native-clear-ref'),
+      '',
+    );
+    writeFileSync(
+      join(f.stores.accounts.get(f.ids.account).config_dir, 'conv-native-fork-ref'),
+      '',
+    );
     // Fork creates another placement and records the native parent.
     await f.service.signalAgentLifecycle({
       nonce,
@@ -736,7 +746,13 @@ describe('native conversation lifecycle', () => {
       .list()
       .find((session) => session.agent_session_ref === 'native-fork-ref');
     expect(forked?.parent_conversation_id).toBe(target!.conversation_id);
+    await waitFor(() => f.service.get(target!.id).status === 'waiting_input');
+    expect(f.service.get(source.id).status).toBe('waiting_input');
+    expect(f.service.get(forked!.id).status).toBe('waiting_input');
+    expect(f.service.signalNonceFor(target!.id)).not.toBe(nonce);
     await f.service.kill(forked!.id);
+    await f.service.kill(target!.id);
+    await f.service.kill(source.id);
   });
 
   it('unarchives an existing placement only on an exact native resume', async () => {
@@ -859,7 +875,7 @@ describe('native conversation lifecycle', () => {
     }
   });
 
-  it('serialises simultaneous switches and leaves one live placement', async () => {
+  it('serialises simultaneous clears and keeps each saved conversation live', async () => {
     const f = fixture({ adapter: { ...fakeAdapter(), lifecycleSignals: true } });
     f.service.setSignalPort(65432);
     const source = await f.service.create({
@@ -869,6 +885,8 @@ describe('native conversation lifecycle', () => {
     await waitFor(() => f.service.get(source.id).status === 'waiting_input');
     const nonce = f.service.signalNonceFor(source.id)!;
 
+    for (const ref of ['simultaneous-a', 'simultaneous-b'])
+      writeFileSync(join(f.stores.accounts.get(f.ids.account).config_dir, `conv-${ref}`), '');
     await Promise.all([
       f.service.signalAgentLifecycle({
         nonce,
@@ -886,13 +904,15 @@ describe('native conversation lifecycle', () => {
       }),
     ]);
 
-    const live = f.service
-      .list()
-      .filter((session) => ['starting', 'running', 'waiting_input'].includes(session.status));
-    expect(live).toHaveLength(1);
-    expect(live[0]?.agent_session_ref).toBe('simultaneous-b');
-    expect(f.ptys.liveCount()).toBe(1);
-    await f.service.kill(live[0]!.id);
+    await waitFor(
+      () => f.service.list().filter((session) => session.status === 'waiting_input').length === 3,
+    );
+    const live = f.service.list().filter((session) => session.status === 'waiting_input');
+    expect(live.map((session) => session.agent_session_ref)).toEqual(
+      expect.arrayContaining([source.agent_session_ref, 'simultaneous-a', 'simultaneous-b']),
+    );
+    expect(f.ptys.liveCount()).toBe(3);
+    for (const session of live) await f.service.kill(session.id);
   });
 
   it('stops a competing switch and identifies the already-live placement to REST callers', async () => {

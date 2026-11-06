@@ -300,6 +300,7 @@ export class LegacySessionOwner {
     initial: LiveAgent['status'],
     launchOpts?: LaunchOpts,
     resumeRef?: string,
+    beforeSpawn?: () => void,
   ): Promise<void> {
     this.hooks.assertLegacyRuntime(sessionId);
     // The status-signal side-channel (SPEC §4): a per-spawn nonce plus the
@@ -387,6 +388,7 @@ export class LegacySessionOwner {
       }
     }
     try {
+      beforeSpawn?.();
       this.hooks.assertLegacyRuntime(sessionId);
       this.deps.runtimes?.useLegacyTerminals(sessionId);
       this.deps.ptys.spawn(
@@ -412,7 +414,11 @@ export class LegacySessionOwner {
       );
     } catch (e) {
       await lifecycleResource?.dispose();
-      if (e instanceof ApiError && e.code === 'runtime_reconciliation_required') throw e;
+      if (
+        e instanceof ApiError &&
+        ['runtime_reconciliation_required', 'native_source_changed'].includes(e.code)
+      )
+        throw e;
       this.hooks.transition(sessionId, 'exited');
       this.deps.events.record(sessionId, 'spawn_failed', { message: (e as Error).message });
       throw new ApiError(
@@ -590,6 +596,12 @@ export class LegacySessionOwner {
       if (this.deps.storage?.status().database_degraded) throw storageUnavailable();
       const sourceId = runtime.activeSessionId;
       const source = this.deps.sessions.get(sourceId);
+      if (
+        signal.event === 'session_end' &&
+        signal.agent_session_ref !== undefined &&
+        signal.agent_session_ref !== source.agent_session_ref
+      )
+        return true;
       runtime.lifecycleResource?.control?.lifecycle?.(
         signal.agent_session_ref,
         signal.event === 'session_end',

@@ -14,6 +14,10 @@ import { join } from 'node:path';
  *   curated title the way Claude Code does, so this is a fallback to be cut
  *   down, not a display string.
  *
+ * Native writers must never block the host's event loop. Open with no SQLite
+ * busy wait; locked indices use the existing unavailable result/fallback and a
+ * later observation can retry. Puddle does not own this database's locks.
+ *
  * Read-only and best-effort. The filename carries a schema version, so a codex
  * upgrade can rename or reshape it out from under us; reads fail to a neutral
  * `null`/empty result and rollout scanning remains available for ref discovery.
@@ -61,7 +65,7 @@ export function codexThreadIndex(configDir: string, cwd?: string): CodexThreadIn
   if (path === null || !existsSync(path)) return { available: false, threads: [] };
   let db: Database.Database | undefined;
   try {
-    db = new Database(path, { readonly: true, fileMustExist: true });
+    db = new Database(path, { readonly: true, fileMustExist: true, timeout: 0 });
     const columns = new Set(
       (db.prepare('pragma table_info(threads)').all() as Array<{ name: string }>).map(
         (column) => column.name,
@@ -126,7 +130,7 @@ export function codexThread(configDir: string, ref: string): CodexThread | null 
   if (path === null || !existsSync(path)) return null;
   let db: Database.Database | undefined;
   try {
-    db = new Database(path, { readonly: true, fileMustExist: true });
+    db = new Database(path, { readonly: true, fileMustExist: true, timeout: 0 });
     const columns = new Set(
       (db.prepare('pragma table_info(threads)').all() as Array<{ name: string }>).map(
         (column) => column.name,
@@ -197,7 +201,7 @@ export function threadTitle(configDir: string, ref: string): string | null {
   if (path === null || !existsSync(path)) return null;
   let db: Database.Database | undefined;
   try {
-    db = new Database(path, { readonly: true, fileMustExist: true });
+    db = new Database(path, { readonly: true, fileMustExist: true, timeout: 0 });
     const row = db.prepare('select name, title from threads where id = ?').get(ref) as
       { name?: string | null; title?: string | null } | undefined;
     if (row === undefined) return null;

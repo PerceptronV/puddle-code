@@ -35,11 +35,22 @@ export async function prepareCodexLifecycle(
     [0, 159, 0],
     context.env,
   );
+  // 0.166.0's unsubscribe retains an idle thread/writer for 60 seconds by
+  // default. Puddle moves the runtime to the fork and lets another runtime
+  // resume the original; keep no idle native ownership after the TUI leaves.
+  // Native busy threads remain loaded until their work actually ends.
+  const immediateUnload = await lifecycleVersionAtLeast(
+    'codex',
+    ['--version'],
+    [0, 166, 0],
+    context.env,
+  );
+  const unloadArgs = immediateUnload ? ['-c', 'thread_unload_delay_secs=0'] : [];
   const appPort = await freePort();
   const appUrl = `ws://127.0.0.1:${appPort}`;
   const appServer = spawn(
     'codex',
-    ['app-server', '--listen', appUrl],
+    ['app-server', '--listen', appUrl, ...unloadArgs],
     codexAppServerSpawnOptions(context),
   );
   let errorTail = '';
@@ -272,7 +283,7 @@ export async function prepareCodexLifecycle(
     // explicit as well as setting the sidecar cwd below: either endpoint may
     // otherwise fall back to the daemon's directory when a protocol request
     // omits cwd, which makes Codex show `~` and loses the Git branch footer.
-    args: codexRemoteArgs(`ws://127.0.0.1:${proxyPort}`, context),
+    args: codexRemoteArgs(`ws://127.0.0.1:${proxyPort}`, context, unloadArgs),
     ...(appServer.pid !== undefined ? { sidecarPids: [appServer.pid] } : {}),
     hiddenPorts: [appPort, proxyPort],
     dispose: async () => {
@@ -289,8 +300,9 @@ export async function prepareCodexLifecycle(
 export function codexRemoteArgs(
   remoteUrl: string,
   context: Pick<LifecycleLaunchContext, 'args' | 'opts'>,
+  unloadArgs: readonly string[] = [],
 ): string[] {
-  return ['--remote', remoteUrl, '-C', context.opts.worktreePath, ...context.args];
+  return ['--remote', remoteUrl, '-C', context.opts.worktreePath, ...unloadArgs, ...context.args];
 }
 
 /** Load-bearing spawn context for the remote Codex workspace. */

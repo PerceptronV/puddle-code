@@ -118,6 +118,23 @@ it('launches interactive providers, adopts offline native switches and resumes t
     const active = f.runtimes.get(owner.runtime_id)!.active_session_id;
     expect(active).not.toBe(session.id);
     expect(f.sessions.get(active).agent_session_ref).toBe('launch-second');
+    await waitFor(() => {
+      const restored = f.runtimes.ownerOf(session.id);
+      return (
+        restored?.runtime_id !== owner.runtime_id &&
+        restored?.state === 'running' &&
+        ['starting', 'running', 'waiting_input'].includes(f.sessions.get(session.id).status)
+      );
+    });
+    const restoredOriginal = f.runtimes.ownerOf(session.id)!;
+    runtimeIds.add(restoredOriginal.runtime_id);
+    const restoredLaunch = runtimeLaunchSchema.parse(
+      readRuntimeJson(join(runtimeDirectory(f.home, restoredOriginal.runtime_id), 'launch.json')),
+    );
+    expect(restoredLaunch.provider?.resume_ref).toBe('launch-first');
+    expect(restoredLaunch.provider?.prompt).toBeUndefined();
+    expect(f.sessions.get(session.id).status).toMatch(/starting|running|waiting_input/);
+    expect(f.runtimes.ownerOf(active)?.runtime_id).toBe(owner.runtime_id);
     expect(f.reconciler.observations.get(owner.runtime_id)?.terminals[0]?.pid).toBe(
       initial.terminals[0]!.pid,
     );
@@ -146,7 +163,8 @@ it('launches interactive providers, adopts offline native switches and resumes t
     await waitFor(() => messages.some((message) => message.t === 'authenticated'));
     send({ t: 'subscribe-status' });
     attach();
-    const replays = () => messages.filter((message) => message.t === 'replay').length;
+    const replays = () =>
+      messages.filter((message) => message.t === 'replay' && message.session === active).length;
     const text = () =>
       messages
         .flatMap((message) =>
@@ -154,6 +172,28 @@ it('launches interactive providers, adopts offline native switches and resumes t
         )
         .join('');
     await waitFor(() => replays() === 1);
+    send({ t: 'attach', session: session.id, term: 'agent', cols: 90, rows: 30 });
+    await waitFor(() =>
+      messages.some((message) => message.t === 'replay' && message.session === session.id),
+    );
+    send({
+      t: 'stdin',
+      session: session.id,
+      term: 'agent',
+      data: "printf 'original-%s\\n' keyboard\n",
+    });
+    send({ t: 'stdin', session: active, term: 'agent', data: "printf 'new-%s\\n' keyboard\n" });
+    for (const [id, marker] of [
+      [session.id, 'original-keyboard'],
+      [active, 'new-keyboard'],
+    ])
+      await waitFor(() =>
+        messages.some(
+          (message) =>
+            message.t === 'output' && message.session === id && message.data.includes(marker!),
+        ),
+      );
+    expect(messages.filter((message) => message.t === 'error')).toEqual([]);
     const killed = await request(`/api/sessions/${active}/kill`);
     expect(killed.status).toBe(200);
     await killed.arrayBuffer();

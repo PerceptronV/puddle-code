@@ -88,16 +88,19 @@ export function useWorkspaceTabs({
   // detail, so the workspace re-renders rather than remounting.
   const pendingOpen = useRef<{ session: string; pin: boolean } | null>(null);
   // Follow an exact native switch only in the viewer that was focused on the
-  // source session. The source tab stays in the tree as frozen history; the
-  // target opens as a preview in the focused pane (or the destination
-  // project's focused pane after navigation).
+  // source session. Native new/clear/fork preserve both terminal tabs; explicit
+  // resume keeps the existing preview-navigation behaviour.
   useEffect(
     () =>
       wsManager.onSessionSwitched((event) => {
         if (event.source_session !== activeSessionId) return;
-        pendingOpen.current = { session: event.target_session, pin: false };
+        const creation = event.outcome === 'rebound' && event.cause !== 'resume';
+        pendingOpen.current = { session: event.target_session, pin: creation };
         if (event.target_project === projectId) {
-          layoutRef.current.ensureTerminal(event.target_session, { preview: true });
+          layoutRef.current.ensureTerminal(event.target_session, {
+            preview: !creation,
+            ...(creation ? { keepSession: event.source_session } : {}),
+          });
         }
         void navigate(`/project/${event.target_project}/session/${event.target_session}`);
       }),

@@ -59,7 +59,7 @@ export interface LayoutController {
   ): string;
   /** Persist one provider-backed source's mode across every duplicate tab. */
   setCompileMode(tab: EditorTab, mode: CompilationMode): void;
-  ensureTerminal(session: string, opts?: { preview?: boolean }): void;
+  ensureTerminal(session: string, opts?: { preview?: boolean; keepSession?: string }): void;
   /** Promote a preview tab to permanent (double-click), wherever it lives. */
   promote(ref: TabRef): void;
   /**
@@ -241,16 +241,17 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
         if (next !== tree) persist(next);
       },
       ensureTerminal: (session, opts) => {
+        const base = opts?.keepSession ? promoteTab(tree, `term:${opts.keepSession}`) : tree;
         const key = `term:${session}`;
-        const existing = leafContainingKey(tree, key);
+        const existing = leafContainingKey(base, key);
         if (existing) {
           setFocusedLeafId(existing.id);
           const needsFocus = existing.activeKey !== key;
           // A PERMANENT ensure promotes an existing preview tab — double-click
           // on a sidebar session pins it, exactly like double-click on a file.
           const needsPromote = !opts?.preview && existing.previewKey === key;
-          if (needsFocus || needsPromote) {
-            let next = tree;
+          if (needsFocus || needsPromote || base !== tree) {
+            let next = base;
             if (needsFocus) next = focusTab(next, existing.id, key);
             if (needsPromote) next = promoteTab(next, key);
             persist(next);
@@ -259,7 +260,7 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
           const target = focusedLeaf.id;
           setFocusedLeafId(target);
           const ref: TabRef = { type: 'terminal', session };
-          persist(opts?.preview ? openPreview(tree, target, ref) : addTabToLeaf(tree, target, ref));
+          persist(opts?.preview ? openPreview(base, target, ref) : addTabToLeaf(base, target, ref));
         }
       },
       promote: (ref) => persist(promoteTab(tree, tabRefKey(ref))),

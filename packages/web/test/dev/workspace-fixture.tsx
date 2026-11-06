@@ -38,6 +38,7 @@ export function mountWorkspaceFixture() {
   const projectsReady = new Promise<void>((resolve) => (releaseProjects = resolve));
   const holds = new Map<string, { ready: Promise<void>; release: () => void }>();
   const requests: { method: string; path: string; body: unknown }[] = [];
+  const sockets = new Set<EventTarget>();
   const drafts = new Map<string, string>();
   const files = new Map<string, string>();
   let draftCount = 0;
@@ -93,7 +94,10 @@ export function mountWorkspaceFixture() {
         return Response.json([project, secondProject]);
       }
       if (method === 'GET' && route === `/api/projects/${project.id}`)
-        return Response.json({ project, sessions: [allSessions[0]] });
+        return Response.json({
+          project,
+          sessions: allSessions.filter((s) => s.project_id === project.id),
+        });
       if (method === 'GET' && route === `/api/projects/${secondProject.id}`)
         return Response.json({ project: secondProject, sessions: [allSessions[1]] });
       if (method === 'GET' && route === '/api/sessions') return Response.json(allSessions);
@@ -106,6 +110,7 @@ export function mountWorkspaceFixture() {
     },
     socket: () => {
       const events = new EventTarget();
+      sockets.add(events);
       const socket: CockpitSocket = {
         readyState: WebSocket.OPEN,
         send: () => undefined,
@@ -196,6 +201,25 @@ export function mountWorkspaceFixture() {
     second: secondProject.id,
     sessions: allSessions.map((s) => s.id),
     releaseProjects,
+    nativeCreation: (source: string, target: string, cause: 'fork' | 'clear') => {
+      const original = allSessions.find((s) => s.id === source)!;
+      allSessions.push({ ...original, id: target, title: `Native ${cause}` });
+      for (const socket of sockets)
+        socket.dispatchEvent(
+          new MessageEvent('message', {
+            data: JSON.stringify({
+              t: 'session-switched',
+              source_session: source,
+              target_session: target,
+              target_project: original.project_id,
+              cause,
+              outcome: 'rebound',
+            }),
+          }),
+        );
+      void client.invalidateQueries({ queryKey: ['sessions'] });
+      void client.invalidateQueries({ queryKey: ['project', original.project_id] });
+    },
     visit: (id: string, session?: string) =>
       navigate(`/project/${id}${session ? `/session/${session}` : ''}`),
     projectMode: (value: boolean) => updateClientSettings({ projectBasedLayout: value }),

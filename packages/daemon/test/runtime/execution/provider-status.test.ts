@@ -59,9 +59,10 @@ describe('supervised provider status', () => {
         recursive: true,
         mode: 0o700,
       });
+      const lifecycle = vi.fn();
       const agent = new RuntimeAgent(home, launch, adapter, {
         writeInput() {},
-        lifecycle() {},
+        lifecycle,
         state() {},
         collision() {
           throw new Error('Unexpected collision');
@@ -82,6 +83,14 @@ describe('supervised provider status', () => {
       };
       const ref = randomUUID();
       await send({ event: 'session_start', agent_session_ref: ref, cwd: home, source: 'startup' });
+      await send({
+        event: 'session_end',
+        agent_session_ref: 'previous',
+        cwd: home,
+        source: 'exit',
+      });
+      expect(lifecycle).toHaveBeenCalledTimes(1);
+      expect(agent.control()?.ready).toBe(true);
       const turn = { agent_session_ref: ref, turn_id: randomUUID() };
       await send({ ...turn, event: 'turn_start', prompt_hash: 'b'.repeat(64) });
       expect(agent.state().status).toBe('running');

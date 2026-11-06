@@ -27,6 +27,7 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
+- Keep the original and new terminal tabs open after native `/fork`, `/new` and `/clear`; resume the saved original in its own runtime without replaying a prompt.
 - Give active sessions a deeper background than hover in both expanded and collapsed right sidebars.
 
 - Describe supported coordinated data purge, its protocol requirement, runtime-stop consent and reboot continuation in CLI help and removal guidance.
@@ -57,5 +58,15 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
+- Avoid native Codex database lock waits blocking other agents, and connect new runtimes directly instead of waiting for unrelated unavailable owners.
+- Share bounded CLI version observations across capability checks and refresh them after CLI upgrades.
+- Ignore delayed end hooks from previous conversations and Claude subagent status hooks; bound hook input while preserving Gemini's JSON response contract.
+- Keep OpenCode metadata updates and late replies from switching or completing another conversation; report OpenCode 2's unsupported V1 synchronisation bridge as fallback.
 - Avoid writing conversation presence twice during one catalogue scan, preserving newer lifecycle observations and two-scan deletion confirmation.
 - Avoid scanning the owning Git repository twice during repository discovery.
+
+### Runtime
+
+#### Fixed
+
+- Release idle Codex 0.166+ thread ownership promptly after native conversation switches so the original can run independently of its fork.

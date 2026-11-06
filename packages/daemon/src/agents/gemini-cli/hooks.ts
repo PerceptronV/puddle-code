@@ -14,7 +14,13 @@ const event = process.argv[2];
 const url = process.env.PUDDLE_AGENT_SIGNAL_URL;
 const nonce = process.env.PUDDLE_AGENT_SIGNAL_NONCE;
 let raw = '';
-for await (const chunk of process.stdin) raw += chunk;
+for await (const chunk of process.stdin) {
+  raw += chunk;
+  if (Buffer.byteLength(raw) > 1024 * 1024) {
+    process.stdout.write('{}\\n');
+    process.exit(0);
+  }
+}
 if (url && nonce) {
   try {
     const input = JSON.parse(raw || '{}');

@@ -23,6 +23,21 @@ export class EventStore {
       );
   }
 
+  /** Claim one exact automatic lifecycle action before dispatch, without replay. */
+  recordOnce(sessionId: string, type: string, payload: unknown): boolean {
+    const value = JSON.stringify(payload);
+    return (
+      this.db
+        .prepare(
+          `INSERT INTO events (session_id, type, payload, created_at)
+      SELECT ?, ?, ?, ? WHERE NOT EXISTS (
+        SELECT 1 FROM events WHERE session_id = ? AND type = ? AND payload = ?
+      )`,
+        )
+        .run(sessionId, type, value, new Date().toISOString(), sessionId, type, value).changes === 1
+    );
+  }
+
   list(sessionId: string): EventRow[] {
     const rows = this.db
       .prepare(`SELECT * FROM events WHERE session_id = ? ORDER BY id`)

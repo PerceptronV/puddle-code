@@ -4,10 +4,12 @@ import { promisify } from 'node:util';
 import { AgentLaunchError } from './launch-error.js';
 
 const execFileAsync = promisify(execFile);
-const checks = new Map<string, Promise<boolean>>();
+type Version = readonly [number, number, number];
+const checks = new Map<string, { at: number; version: Promise<Version | null> }>();
+const CACHE_MS = 30_000;
 
 /** Cached, bounded CLI-version capability probe used before hook launches. */
-export function lifecycleVersionAtLeast(
+export async function lifecycleVersionAtLeast(
   binary: string,
   args: string[],
   minimum: readonly [number, number, number],
@@ -18,34 +20,37 @@ export function lifecycleVersionAtLeast(
   const environmentKey = createHash('sha256')
     .update(JSON.stringify(Object.entries(env).sort(([a], [b]) => a.localeCompare(b))))
     .digest('hex');
-  const key = `${environmentKey}\0${binary}\0${args.join('\0')}\0${minimum.join('.')}\0${requireVersion}`;
-  const active = checks.get(key);
-  if (active) return active;
-  const check = execFileAsync(binary, args, {
-    env,
-    encoding: 'utf8',
-    timeout: 3_000,
-    maxBuffer: 64 * 1024,
-  })
-    .then(({ stdout, stderr }) => {
-      const match = /(\d+)\.(\d+)\.(\d+)/.exec(`${String(stdout)}\n${String(stderr)}`);
-      if (!match) throw new Error('CLI did not report a version');
-      const found = [Number(match[1]), Number(match[2]), Number(match[3])] as const;
-      for (let index = 0; index < minimum.length; index++) {
-        if (found[index]! > minimum[index]!) return true;
-        if (found[index]! < minimum[index]!) return false;
-      }
-      return true;
+  const key = `${environmentKey}\0${binary}\0${args.join('\0')}`;
+  let check = checks.get(key);
+  if (!check || Date.now() - check.at >= CACHE_MS) {
+    const version = execFileAsync(binary, args, {
+      env,
+      encoding: 'utf8',
+      timeout: 3_000,
+      maxBuffer: 64 * 1024,
     })
-    .catch(() => {
-      if (requireVersion)
-        throw new AgentLaunchError(
-          `Cannot verify ${binary} version; refusing a launch that may use an unowned background server`,
-        );
-      return false;
-    });
-  // Captured launch environments can vary for every session in a legacy daemon.
-  if (checks.size >= 64) checks.delete(checks.keys().next().value!);
-  checks.set(key, check);
-  return check;
+      .then(({ stdout, stderr }): Version | null => {
+        const match = /(\d+)\.(\d+)\.(\d+)/.exec(`${String(stdout)}\n${String(stderr)}`);
+        return match ? [Number(match[1]), Number(match[2]), Number(match[3])] : null;
+      })
+      .catch(() => null);
+    // Share the observation across capability floors, including concurrent callers.
+    // Expire observations so replacing a CLI does not require a daemon restart.
+    if (checks.size >= 64) checks.delete(checks.keys().next().value!);
+    check = { at: Date.now(), version };
+    checks.set(key, check);
+  }
+  const found = await check.version;
+  if (!found) {
+    if (requireVersion)
+      throw new AgentLaunchError(
+        `Cannot verify ${binary} version; refusing a launch that may use an unowned background server`,
+      );
+    return false;
+  }
+  for (let index = 0; index < minimum.length; index++) {
+    if (found[index]! > minimum[index]!) return true;
+    if (found[index]! < minimum[index]!) return false;
+  }
+  return true;
 }

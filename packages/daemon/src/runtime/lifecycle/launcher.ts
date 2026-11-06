@@ -232,7 +232,7 @@ export class RuntimeLauncher {
       const deadline = Date.now() + 15_000;
       let delay = 50;
       while (!this.closed) {
-        await this.deps.connections.connect();
+        await this.deps.connections.connectOwner(identity.runtime_id);
         const binding = this.deps.runtimes.get(identity.runtime_id);
         const client = this.deps.connections.get(identity.runtime_id);
         if (

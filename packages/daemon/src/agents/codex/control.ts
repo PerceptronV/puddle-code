@@ -74,7 +74,8 @@ export class CodexControl implements AgentControl {
       method === 'thread/fork'
     ) {
       this.pending?.finish(new Error('Human or native input interrupted the automated turn'));
-      if (method === 'turn/start') this.busy = true;
+      if (method === 'turn/start' && record(message['params'])['threadId'] === this.thread)
+        this.busy = true;
     }
   }
 

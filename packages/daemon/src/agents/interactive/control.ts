@@ -29,6 +29,7 @@ export class InteractiveControl implements AgentControl {
   }
 
   lifecycle(ref: string | undefined, ended: boolean): void {
+    if (ended && ref !== undefined && ref !== this.ref) return;
     if (ended || ref !== this.ref) {
       this.pending?.finish(new Error('Agent changed its native conversation'));
       this.active = null;

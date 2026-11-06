@@ -19,6 +19,16 @@ const completed = (id: string, status = 'completed') => ({
 });
 
 describe('Codex exact scripted turns', () => {
+  it('does not leave the main conversation busy after a side-thread turn starts', () => {
+    const f = fixture();
+    f.control.client({ method: 'turn/start', params: { threadId: 'review' } });
+    expect(f.control.ready).toBe(true);
+    f.control.client({ method: 'turn/start', params: { threadId: 'thread' } });
+    expect(f.control.ready).toBe(false);
+    f.control.server(completed('human'));
+    expect(f.control.ready).toBe(true);
+    f.control.disconnect();
+  });
   it('correlates RPC, thread and turn; forwards notifications and excludes commentary', async () => {
     const f = fixture();
     const result = f.control.ask('task', f.abort.signal, { type: 'object' });

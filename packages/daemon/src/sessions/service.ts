@@ -52,6 +52,7 @@ import {
   buildOnboardingPreamble,
 } from './onboarding.js';
 import { SessionRuntimeService } from './runtime/service.js';
+import { preserveNativeSource } from './native-creation.js';
 import { terminalCommandArgs, type TerminalCommand } from './terminal-command.js';
 
 export interface SessionServiceDeps {
@@ -67,6 +68,7 @@ export interface SessionServiceDeps {
   runtimeControls?: RuntimeControls;
   runtimeLauncher?: RuntimeLauncher;
   runtimeShellHooks?: (runtimeId: string) => ShellHooks | null;
+  runtimeSwitchSettled?: (runtimeId: string) => Promise<boolean>;
   runtimePriorRefs?: (sessionId: string) => ReadonlySet<string> | undefined;
   runtimeProgrammeTurns?: RuntimeProgrammeTurns;
   runtimeTerminalAgent?: (sessionId: string) => string | null;
@@ -249,6 +251,36 @@ export class SessionService extends EventEmitter {
           this.lifecycleMutex.run('native-conversation-switch', work),
         ),
       emit: (event, ...args) => this.emit(event, ...args),
+    });
+    this.on('session-switched', (event: SessionSwitchEvent) => {
+      if (
+        event.outcome !== 'rebound' ||
+        !['clear', 'fork'].includes(event.cause) ||
+        this.shuttingDown
+      )
+        return;
+      // Queue behind the switch's lifecycle mutex; never await this from the
+      // native hook whose delivery allows the TUI to release the old thread.
+      void this.lifecycleAdmission
+        .run(() =>
+          this.lifecycleMutex.run('native-conversation-switch', () =>
+            preserveNativeSource(
+              this.deps,
+              event,
+              (id, guard) => this.resumeCore(id, guard, guard),
+              () => !this.shuttingDown,
+            ),
+          ),
+        )
+        .catch((error: unknown) => {
+          if (this.shuttingDown) return;
+          this.emit('notice', {
+            level: 'warning',
+            title: 'Original conversation could not resume',
+            detail: `The new conversation is preserved. Resume the original explicitly after checking it. ${error instanceof Error ? error.message : String(error)}`,
+            session: event.sourceSession,
+          } satisfies NoticeEvent);
+        });
     });
   }
 
@@ -734,7 +766,11 @@ export class SessionService extends EventEmitter {
     return this.lifecycleMutex.run('native-conversation-switch', () => this.resumeCore(id));
   }
 
-  private async resumeCore(id: string, beforeLaunch?: RuntimeLaunchGuard): Promise<Session> {
+  private async resumeCore(
+    id: string,
+    beforeLaunch?: RuntimeLaunchGuard,
+    beforeLegacySpawn?: () => void,
+  ): Promise<Session> {
     this.assertLegacyRuntime(id);
     const session = this.deps.sessions.get(id);
     await this.deps.storage?.assertAdmission([
@@ -809,6 +845,7 @@ export class SessionService extends EventEmitter {
     const { skip } = await this.resumeSpawn(session, account, adapter, project.profile_id, ref, {
       interruptedNote: wasInterrupted,
       beforeLaunch,
+      beforeLegacySpawn,
     });
     this.deps.events.record(id, 'resumed', {
       was_interrupted: wasInterrupted,
@@ -834,7 +871,11 @@ export class SessionService extends EventEmitter {
     adapter: AgentAdapter,
     profileId: string,
     ref: string | undefined,
-    opts: { interruptedNote: boolean; beforeLaunch?: RuntimeLaunchGuard },
+    opts: {
+      interruptedNote: boolean;
+      beforeLaunch?: RuntimeLaunchGuard;
+      beforeLegacySpawn?: () => void;
+    },
   ): Promise<{ skip: boolean; downgraded: boolean }> {
     const skip = this.evaluateSkip(profileId, account, adapter, session.skip_permissions);
     const downgraded = session.skip_permissions && !skip;
@@ -867,6 +908,7 @@ export class SessionService extends EventEmitter {
       ref,
       undefined,
       opts.beforeLaunch,
+      opts.beforeLegacySpawn,
     );
     this.legacy.bindRuntimeConversation(session.id);
     if (!this.deps.runtimes?.usesExternalTerminals(session.id))
@@ -1190,6 +1232,7 @@ export class SessionService extends EventEmitter {
     resumeRef?: string,
     programme?: ProgrammeOperation,
     beforeLaunch?: RuntimeLaunchGuard,
+    beforeLegacySpawn?: () => void,
   ): Promise<void> {
     this.assertLegacyRuntime(sessionId);
     await this.deps.storage?.assertAdmission([
@@ -1269,6 +1312,7 @@ export class SessionService extends EventEmitter {
       initial,
       launchOpts,
       resumeRef,
+      beforeLegacySpawn,
     );
   }
 
