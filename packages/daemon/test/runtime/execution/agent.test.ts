@@ -16,6 +16,7 @@ import {
   clients,
   controllers,
   launchOwner,
+  launchOwnerWhenAvailable,
   prepare,
   setup,
   terminal,
@@ -199,7 +200,11 @@ describe('runtime-owned provider resources', () => {
     };
     const directory = runtimeDirectory(home, competing.identity.runtime_id);
     atomicPrivateJson(join(directory, 'launch.json'), competing);
-    const incoming = launchOwner(home, competing.identity.runtime_id, 'provider-owner.mjs');
+    const incoming = await launchOwnerWhenAvailable(
+      home,
+      competing.identity.runtime_id,
+      'provider-owner.mjs',
+    );
     await waitForOwner(incoming, directory);
     const second = hook(home, competing.identity.session_id);
     const exited = once(incoming.child, 'exit');

@@ -153,6 +153,22 @@ export function launchOwner(home: string, id: string, entry = 'puddler.mjs', pat
   return { child, errors: () => errors };
 }
 
+/** Existing owners can briefly hold the zero-wait ledger during fixture admission. */
+export async function launchOwnerWhenAvailable(home: string, id: string, entry = 'puddler.mjs') {
+  const deadline = performance.now() + 2000;
+  for (;;) {
+    try {
+      return launchOwner(home, id, entry);
+    } catch (error) {
+      // This refusal occurs in admission, before spawn; never retry an uncertain
+      // dispatch or a child failure. Yield so existing owners can finish writes.
+      if ((error as { code?: string }).code !== 'SQLITE_BUSY' || performance.now() >= deadline)
+        throw error;
+      await new Promise((resolve) => setTimeout(resolve, 20));
+    }
+  }
+}
+
 /** Match production admission after each fixture finishes customising its launch intent. */
 export function admitFixtureOwner(home: string, id: string): void {
   const directory = runtimeDirectory(home, id);

@@ -10,7 +10,25 @@ const mocks = vi.hoisted(() => ({
   home: '',
   startLocal: vi.fn(),
   connectRemote: vi.fn(),
+  loadNativeKeyboard: vi.fn(),
 }));
+
+// These tests simulate macOS inside a Node process on every CI platform. The
+// native AppKit addon has its own Electron acceptance test and cannot load here.
+vi.mock('node:module', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('node:module')>();
+  return {
+    ...actual,
+    createRequire: (filename: string | URL) => {
+      const require = actual.createRequire(filename);
+      return Object.assign(
+        (id: string) =>
+          id.endsWith('/command-key-up.node') ? mocks.loadNativeKeyboard(id) : require(id),
+        require,
+      );
+    },
+  };
+});
 
 vi.mock('@puddle-code/cli/lib', () => ({
   clientHome: () => mocks.home,
