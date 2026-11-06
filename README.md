@@ -174,14 +174,29 @@ kill "$(cat ~/.puddle/puddled.pid)"                 # nohup fallback (no supervi
 
 **Restore published software.** Use a compatible CLI to explicitly upgrade to a chosen compatible published version: `puddle upgrade daemon@X.Y.Z` (and `puddle upgrade runtime@X.Y.Z` for future runtimes). Replace `X.Y.Z` with that release; compatibility and recovery checks still apply. Removing and reinstalling a modern daemon can restore its retained service and selected generation, so it is not a way to force a download. Existing runtime processes keep their pinned build until explicitly restarted.
 
-**Uninstall.** Removing the CLI alone leaves the daemon installed and running — a full teardown is:
+**Uninstall.** Removing the CLI alone leaves the daemon installed and running.
+Ordinary `puddle remove daemon` keeps host data and offers to retain or stop
+independent runtimes. To delete managed host data on a persistent-runtime host
+(feature introduced in application 25.20, requiring a daemon with the same
+application major as the CLI), use:
 
 ```sh
-puddle remove daemon --purge   # stops the daemon, unregisters its service, deletes ~/.puddle
-puddle remove cli              # standalone or npm removal, using its installation channel
+puddle remove daemon --purge --stop-runtimes
+# Reboot the target machine when instructed, then repeat:
+puddle remove daemon --purge --stop-runtimes
+puddle remove cli              # after purge completes; uses the CLI's installation channel
 ```
 
-> ⚠️ `~/.puddle` **is** your local state — the SQLite database with every profile, account, and session (plus conversation history), the daemon's worktree tracking, and the auth token. `--purge` deletes it irreversibly (the command lists dirty or unpushed worktrees and asks first); without it, `puddle remove daemon` keeps the data for a later reinstall.
+Purge requires separate runtime-stop and data-deletion consent. Add `--yes` for
+non-interactive use only when both are intended. Puddle reviews uncommitted or
+unpushed work before deleting managed worktrees, profiles, agent configuration
+and session history in resumable batches. Installation locks, private recovery
+records and retained releases remain. After an interrupted reply, inspect the
+reported result and rerun the explicit purge command to continue. Unsupported persistent
+hosts refuse purge before mutation; upgrade first or use a compatible removal
+client to retain data.
+Legacy removal keeps data unless purge is separately confirmed. Ordinary removal
+and upgrades do not require a reboot.
 
 ## Licence
 

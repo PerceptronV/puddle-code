@@ -23,7 +23,7 @@ export async function requireHostPurgeSupport(transport: Transport): Promise<voi
     throw new CliError(
       'upgrade_failed',
       'This host does not support coordinated data purge',
-      'Upgrade the daemon before purging; ordinary removal can retain all data.',
+      'Coordinated purge was introduced in application 25.20 and requires a daemon compatible with this CLI. Upgrade the daemon before purging, or retain data with a compatible removal client.',
     );
 }
 

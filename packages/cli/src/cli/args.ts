@@ -172,8 +172,14 @@ uninstalls a component after confirmation. On persistent hosts, daemon removal
 disables remote access and stops daemon-owned work, then retains independent
 runtimes by default. --stop-runtimes explicitly stops the reviewed runtimes and
 their shell jobs. Data and pinned releases remain for 'puddle install daemon'.
-Coordinated --purge on persistent hosts is not implemented yet; it refuses before
-mutation. Legacy removal keeps data unless you separately confirm --purge.`;
+Coordinated --purge requires a compatible daemon (feature introduced in application
+25.20) and separate runtime-stop consent (--yes --purge --stop-runtimes for
+non-interactive use). After removal,
+reboot the target and rerun the explicit purge command to delete reviewed managed
+data. Installation locks, private recovery records and retained releases remain.
+Unsupported persistent hosts refuse purge before mutation; upgrade first or use a
+compatible removal client to retain data.
+Legacy removal keeps data unless you separately confirm --purge.`;
 
 /** Hand-rolled argv parser — the surface is small enough to own outright. */
 export function parseArgs(argv: string[]): Command {

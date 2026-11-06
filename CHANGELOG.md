@@ -29,6 +29,7 @@ Past releases: see docs/changelogs/.
 
 - Give active sessions a deeper background than hover in both expanded and collapsed right sidebars.
 
+- Describe supported coordinated data purge, its protocol requirement, runtime-stop consent and reboot continuation in CLI help and removal guidance.
 - Keep explorer gestures, confirmations and late file-create replies scoped to their directory; recheck read-only state before committing edits or deletions.
 - Avoid refreshing explorer header controls for selection and drag-state changes.
 - Preserve draft text and original layout ownership when file renames, draft saves or archive replies finish after switching projects; discard stale path and draft-open completions.
