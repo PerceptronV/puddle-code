@@ -1,3 +1,4 @@
+/* global window, Element */
 // Run against the daemon-free UI preview on localhost:5174.
 import assert from 'node:assert/strict';
 import { chromium } from '@playwright/test';
@@ -5,6 +6,15 @@ const browser = await chromium.launch({ headless: true });
 try {
   const page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   const errors = [];
+  await page.addInitScript(() => {
+    window.placements = [];
+    const animate = Element.prototype.animate;
+    Element.prototype.animate = function (frames, options) {
+      if (options?.duration === 320)
+        window.placements.push({ pane: this.dataset.workspacePane, frames });
+      return animate.call(this, frames, options);
+    };
+  });
   page.on('pageerror', (e) => errors.push(e.message));
   await page.goto(process.env.PREVIEW_URL ?? 'http://localhost:5174/');
   await page.getByRole('button', { name: 'Close', exact: true }).click();
@@ -45,6 +55,12 @@ try {
     await handles.evaluateAll((els) => els.map((el) => el.dataset.paneDragHandle)),
     [ids[1], ids[0]],
     'whole panes swap',
+  );
+  assert.ok(
+    await page.evaluate(() =>
+      window.placements.some((record) => record.pane && record.frames[0].transform !== 'none'),
+    ),
+    'pane rearrangement animates live geometry',
   );
   assert.equal(
     await handles.first().locator('[aria-roledescription="draggable"]').count(),

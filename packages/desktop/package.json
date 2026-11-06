@@ -12,6 +12,7 @@
   "scripts": {
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
+    "test:native-key-release": "node test/keyboard/command-key-up.mjs",
     "start": "electron .",
     "dist": "node scripts/build.mjs && electron-builder"
   },
@@ -23,6 +24,7 @@
     "electron": "^43.2.0",
     "electron-builder": "^26.15.3",
     "esbuild": "^0.25.0",
+    "node-api-headers": "^1.9.0",
     "ws": "^8.21.0"
   }
 }

@@ -74,7 +74,9 @@ export function ColourPicker({
           <span
             className={cn(
               'size-3.5 rounded-full',
-              colour ? cn('bg-current', appearanceColourClass(colour)) : 'bg-fg-muted',
+              colour
+                ? cn('bg-current', appearanceColourClass(colour))
+                : 'bg-[var(--identity-default)]',
             )}
           />
         </button>

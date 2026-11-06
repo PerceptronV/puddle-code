@@ -2,6 +2,7 @@ import { loadHostIdentities, parseHostIdentity, saveHostIdentity } from './host-
 import { isShellTheme, loadShellTheme, saveShellTheme } from './appearance.js';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
+import { createRequire } from 'node:module';
 import { PROTOCOL_VERSION } from '@puddle/shared';
 import {
   BrowserWindow,
@@ -266,6 +267,12 @@ function createWindow(
   };
   win.on('enter-full-screen', sendFullScreen);
   win.on('leave-full-screen', sendFullScreen);
+  // Native activation is authoritative across Mission Control / Spaces, where
+  // Chromium's document focus can lag or omit the corresponding window event.
+  win.on('focus', () => win.webContents.send('puddle:window-focus', true));
+  win.on('blur', () => {
+    if (!win.isDestroyed()) win.webContents.send('puddle:window-focus', false);
+  });
 
   // Links that leave the cockpit (terminal web links, the ports strip,
   // markdown previews) open in the system browser — never a chromeless
@@ -680,6 +687,9 @@ if (!app.requestSingleInstanceLock()) {
 
   void app.whenReady().then(() => {
     if (quitting) return;
+    if (process.platform === 'darwin') {
+      createRequire(import.meta.url)(join(here, 'command-key-up.node'));
+    }
     // package.json's scoped npm name is an implementation detail; native menu
     // roles should say “About Puddle”, not “About @puddle-code/desktop”.
     app.setName('Puddle');

@@ -20,7 +20,10 @@ import {
 import { projectAbbrev } from '../../lib/project-abbrev';
 import { sessionDisplayName } from '../../lib/session-display';
 import { cn } from '../../lib/utils';
-import { appearanceColourClass } from '../../lib/appearance/appearance-colours';
+import {
+  appearanceColourClass,
+  appearanceColourStyle,
+} from '../../lib/appearance/appearance-colours';
 import { SessionGlyph } from '../status/SessionGlyph';
 
 export function PhoneSessionRail({
@@ -110,7 +113,10 @@ export function PhoneSessionRail({
                     setExpanded(false);
                   }}
                 >
-                  <span className={appearanceColourClass(project.colour)}>
+                  <span
+                    className={appearanceColourClass(project.colour)}
+                    style={appearanceColourStyle(project.colour)}
+                  >
                     {expanded ? project.name : projectAbbrev(project)}
                   </span>
                 </button>

@@ -15,6 +15,7 @@ const REQUIRED_SEMANTIC_TOKENS = [
   '--bg-base',
   '--bg-tray',
   '--bg-surface',
+  '--bg-pane',
   '--bg-elevated',
   '--border',
   '--text-primary',
@@ -63,7 +64,7 @@ const REQUIRED_SEMANTIC_TOKENS = [
   '--ansi-bright-white',
 ];
 
-const BACKGROUNDS = ['--bg-base', '--bg-surface', '--bg-elevated', '--bg-tray'];
+const BACKGROUNDS = ['--bg-base', '--bg-surface', '--bg-pane', '--bg-elevated', '--bg-tray'];
 // token → minimum ratio against every background (WCAG AA).
 const CONTRAST_FLOORS = {
   '--text-primary': 4.5,

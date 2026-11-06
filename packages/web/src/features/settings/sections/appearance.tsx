@@ -104,13 +104,6 @@ export function AppearanceSection() {
           </SelectContent>
         </Select>
       </SettingRow>
-      <SettingRow label="Reduced animation and motion" htmlFor="reduce-motion">
-        <Switch
-          id="reduce-motion"
-          checked={settings.reduceMotion}
-          onCheckedChange={(reduceMotion) => updateClientSettings({ reduceMotion })}
-        />
-      </SettingRow>
       <SettingRow
         label="Project-based layout"
         description="Editor layouts are separated across projects."
@@ -131,6 +124,24 @@ export function AppearanceSection() {
           id="show-all-project-sessions"
           checked={settings.showAllProjectSessions}
           onCheckedChange={(checked) => updateClientSettings({ showAllProjectSessions: checked })}
+        />
+      </SettingRow>
+      <SettingRow label="Reduced animation and motion" htmlFor="reduce-motion">
+        <Switch
+          id="reduce-motion"
+          checked={settings.reduceMotion}
+          onCheckedChange={(reduceMotion) => updateClientSettings({ reduceMotion })}
+        />
+      </SettingRow>
+      <SettingRow
+        label="Show host when returning to the window"
+        description="Briefly show the host icon and name when this window or browser tab regains focus."
+        htmlFor="show-host-on-focus"
+      >
+        <Switch
+          id="show-host-on-focus"
+          checked={settings.showHostOnFocus}
+          onCheckedChange={(showHostOnFocus) => updateClientSettings({ showHostOnFocus })}
         />
       </SettingRow>
     </div>

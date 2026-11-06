@@ -125,7 +125,14 @@ pnpm build:cli-tarball  # standalone CLI archive (after build; same output direc
 pnpm --filter @puddle-code/desktop start   # run the Electron shell (after pnpm build; NOT from
                                       # inside an agent session — see the puddled warning below)
 pnpm --filter @puddle-code/desktop dist    # package it (dmg/zip/AppImage via electron-builder)
+pnpm --filter @puddle-code/desktop test:native-key-release # macOS; requires running UI preview
 ```
+
+Mac desktop builds compile `desktop/native/command-key-up.m` with Xcode command-line
+tools and the build-only `node-api-headers` dependency. The universal Node-API
+module is unpacked with the app; its AppKit monitor forwards app-local Command
+key releases that NSApplication otherwise swallows. The native regression check
+uses an isolated UI-only Electron window and real AppKit key events, never a daemon.
 
 For manual testing before a release exists: `pnpm build && pnpm build:tarball`, then
 `node packages/cli/dist/index.js launch --tarball dist-release/puddled-v*.tar.gz` (or

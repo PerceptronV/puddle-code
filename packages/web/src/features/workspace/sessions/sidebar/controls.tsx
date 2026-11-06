@@ -17,12 +17,16 @@ export function CollapsibleSessions({
 }) {
   return (
     <div
+      data-session-accordion
+      data-collapsed={collapsed}
+      inert={collapsed}
+      aria-hidden={collapsed}
       className={cn(
-        'grid transition-[grid-template-rows] duration-200',
-        collapsed ? 'grid-rows-[0fr]' : 'grid-rows-[1fr]',
+        'session-accordion grid min-h-0 transition-[grid-template-rows,opacity] duration-200 ease-out',
+        collapsed ? 'grid-rows-[0fr] opacity-0' : 'grid-rows-[1fr] opacity-100',
       )}
     >
-      {children}
+      <div className="min-h-0 overflow-hidden">{children}</div>
     </div>
   );
 }

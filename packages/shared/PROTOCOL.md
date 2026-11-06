@@ -1,5 +1,10 @@
 # The puddle communication protocol
 
+Application **26.6** allows six-digit `#RRGGBB` project colours alongside
+existing presets and null, on create, patch and project responses. Clients gate
+custom project colour writes on 26.6. Storage remains the existing nullable TEXT
+column; routes, authority, runtime and remote protocol versions are unchanged.
+
 Application **26.5** allows a six-digit `#RRGGBB` value for profile settings
 `hostColour`, alongside the existing preset keys and null. New clients gate
 custom host colour writes on 26.5. Profile `icon_colour` already accepts bounded

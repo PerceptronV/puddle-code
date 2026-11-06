@@ -12,6 +12,8 @@ import {
   tree,
   version,
 } from './data';
+import { previewCollection } from './collections';
+import { patchProjectRequestSchema } from '@puddle/shared';
 
 const json = (value: unknown) => Response.json(value);
 const unavailable = () =>
@@ -34,6 +36,12 @@ export async function previewRequest(
   const url = new URL(path, 'http://preview');
   const route = url.pathname;
   const patch = typeof body === 'object' && body !== null ? body : {};
+  const collection = previewCollection(method, route, patch);
+  if (collection) return collection;
+  if (route === `/api/projects/${project.id}` && method === 'PATCH') {
+    Object.assign(project, patchProjectRequestSchema.parse(patch));
+    return json(project);
+  }
   if (route === `/api/profiles/${profile.id}` && method === 'PATCH') {
     Object.assign(profile, patch);
     return json(profile);
@@ -92,7 +100,12 @@ export async function previewRequest(
     case '/api/version':
       return json(version);
     case '/api/host':
-      return json({ username: 'preview', hostname: 'UI preview · sample data', home: '/preview' });
+      return json({
+        username: 'preview',
+        hostname: 'UI preview · sample data',
+        displayName: config.displayName,
+        home: '/preview',
+      });
     case '/api/sessions':
       return json(sessions);
     case '/api/accounts':

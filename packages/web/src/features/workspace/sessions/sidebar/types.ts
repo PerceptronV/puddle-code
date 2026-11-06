@@ -14,6 +14,8 @@ export interface SessionGroup {
   /** The project's repository — seeds the create dialogue for "new … in project". */
   repoId: number;
   sessions: Session[];
+  /** Keep rows mounted while the inactive project folds away. */
+  collapsed?: boolean;
 }
 
 /** Callbacks every project header carries (context menu + drag reorder). */

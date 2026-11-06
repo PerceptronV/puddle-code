@@ -3,7 +3,10 @@ import { useNavigate } from 'react-router';
 import { CornerLeftUp, Folder, FolderGit2 } from 'lucide-react';
 import type { ProjectColour } from '@puddle/shared';
 import { ColourPicker } from '../../components/colour-picker';
-import { appearanceColourClass } from '../../lib/appearance/appearance-colours';
+import {
+  appearanceColourClass,
+  appearanceColourStyle,
+} from '../../lib/appearance/appearance-colours';
 import {
   Dialog,
   DialogContent,
@@ -28,6 +31,7 @@ import { ABBREV_MAX, deriveAbbrev, normaliseAbbrev } from '../../lib/project-abb
 import {
   dynamicBaseBranchSupported,
   projectColourSupported,
+  customProjectColourSupported,
 } from '../../lib/transport/protocol-support';
 import { useDebouncedValue } from '../../lib/hooks/use-debounced-value';
 
@@ -302,6 +306,7 @@ export function NewProjectDialog({
               placeholder="e.g. checkout-rework"
               value={name}
               className={appearanceColourClass(colour)}
+              style={appearanceColourStyle(colour)}
               onChange={(e) => {
                 applyName(e.target.value);
                 setNameTouched(true);
@@ -328,7 +333,12 @@ export function NewProjectDialog({
           {colourSupported && (
             <div className="flex flex-wrap items-center justify-between gap-2">
               <span className="text-xs text-fg-secondary">Colour</span>
-              <ColourPicker value={colour} onChange={setColour} label="Project colour" />
+              <ColourPicker
+                value={colour}
+                onChange={setColour}
+                onCustomChange={customProjectColourSupported(protocol) ? setColour : undefined}
+                label="Project colour"
+              />
             </div>
           )}
           {error && <p className="text-xs text-danger">{error}</p>}

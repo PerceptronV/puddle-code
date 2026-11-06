@@ -1,3 +1,8 @@
+import { ContentMotion } from '../../components/ui/content-motion';
+import { IdentityMenuContent } from '../../components/identity-menu-content';
+import { ContextMenu, ContextMenuTrigger } from '../../components/ui/context-menu';
+import { usePatchProfileSettings } from '../../lib/queries/queries';
+import { customHostColourSupported } from '../../lib/transport/protocol-support';
 import { HostPeekOverlay } from '../host/HostPeekOverlay';
 import {
   HostGlyph,
@@ -49,7 +54,10 @@ import { ScratchpadPopover } from '../scratchpad/ScratchpadPopover';
 import { LayoutsPopover } from '../layouts/LayoutsPopover';
 import { desktopBridge, useDesktopFullScreen } from '../../lib/desktop';
 import { cn } from '../../lib/utils';
-import { appearanceColourClass } from '../../lib/appearance/appearance-colours';
+import {
+  appearanceColourClass,
+  appearanceColourStyle,
+} from '../../lib/appearance/appearance-colours';
 
 // Under the macOS desktop shell the native title bar is hidden and the top
 // bar IS the title bar: draggable, inset on the left for the inlaid traffic
@@ -148,6 +156,9 @@ function useStatusCacheSync() {
  * top bar, so it stays under the cursor.
  */
 function HomeButton() {
+  const profileId = useCurrentProfileId();
+  const patchAppearance = usePatchProfileSettings(profileId ?? '');
+  const protocol = useDaemonVersion().data?.protocol;
   const appearance = useHostAppearance();
   const host = useHostInfo();
   const patchConfig = usePatchConfig();
@@ -186,18 +197,33 @@ function HomeButton() {
     );
   }
   return (
-    <Link
-      to="/"
-      className={cn(box, 'hover:bg-elevated focus-visible:bg-elevated')}
-      title="All projects"
-    >
-      {mark}
-      {label !== undefined && (
-        <span className={type} {...editOnDoubleClick(() => setEditing(true))}>
-          {label}
-        </span>
-      )}
-    </Link>
+    <ContextMenu>
+      <ContextMenuTrigger asChild>
+        <Link
+          to="/"
+          className={cn(box, 'hover:bg-elevated focus-visible:bg-elevated')}
+          title="All projects"
+        >
+          {mark}
+          {label !== undefined && (
+            <span className={type} {...editOnDoubleClick(() => setEditing(true))}>
+              {label}
+            </span>
+          )}
+        </Link>
+      </ContextMenuTrigger>
+      <IdentityMenuContent
+        kind="host"
+        colour={appearance.colour}
+        onRename={() => setEditing(true)}
+        onColour={(hostColour) => {
+          if (profileId) patchAppearance.mutate({ hostColour }, { onError: toastError });
+        }}
+        pending={patchAppearance.isPending || !profileId}
+        custom={customHostColourSupported(protocol)}
+        onUpdates={() => openSettings('host')}
+      />
+    </ContextMenu>
   );
 }
 
@@ -231,6 +257,7 @@ function CommandField() {
           'pointer-events-none absolute left-1/2 top-1/2 flex max-w-[40%] -translate-x-1/2 -translate-y-1/2 items-center gap-2',
           projectName && appearanceColourClass(project?.colour),
         )}
+        style={projectName ? appearanceColourStyle(project?.colour) : undefined}
       >
         <span className="truncate text-xs">{projectName ?? 'Puddle'}</span>
         <span className="shrink-0 text-2xs">{paletteKey}</span>
@@ -371,7 +398,12 @@ function ShellBody() {
           resetOn={pathname}
           scope={pathname.startsWith('/project/') ? 'workspace' : 'view'}
         >
-          <Outlet />
+          <ContentMotion
+            className="h-full"
+            motionKey={pathname.startsWith('/project/') ? 'workspace' : pathname}
+          >
+            <Outlet />
+          </ContentMotion>
         </ErrorBoundary>
       </main>
       {/* Bottom-anchored, like the workspace's resume banner. */}

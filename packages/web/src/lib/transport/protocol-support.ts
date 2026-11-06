@@ -120,3 +120,7 @@ export const gitRestoreSupported = (p: Protocol): boolean =>
 /** Custom hex host accents require a daemon accepting the extended setting (26.5). */
 export const customHostColourSupported = (p: Protocol): boolean =>
   supportsApplicationFeature(p, { major: 26, minor: 5 });
+
+/** Custom project colours require validation and persistence support (26.6). */
+export const customProjectColourSupported = (p: Protocol): boolean =>
+  supportsApplicationFeature(p, { major: 26, minor: 6 });

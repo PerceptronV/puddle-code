@@ -1,3 +1,4 @@
+import { ContentMotion } from '../../components/ui/content-motion';
 import { TrayMotionProvider } from '../../components/ui/tray-motion';
 import { animateSidebar } from './layout/animate-sidebar';
 import { IslandSeparator } from './layout/IslandSeparator';
@@ -42,7 +43,7 @@ import { setScratchpadInsertHandler } from '../scratchpad/scratchpad-store';
 import { LocalPhonePane } from '../mobile/LocalPhonePane';
 import { KeepAliveHost } from './keep-alive';
 import { useWorkspaceTabs } from './tabs/use-workspace-tabs';
-import { tabRefKey } from './layout/layout-tree';
+import { allLeaves, tabRefKey } from './layout/layout-tree';
 
 import { projectAbbrev } from '../../lib/project-abbrev';
 import { NARROW_VIEWPORT, useMediaQuery } from '../../lib/hooks/use-media-query';
@@ -182,12 +183,11 @@ function WorkspaceInner() {
       abbrev: projectAbbrev(p),
       colour: p.colour,
       repoId: p.repo_id,
+      collapsed: !showAllSessions && p.id !== projectId,
       // Each group applies the same saved order the single-project view uses
       // (untracked sessions float to the top of their group, newest-first).
       sessions: orderByDrag(
-        all.filter(
-          (s) => s.project_id === p.id && active(s) && (showAllSessions || p.id === projectId),
-        ),
+        all.filter((s) => s.project_id === p.id && active(s)),
         uiState.snapshot.session_order,
       ),
     }));
@@ -742,7 +742,15 @@ function WorkspaceInner() {
   ) : (
     <div className="flex h-full flex-col bg-ground">
       {compilation.watchers}
-      <div className="min-h-0 flex-1">
+      <ContentMotion
+        className="min-h-0 flex-1"
+        motionKey={JSON.stringify([
+          projectId,
+          scopeKey,
+          uiState.snapshot.layout_ref,
+          allLeaves(layout.tree).map((leaf) => leaf.id),
+        ])}
+      >
         <TileTree
           tree={layout.tree}
           filetreeRoot={filetreeRoot ?? targetRoot ?? targetSession?.worktree_path ?? null}
@@ -772,7 +780,7 @@ function WorkspaceInner() {
           scrollDriverLeafId={scrollDriverLeafId}
           scrollChannel={`${profileId ?? ''}:${scopeKey}`}
         />
-      </div>
+      </ContentMotion>
     </div>
   );
 

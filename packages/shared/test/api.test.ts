@@ -32,8 +32,8 @@ import {
 } from '../src/index.js';
 
 describe('shared API schemas', () => {
-  it('declares protocol 25.14 for host update discovery', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 26, minor: 5 });
+  it('declares protocol 26.6 for custom project colours', () => {
+    expect(PROTOCOL_VERSION).toEqual({ major: 26, minor: 6 });
   });
 
   it('accepts headless mode and rejects the previous scripted name', () => {

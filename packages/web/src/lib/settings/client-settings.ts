@@ -12,6 +12,8 @@ import {
 export interface ClientSettings {
   uiFontSize: number;
   reduceMotion: boolean;
+  /** Briefly identify the host when returning to this window or browser tab. */
+  showHostOnFocus: boolean;
   /** Pointer, interactive-hover, and text-caret treatment across the UI. */
   cursorPackage: CursorPackageId;
   terminalFontSize: number;
@@ -44,6 +46,7 @@ export const DEFAULT_CLIENT_SETTINGS: ClientSettings = {
   // 1.1× the browser default (16px) — the whole rem-based scale follows.
   uiFontSize: 16,
   reduceMotion: false,
+  showHostOnFocus: false,
   cursorPackage: DEFAULT_CURSOR_PACKAGE,
   terminalFontSize: 13,
   editorFontSize: 14,

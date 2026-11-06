@@ -1,3 +1,5 @@
+import { ContentMotion } from '../../../components/ui/content-motion';
+import { animateTabPlacement } from '../layout/animate-placement';
 import { compilationSourceKey, sourceExtension } from '../../editor/compilation/compilation-kind';
 import { useEffect, useRef, useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
@@ -197,7 +199,10 @@ export function PaneLeaf({
       e.stopPropagation();
       setNativeZone(null);
       const ref = decodeTabTransfer(e.dataTransfer?.getData(TAB_MIME) ?? '');
-      if (ref) dropTabRef.current(leaf.id, ref, zoneOf(e));
+      if (ref) {
+        const zone = zoneOf(e);
+        animateTabPlacement(() => dropTabRef.current(leaf.id, ref, zone), ref, leaf.id);
+      }
     };
     // Whatever ends the drag clears the highlight: released over another pane,
     // over no drop target at all, or cancelled with Esc, none of which reaches
@@ -220,7 +225,8 @@ export function PaneLeaf({
 
   return (
     <div
-      className="workspace-surface island-outline relative flex h-full flex-col bg-surface"
+      className="workspace-pane workspace-surface island-outline relative isolate flex h-full min-w-0 flex-col bg-[var(--bg-pane)]"
+      data-workspace-pane={leaf.id}
       data-single-tab={leaf.tabs.length === 1 || undefined}
       onMouseDownCapture={() => interact('press')}
       // A wheel/trackpad gesture need not be preceded by a click. Promote an
@@ -255,78 +261,87 @@ export function PaneLeaf({
           setNodeRef(el);
         }}
         data-editor-surface={activeRef?.type === 'editor' || undefined}
+        data-pane-view={activeRef ? tabRefKey(activeRef) : undefined}
         className={cn(
           'relative min-h-0 flex-1',
           leaf.tabs.length === 1 && 'mt-1',
           activeRef && 'mx-1 mb-1 overflow-hidden rounded-[var(--ui-radius)] bg-ground',
         )}
       >
-        {activeRef?.type === 'editor' && (
-          <div className="absolute inset-1 overflow-hidden rounded-[var(--ui-radius)]">
-            <TabViewStateContext.Provider
-              value={JSON.stringify([scrollChannel, leaf.id, tabRefKey(activeRef)])}
-            >
-              <LazyPaneEditorBody
-                tab={activeRef.tab}
-                onRunCompilation={
-                  compilableExtensions.has(sourceExtension(activeRef.tab.path) ?? '')
-                    ? (copy) => onRunCompilation(leaf.id, activeRef.tab, copy)
-                    : undefined
-                }
-                compilationRunning={compilationRunningKeys.has(
-                  compilationSourceKey(
-                    activeRef.tab.session,
-                    activeRef.tab.path,
-                    activeRef.tab.root,
-                  ),
-                )}
-                reveal={reveal}
-                focused={focused}
-                scrollDriver={drivesScroll}
-                scrollReceiver={scrollReceiver}
-                scrollChannel={scrollChannel}
-                onRevealSource={
-                  activeEditor?.view === 'linked' || activeEditor?.view === 'locked'
-                    ? (position) => onRevealPreviewSource(leaf.id, activeEditor, position)
-                    : undefined
-                }
-                onRevealCompiledSource={(target) => onRevealCompiledSource(leaf.id, target)}
-              />
-            </TabViewStateContext.Provider>
-          </div>
-        )}
-        {/* The keep-alive slot is always mounted (stable ref) so a terminal
+        <ContentMotion
+          className="absolute inset-0"
+          motionKey={`${leaf.activeKey ?? ''}:${activeView}`}
+          preview={!!leaf.previewKey && leaf.previewKey === leaf.activeKey}
+        >
+          {activeRef?.type === 'editor' && (
+            <div className="absolute inset-1 overflow-hidden rounded-[var(--ui-radius)]">
+              <TabViewStateContext.Provider
+                value={JSON.stringify([scrollChannel, leaf.id, tabRefKey(activeRef)])}
+              >
+                <LazyPaneEditorBody
+                  tab={activeRef.tab}
+                  onRunCompilation={
+                    compilableExtensions.has(sourceExtension(activeRef.tab.path) ?? '')
+                      ? (copy) => onRunCompilation(leaf.id, activeRef.tab, copy)
+                      : undefined
+                  }
+                  compilationRunning={compilationRunningKeys.has(
+                    compilationSourceKey(
+                      activeRef.tab.session,
+                      activeRef.tab.path,
+                      activeRef.tab.root,
+                    ),
+                  )}
+                  reveal={reveal}
+                  focused={focused}
+                  scrollDriver={drivesScroll}
+                  scrollReceiver={scrollReceiver}
+                  scrollChannel={scrollChannel}
+                  onRevealSource={
+                    activeEditor?.view === 'linked' || activeEditor?.view === 'locked'
+                      ? (position) => onRevealPreviewSource(leaf.id, activeEditor, position)
+                      : undefined
+                  }
+                  onRevealCompiledSource={(target) => onRevealCompiledSource(leaf.id, target)}
+                />
+              </TabViewStateContext.Provider>
+            </div>
+          )}
+          {/* The keep-alive slot is always mounted (stable ref) so a terminal
             container can be adopted into it; hidden when no terminal is active. */}
-        <div
-          ref={slotRef}
-          className={cn('absolute inset-0 py-1 pl-4 pr-2', !terminalKey && 'hidden')}
-        />
-        {/* Embedded browsing contexts consume pointer events before dnd-kit's
+          <div
+            ref={slotRef}
+            className={cn('absolute inset-0 py-1 pl-4 pr-2', !terminalKey && 'hidden')}
+          />
+          {/* Embedded browsing contexts consume pointer events before dnd-kit's
             document-level sensor can see them. Cover every pane body for the
             duration of a strip drag so HTML iframes remain
             ordinary move/split destinations. The registered leaf beneath this
             transparent shield still supplies collision geometry. */}
-        {isDragging && <div className="absolute inset-0 z-10 cursor-grabbing" aria-hidden="true" />}
-        {/* A strip insertion (index set) is marked by the strip's caret instead
+          {isDragging && (
+            <div className="absolute inset-0 z-10 cursor-grabbing" aria-hidden="true" />
+          )}
+          {/* A strip insertion (index set) is marked by the strip's caret instead
             of the pane-body highlight. */}
-        {indicator?.leafId === leaf.id && indicator.index === undefined && (
-          <DropZoneOverlay zone={indicator.zone} />
-        )}
-        {nativeZone !== null && <DropZoneOverlay zone={nativeZone} />}
-        {/* The shown session's resume control, inside ITS pane. */}
-        {shownSession && <PaneSessionOverlay session={shownSession} />}
-        {!activeRef && (
-          <div className="flex h-full flex-col items-center justify-center gap-6 text-center">
-            <PuddleGlyph className="size-24 text-fg-muted/40" />
-            <button
-              type="button"
-              onClick={openCommandPalette}
-              className="rounded-md bg-elevated px-3 py-1.5 font-mono text-xs text-fg-muted transition-colors hover:bg-border hover:text-fg-secondary"
-            >
-              {paletteKey}
-            </button>
-          </div>
-        )}
+          {indicator?.leafId === leaf.id && indicator.index === undefined && (
+            <DropZoneOverlay zone={indicator.zone} />
+          )}
+          {nativeZone !== null && <DropZoneOverlay zone={nativeZone} />}
+          {/* The shown session's resume control, inside ITS pane. */}
+          {shownSession && <PaneSessionOverlay session={shownSession} />}
+          {!activeRef && (
+            <div className="flex h-full flex-col items-center justify-center gap-6 text-center">
+              <PuddleGlyph className="size-24 text-fg-muted/40" />
+              <button
+                type="button"
+                onClick={openCommandPalette}
+                className="rounded-md bg-elevated px-3 py-1.5 font-mono text-xs text-fg-muted transition-colors hover:bg-border hover:text-fg-secondary"
+              >
+                {paletteKey}
+              </button>
+            </div>
+          )}
+        </ContentMotion>
       </div>
       {/* The shown session's captured env and ports, IN FLOW below the body —
           never overlays, so nothing sits over the terminal; the body shrinks

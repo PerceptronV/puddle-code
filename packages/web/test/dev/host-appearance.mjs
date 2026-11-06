@@ -28,6 +28,12 @@ try {
     const nums = value.match(/[\d.]+/g).map(Number);
     return value.startsWith('color(') ? nums.slice(0, 3) : nums.slice(0, 3).map((n) => n / 255);
   };
+  const saturation = (colour) => {
+    const channels = rgb(colour);
+    const high = Math.max(...channels);
+    const low = Math.min(...channels);
+    return high === low ? 0 : (high - low) / (1 - Math.abs(high + low - 1));
+  };
   const ratio = (a, b) => {
     const values = [luminance(rgb(a)), luminance(rgb(b))].sort((a, b) => b - a);
     return (values[0] + 0.05) / (values[1] + 0.05);
@@ -41,6 +47,7 @@ try {
       const style = getComputedStyle(document.documentElement);
       return Object.fromEntries(
         [
+          '--identity-default',
           '--identity-navy',
           '--identity-gold',
           '--ansi-blue',
@@ -63,6 +70,9 @@ try {
       '#ffffff',
       '#ff00ff',
       '#12a6bc',
+      '#157a50',
+      '#f2fff9',
+      '#040d09',
     ]) {
       if (colour.startsWith('#')) {
         await swatches.locator('input[type="color"]').evaluate((input, colour) => {
@@ -105,6 +115,7 @@ try {
               '--text-muted',
               '--bg-base',
               '--bg-surface',
+              '--bg-pane',
               '--bg-elevated',
               '--bg-tray',
               '--action',
@@ -126,12 +137,29 @@ try {
         `${theme}/${colour} Monaco follows the host palette`,
       );
       for (const foreground of ['--text-primary', '--text-secondary', '--text-muted']) {
-        for (const background of ['--bg-base', '--bg-surface', '--bg-elevated', '--bg-tray']) {
+        for (const background of [
+          '--bg-base',
+          '--bg-surface',
+          '--bg-pane',
+          '--bg-elevated',
+          '--bg-tray',
+        ]) {
           assert.ok(
             ratio(styles.palette[foreground], styles.palette[background]) >= 4.5,
             `${theme}/${colour} ${foreground} on ${background}`,
           );
         }
+      }
+      assert.ok(
+        ratio(styles.palette['--bg-base'], styles.palette['--bg-pane']) >=
+          (theme === 'dark' ? 1.3 : 1.2),
+        `${theme}/${colour} active tab/editor separates from the pane frame`,
+      );
+      if (colour.startsWith('#')) {
+        assert.ok(
+          Math.abs(saturation(styles.palette['--bg-pane']) - saturation(colour)) < 0.035,
+          `${theme}/${colour} pane preserves the chosen accent's saturation`,
+        );
       }
       assert.ok(ratio(styles.palette['--action'], styles.palette['--action-ink']) >= 4.5);
       assert.ok(

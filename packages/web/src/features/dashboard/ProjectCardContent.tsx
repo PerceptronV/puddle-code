@@ -1,5 +1,8 @@
 import type { Project, Session, SessionStatus } from '@puddle/shared';
-import { appearanceColourClass } from '../../lib/appearance/appearance-colours';
+import {
+  appearanceColourClass,
+  appearanceColourStyle,
+} from '../../lib/appearance/appearance-colours';
 import { cn } from '../../lib/utils';
 
 /** Shared by the desktop dashboard and the host-grouped remote dashboard. */
@@ -25,6 +28,7 @@ export function ProjectCardContent({
   return (
     <>
       <h2
+        style={appearanceColourStyle(project.colour)}
         className={cn(
           'truncate pr-16 text-base font-semibold',
           appearanceColourClass(project.colour) || 'text-fg group-hover:text-accent',

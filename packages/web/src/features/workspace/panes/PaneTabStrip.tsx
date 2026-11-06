@@ -139,7 +139,7 @@ export function PaneTabStrip({
       className={
         single
           ? 'pane-single-tab-edge cursor-grab'
-          : 'flex h-[var(--ui-tab-strip-height)] shrink-0 cursor-grab items-stretch gap-1 overflow-x-auto bg-surface p-1 active:cursor-grabbing'
+          : 'flex h-[var(--ui-tab-strip-height)] shrink-0 cursor-grab items-stretch gap-1 overflow-x-auto bg-[var(--bg-pane)] p-1 active:cursor-grabbing'
       }
       // Blank space only: a double-click on a tab bubbles here with the tab
       // as the target, and that gesture is already "promote to permanent".
@@ -150,7 +150,7 @@ export function PaneTabStrip({
       {leaf.tabs.map((ref, index) => {
         const session = sessionsById.get(ref.type === 'terminal' ? ref.session : ref.tab.session);
         return (
-          <Fragment key={tabRefKey(ref)}>
+          <Fragment key={tabRefKey(ref) === leaf.previewKey ? 'preview-slot' : tabRefKey(ref)}>
             {caretAt === index && <InsertionCaret />}
             <PaneTab
               tab={ref}

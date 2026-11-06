@@ -66,6 +66,7 @@
   --neutral-50: #f7f7f7;
   --neutral-100: #efefef;
   --neutral-200: #e5e5e5;
+  --identity-default: var(--neutral-500);
   --neutral-500: #6b6b6b; /* mid grey for muted text on paper (AA ≥ 3 on every light ground) */
 
   /* khaki (warm neutrals) */
@@ -120,6 +121,7 @@
 
   --bg-base: var(--navy-950);
   --bg-surface: var(--navy-900);
+  --bg-pane: var(--bg-surface);
   --bg-elevated: var(--navy-800);
   --bg-tray: var(--navy-800);
   --border: var(--navy-600);
@@ -195,6 +197,7 @@
 
   --bg-base: var(--neutral-0);
   --bg-surface: var(--neutral-50);
+  --bg-pane: var(--bg-surface);
   --bg-elevated: var(--neutral-100);
   --bg-tray: var(--neutral-50);
   --border: var(--neutral-200);

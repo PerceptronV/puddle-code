@@ -4,8 +4,14 @@ import { ArchiveRestore, Archive as ArchiveIcon, Pencil } from 'lucide-react';
 import { toastError } from '../../lib/transport/errors';
 import type { Project, ProjectColour } from '@puddle/shared';
 import { ColourPicker } from '../../components/colour-picker';
-import { appearanceColourClass } from '../../lib/appearance/appearance-colours';
-import { projectColourSupported } from '../../lib/transport/protocol-support';
+import {
+  appearanceColourClass,
+  appearanceColourStyle,
+} from '../../lib/appearance/appearance-colours';
+import {
+  projectColourSupported,
+  customProjectColourSupported,
+} from '../../lib/transport/protocol-support';
 import { Button } from '../../components/ui/button';
 import {
   ContextMenu,
@@ -79,7 +85,8 @@ export function ProjectCard({
   onDragOver: (e: DragEvent<HTMLDivElement>) => void;
 }) {
   const patch = usePatchProject();
-  const colourSupported = projectColourSupported(useDaemonVersion().data?.protocol);
+  const protocol = useDaemonVersion().data?.protocol;
+  const colourSupported = projectColourSupported(protocol);
   const sessions = useSessions(project.id);
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(project.name);
@@ -196,6 +203,7 @@ export function ProjectCard({
                 id={`project-name-${project.id}`}
                 value={name}
                 className={appearanceColourClass(colour)}
+                style={appearanceColourStyle(colour)}
                 onChange={(e) => setName(e.target.value)}
                 autoFocus
               />
@@ -216,7 +224,12 @@ export function ProjectCard({
             {colourSupported && (
               <div className="flex flex-wrap items-center justify-between gap-2">
                 <span className="text-xs text-fg-secondary">Colour</span>
-                <ColourPicker value={colour} onChange={setColour} label="Project colour" />
+                <ColourPicker
+                  value={colour}
+                  onChange={setColour}
+                  onCustomChange={customProjectColourSupported(protocol) ? setColour : undefined}
+                  label="Project colour"
+                />
               </div>
             )}
             <div className="flex flex-col gap-1">

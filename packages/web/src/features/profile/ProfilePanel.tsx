@@ -1,3 +1,5 @@
+import { IdentityMenuContent } from '../../components/identity-menu-content';
+import { ContextMenu, ContextMenuTrigger } from '../../components/ui/context-menu';
 import { useState } from 'react';
 import { KeyRound, Plus, Settings2 } from 'lucide-react';
 import { toastError } from '../../lib/transport/errors';
@@ -206,90 +208,114 @@ export function ProfilePanel() {
 
   return (
     <>
-      <Popover open={open} onOpenChange={setOpen}>
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <PopoverTrigger asChild>
-              {/* compact: tighter padding, matching the icon buttons beside it (§12). */}
-              <Button variant="ghost" size="sm" className={triggerClassName}>
-                <ProfileGlyph icon={currentProfile?.icon} colour={currentProfile?.icon_colour} />
-                <span
-                  className={profileColourClass(currentProfile?.icon_colour)}
-                  style={profileColourStyle(currentProfile?.icon_colour)}
-                  {...editOnDoubleClick(() => {
-                    setOpen(false);
-                    setRenaming(true);
-                  })}
-                >
-                  {currentProfile?.name ?? '…'}
-                </span>
-              </Button>
-            </PopoverTrigger>
-          </TooltipTrigger>
-          <TooltipContent>Profile</TooltipContent>
-        </Tooltip>
-        <PopoverContent className="w-[28rem] max-w-[calc(100vw-1rem)]">
-          <div className="flex flex-col gap-4">
-            {(agents.data ?? []).map((agent) => {
-              const forAgent = accounts.data?.filter((a) => a.agent_type === agent.id) ?? [];
-              if (forAgent.length === 0) return null;
-              // Older daemons omit `available`; absent means "cannot tell".
-              const installed = agent.available !== false;
-              return (
-                <div key={agent.id} className="flex flex-col gap-0.5">
-                  <span className="px-2 text-2xs font-medium uppercase tracking-wide text-fg-muted">
-                    {agent.display_name}
-                    {!installed && (
-                      <span className="ml-2 normal-case tracking-normal text-fg-muted">
-                        not installed — no {agent.binary ?? agent.id} on PATH
-                      </span>
-                    )}
-                  </span>
-                  {forAgent.map((account) => (
-                    <AccountRow
-                      key={account.id}
-                      account={account}
-                      onLogin={() => startLogin(account)}
-                      // A session can only start inside a workspace, and neither
-                      // action can work without the agent's CLI.
-                      onStartSession={handler && installed ? () => startSession(account) : null}
-                      installed={installed}
+      <ContextMenu
+        onOpenChange={(show) => {
+          if (show) setOpen(false);
+        }}
+      >
+        <Popover open={open} onOpenChange={setOpen}>
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <PopoverTrigger asChild>
+                {/* compact: tighter padding, matching the icon buttons beside it (§12). */}
+                <ContextMenuTrigger asChild>
+                  <Button variant="ghost" size="sm" className={triggerClassName}>
+                    <ProfileGlyph
+                      icon={currentProfile?.icon}
+                      colour={currentProfile?.icon_colour}
                     />
-                  ))}
-                </div>
-              );
-            })}
-            {accounts.data?.length === 0 && (
-              <p className="px-2 text-sm text-fg-muted">No accounts yet — add one in settings.</p>
-            )}
-          </div>
-          <div className="mt-4 flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={() => {
-                setOpen(false);
-                openSettings('accounts');
-              }}
-            >
-              <Plus />
-              Add account
-            </Button>
-            <Button
-              variant="ghost"
-              size="sm"
-              className="ml-auto"
-              onClick={() => {
-                setOpen(false);
-                profileStore.set(null); // back to the picker
-              }}
-            >
-              <Settings2 />
-              Switch profile
-            </Button>
-          </div>
-        </PopoverContent>
-      </Popover>
+                    <span
+                      className={profileColourClass(currentProfile?.icon_colour)}
+                      style={profileColourStyle(currentProfile?.icon_colour)}
+                      {...editOnDoubleClick(() => {
+                        setOpen(false);
+                        setRenaming(true);
+                      })}
+                    >
+                      {currentProfile?.name ?? '…'}
+                    </span>
+                  </Button>
+                </ContextMenuTrigger>
+              </PopoverTrigger>
+            </TooltipTrigger>
+            <TooltipContent>Profile</TooltipContent>
+          </Tooltip>
+          <PopoverContent className="w-[28rem] max-w-[calc(100vw-1rem)]">
+            <div className="flex flex-col gap-4">
+              {(agents.data ?? []).map((agent) => {
+                const forAgent = accounts.data?.filter((a) => a.agent_type === agent.id) ?? [];
+                if (forAgent.length === 0) return null;
+                // Older daemons omit `available`; absent means "cannot tell".
+                const installed = agent.available !== false;
+                return (
+                  <div key={agent.id} className="flex flex-col gap-0.5">
+                    <span className="px-2 text-2xs font-medium uppercase tracking-wide text-fg-muted">
+                      {agent.display_name}
+                      {!installed && (
+                        <span className="ml-2 normal-case tracking-normal text-fg-muted">
+                          not installed — no {agent.binary ?? agent.id} on PATH
+                        </span>
+                      )}
+                    </span>
+                    {forAgent.map((account) => (
+                      <AccountRow
+                        key={account.id}
+                        account={account}
+                        onLogin={() => startLogin(account)}
+                        // A session can only start inside a workspace, and neither
+                        // action can work without the agent's CLI.
+                        onStartSession={handler && installed ? () => startSession(account) : null}
+                        installed={installed}
+                      />
+                    ))}
+                  </div>
+                );
+              })}
+              {accounts.data?.length === 0 && (
+                <p className="px-2 text-sm text-fg-muted">No accounts yet — add one in settings.</p>
+              )}
+            </div>
+            <div className="mt-4 flex items-center gap-2">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => {
+                  setOpen(false);
+                  openSettings('accounts');
+                }}
+              >
+                <Plus />
+                Add account
+              </Button>
+              <Button
+                variant="ghost"
+                size="sm"
+                className="ml-auto"
+                onClick={() => {
+                  setOpen(false);
+                  profileStore.set(null); // back to the picker
+                }}
+              >
+                <Settings2 />
+                Switch profile
+              </Button>
+            </div>
+          </PopoverContent>
+        </Popover>
+        <IdentityMenuContent
+          kind="profile"
+          colour={currentProfile?.icon_colour}
+          onRename={() => {
+            setOpen(false);
+            setRenaming(true);
+          }}
+          onColour={(icon_colour) => {
+            if (profileId)
+              patchProfile.mutate({ id: profileId, icon_colour }, { onError: toastError });
+          }}
+          pending={patchProfile.isPending || !profileId}
+        />
+      </ContextMenu>
       {loginStream && (
         <LoginDialog
           stream={loginStream.stream}

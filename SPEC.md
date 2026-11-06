@@ -2232,17 +2232,57 @@ Profiles are identity, not auth. First load shows a profile picker (create-or-se
 
 The new-session account picker sorts alphabetically by its displayed `agent-type/account-label`, without changing the profile's configured default account.
 
+### Workspace and inline motion
+
+Project changes, saved-layout changes, project/profile layout mode changes and
+dashboard/workspace navigation and the full-screen profile picker cross-fade
+outgoing and incoming content together,
+using the modals’ 180 ms fade and gentle growth. Outgoing layers are inert,
+short-lived visual copies; live editor models and terminal portals retain their
+existing lifetimes. Copies never mount browsing contexts, media or interactive
+controls. New tabs and their viewing areas fade in; replacing the content of an
+existing italic preview slot stays immediate. File-tree Up/Down previews the
+selected file without moving keyboard focus; Enter pins it, Space previews it,
+and modified/range selection does not open files. Directories retain their
+expand/collapse behaviour.
+
+Both session sidebar modes retain inactive project rows inside a height/opacity
+accordion, excluding folded rows from focus, selection ranges and drag batches.
+Tab fills and hover controls clip to the pane’s rounded edge; the island outline
+is painted above them. Native file/session drops and tab drags unfurl the live
+destination from the source row/chip, while whole-pane moves and their neighbours
+settle into their new geometry. These animations do not change drop semantics.
+Opening/closing the dashboard terminal, Scratchpad creation/editing and Layouts
+creation cross-fade their content
+while animating actual height, so following controls slide continuously. Reversals
+start from the current height. Client or OS reduced motion disables decorative
+work and cancels active animations; timers and snapshots are cleaned up.
+
 ### Settings
+
+Right-clicking the header host/profile identity opens shared Rename and Change
+colour actions. Renaming uses the existing inline editor and store; colour
+choices use the same preset/custom picker as Settings and project menus. The host
+menu also opens Settings → Host at its Updates section. Ordinary host navigation
+and profile-panel clicks retain their existing behaviour.
 
 Host appearance is stored in the connected daemon's profile settings (`hostIcon`,
 `hostColour`), so each (host, profile) pair has an independent identity. These keys
 are excluded from Settings Sync exports and imports. Host settings offer 63 curated
 playful icons, distinct from the 63 profile icons, plus a default server glyph
-and the shared theme-aware colour palette. Profile colour and host accent also
+and the shared theme-aware colour palette. Profile colour, project colour and host accent also
 accept a custom six-digit hex colour, selected with the system colour picker
-seeded from the current choice (custom host accents require protocol 26.5).
+seeded from the current choice (custom host accents require protocol 26.5;
+custom project colours require 26.6). All three use one shared picker: presets
+remain available alongside the custom option, and the default swatch uses a
+fixed neutral grey independent of host accents. Project custom colours carry
+through cards, the command field, expanded/collapsed sidebars and mobile labels.
 Generated host palettes retain readable text and selection contrast for arbitrary
-colours. Compact Icon and Accent rows sit below
+colours. The pane frame and tab strip share `--bg-pane`, with at least 1.2:1
+separation from active tabs/editor content in light mode and 1.3:1 in dark mode;
+this adjusts only the accent’s HSL lightness, preserving its hue and saturation
+instead of mixing the pane towards neutral grey, including pale or deep custom
+colours. Other islands keep their existing surface tokens. Compact Icon and Accent rows sit below
 the display name, without a separate section or preview card. A chosen accent
 rebuilds the entire chrome palette: text hierarchy, surfaces, borders, controls,
 links, focus rings and persistent selections. File/session selections use a softer
@@ -2274,6 +2314,33 @@ A settings panel, reachable from a gear icon and ⌘K → "Settings". Three scop
 | client  | localStorage (per browser)                                 | theme (dark/light/system), cursor package, UI, terminal, and Monaco editor font sizes, terminal scrollback, editor tab size / word wrap (the explicit tab size controls spaces per indent level and disables Monaco's per-file indentation detection) |
 | profile | `profiles.settings` JSON, via `/api/profiles/:id/settings` | branch prefix, default account & agent, permissions gate, env capture (`captureSessionEnv`), notification preferences, per-kind new-session defaults (`sessionDefaults`)                                                                              |
 | daemon  | `config.json`, via `/api/config`                           | host display name (`displayName`), log size cap, ui_state GC retention, `autoResume` — marked in the UI as affecting all profiles. The port is CLI/config-file territory (`--port`), never shown in the UI                                            |
+
+Appearance includes **Show host when returning to the window** (`showHostOnFocus`,
+client scope, off by default and included in Appearance sync). Returning to a
+focused, visible cockpit window or browser tab briefly shows the large host icon
+and name. On macOS it appears instantly, holds for 0.4 seconds, then fades out
+over 120 ms (or disappears immediately with reduced motion); other platforms retain
+the 1.2-second reminder. These two motion options sit below project-based layout
+and session visibility in Appearance. Typing, clicking or scrolling dismisses the reminder
+without consuming the input or moving focus. Leaving the window clears it;
+repeated focus events do not extend it. Mac activation uses a leading-edge
+debounce: after the first reminder, focus signals must be quiet for 750 ms before
+another return can show it; intervening blur events do not reset that interval,
+and no delayed reminder is queued. The fade retains its transparent final frame
+until removal. The desktop shell also forwards native
+window focus/blur across Mission Control and Spaces; visibility/native activation
+does not wait for Chromium’s lagging document-focus flag. Activation clicks and
+modifier synchronisation do not instantly dismiss the reminder. Releasing any
+shortcut key, including a modifier whose event still carries stale modifier flags,
+immediately removes the held overlay. The Mac shell bundles a small Node-API
+AppKit shim that forwards app-local Command key-up events to the key window before
+NSApplication can swallow them; it uses no global keyboard monitor or permissions.
+The native regression check posts real AppKit key-down/up events, since CDP input
+bypasses this path. The same compact icon and label styling, borderless transparent overlay
+and blurred backdrop appears while holding **⌘⌥/** on macOS or **Ctrl+Alt+/**
+elsewhere (`host.peek`, rebindable in Hotkeys). Holding the shortcut takes over
+from the timed reminder until key release, Escape or focus loss. Both respect
+reduced motion and leave workspace state intact.
 
 Panel sections: **Appearance** (theme, cursor package, font sizes, density); **Profile** (name — also editable by **double-clicking the profile name in the top-bar profile button**, which closes the panel the first click opened, since the name IS its trigger (decision 2026-08-03); editing retains the trigger’s spacing and typography, with the input sized to its current text so neighbouring icons move only as the name grows or shrinks; a name must stay filesystem-safe (it is a directory under `~/.puddle/profiles/`), so an invalid or clashing one is rejected and surfaces as a toast — branch prefix, **icon** — one of a curated set of ~60 lucide glyphs, all statically imported (no lazy chunks), picked from a small grid — and its **colour** — any theme-colour key, mapped to a theme-aware `text-*` token; the chosen glyph AND the profile name beside it recolour wherever the profile appears: the top-bar profile button and the profile picker — default account & agent); **Accounts** (per agent type: login state, add — spawns the login PTY —, remove; per-account "skip permission prompts" toggle, visible only when the gate below is on); **Sessions** (in order: the permission-skip gate, the env-capture toggle (`captureSessionEnv`, §4 Captured session environment), the daemon's agent search path, terminal scrollback, the per-kind new-session defaults (`profileSettings.sessionDefaults`: base branch, separate branch, separate directory — what the new-agent/new-terminal modal OPENS with, every value still editable per session; built-ins when unset: both kinds share the base branch's directory, since 2026-08-03), then the editable launch-text templates of §4 — `profileSettings.onboardingTemplate` / `concurrentTemplate` / `restartTemplate` — then the tab-title template); **Editor** (tab size, word wrap, the editor-link SSH host, and profile compilation defaults selected by language — directly below Sessions; the old combined "Terminal & Editor" section is gone, its `#settings/terminal` deep link resolving to Sessions); **Hotkeys** (rebind the app's global shortcuts — see below); **Notifications** (protocol 22.3 adds session-scoped `agent-notification` events on waiting for input and unrequested agent exits; deliberate stop/archive/delete/shutdown stays quiet. Terminal placements retain shell status and receive notifications only for agents observed in the main PTY: adapter busy/idle patterns report completed turns, and successful process inspection reports child exits without confusing suspension or inspection failures with completion. Codex native app-server turn events drive its status in order with conversation rebinding; regexes remain the fallback. Desktop and mobile workspaces subscribe; older daemons retain status-based waiting notifications. Protocol 22.5 adds optional notification content: the conversation display name (user title, agent title, terminal title, then id prefix; at most 160 characters), a last-output snippet (at most 256 characters), and immutable project/session ids. Exact Codex and Claude conversation readers asynchronously inspect at most 128 KiB of transcript tail for the latest assistant text, excluding reasoning and tool records; other agents and terminal placements use a bounded plain-text tail of the existing terminal emulator. Empty output retains a waiting/exited status message. Preview reads do not enumerate transcript bodies or change terminal geometry. The event captures its original placement before asynchronous work. Native desktop notifications retain validated destinations in the main process, and the shell listens on mount so clicks still navigate after a renderer reload. Each desktop click explicitly activates the destination terminal and its pane, opening a missing tab in the destination project’s layout; it also reactivates a terminal hidden by an editor when the URL already names the same session. Repeated clicks each activate once, without stealing focus back from later file-tab selections. Persistent browser notifications retain their destination for worker restart and closed-tab clicks. Delivery uses: a desktop notification — permission requested by the toggle click, shown even while focused by default (`notifications.when_focused`, protocol 22.2; users can disable delivery during interaction; in the desktop cockpit only trusted typing, pasting or pointer presses inside that session’s main terminal count as focused, for five seconds after the latest input. Window focus, an open or visible tab, mouse movement, scrolling and terminal output do not count. Activity elsewhere, leaving the window, hiding or closing the terminal end suppression; sounds retain their independent toggle), clicking it opens the session — plus an optional WebAudio sound and a `(n)` document-title badge counting waiting agents; per-project mute silences both. The toggle defaults to on but the browser prompt needs a user gesture, so the row surfaces the LIVE permission state whenever the toggle is on but delivery cannot happen — unrequested (with an inline request link), blocked, or unsupported — re-read on window focus so a grant made in browser/OS settings is picked up. Electron uses native main-process notifications through bounded, main-frame-only IPC; its preload bridge never implies OS permission. Protocol 24.1 adds an optional bounded desktop notification subtitle. Every desktop platform displays the host label and project name first (`host · project`), then the session title, then the output preview or waiting/exited message. macOS uses the native title/subtitle/body fields. Windows uses three escaped text blocks in a ToastGeneric payload, retaining silent delivery and exact click navigation. Linux places the session on the first body line above the preview; the desktop environment controls wrapping and styling. The host label follows its custom display name, falling back to hostname. The renderer capability-detects `notificationSubtitles`; older shells retain their session-title/body layout. Web/mobile notifications use `[ABBRV] Session title` as their single title field and retain the preview in the body, for both live delivery and encrypted background push. `ABBRV` follows the saved project abbreviation or the project rail’s uppercase first-five-character fallback; the complete title remains bounded to 160 characters. Generic notification tests and pushes without an available preview retain their generic title. Settings offers a test and shows native failure details or unconfirmed delivery. An explicit macOS `UNErrorDomain` code 1 adds instructions to enable Allow notifications in System Settings → Notifications → Puddle and explains that a missing Puddle entry may require a build with a valid app signature; the native detail is retained within the existing 512-character limit. Other native errors remain unchanged, and a successful retry replaces the earlier failure. Browser delivery prefers a notification-only service worker (required by mobile browsers); it never caches content or intercepts requests. Constructor and service-worker failures are surfaced. This live event path needs a connected browser; the remote app’s separate per-device Web Push opt-in handles closed/background delivery (§6). macOS delivery requires app signing and system approval; the Gatekeeper quarantine override does not grant notification permission. Delivery looks the session up across the query caches and falls back to fetching the all-sessions list when absent — a tab parked on the dashboard holds no session cache and must not silently drop notifications); **Projects** (per repo: base branch — empty follows the clone’s current branch for each new agent/terminal — fetch policy, onboarding notes; standing setup rules, freely editable); **Host** (daemon scope, incl. `fetchIntervalMinutes` and the host display name — also editable by **double-clicking the host label in the top bar**, where clearing it (or typing the real hostname back) unsets `displayName` so the label falls back to the hostname rather than storing it twice); **Remote & Sync** (host remote-access controls, then the "Sync locally" mirror, one shared what-to-sync checklist, one-click export-and-copy, then paste-import — see below).
 

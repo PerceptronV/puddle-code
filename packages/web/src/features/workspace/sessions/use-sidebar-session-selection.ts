@@ -14,7 +14,10 @@ export function useSidebarSessionSelection(
   // selected conversations survive switching between the expanded list and
   // collapsed rail. The range follows their shared flattened visual order.
   const visibleSessionIds = useMemo(
-    () => sessionGroups.flatMap((group) => group.sessions.map((session) => session.id)),
+    () =>
+      sessionGroups.flatMap((group) =>
+        (group.collapsed ? [] : group.sessions).map((session) => session.id),
+      ),
     [sessionGroups],
   );
   const [selectedSessionIds, setSelectedSessionIds] = useState<ReadonlySet<string>>(

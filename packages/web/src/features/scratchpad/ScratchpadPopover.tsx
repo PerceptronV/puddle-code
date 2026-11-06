@@ -1,3 +1,4 @@
+import { ExpandingContent } from '../../components/ui/expanding-content';
 import { compactAction, textAction } from '../../components/ui/recipes';
 import { ControlTray } from '../../components/ui/control-tray';
 import { useEffect, useMemo, useState } from 'react';
@@ -207,17 +208,19 @@ export function ScratchpadPopover() {
         )}
 
         <div className="no-scrollbar max-h-[65vh] overflow-y-auto px-2 pb-3">
-          {editing === 'new' && (
-            <div className="px-3 py-2">
-              <ScratchpadEditor
-                defaultScope={projectId ? 'project' : 'profile'}
-                allowProject={projectId !== undefined}
-                agents={agents}
-                onSave={saveNew}
-                onCancel={() => setEditing(null)}
-              />
-            </div>
-          )}
+          <ExpandingContent expanded={editing === 'new'}>
+            {editing === 'new' && (
+              <div className="px-3 py-2">
+                <ScratchpadEditor
+                  defaultScope={projectId ? 'project' : 'profile'}
+                  allowProject={projectId !== undefined}
+                  agents={agents}
+                  onSave={saveNew}
+                  onCancel={() => setEditing(null)}
+                />
+              </div>
+            )}
+          </ExpandingContent>
           {rows.length === 0 && editing !== 'new' && (
             <p className="px-3 py-3 text-sm text-fg-muted">
               {filterActive
@@ -226,51 +229,53 @@ export function ScratchpadPopover() {
             </p>
           )}
           <ul className="flex flex-col">
-            {rows.map((entry) =>
-              editing === entry.id ? (
-                <li key={entry.id} className="px-3 py-2">
-                  <ScratchpadEditor
-                    initial={entry}
-                    defaultScope={entry.scope}
-                    allowProject={projectId !== undefined || entry.scope === 'project'}
-                    agents={agents}
-                    onSave={(draft) => saveEdit(entry.id, draft)}
-                    onCancel={() => setEditing(null)}
-                  />
-                </li>
-              ) : (
-                <li
-                  key={entry.id}
-                  draggable={!filterActive && editing === null}
-                  onDragStart={(e) => {
-                    e.dataTransfer.effectAllowed = 'move';
-                    setDragging(entry.id);
-                  }}
-                  onDragOver={(e) => {
-                    if (dragging === null) return;
-                    e.preventDefault();
-                    if (dragging !== entry.id) moveLocal(dragging, entry.id);
-                  }}
-                  onDragEnd={commitReorder}
-                  className={cn('transition-opacity', dragging === entry.id && 'opacity-50')}
-                >
-                  <ScratchpadRow
-                    entry={entry}
-                    onInsert={
-                      onInsert
-                        ? () => {
-                            onInsert(entry.body);
-                            setScratchpadOpen(false);
-                          }
-                        : null
-                    }
-                    onCopy={() => copy(entry)}
-                    onEdit={() => setEditing(entry.id)}
-                    onDelete={() => remove.mutate(entry.id)}
-                  />
-                </li>
-              ),
-            )}
+            {rows.map((entry) => (
+              <li
+                key={entry.id}
+                draggable={!filterActive && editing === null}
+                onDragStart={(e) => {
+                  e.dataTransfer.effectAllowed = 'move';
+                  setDragging(entry.id);
+                }}
+                onDragOver={(e) => {
+                  if (dragging === null) return;
+                  e.preventDefault();
+                  if (dragging !== entry.id) moveLocal(dragging, entry.id);
+                }}
+                onDragEnd={commitReorder}
+                className={cn('transition-opacity', dragging === entry.id && 'opacity-50')}
+              >
+                <ExpandingContent expanded={editing === entry.id}>
+                  {editing === entry.id ? (
+                    <div className="px-3 py-2">
+                      <ScratchpadEditor
+                        initial={entry}
+                        defaultScope={entry.scope}
+                        allowProject={projectId !== undefined || entry.scope === 'project'}
+                        agents={agents}
+                        onSave={(draft) => saveEdit(entry.id, draft)}
+                        onCancel={() => setEditing(null)}
+                      />
+                    </div>
+                  ) : (
+                    <ScratchpadRow
+                      entry={entry}
+                      onInsert={
+                        onInsert
+                          ? () => {
+                              onInsert(entry.body);
+                              setScratchpadOpen(false);
+                            }
+                          : null
+                      }
+                      onCopy={() => copy(entry)}
+                      onEdit={() => setEditing(entry.id)}
+                      onDelete={() => remove.mutate(entry.id)}
+                    />
+                  )}
+                </ExpandingContent>
+              </li>
+            ))}
           </ul>
         </div>
       </PopoverContent>

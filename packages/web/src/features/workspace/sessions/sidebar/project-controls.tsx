@@ -14,10 +14,16 @@ import {
   DialogHeader,
   DialogTitle,
 } from '../../../../components/ui/dialog';
-import { appearanceColourClass } from '../../../../lib/appearance/appearance-colours';
+import {
+  appearanceColourClass,
+  appearanceColourStyle,
+} from '../../../../lib/appearance/appearance-colours';
 import { useDaemonVersion, usePatchProject } from '../../../../lib/queries/queries';
 import { toastError } from '../../../../lib/transport/errors';
-import { projectColourSupported } from '../../../../lib/transport/protocol-support';
+import {
+  projectColourSupported,
+  customProjectColourSupported,
+} from '../../../../lib/transport/protocol-support';
 import type { ProjectHeaderActions } from './types';
 
 /**
@@ -50,7 +56,13 @@ export function ProjectMenuBody({
 }) {
   const [choosingColour, setChoosingColour] = useState(false);
   const patch = usePatchProject();
-  const colourSupported = projectColourSupported(useDaemonVersion().data?.protocol);
+  const protocol = useDaemonVersion().data?.protocol;
+  const colourSupported = projectColourSupported(protocol);
+  const setColour = (next: string | null) =>
+    patch.mutate(
+      { id: projectId, colour: next },
+      { onSuccess: () => setChoosingColour(false), onError: toastError },
+    );
   return (
     <>
       <ContextMenuContent>
@@ -78,18 +90,19 @@ export function ProjectMenuBody({
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Project colour</DialogTitle>
-            <DialogDescription className={appearanceColourClass(colour)}>{name}</DialogDescription>
+            <DialogDescription
+              className={appearanceColourClass(colour)}
+              style={appearanceColourStyle(colour)}
+            >
+              {name}
+            </DialogDescription>
           </DialogHeader>
           <ColourPicker
             value={colour}
             label="Project colour"
             disabled={patch.isPending}
-            onChange={(next) =>
-              patch.mutate(
-                { id: projectId, colour: next },
-                { onSuccess: () => setChoosingColour(false), onError: (e) => toastError(e) },
-              )
-            }
+            onChange={setColour}
+            onCustomChange={customProjectColourSupported(protocol) ? setColour : undefined}
           />
         </DialogContent>
       </Dialog>

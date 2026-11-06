@@ -1,4 +1,6 @@
-import { createContext, useContext, useRef, useState } from 'react';
+import { createContext, useContext, useEffect, useRef, useState } from 'react';
+import { animateTabPlacement, trackNativePlacementSource } from './animate-placement';
+import { animatePlacement } from '../../../lib/appearance/placement-motion';
 import {
   DndContext,
   DragOverlay,
@@ -102,6 +104,7 @@ export function TilingDnd({
   const [activeRef, setActiveRef] = useState<TabRef | null>(null);
   const [activePane, setActivePane] = useState<{ id: string; count: number } | null>(null);
   const latest = useRef<DropIndicator | null>(null);
+  useEffect(trackNativePlacementSource, []);
 
   const clear = () => {
     setIndicator(null);
@@ -145,7 +148,15 @@ export function TilingDnd({
     const paneId = e.active.data.current?.['paneId'] as string | undefined;
     if (paneId) {
       if (ind && overId && !overId.startsWith(ARCHIVE_DROP_PREFIX)) {
-        onDropPane?.({ fromLeafId: paneId, toLeafId: ind.leafId, edge: ind.zone });
+        const source = document
+          .querySelector<HTMLElement>(`[data-workspace-pane="${CSS.escape(paneId)}"]`)
+          ?.getBoundingClientRect();
+        animatePlacement(
+          () => onDropPane?.({ fromLeafId: paneId, toLeafId: ind.leafId, edge: ind.zone }),
+          source,
+          () =>
+            document.querySelector<HTMLElement>(`[data-workspace-pane="${CSS.escape(paneId)}"]`),
+        );
       }
       return;
     }
@@ -156,7 +167,16 @@ export function TilingDnd({
       return;
     }
     if (ind && ref && fromLeafId) {
-      onDrop({ ref, fromLeafId, toLeafId: ind.leafId, edge: ind.zone, index: ind.index });
+      const initial = e.active.rect.current.initial;
+      const source = initial
+        ? new DOMRect(initial.left, initial.top, initial.width, initial.height)
+        : undefined;
+      animateTabPlacement(
+        () => onDrop({ ref, fromLeafId, toLeafId: ind.leafId, edge: ind.zone, index: ind.index }),
+        ref,
+        ind.leafId,
+        source,
+      );
     }
   };
 

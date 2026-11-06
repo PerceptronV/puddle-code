@@ -11,7 +11,10 @@ import {
 } from '../../../../components/ui/context-menu';
 import { ControlTray } from '../../../../components/ui/control-tray';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../../../components/ui/tooltip';
-import { appearanceColourClass } from '../../../../lib/appearance/appearance-colours';
+import {
+  appearanceColourClass,
+  appearanceColourStyle,
+} from '../../../../lib/appearance/appearance-colours';
 import { ABBREV_MAX, normaliseAbbrev } from '../../../../lib/project-abbrev';
 import { usePatchProject } from '../../../../lib/queries/queries';
 import { toastError } from '../../../../lib/transport/errors';
@@ -240,7 +243,10 @@ export function CollapsedSessionsRail({
   const patchProject = usePatchProject();
   const accountLabel = new Map(accounts.map((a) => [a.id, a.label]));
   const visibleIds = useMemo(
-    () => groups.flatMap((group) => group.sessions.map((session) => session.id)),
+    () =>
+      groups.flatMap((group) =>
+        (group.collapsed ? [] : group.sessions).map((session) => session.id),
+      ),
     [groups],
   );
   const selectedIds = visibleIds.filter((id) => selection.ids.has(id));
@@ -283,6 +289,7 @@ export function CollapsedSessionsRail({
           // Projects share one scrollable island; inset dividers separate them.
           <div
             key={group.projectId}
+            data-session-project={group.projectId}
             className="collapsed-session-project relative flex w-full shrink-0 flex-col items-center gap-1 py-1.5 compact:py-2"
             onDragOver={(e) => {
               if (!dragProject) return;
@@ -315,6 +322,7 @@ export function CollapsedSessionsRail({
                       <Link
                         to={`/project/${group.projectId}`}
                         data-sidebar-motion={`sessions-project-${group.projectId}`}
+                        style={appearanceColourStyle(group.colour)}
                         {...menuOnDoubleClick()}
                         draggable
                         onDragStart={(e) => {
@@ -324,7 +332,7 @@ export function CollapsedSessionsRail({
                         onDragEnd={() => setDragProject(null)}
                         className={cn(
                           'w-full px-1 text-center text-2xs uppercase transition-colors',
-                          appearanceColourClass(group.colour)
+                          group.colour
                             ? cn(appearanceColourClass(group.colour), 'hover:opacity-75')
                             : 'text-fg-muted hover:text-fg',
                           dragProject === group.projectId && 'opacity-50',
@@ -349,7 +357,7 @@ export function CollapsedSessionsRail({
               </ContextMenu>
             )}
             {group.sessions.length > 0 && (
-              <CollapsibleSessions collapsed={dragProject !== null}>
+              <CollapsibleSessions collapsed={!!group.collapsed || dragProject !== null}>
                 <div className="flex flex-col items-center gap-1 overflow-hidden compact:gap-0.5">
                   {group.sessions.map((session) => (
                     <div

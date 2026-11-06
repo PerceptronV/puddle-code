@@ -11,6 +11,7 @@ import { cn } from '../../lib/utils';
 import { orderByDrag, reorderIds } from '../workspace/sessions/session-order';
 import { useCurrentProfileId } from '../profile/profile-store';
 import { HomeTerminalPane, useHomeTerminal } from './HomeTerminal';
+import { ExpandingContent } from '../../components/ui/expanding-content';
 import { NewProjectDialog } from './NewProjectDialog';
 import { ProjectCard } from './ProjectCard';
 
@@ -162,7 +163,9 @@ export function Dashboard() {
 
       {/* Homescreen-only (this component IS the homescreen): the home shell,
           bare on the page ground — no tab strip, no heading (SPEC §11). */}
-      {home.open && <HomeTerminalPane term={home.term} onExit={home.onExit} />}
+      <ExpandingContent expanded={home.open}>
+        {home.open && <HomeTerminalPane term={home.term} onExit={home.onExit} />}
+      </ExpandingContent>
 
       {profileId !== null && (
         <NewProjectDialog profileId={profileId} open={creating} onOpenChange={setCreating} />

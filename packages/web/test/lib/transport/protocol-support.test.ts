@@ -13,6 +13,7 @@ import {
   runtimeInspectionSupported,
   gitRestoreSupported,
   customHostColourSupported,
+  customProjectColourSupported,
 } from '../../../src/lib/transport/protocol-support';
 
 describe('runtime inspection compatibility gate', () => {
@@ -107,4 +108,10 @@ it('gates custom host accents on confirmed protocol 26.5', () => {
   expect(customHostColourSupported(undefined)).toBe(false);
   expect(customHostColourSupported({ major: 26, minor: 4 })).toBe(false);
   expect(customHostColourSupported(PROTOCOL_VERSION)).toBe(true);
+});
+
+it('gates custom project colours on confirmed protocol 26.6', () => {
+  expect(customProjectColourSupported(undefined)).toBe(false);
+  expect(customProjectColourSupported({ major: 26, minor: 5 })).toBe(false);
+  expect(customProjectColourSupported(PROTOCOL_VERSION)).toBe(true);
 });

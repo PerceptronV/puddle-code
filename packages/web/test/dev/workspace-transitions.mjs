@@ -92,6 +92,71 @@ try {
     'loading one project preserves another project slice',
   );
   assert.equal(await page.evaluate(() => window.firstTerminal.isConnected), true);
+  await page.evaluate(async () => {
+    const { updateClientSettings } = await import('/src/lib/settings/client-settings.ts');
+    updateClientSettings({ showAllProjectSessions: false, reduceMotion: false });
+    window.workspaceFixture.visit(
+      window.workspaceFixture.first,
+      window.workspaceFixture.sessions[0],
+    );
+  });
+  await page.waitForTimeout(250);
+  for (let mode = 0; mode < 2; mode++) {
+    await page.waitForFunction(() => {
+      const accordion = document.querySelector(
+        `[data-session-project="${window.workspaceFixture.second}"] [data-session-accordion]`,
+      );
+      return accordion?.inert && accordion.getBoundingClientRect().height < 1;
+    });
+    const samples = await page.evaluate(async () => {
+      const fixture = window.workspaceFixture;
+      const accordion = document.querySelector(
+        `[data-session-project="${fixture.second}"] [data-session-accordion]`,
+      );
+      const before = accordion.getBoundingClientRect().height;
+      fixture.visit(fixture.second, fixture.sessions[1]);
+      // Navigation can wait on query data. Sample the transition once the actual
+      // group has opened, independent of machine load and network scheduling.
+      for (let frame = 0; accordion.inert && frame < 120; frame++)
+        await new Promise(window.requestAnimationFrame);
+      accordion.getBoundingClientRect();
+      const transitions = accordion.getAnimations();
+      for (const animation of transitions) {
+        animation.pause();
+        animation.currentTime = 100;
+      }
+      const middle = accordion.getBoundingClientRect().height;
+      for (const animation of transitions) animation.finish();
+      await new Promise(window.requestAnimationFrame);
+      return {
+        before,
+        middle,
+        after: accordion.getBoundingClientRect().height,
+        retained: accordion.isConnected,
+        inert: accordion.inert,
+      };
+    });
+    assert.ok(samples.before < 1, 'inactive project is folded');
+    assert.ok(
+      samples.middle > 0 && samples.middle < samples.after,
+      'project sessions unfold through intermediate heights',
+    );
+    assert.equal(samples.retained, true);
+    assert.equal(samples.inert, false);
+    await page.evaluate(() =>
+      window.workspaceFixture.visit(
+        window.workspaceFixture.first,
+        window.workspaceFixture.sessions[0],
+      ),
+    );
+    await page.waitForTimeout(250);
+    if (mode === 0) {
+      const hide = page.getByRole('button', { name: 'Hide sessions', exact: true });
+      if (await hide.isVisible()) await hide.click();
+      else await page.getByRole('button', { name: 'Show sessions', exact: true }).click();
+      await page.waitForTimeout(350);
+    }
+  }
   assert.deepEqual(errors, []);
   console.log(
     'Real workspace preserves terminal portals and dirty buffers through project visits, delayed catalogue, mode conversion and saved-layout loading.',

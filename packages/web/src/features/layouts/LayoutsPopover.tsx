@@ -1,3 +1,4 @@
+import { ExpandingContent } from '../../components/ui/expanding-content';
 import { compactAction, textAction } from '../../components/ui/recipes';
 import { ControlTray } from '../../components/ui/control-tray';
 import { useEffect, useState } from 'react';
@@ -283,60 +284,64 @@ export function LayoutsPopover() {
 
         {/* Only what the list cannot say for itself: the live layout, when it has
             no row of its own (never saved) or is being saved under a new name. */}
-        {bridge === null ? (
-          <p className="px-5 pb-3 text-sm text-fg-muted">Loading the profile’s layout state…</p>
-        ) : headless ? (
-          <p className="px-5 pb-3 text-sm text-fg-muted">
-            Project-based layout is on — every project keeps its own layout. Open a project to name
-            or save it; loading works from here.
-          </p>
-        ) : (
-          (current === null || composing) && (
-            <div className="flex flex-col gap-2 px-5 pb-3">
-              {current === null && (
-                <div className="flex items-baseline gap-2">
-                  <span className="text-sm font-medium text-fg">Unnamed layout</span>
-                  <span className="text-2xs uppercase tracking-wide text-fg-muted">
-                    {bridge.scope === 'profile' ? 'Profile-wide' : 'Project'}
-                  </span>
-                  <span className="ml-auto text-2xs text-interrupted">Unsaved</span>
-                </div>
-              )}
-              <form
-                className="flex items-center gap-1.5"
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  const name = nameDraft.trim();
-                  if (!name) return;
-                  createUnder(name, bridge.capture(), true);
-                  setNameDraft('');
-                  setComposing(false);
-                }}
-              >
-                <Input
-                  autoFocus={composing}
-                  value={nameDraft}
-                  placeholder={current === null ? 'Name this layout…' : 'Save as a new layout…'}
-                  spellCheck={false}
-                  onChange={(e) => setNameDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    e.stopPropagation();
-                    if (e.key === 'Escape') setComposing(false);
-                  }}
-                  className="h-8 flex-1 text-sm"
-                />
-                <Button size="sm" type="submit" disabled={!nameDraft.trim()}>
-                  Save
-                </Button>
-                {current !== null && (
-                  <Button variant="ghost" size="sm" onClick={() => setComposing(false)}>
-                    Cancel
-                  </Button>
+        <ExpandingContent
+          expanded={bridge !== null && !headless && (current === null || composing)}
+        >
+          {bridge === null ? (
+            <p className="px-5 pb-3 text-sm text-fg-muted">Loading the profile’s layout state…</p>
+          ) : headless ? (
+            <p className="px-5 pb-3 text-sm text-fg-muted">
+              Project-based layout is on — every project keeps its own layout. Open a project to
+              name or save it; loading works from here.
+            </p>
+          ) : (
+            (current === null || composing) && (
+              <div className="flex flex-col gap-2 px-5 pb-3">
+                {current === null && (
+                  <div className="flex items-baseline gap-2">
+                    <span className="text-sm font-medium text-fg">Unnamed layout</span>
+                    <span className="text-2xs uppercase tracking-wide text-fg-muted">
+                      {bridge.scope === 'profile' ? 'Profile-wide' : 'Project'}
+                    </span>
+                    <span className="ml-auto text-2xs text-interrupted">Unsaved</span>
+                  </div>
                 )}
-              </form>
-            </div>
-          )
-        )}
+                <form
+                  className="flex items-center gap-1.5"
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    const name = nameDraft.trim();
+                    if (!name) return;
+                    createUnder(name, bridge.capture(), true);
+                    setNameDraft('');
+                    setComposing(false);
+                  }}
+                >
+                  <Input
+                    autoFocus={composing}
+                    value={nameDraft}
+                    placeholder={current === null ? 'Name this layout…' : 'Save as a new layout…'}
+                    spellCheck={false}
+                    onChange={(e) => setNameDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      e.stopPropagation();
+                      if (e.key === 'Escape') setComposing(false);
+                    }}
+                    className="h-8 flex-1 text-sm"
+                  />
+                  <Button size="sm" type="submit" disabled={!nameDraft.trim()}>
+                    Save
+                  </Button>
+                  {current !== null && (
+                    <Button variant="ghost" size="sm" onClick={() => setComposing(false)}>
+                      Cancel
+                    </Button>
+                  )}
+                </form>
+              </div>
+            )
+          )}
+        </ExpandingContent>
 
         {chips.length > 1 && (
           <div className="flex flex-wrap items-center gap-1 px-5 pb-2">

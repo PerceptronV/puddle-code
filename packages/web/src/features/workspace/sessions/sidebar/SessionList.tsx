@@ -9,7 +9,10 @@ import {
   ContextMenuTrigger,
   menuOnDoubleClick,
 } from '../../../../components/ui/context-menu';
-import { appearanceColourClass } from '../../../../lib/appearance/appearance-colours';
+import {
+  appearanceColourClass,
+  appearanceColourStyle,
+} from '../../../../lib/appearance/appearance-colours';
 import { useHotkeyLabel } from '../../../../lib/navigation/hotkeys';
 import { usePatchProject } from '../../../../lib/queries/queries';
 import { toastError } from '../../../../lib/transport/errors';
@@ -100,9 +103,12 @@ export function SessionListBody({
       .filter((group) => group.sessions.length > 0);
   };
   const displayedGroups = filterGroups(groups);
-  const total = groups.reduce((n, g) => n + g.sessions.length, 0);
+  const total = groups.reduce((n, g) => n + (g.collapsed ? 0 : g.sessions.length), 0);
   const visibleIds = useMemo(
-    () => displayedGroups.flatMap((group) => group.sessions.map((session) => session.id)),
+    () =>
+      displayedGroups.flatMap((group) =>
+        (group.collapsed ? [] : group.sessions).map((session) => session.id),
+      ),
     [displayedGroups],
   );
   const selectedIds = visibleIds.filter((id) => selection.ids.has(id));
@@ -172,6 +178,7 @@ export function SessionListBody({
           {displayedGroups.map((group) => (
             <div
               key={group.projectId}
+              data-session-project={group.projectId}
               className="mx-2 border-t border-border py-1 first:border-t-0"
               onDragOver={(e) => {
                 if (!dragProject) return;
@@ -201,6 +208,7 @@ export function SessionListBody({
                     <Link
                       to={`/project/${group.projectId}`}
                       data-sidebar-motion={`sessions-project-${group.projectId}`}
+                      style={appearanceColourStyle(group.colour)}
                       {...menuOnDoubleClick()}
                       draggable
                       onDragStart={(e) => {
@@ -210,7 +218,7 @@ export function SessionListBody({
                       onDragEnd={() => setDragProject(null)}
                       className={cn(
                         'block truncate px-3 pb-1 pt-2 text-2xs font-medium uppercase tracking-wide transition-colors compact:pb-0.5 compact:pt-1.5',
-                        appearanceColourClass(group.colour)
+                        group.colour
                           ? cn(appearanceColourClass(group.colour), 'hover:opacity-75')
                           : 'text-fg-gold hover:text-fg',
                         dragProject === group.projectId && 'opacity-50',
@@ -231,7 +239,7 @@ export function SessionListBody({
                   />
                 </ContextMenu>
               )}
-              <CollapsibleSessions collapsed={dragProject !== null}>
+              <CollapsibleSessions collapsed={!!group.collapsed || dragProject !== null}>
                 <ul className="flex flex-col gap-0.5 overflow-hidden compact:gap-0">
                   {group.sessions.map((session) => (
                     <li
@@ -321,6 +329,7 @@ export function SessionListBody({
                 {displayedArchivedGroups.map((group) => (
                   <div
                     key={group.projectId}
+                    data-session-project={group.projectId}
                     className="mx-2 border-t border-border py-1 first:border-t-0"
                   >
                     {/* Dimmer than a live group's header and inert: archived rows
@@ -328,9 +337,10 @@ export function SessionListBody({
                         projects (that is the live list's header, right above). */}
                     {group.name !== '' && (
                       <div
+                        style={appearanceColourStyle(group.colour)}
                         className={cn(
                           'truncate px-3 pb-0.5 pt-1.5 text-2xs font-medium uppercase tracking-wide',
-                          appearanceColourClass(group.colour)
+                          group.colour
                             ? cn(appearanceColourClass(group.colour), 'opacity-70')
                             : 'text-fg-muted',
                         )}

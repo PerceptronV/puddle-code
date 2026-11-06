@@ -9,8 +9,11 @@ import { PROFILE_ICON_COLOURS } from '../profiles.js';
  * created before the field existed — displays derive from the name then.
  */
 const projectAbbrev = z.string().min(1).max(5);
-/** Projects share the profile icon palette; null restores the usual name styling. */
-export const projectColourSchema = z.enum(PROFILE_ICON_COLOURS);
+/** Presets or an explicit six-digit sRGB colour; null restores usual name styling. */
+export const projectColourSchema = z.union([
+  z.enum(PROFILE_ICON_COLOURS),
+  z.string().regex(/^#[0-9a-f]{6}$/i),
+]);
 export type ProjectColour = z.infer<typeof projectColourSchema>;
 
 export const projectSchema = z.object({

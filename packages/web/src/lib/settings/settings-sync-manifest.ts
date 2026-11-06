@@ -52,6 +52,7 @@ export const SYNC_GROUPS: SyncGroup[] = [
       { key: 'editorFontSize', store: 'client' },
       { key: 'density', store: 'client' },
       { key: 'reduceMotion', store: 'client' },
+      { key: 'showHostOnFocus', store: 'client' },
       { key: 'terminalScrollback', store: 'client' },
       { key: 'projectBasedLayout', store: 'client' },
       { key: 'showAllProjectSessions', store: 'client' },

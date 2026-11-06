@@ -42,6 +42,8 @@ interface PuddleDesktopBridge {
   isFullScreen?(): Promise<boolean>;
   /** Fires on enter/leave full-screen; returns the unsubscribe. */
   onFullScreenChange?(callback: (full: boolean) => void): () => void;
+  /** Native window activation, including Mission Control / desktop switches. */
+  onWindowFocusChange?(callback: (focused: boolean) => void): () => void;
 }
 
 declare global {

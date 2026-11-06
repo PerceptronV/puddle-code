@@ -40,7 +40,7 @@ function request(method: string, path: string, body: unknown) {
 
 describe('project colours', () => {
   it('stores every profile palette colour when creating a project', async () => {
-    for (const colour of PROFILE_ICON_COLOURS) {
+    for (const colour of [...PROFILE_ICON_COLOURS, '#12a6bc', '#ABCDEF']) {
       const response = await request('POST', '', {
         profile_id: fx.ids.profile,
         repo_id: fx.ids.repo,
@@ -57,9 +57,9 @@ describe('project colours', () => {
   it('preserves colour on unrelated edits and clears it only with null', async () => {
     const id = fx.ids.project;
     expect(fx.stores.projects.get(id).colour).toBeNull();
-    const coloured = await request('PATCH', `/${id}`, { colour: 'violet' });
+    const coloured = await request('PATCH', `/${id}`, { colour: '#12a6bc' });
     expect(coloured.status).toBe(200);
-    expect(projectSchema.parse(await coloured.json()).colour).toBe('violet');
+    expect(projectSchema.parse(await coloured.json()).colour).toBe('#12a6bc');
 
     const renamed = await request('PATCH', `/${id}`, {
       name: 'renamed',
@@ -70,7 +70,7 @@ describe('project colours', () => {
       name: 'renamed',
       abbrev: 'NEW',
       archived: true,
-      colour: 'violet',
+      colour: '#12a6bc',
     });
     const listed = await app.request(`/api/projects?profile=${fx.ids.profile}`);
     expect(
@@ -78,7 +78,7 @@ describe('project colours', () => {
         .array()
         .parse(await listed.json())
         .find((p) => p.id === id)?.colour,
-    ).toBe('violet');
+    ).toBe('#12a6bc');
 
     const cleared = await request('PATCH', `/${id}`, { colour: null });
     expect(projectSchema.parse(await cleared.json()).colour).toBeNull();
@@ -87,7 +87,7 @@ describe('project colours', () => {
 
   it('rejects colours outside the palette without changing the saved value', async () => {
     await request('PATCH', `/${fx.ids.project}`, { colour: 'blue' });
-    for (const colour of ['purple', '', 123]) {
+    for (const colour of ['purple', '', 123, '#abc', '#aabbccdd', '#gggggg', 'rgb(1,2,3)']) {
       expect((await request('PATCH', `/${fx.ids.project}`, { colour })).status).toBe(400);
       expect(
         (

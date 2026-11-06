@@ -1,6 +1,7 @@
 #!/usr/bin/env node
 import { readReleasePlan } from '../../../scripts/lib/releases/plan.mjs';
 import { renderPrompt } from './prompt-assets.mjs';
+import { buildNative } from './build-native.mjs';
 /**
  * Builds the desktop shell, mirroring the CLI's build exactly: the main
  * process bundles the SAME `packages/cli/src/lib` sources (aliased, ws
@@ -23,6 +24,7 @@ const cliVersion = JSON.parse(
 const slug = process.env.PUDDLE_REPO_SLUG;
 
 rmSync(join(pkgRoot, 'dist'), { recursive: true, force: true });
+buildNative(join(pkgRoot, 'dist'));
 
 const shared = {
   bundle: true,

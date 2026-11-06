@@ -3,6 +3,7 @@ import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react
 import { Suspense, lazy, useSyncExternalStore } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router';
 import { ErrorBoundary } from './components/error-boundary';
+import { ContentMotion } from './components/ui/content-motion';
 import { Toaster } from './components/ui/sonner';
 import { TooltipProvider } from './components/ui/tooltip';
 import { TokenGate } from './features/auth/TokenGate';
@@ -45,27 +46,33 @@ function Gated() {
     profileId !== null &&
     profiles.data !== undefined &&
     !profiles.data.some((p) => p.id === profileId);
-  if (profileId === null || unknownProfile) return <ProfilePicker />;
+  const choosingProfile = profileId === null || unknownProfile;
   return (
-    // useTransitions={false}: by default react-router v7+ wraps every location
-    // update in React.startTransition, so under React 19 a navigation defers —
-    // `history.push` changes the URL synchronously but the matched route only
-    // renders once the transition commits, which for this app (no pending-state
-    // UI, Suspense fallback=null) left clicks changing the URL while the view
-    // stayed put until a reload. We want urgent, synchronous navigation.
-    <BrowserRouter useTransitions={false}>
-      <Suspense fallback={null}>
-        <Routes>
-          <Route element={<ShellLayout />}>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/project/:id" element={<Workspace />} />
-            {/* The session route is the workspace; diff and history are left-
+    <ContentMotion className="h-screen" motionKey={choosingProfile ? 'profiles' : 'cockpit'}>
+      {choosingProfile ? (
+        <ProfilePicker />
+      ) : (
+        // useTransitions={false}: by default react-router v7+ wraps every location
+        // update in React.startTransition, so under React 19 a navigation defers —
+        // `history.push` changes the URL synchronously but the matched route only
+        // renders once the transition commits, which for this app (no pending-state
+        // UI, Suspense fallback=null) left clicks changing the URL while the view
+        // stayed put until a reload. We want urgent, synchronous navigation.
+        <BrowserRouter useTransitions={false}>
+          <Suspense fallback={null}>
+            <Routes>
+              <Route element={<ShellLayout />}>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/project/:id" element={<Workspace />} />
+                {/* The session route is the workspace; diff and history are left-
                 sidebar navigators (SPEC §8), not routes. */}
-            <Route path="/project/:id/session/:sid" element={<Workspace />} />
-          </Route>
-        </Routes>
-      </Suspense>
-    </BrowserRouter>
+                <Route path="/project/:id/session/:sid" element={<Workspace />} />
+              </Route>
+            </Routes>
+          </Suspense>
+        </BrowserRouter>
+      )}
+    </ContentMotion>
   );
 }
 

@@ -36,19 +36,48 @@ function luminance(hex: string): number {
   }, 0);
 }
 
-/** User accents can include pure black/white; keep generated chrome legible. */
-function readable(colour: string, backgrounds: string[], ink: string): string {
+/** Bound both text legibility and surface separation, including black/white accents. */
+function withContrast(colour: string, backgrounds: string[], ink: string, floor = 4.5): string {
   const backdrop = backgrounds.map(luminance);
   for (let step = 0; step <= 100; step++) {
     const candidate = mix(colour, ink, 1 - step / 100);
     const light = luminance(candidate);
     if (
-      backdrop.every((bg) => (Math.max(light, bg) + 0.05) / (Math.min(light, bg) + 0.05) >= 4.5)
+      backdrop.every((bg) => (Math.max(light, bg) + 0.05) / (Math.min(light, bg) + 0.05) >= floor)
     ) {
       return candidate;
     }
   }
   return ink;
+}
+
+/** Change only the accent's HSL lightness; keep its hue and saturation intact. */
+function paneSurface(accent: string, base: string, dark: boolean): string {
+  const channels = [1, 3, 5].map((start) => parseInt(accent.slice(start, start + 2), 16) / 255);
+  const low = Math.min(...channels);
+  const high = Math.max(...channels);
+  const range = high - low;
+  const saturation = range === 0 ? 0 : range / (1 - Math.abs(high + low - 1));
+  const background = luminance(base);
+  const floor = dark ? 1.3 : 1.2;
+  for (let step = 1; step <= 100; step++) {
+    const lightness = dark ? step / 100 : 1 - step / 100;
+    const chroma = (1 - Math.abs(2 * lightness - 1)) * saturation;
+    const offset = lightness - chroma / 2;
+    const candidate =
+      '#' +
+      channels
+        .map((channel) =>
+          Math.round(255 * (offset + (range === 0 ? 0 : (chroma * (channel - low)) / range)))
+            .toString(16)
+            .padStart(2, '0'),
+        )
+        .join('');
+    const light = luminance(candidate);
+    if ((Math.max(light, background) + 0.05) / (Math.min(light, background) + 0.05) >= floor)
+      return candidate;
+  }
+  return accent;
 }
 
 /** Whole-chrome palette. Semantic statuses, explicit identities and ANSI hues stay independent. */
@@ -73,17 +102,19 @@ export function hostPalette(
   const surface = mix(accent, ground, dark ? 0.105 : 0.025);
   const elevated = mix(accent, ground, dark ? 0.16 : 0.065);
   const tray = mix(accent, ground, dark ? 0.16 : 0.04);
-  if (custom) {
-    const backgrounds = [ground, base, surface, elevated, tray];
-    const ink = dark ? white : black;
-    primary = readable(primary, backgrounds, ink);
-    secondary = readable(secondary, backgrounds, ink);
-    muted = readable(muted, backgrounds, ink);
-    selection = readable(selection, backgrounds, ink);
-  }
+  const ink = dark ? white : black;
+  // Pane frames/tab strips need a visible step from active tabs and editor content.
+  // Moving a near-white/black tint towards neutral ink washes out the chosen hue.
+  const pane = paneSurface(accent, base, dark);
+  const backgrounds = [ground, base, surface, pane, elevated, tray];
+  primary = withContrast(primary, backgrounds, ink);
+  secondary = withContrast(secondary, backgrounds, ink);
+  muted = withContrast(muted, backgrounds, ink);
+  selection = withContrast(selection, backgrounds, ink);
   return {
     '--bg-base': base,
     '--bg-surface': surface,
+    '--bg-pane': pane,
     '--bg-elevated': elevated,
     '--bg-tray': tray,
     '--border': mix(accent, ground, dark ? 0.28 : 0.14),

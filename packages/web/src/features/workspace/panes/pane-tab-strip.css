@@ -25,3 +25,22 @@
   background: var(--bg-base);
   border-radius: var(--ui-radius);
 }
+
+/* Keep tab fills and hover trays inside the rounded island. Paint its edge last. */
+.workspace-pane {
+  overflow: clip;
+  outline: none;
+}
+.workspace-pane::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  z-index: 40;
+  pointer-events: none;
+  border-radius: inherit;
+  box-shadow: inset 0 0 0 1px var(--border);
+}
+
+[data-pane-tab] {
+  animation: overlay-appear 180ms ease-out;
+}

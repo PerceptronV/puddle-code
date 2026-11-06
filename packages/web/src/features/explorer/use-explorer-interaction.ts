@@ -139,15 +139,24 @@ export function useExplorerInteraction({
       const idx = focusedPath ? rows.findIndex((r) => r.path === focusedPath) : -1;
       const cur = idx >= 0 ? rows[idx] : undefined;
       const meta = e.metaKey || e.ctrlKey;
+      const browse = (index: number) => {
+        cancelPendingRename();
+        lastRowClick.current = null;
+        const next = rows[Math.max(0, Math.min(index, rows.length - 1))];
+        focus(index, e.shiftKey);
+        // Range selection and modifier navigation never open a batch of files.
+        if (!e.shiftKey && !meta && !e.altKey && next?.type !== 'dir' && next)
+          onOpenFile?.(sid, next.path, { preview: true });
+      };
 
       switch (e.key) {
         case 'ArrowDown':
           e.preventDefault();
-          focus(idx + 1, e.shiftKey);
+          browse(idx + 1);
           return;
         case 'ArrowUp':
           e.preventDefault();
-          focus(idx <= 0 ? 0 : idx - 1, e.shiftKey);
+          browse(idx <= 0 ? 0 : idx - 1);
           return;
         case 'ArrowRight':
           e.preventDefault();
@@ -167,7 +176,7 @@ export function useExplorerInteraction({
           e.preventDefault();
           if (!cur) return;
           if (cur.type === 'dir') toggle(cur.path);
-          else onOpenFile?.(sid, cur.path);
+          else onOpenFile?.(sid, cur.path, { preview: e.key !== 'Enter' });
           return;
         case 'F2':
           e.preventDefault();
@@ -233,6 +242,7 @@ export function useExplorerInteraction({
       copy,
       cut,
       copyPathToClipboard,
+      cancelPendingRename,
     ],
   );
 

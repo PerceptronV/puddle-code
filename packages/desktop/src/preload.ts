@@ -46,6 +46,11 @@ contextBridge.exposeInMainWorld('puddleDesktop', {
     ipcRenderer.on('puddle:fullscreen', handler);
     return () => ipcRenderer.removeListener('puddle:fullscreen', handler);
   },
+  onWindowFocusChange: (callback: (focused: boolean) => void): (() => void) => {
+    const handler = (_event: unknown, focused: boolean) => callback(focused);
+    ipcRenderer.on('puddle:window-focus', handler);
+    return () => ipcRenderer.removeListener('puddle:window-focus', handler);
+  },
 });
 
 // Appearance is a shell concern, not an application API. Observe the cockpit's
