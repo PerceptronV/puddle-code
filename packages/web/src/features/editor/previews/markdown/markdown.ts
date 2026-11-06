@@ -41,7 +41,7 @@ function mathIsDisplay(token: Token): boolean {
 /** Independent policies share the same Markdown extensions and typesetters. */
 function createMarkdownParser(terminal = false) {
   const parser = new MarkdownIt({
-    breaks: false,
+    breaks: terminal,
     html: !terminal,
     linkify: true,
     typographer: false,

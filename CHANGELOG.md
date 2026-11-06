@@ -9,6 +9,10 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
-### Fixed
+### Cockpit
+
+#### Fixed
+
+- Keep Ripple active for Codex and other alternate-screen agents, rendering current screen contents with copyable text, Mermaid and LaTeX while preserving native CLI controls.
 
 - Clicking, tapping or scrolling closed session transcripts no longer raises connection errors from restored terminal mouse reporting.

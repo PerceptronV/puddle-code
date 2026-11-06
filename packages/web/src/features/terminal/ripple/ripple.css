@@ -11,10 +11,6 @@
   flex: 0 0 38%;
 }
 
-.puddle-terminal-ripple:has(.ripple[data-alternate='true']) > .ripple-native {
-  flex: 1;
-}
-
 .ripple {
   position: relative;
   display: flex;
@@ -23,10 +19,6 @@
   min-height: 0;
   color: var(--text-primary);
   font-family: var(--font-sans);
-}
-
-.ripple[data-alternate='true'] {
-  flex: 0 0 auto;
 }
 
 .ripple-toolbar {

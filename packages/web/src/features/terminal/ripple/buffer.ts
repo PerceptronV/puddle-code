@@ -18,8 +18,6 @@ export interface RippleSnapshot {
 
 /** A bounded projection of the current screen, never a second terminal parser or log. */
 export function readRippleBuffer(buffer: IBuffer, cols: number): RippleSnapshot {
-  if (buffer.type === 'alternate')
-    return { text: '', truncated: false, alternate: true, parts: [] };
   const last = buffer.length;
   // Reserve the newest rows even when a single row is extremely wide.
   const count = Math.min(RIPPLE_MAX_ROWS, Math.floor(RIPPLE_MAX_CHARACTERS / (cols + 1)));
@@ -88,5 +86,5 @@ export function readRippleBuffer(buffer: IBuffer, cols: number): RippleSnapshot 
     at = to;
   }
   if (at < text.length) parts.push({ kind: 'text', source: text.slice(at) });
-  return { text, truncated: first > 0, alternate: false, parts };
+  return { text, truncated: first > 0, alternate: buffer.type === 'alternate', parts };
 }

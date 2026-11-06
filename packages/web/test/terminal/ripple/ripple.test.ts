@@ -28,15 +28,29 @@ describe('Ripple terminal projection', () => {
     expect(readRippleBuffer(buffer, 10).text).toBe('done');
   });
 
-  it('leaves alternate-screen applications to the native terminal', () => {
-    const buffer = bufferWithLines([{ text: 'menu' }], 10);
+  it('projects the current alternate screen, including cells below the input cursor', () => {
+    const buffer = bufferWithLines(
+      [{ text: 'Agent reply' }, { text: 'Input >' }, { text: 'Status' }],
+      20,
+    );
     Object.assign(buffer, { type: 'alternate' });
-    expect(readRippleBuffer(buffer, 10)).toEqual({
-      text: '',
+    expect(readRippleBuffer(buffer, 20)).toEqual({
+      text: 'Agent reply\nInput >\nStatus',
       truncated: false,
       alternate: true,
-      parts: [],
+      parts: [{ kind: 'text', source: 'Agent reply\nInput >\nStatus' }],
     });
+  });
+
+  it('replaces alternate-screen redraws instead of accumulating obsolete content', () => {
+    const buffer = bufferWithLines([{ text: 'Old reply' }], 20);
+    Object.assign(buffer, { type: 'alternate' });
+    expect(readRippleBuffer(buffer, 20).text).toBe('Old reply');
+    const updated = bufferWithLines([{ text: 'New reply $x^2$' }], 20);
+    Object.assign(buffer, { getLine: updated.getLine, length: updated.length });
+    const snapshot = readRippleBuffer(buffer, 20);
+    expect(snapshot.text).toBe('New reply $x^2$');
+    expect(snapshot.parts).toContainEqual({ kind: 'math', source: 'x^2', display: false });
   });
 
   it('bounds work to recent rows and reports omitted history', () => {
@@ -109,6 +123,12 @@ describe('Ripple terminal projection', () => {
 });
 
 describe('Ripple formatting', () => {
+  it('keeps hard terminal lines separate instead of merging reply, input and status text', () => {
+    expect(rippleHtml('Agent reply\nInput >\nStatus')).toBe(
+      '<p>Agent reply<br>\nInput &gt;<br>\nStatus</p>\n',
+    );
+  });
+
   it('renders surviving Markdown and retains code as monospace', () => {
     const html = rippleHtml(
       '# Heading\n\nA **bold** reply with `code`.\n\n```ts\nconst x = 1;\n```',

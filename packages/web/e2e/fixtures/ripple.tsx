@@ -20,7 +20,11 @@ import { applyTheme } from '../../src/lib/appearance/theme';
 import { initClientSettings } from '../../src/lib/settings/client-settings';
 import { setSessionRipple } from '../../src/features/terminal/ripple/preferences';
 
-const session: Session = { ...sessions[0]!, kind: 'agent', agent_type: 'codex', status: 'running' };
+const agent =
+  ['codex', 'claude-code', 'gemini-cli', 'opencode'].find(
+    (name) => name === new URLSearchParams(location.search).get('agent'),
+  ) ?? 'codex';
+const session: Session = { ...sessions[0]!, kind: 'agent', agent_type: agent, status: 'running' };
 const sample = [
   '# A quieter place to work',
   '',
@@ -47,6 +51,22 @@ const sample = [
   '',
   '› Ask Codex to do anything',
 ].join('\r\n');
+// A full-screen agent writes frames into the alternate buffer, enables mouse
+// reporting, and keeps its input/status rows in the same screen as the reply.
+const alternateSample =
+  '\x1b[?1049h\x1b[?1000h\x1b[?1006h\x1b[?2026h\x1b[2J\x1b[H' +
+  [
+    '\x1b[1m• Agent reply\x1b[0m',
+    'This reply is drawn in the alternate screen.',
+    'The formula is $E = mc^2$.',
+    '',
+    'flowchart LR',
+    '  A[CLI] --> B[Ripple]',
+    '',
+    '› Ask Codex to do anything',
+    '  Shift+Left still edits in the native CLI.',
+  ].join('\r\n') +
+  '\x1b[8;3H\x1b[?2026l';
 const messages: WsClientMessage[] = [];
 let socket: FixtureSocket;
 class FixtureSocket implements CockpitSocket {
@@ -73,7 +93,12 @@ class FixtureSocket implements CockpitSocket {
     messages.push(message);
     if (message.t === 'attach')
       queueMicrotask(() =>
-        this.emit({ t: 'replay', session: message.session, term: message.term, data: sample }),
+        this.emit({
+          t: 'replay',
+          session: message.session,
+          term: message.term,
+          data: new URLSearchParams(location.search).has('alternate') ? alternateSample : sample,
+        }),
       );
   }
   close() {
@@ -100,6 +125,8 @@ initClientSettings();
 Object.assign(window, {
   rippleFixture: {
     messages,
+    alternateScreen: () =>
+      socket.emit({ t: 'output', session: session.id, term: 'agent', data: alternateSample }),
     output: (data: string, replay = false) =>
       socket.emit({ t: replay ? 'replay' : 'output', session: session.id, term: 'agent', data }),
     theme: applyTheme,

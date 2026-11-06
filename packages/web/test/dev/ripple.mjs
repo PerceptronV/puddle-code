@@ -97,11 +97,50 @@ try {
   await page.getByRole('button', { name: 'Latest output' }).click();
   await page.locator('.ripple-prose').filter({ hasText: 'Latest marker' }).waitFor();
 
-  await page.evaluate(() => window.rippleFixture.output('\x1b[?1049hFull-screen menu'));
-  await page.getByText('This full-screen CLI needs the native terminal.').waitFor();
-  assert.equal(await reader.count(), 0);
+  await page.evaluate(() => window.rippleFixture.alternateScreen());
+  await page.locator('.ripple-prose').filter({ hasText: 'Agent reply' }).waitFor();
+  assert.ok(!(await page.locator('.ripple-prose').innerText()).includes('Latest marker'));
+  await page.locator('[data-ripple-rich="mermaid"] svg').waitFor();
+  await page.locator('[data-ripple-rich="math"] .katex').waitFor();
+  await reader.focus();
+  await page.evaluate(() => {
+    const text = document.querySelector('.ripple-text');
+    const range = document.createRange();
+    range.selectNodeContents(text);
+    window.getSelection().removeAllRanges();
+    window.getSelection().addRange(range);
+  });
+  const alternateSelected = await page.evaluate(() => window.getSelection().toString());
+  await page.keyboard.press('ControlOrMeta+c');
+  assert.equal(await page.evaluate(() => navigator.clipboard.readText()), alternateSelected);
+  await page.evaluate(() =>
+    window.rippleFixture.output('\x1b[?2026h\x1b[2J\x1b[HReplacement frame\x1b[?2026l'),
+  );
+  await page.waitForTimeout(250);
+  assert.equal(
+    await page.evaluate(() => window.getSelection().toString()),
+    alternateSelected,
+    'alternate redraw preserves reader selection',
+  );
+  await page.evaluate(() => window.getSelection().removeAllRanges());
+  await page.locator('.ripple-prose').filter({ hasText: 'Replacement frame' }).waitFor();
+  assert.equal(
+    (await page.locator('.ripple-prose').innerText()).trim(),
+    'Replacement frame',
+    'alternate redraw replaces old frame and diagrams',
+  );
+  assert.equal(await page.locator('[data-ripple-rich]').count(), 0);
+  await page.getByRole('button', { name: 'Type in CLI', exact: true }).click();
+  await page.keyboard.press('Shift+ArrowLeft');
+  assert.equal(
+    await page.evaluate(
+      () => window.rippleFixture.messages.filter((message) => message.t === 'stdin').at(-1).data,
+    ),
+    '\x1b[1;2D',
+  );
   await page.evaluate(() => window.rippleFixture.output('\x1b[?1049l'));
-  await reader.waitFor();
+  await page.locator('.ripple-prose').filter({ hasText: 'Latest marker' }).waitFor();
+  assert.ok(!(await page.locator('.ripple-prose').innerText()).includes('Replacement frame'));
   await page.evaluate(() => window.rippleFixture.output('Replacement replay', true));
   await page.locator('.ripple-prose').filter({ hasText: 'Replacement replay' }).waitFor();
   assert.ok(
@@ -149,6 +188,56 @@ try {
     getComputedStyle(document.querySelector('.ripple-prose code')).fontFamily,
   ]);
   assert.notEqual(fonts[0], fonts[1]);
+  // Reproduce enabling Ripple on a session that is already in alternate mode.
+  await page.goto(new URL('/e2e/fixtures/ripple.html?alternate', page.url()).href);
+  await page.locator('.ripple-prose').filter({ hasText: 'Agent reply' }).waitFor();
+  await page.locator('[data-ripple-rich="mermaid"] svg').waitFor();
+  await page.locator('[data-ripple-rich="math"] .katex').waitFor();
+  await page.screenshot({ path: '/private/tmp/puddle-ripple-alternate.png' });
+  const screen = await page.locator('.ripple-scroll').boundingBox();
+  const controls = await page.locator('.ripple-native').boundingBox();
+  assert.ok(
+    screen.height > 100 && controls.height > 100,
+    'reader and native controls both remain visible',
+  );
+  for (const agent of ['codex', 'claude-code', 'gemini-cli', 'opencode']) {
+    for (const alternate of [false, true]) {
+      const url = new URL('/e2e/fixtures/ripple.html', page.url());
+      url.searchParams.set('agent', agent);
+      if (alternate) url.searchParams.set('alternate', '');
+      await page.goto(url.href);
+      await page
+        .locator('.ripple-prose')
+        .filter({ hasText: alternate ? 'Agent reply' : 'What changed' })
+        .waitFor();
+      await page.locator('[data-ripple-rich="mermaid"] svg').waitFor();
+      await page.locator('[data-ripple-rich="math"] .katex').waitFor();
+      await page.getByRole('button', { name: 'Type in CLI', exact: true }).click();
+      await page.keyboard.press('Shift+ArrowLeft');
+      await page.keyboard.press('Shift+ArrowRight');
+      const keys = await page.evaluate(() =>
+        window.rippleFixture.messages
+          .filter((message) => message.t === 'stdin')
+          .map((message) => message.data),
+      );
+      assert.deepEqual(
+        keys.slice(-2),
+        ['\x1b[1;2D', '\x1b[1;2C'],
+        `${agent} native editing in ${alternate ? 'alternate' : 'normal'} mode`,
+      );
+      await page.getByRole('button', { name: 'CLI only', exact: true }).click();
+      await page.locator('.ripple').waitFor({ state: 'detached' });
+      await page.evaluate(() => window.rippleFixture.enable(null));
+      await page.locator('.ripple').waitFor();
+      assert.equal(
+        await page.evaluate(
+          () => window.rippleFixture.messages.filter((message) => message.t === 'attach').length,
+        ),
+        1,
+        `${agent} retains its attachment`,
+      );
+    }
+  }
   assert.deepEqual(errors, []);
   console.log(
     'Ripple defaults, overrides, native keyboard/attachment, copy, selection, scroll, replay, alternate screen, rich output and themes pass.',
