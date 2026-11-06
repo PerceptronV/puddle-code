@@ -13,6 +13,7 @@ import {
 } from '../runtime/resources/budget.js';
 import { SCREEN_LIMITS, screenActionBytes } from './screen/limits.js';
 import { ScreenParserQueue } from './screen/queue.js';
+import { ScreenCaptureBatch } from './screen/capture.js';
 import { ScreenSnapshotWork } from './screen/work.js';
 import { readScreenFile } from './screen/files.js';
 import { ScreenSnapshotFiles } from './screen/persistence.js';
@@ -48,8 +49,10 @@ interface ScreenState {
   cols: number;
   rows: number;
   hasContent: boolean;
+  requestedSize?: { cols: number; rows: number };
   dirty: boolean;
   queue: ScreenParserQueue;
+  captures: ScreenCaptureBatch;
   revision: number;
   unavailable: boolean;
   saving: Promise<void> | null;
@@ -146,6 +149,11 @@ export class TerminalScreenStateStore {
       return;
     const state = this.admit(stream, term);
     if (!state) return;
+    // Track queued geometry, not the emulator's current size: restoration and
+    // earlier resizes may still be pending. The first request always follows
+    // restoration; identical subsequent requests need no parser action.
+    if (state.requestedSize?.cols === cols && state.requestedSize.rows === rows) return;
+    state.requestedSize = { cols, rows };
     state.queue.enqueue(screenActionBytes(), async () => {
       if (state.cols === cols && state.rows === rows) return Promise.resolve();
       await state.retained.resize(cols, rows);
@@ -221,6 +229,7 @@ export class TerminalScreenStateStore {
         })
       )
         throw new Error('Terminal screen preparation was cancelled');
+      state.requestedSize = { cols, rows };
       await state.queue.settled;
       this.requireAvailable(state);
       if (this.states.get(this.key(stream, term)) !== state)
@@ -236,23 +245,32 @@ export class TerminalScreenStateStore {
     accept?: (data: string) => void,
   ): Promise<string | null> {
     const state = this.ensure(stream, term);
-    return state.queue.capture(screenActionBytes(), () => {
-      this.requireAvailable(state);
-      if (!state.hasContent) {
-        accept?.('');
-        return null;
-      }
-      const release = this.work.tryAcquire();
-      if (!release) throw new Error('Terminal snapshot work capacity exceeded');
-      try {
-        const data = this.serialise(state);
-        // Transfer retained ownership before releasing serialisation's work allowance.
+    return state.captures.capture(
+      (acceptReaders) => {
+        this.requireAvailable(state);
+        if (!state.hasContent) {
+          acceptReaders('');
+          return null;
+        }
+        const release = this.work.tryAcquire();
+        if (!release) throw new Error('Terminal snapshot work capacity exceeded');
+        try {
+          const data = this.serialise(state);
+          // Transfer retained ownership before releasing serialisation's work allowance.
+          acceptReaders(data);
+          return data;
+        } finally {
+          release();
+        }
+      },
+      (data) => {
+        // A consumer can synchronously cause a canonical gap during hand-off.
+        // Later readers in this batch must retain the same fail-closed behaviour
+        // as independently queued captures.
+        this.requireAvailable(state);
         accept?.(data);
-        return data;
-      } finally {
-        release();
-      }
-    });
+      },
+    );
   }
 
   /** Bounded plain text without resizing; visible mode includes the footer below the cursor. */
@@ -439,6 +457,7 @@ export class TerminalScreenStateStore {
       initialRelease();
       throw error;
     }
+    const queue = new ScreenParserQueue(this.parserBudget, unavailable, this.captureBudget);
     const state: ScreenState = {
       terminal,
       retained,
@@ -447,7 +466,8 @@ export class TerminalScreenStateStore {
       rows,
       hasContent: false,
       dirty: false,
-      queue: new ScreenParserQueue(this.parserBudget, unavailable, this.captureBudget),
+      queue,
+      captures: new ScreenCaptureBatch(queue, this.captureBudget),
       revision: 0,
       unavailable: false,
       saving: null,

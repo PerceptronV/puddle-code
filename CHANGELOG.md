@@ -31,6 +31,8 @@ Past releases: see docs/changelogs/.
 
 ### Daemon
 
+- Share pending terminal snapshots at the same input boundary, preserving per-reader memory admission, fresh replay and durable checkpoint behaviour.
+
 - Batch native conversation ingestion, avoid rewriting unchanged metadata, and read Codex file timestamps asynchronously while retaining complete discovery and missing-file confirmation.
 
 - Resolve daemon and runtime updates independently from a release manifest, preserving existing pins and legacy catalogue readers.

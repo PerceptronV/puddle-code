@@ -176,6 +176,14 @@ grant change remains unresolved, rechecking local capacity and the same durable
 grant before spending. Definitive exhaustion still refuses admission. This neither
 replays terminal input nor expands the existing work queues or memory limits.
 
+Concurrent canonical-screen readers share one pending serialisation only at the
+same ordered input boundary. Each reader retains its own bounded metadata
+admission and transfers ownership within the existing snapshot work allowance.
+Queued output or geometry changes require a separate capture; repeated requests
+for the same queued geometry do not add parser work. Captures retain no ANSI
+cache after hand-off. Periodic persistence, fsync and shutdown flushing retain
+their existing cadence and capacity checks.
+
 Runtime owners admit canonical viewport and initial parser-action capacity before
 creating a native PTY, then await restore and requested geometry. A refusal prevents
 the new terminal from starting with a canonical-screen gap. Preparations coalesce

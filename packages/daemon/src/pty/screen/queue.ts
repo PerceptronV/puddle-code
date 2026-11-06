@@ -4,6 +4,7 @@ import type { RuntimeBufferBudget } from '../../runtime/resources/budget.js';
 export class ScreenParserQueue {
   private tail: Promise<void> = Promise.resolve();
   private closed = false;
+  private inputSequence = 0;
   constructor(
     private readonly budget: RuntimeBufferBudget,
     private readonly failed: (error: unknown) => void,
@@ -12,6 +13,11 @@ export class ScreenParserQueue {
 
   get settled(): Promise<void> {
     return this.tail;
+  }
+
+  /** Accepted mutation boundary, including input not parsed yet; reads do not advance it. */
+  get inputRevision(): number {
+    return this.inputSequence;
   }
 
   enqueue(
@@ -35,13 +41,14 @@ export class ScreenParserQueue {
   enqueueAdmitted(
     release: () => void,
     operation: () => Promise<void>,
-    options: { cancelled?: () => void } = {},
+    options: { cancelled?: () => void; critical?: boolean } = {},
   ): boolean {
     if (this.closed) {
       release();
       options.cancelled?.();
       return false;
     }
+    if (options.critical !== false) this.inputSequence++;
     this.tail = this.tail
       .then(async () => {
         if (!this.closed) await operation();
