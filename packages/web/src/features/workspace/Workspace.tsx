@@ -2,45 +2,17 @@ import { TrayMotionProvider } from '../../components/ui/tray-motion';
 import { animateSidebar } from './layout/animate-sidebar';
 import { IslandSeparator } from './layout/IslandSeparator';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { useLocation, useNavigate, useParams } from 'react-router';
-import { useQueryClient } from '@tanstack/react-query';
+import { useNavigate, useParams } from 'react-router';
 import { Group, Panel, type Layout } from 'react-resizable-panels';
-import {
-  UNTITLED_SESSION,
-  type LatexSynctexResponse,
-  type LayoutLeaf,
-  type Session,
-  type SessionKind,
-  type TabRef,
-} from '@puddle/shared';
-import { createUntitled, deleteUntitled } from '../../lib/queries/untitled-queries';
-import { deleteDraft, saveDraft } from '../../lib/persistence/drafts';
-import { renameEntry } from '../../lib/queries/worktree-queries';
-import { basename, dirOf, joinPath } from '../explorer/explorer-paths';
-import { tabKind } from '../editor/tabs/editor-tabs';
-import { previewKind } from '../editor/previews/preview-kind';
+import { UNTITLED_SESSION, type Session, type SessionKind, type TabRef } from '@puddle/shared';
+import { useWorkspaceEditor } from '../editor/tabs/use-workspace-editor';
 import { requestActiveTabSave } from '../editor/buffers/active-tab-save';
-import {
-  forgetUntitledContent,
-  setUntitledSaveHandler,
-  type UntitledSaveRequest,
-} from '../editor/buffers/untitled-save-store';
-import { UntitledSaveDialog } from './tabs/UntitledSaveDialog';
-import {
-  Dialog,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '../../components/ui/dialog';
-import { Button } from '../../components/ui/button';
+import { useWorkspaceDrafts } from './tabs/use-workspace-drafts';
 import { useExplorerTarget } from '../explorer/use-explorer-target';
-import { fileTabRevealTarget } from '../explorer/file-tab-reveal';
+import { useWorkspaceFileNavigation } from '../explorer/use-workspace-file-navigation';
 import {
   directoryTargetSupported,
   nativeConversationSyncSupported,
-  untitledSupported,
 } from '../../lib/transport/protocol-support';
 import { useWorkspaceCompilation } from '../editor/compilation/use-workspace-compilation';
 import { useClientSettings } from '../../lib/settings/client-settings';
@@ -49,7 +21,6 @@ import {
   hostLabel,
   useAccounts,
   useAllSessions,
-  useArchiveSession,
   useCreateSession,
   useDaemonVersion,
   useHostInfo,
@@ -62,29 +33,16 @@ import {
 } from '../../lib/queries/queries';
 import { mergeOrder, orderByDrag, reorderIds } from './sessions/session-order';
 import { useNewSession } from '../shell/new-session-context';
-import type { EditorTab } from '../editor/tabs/editor-tabs';
-import {
-  EditorProvider,
-  useEditorHandler,
-  type EditorPosition,
-  type RevealTarget,
-} from './editor-context';
+import { EditorProvider } from './editor-context';
 import { toast } from 'sonner';
 import { toastError } from '../../lib/transport/errors';
 import { wsManager } from '../../lib/transport/ws';
-import { registerHotkey, useHotkeyLabel } from '../../lib/navigation/hotkeys';
+import { registerHotkey } from '../../lib/navigation/hotkeys';
 import { setScratchpadInsertHandler } from '../scratchpad/scratchpad-store';
-import {
-  externalBrowseRoot,
-  resolveFileLinkTarget,
-  type FileLinkTarget,
-} from '../terminal/links/file-links';
 import { LocalPhonePane } from '../mobile/LocalPhonePane';
 import { KeepAliveHost } from './keep-alive';
-import { registerOpenPathHandler } from '../../lib/navigation/path-open';
-import { requestReveal } from '../../lib/navigation/reveal-in-tree';
-import { rememberClosedTab, takeClosedTab } from './tabs/closed-tabs';
-import { allLeaves, findLeaf, tabRefKey, type DropEdge } from './layout/layout-tree';
+import { useWorkspaceTabs } from './tabs/use-workspace-tabs';
+import { tabRefKey } from './layout/layout-tree';
 
 import { projectAbbrev } from '../../lib/project-abbrev';
 import { NARROW_VIEWPORT, useMediaQuery } from '../../lib/hooks/use-media-query';
@@ -100,9 +58,8 @@ import {
   CollapsedSessionsRail,
   SessionSidebar,
   type SessionGroup,
-  type SidebarSessionSelection,
 } from './sessions/SessionSidebar';
-import { nextSessionSelection, retainVisibleSessions } from './sessions/session-selection';
+import { useSidebarSessionSelection } from './sessions/use-sidebar-session-selection';
 import { TileTree } from './layout/TileTree';
 import { TilingDnd } from './layout/TilingDnd';
 import { useWorkspaceLayout } from './layout/use-workspace-layout';
@@ -137,15 +94,6 @@ function WorkspaceInner() {
   const projectId = params['id'] ?? '';
   const validProject = /^[0-9a-f]{10}$/.test(projectId);
   const activeSessionId = params['sid'] ?? null;
-  const location = useLocation();
-  // A file tab can hide the URL's terminal without changing its session id.
-  // Each notification click explicitly activates that terminal, even when the
-  // URL is identical. Ordinary renders and file-tab switches keep their focus.
-  const notificationKey =
-    (location.state as { notificationSession?: unknown } | null)?.notificationSession ===
-    activeSessionId
-      ? location.key
-      : null;
   // The detail query keeps the PREVIOUS project's data while the next one is in
   // flight, so a project switch never unmounts this component (open terminals
   // keep their viewport, and a sidebar double-click is not yanked out from under
@@ -157,9 +105,7 @@ function WorkspaceInner() {
   const projectDetail = detail.data?.project.id === projectId ? detail.data : undefined;
   const accounts = useAccounts(detail.data?.project.profile_id).data ?? [];
   const renderTitle = useSessionTitleRenderer();
-  const saveKey = useHotkeyLabel('editor.save');
   const daemonProtocol = useDaemonVersion().data?.protocol;
-  const qc = useQueryClient();
 
   // Profile-keyed (SPEC §11): the layout tree is shared across projects, so the
   // tiling area needs every session it may hold a tab for — whatever the
@@ -188,10 +134,6 @@ function WorkspaceInner() {
   // through v0.0.24): this one only decides whether the right sidebar lists
   // every project's sessions or just this project's.
   const showAllSessions = clientSettingsNow.showAllProjectSessions;
-  // Imperative reads for the saved-layout load path (layouts-store bridge).
-  const allSessionsRef = useRef(allSessions.data);
-  allSessionsRef.current = allSessions.data;
-
   // The right sidebar groups sessions by project (SPEC §12): every project's
   // sessions in the default profile-based layout (project order inherits the
   // homescreen's projectOrder, and the groups derive from the same
@@ -259,46 +201,6 @@ function WorkspaceInner() {
     orderedProjects,
     allSessions.data,
   ]);
-  // Sidebar selection is workspace state rather than list state so the same
-  // selected conversations survive switching between the expanded list and
-  // collapsed rail. The range follows their shared flattened visual order.
-  const visibleSessionIds = useMemo(
-    () => sessionGroups.flatMap((group) => group.sessions.map((session) => session.id)),
-    [sessionGroups],
-  );
-  const [selectedSessionIds, setSelectedSessionIds] = useState<ReadonlySet<string>>(
-    () => new Set(),
-  );
-  const sessionSelectionAnchor = useRef<string | null>(null);
-  useEffect(() => {
-    setSelectedSessionIds((selection) => retainVisibleSessions(selection, visibleSessionIds));
-    if (
-      sessionSelectionAnchor.current !== null &&
-      !visibleSessionIds.includes(sessionSelectionAnchor.current)
-    ) {
-      sessionSelectionAnchor.current = null;
-    }
-  }, [visibleSessionIds]);
-  const selectSidebarSession = useCallback(
-    (id: string, modifiers: { shift: boolean; toggle: boolean }) => {
-      setSelectedSessionIds((selection) => {
-        const next = nextSessionSelection(
-          visibleSessionIds,
-          selection,
-          sessionSelectionAnchor.current,
-          id,
-          modifiers,
-        );
-        sessionSelectionAnchor.current = next.anchor;
-        return next.selection;
-      });
-    },
-    [visibleSessionIds],
-  );
-  const selectOnlySidebarSession = useCallback((id: string) => {
-    sessionSelectionAnchor.current = id;
-    setSelectedSessionIds(new Set([id]));
-  }, []);
   // A sidebar project-header drag persists into the SAME projectOrder the
   // homescreen cards drag (SPEC §11) — one source of truth for project order.
   // dragover fires continuously, so identical orders never re-persist.
@@ -332,12 +234,6 @@ function WorkspaceInner() {
     );
   }, [showAllSessions, projectScoped, sessions, allSessions.data, orderedProjects]);
 
-  // Effects reference the controller through a ref so they don't list `layout`
-  // (which changes on every tree edit) as a dependency — otherwise a
-  // focus/ensure op would re-trigger the effect that made it, looping.
-  const layoutRef = useRef(layout);
-  layoutRef.current = layout;
-
   const compilation = useWorkspaceCompilation({
     layout,
     scopeKey,
@@ -365,17 +261,10 @@ function WorkspaceInner() {
   // ui_state — the persisted collapse flags belong to the desktop layout, and
   // a phone visit must not clobber them (ui_state is shared per profile).
   const isNarrow = useMediaQuery(NARROW_VIEWPORT);
-  const [phoneSelection, setPhoneSelection] = useState<string | null>(null);
-  const [phoneVisited, setPhoneVisited] = useState<string[]>([]);
   const isNarrowRef = useRef(isNarrow);
   isNarrowRef.current = isNarrow;
   const [narrowNav, setNarrowNav] = useState(false);
   const [narrowSessions, setNarrowSessions] = useState(false);
-  // Restore-on-open runs once per project VISIT, not per mount: switching
-  // projects in the sidebar re-runs it against the new project's stored
-  // active session (which per-project layouts make a distinct value).
-  const [restoredProject, setRestoredProject] = useState<string | null>(null);
-  const restored = restoredProject === projectId;
   const [creating, setCreating] = useState(false);
   const [createKind, setCreateKind] = useState<SessionKind>('agent');
   const [seedAccountId, setSeedAccountId] = useState<number | undefined>(undefined);
@@ -402,18 +291,6 @@ function WorkspaceInner() {
     },
     [orderedProjects, openCreate],
   );
-  // Set when the active tab is closed: the router clears the URL param a
-  // render later, so this stops the deep-link effect resurrecting the tab in
-  // the interim (it would otherwise leave a zombie header — no active session).
-  const justClosedActive = useRef<string | null>(null);
-  // A session opened from ANOTHER project's group in the sidebar (SPEC §11):
-  // under project-based layouts that project keeps its own tree, so the tab
-  // cannot be opened here — the gesture navigates instead, and the navigation
-  // effect opens it once THAT project's layout is the live one. `pin` carries
-  // whether the gesture meant permanent (a drop, a double-click) or preview (a
-  // single click). This survives the switch because the query keeps the previous
-  // detail, so the workspace re-renders rather than remounting.
-  const pendingOpen = useRef<{ session: string; pin: boolean } | null>(null);
   const { setHandler } = useNewSession();
 
   // A cockpit transition schedules one coalesced native-store refresh. The
@@ -424,134 +301,22 @@ function WorkspaceInner() {
     void refreshProjectConversations(projectId).catch(() => undefined);
   }, [daemonProtocol, projectId, validProject]);
 
-  // Follow an exact native switch only in the viewer that was focused on the
-  // source session. The source tab stays in the tree as frozen history; the
-  // target opens as a preview in the focused pane (or the destination
-  // project's focused pane after navigation).
-  useEffect(
-    () =>
-      wsManager.onSessionSwitched((event) => {
-        if (event.source_session !== activeSessionId) return;
-        pendingOpen.current = { session: event.target_session, pin: false };
-        if (event.target_project === projectId) {
-          layoutRef.current.ensureTerminal(event.target_session, { preview: true });
-        }
-        void navigate(`/project/${event.target_project}/session/${event.target_session}`);
-      }),
-    [activeSessionId, navigate, projectId],
-  );
-
-  // Opening any tab from a navigator (files tree, diff list, history list) or a
-  // Phase 4 terminal link adds/focuses its editor tab and makes it active —
-  // pure ui-state, so it works before the lazy editor chunk loads. A `position`
-  // arrives with a fresh nonce so the editor zone reveals the caret even when
-  // the same file tab was already open (only meaningful for file tabs).
-  const [reveal, setReveal] = useState<RevealTarget | null>(null);
-  const revealCompiledSource = useCallback(
-    (leafId: string, target: LatexSynctexResponse) => {
-      const sourceLeafId = layoutRef.current.openEditorInLeaf(
-        leafId,
-        {
-          session: target.session,
-          path: target.path,
-          ...(target.root !== undefined
-            ? { kind: 'external' as const, root: target.root }
-            : { kind: 'file' as const }),
-        },
-        { dedupeAcrossTree: true },
-      );
-      claimScrollDriver(sourceLeafId);
-      setReveal({
-        session: target.session,
-        path: target.path,
-        ...(target.root !== undefined ? { root: target.root } : {}),
-        line: target.line,
-        column: target.column,
-        nonce: Date.now(),
-      });
-    },
-    [claimScrollDriver],
-  );
-  const openEditorTab = useCallback(
-    (tab: EditorTab, position?: EditorPosition, opts?: { preview?: boolean }) => {
-      claimScrollDriver(layout.focusedLeaf.id);
-      layout.openEditor(tab, { preview: opts?.preview });
-      // On a phone the navigator overlay covers the pane it just opened into.
+  const {
+    openFile,
+    openEditorTab,
+    reveal,
+    revealPreviewSource,
+    revealCompiledSource,
+    renameFileTab,
+  } = useWorkspaceEditor({
+    layout,
+    baseUiState,
+    claimScrollDriver,
+    onOpen: () => {
       if (isNarrowRef.current) setNarrowNav(false);
-      if (position && ['file', 'external'].includes(tab.kind ?? 'file')) {
-        setReveal({
-          session: tab.session,
-          path: tab.path,
-          ...(tab.root !== undefined ? { root: tab.root } : {}),
-          line: position.line,
-          column: position.column,
-          nonce: Date.now(),
-        });
-      }
     },
-    [layout, claimScrollDriver],
-  );
-  // Stable file-open handler for terminal links, the explorer, and the editor
-  // context (keeps the original `(session, path, position?)` shape). Opens are
-  // permanent by default; the explorer opts into preview per single-vs-double
-  // click (VSCode-style).
-  const openFile = useCallback(
-    (
-      sessionId: string,
-      path: string,
-      position?: EditorPosition,
-      opts?: { preview?: boolean; view?: 'source' | 'preview'; root?: string },
-    ) =>
-      openEditorTab(
-        {
-          // A rooted open is an `external` tab: the path is relative to the
-          // browse root, and a `file` tab would resolve it against the
-          // WORKTREE (see OpenFileOpts.root).
-          ...(opts?.root !== undefined
-            ? { kind: 'external' as const, session: sessionId, path, root: opts.root }
-            : { kind: 'file' as const, session: sessionId, path }),
-          ...(opts?.view
-            ? { view: opts.view }
-            : !position && previewKind(path) === 'notebook'
-              ? { view: 'preview' as const }
-              : {}),
-        },
-        position,
-        opts,
-      ),
-    [openEditorTab],
-  );
-  useEditorHandler(openFile);
-  const revealPreviewSource = useCallback(
-    (leafId: string, tab: EditorTab, position: EditorPosition) => {
-      const sourceLeafId = layout.revealSource(leafId, tab);
-      claimScrollDriver(sourceLeafId);
-      setReveal({
-        session: tab.session,
-        path: tab.path,
-        ...(tab.root !== undefined ? { root: tab.root } : {}),
-        line: position.line,
-        column: position.column,
-        nonce: Date.now(),
-      });
-    },
-    [layout, claimScrollDriver],
-  );
-  // A validated terminal link (SPEC §7): a file opens an editor tab — an
-  // `external` one when it lies outside the worktree (15.2) — and a DIRECTORY
-  // binds the file tree to it as a pinned browse (SPEC §8), surfacing the
-  // Files navigator first so the result is actually visible.
-  const [browseRequest, setBrowseRequest] = useState<{
-    session: string;
-    root: string;
-    nonce: number;
-  } | null>(null);
-  const filetreeRootRef = useRef<string | null>(null);
-  const [filetreeRoot, setFiletreeRoot] = useState<string | null>(null);
-  const rememberFiletreeRoot = useCallback((root: string | null) => {
-    filetreeRootRef.current = root;
-    setFiletreeRoot(root);
-  }, []);
+  });
+
   // Explorer clicks: a single click opens an ephemeral preview tab; a double
   // click opens (or promotes to) a permanent one.
   const openTreeFile = useCallback(
@@ -596,83 +361,6 @@ function WorkspaceInner() {
     [openEditorTab],
   );
 
-  // Double-click on a strip's blank tail: a fresh untitled draft (SPEC §8) —
-  // worktree-AGNOSTIC, held in the profile's untitled store until ⌘S places
-  // it into the bound worktree via the save-as dialogue below. The nil-uuid
-  // `session` keeps the tab schema-valid while binding to nothing.
-  // Feature-detect the untitled store (PROTOCOL.md rule 3): on a pre-10.3
-  // daemon the POST would 404, which reads as a bug rather than a version
-  // gap — say what is actually missing. Unknown (still fetching) reads as
-  // supported, like every other gate.
-  const draftsSupported = untitledSupported(daemonProtocol);
-  const onNewUntitled = useCallback(
-    (_leaf: LayoutLeaf) => {
-      if (profileId === undefined) return;
-      if (!draftsSupported) {
-        toast.error('Untitled drafts need a newer daemon — refresh the connection to update it');
-        return;
-      }
-      createUntitled(profileId)
-        .then(({ name }) =>
-          openEditorTab({ kind: 'untitled', session: UNTITLED_SESSION, path: name }),
-        )
-        .catch((e: unknown) =>
-          toast.error(e instanceof Error ? e.message : 'Could not create a draft'),
-        );
-    },
-    [openEditorTab, profileId, draftsSupported],
-  );
-
-  // Save-as for untitled drafts: pick a path in the BOUND worktree, write it
-  // there, drop the draft, and swap the tab for an ordinary file tab.
-  const [savingUntitled, setSavingUntitled] = useState<UntitledSaveRequest | null>(null);
-  useEffect(() => {
-    setUntitledSaveHandler(setSavingUntitled);
-    return () => setUntitledSaveHandler(null);
-  }, []);
-
-  // Closing an untitled tab discards its draft — confirmed first, since the
-  // draft file is deleted with it (nothing lists orphaned drafts).
-  const [discardingUntitled, setDiscardingUntitled] = useState<{
-    leafId: string;
-    ref: TabRef;
-  } | null>(null);
-  const confirmDiscardUntitled = () => {
-    const d = discardingUntitled;
-    setDiscardingUntitled(null);
-    if (!d || d.ref.type !== 'editor') return;
-    const name = d.ref.tab.path;
-    if (profileId !== undefined) void deleteUntitled(profileId, name).catch(() => undefined);
-    forgetUntitledContent(name);
-    layout.close(d.leafId, d.ref);
-  };
-
-  // A saved draft: drop its untitled tab (wherever it sits) and open the real
-  // file tab in its place. Two layout ops, deliberately split across a tick —
-  // each op persists against the tree its render saw, so the second must run
-  // after the first has committed.
-  const finishUntitledSave = (name: string, sessionId: string, path: string, root?: string) => {
-    setSavingUntitled(null);
-    const ref: TabRef = {
-      type: 'editor',
-      tab: { kind: 'untitled', session: UNTITLED_SESSION, path: name },
-    };
-    const key = tabRefKey(ref);
-    for (const leaf of allLeaves(layoutRef.current.tree)) {
-      if (leaf.tabs.some((t) => tabRefKey(t) === key)) layoutRef.current.close(leaf.id, ref);
-    }
-    void qc.invalidateQueries({ queryKey: ['wt-tree', sessionId] });
-    setTimeout(() => {
-      // A draft saved into a directory target becomes an `external` tab: that is
-      // the kind whose identity and requests carry a root (SPEC §8).
-      layoutRef.current.openEditor(
-        root === undefined
-          ? { kind: 'file', session: sessionId, path }
-          : { kind: 'external', session: sessionId, path, root },
-      );
-    }, 0);
-  };
-
   // The ⌘K palette, top bar, and profile panel reuse this modal; an account
   // id seeds the picker (profile panel → session on a chosen account).
   useEffect(() => {
@@ -683,67 +371,6 @@ function WorkspaceInner() {
     });
     return () => setHandler(null);
   }, [setHandler]);
-
-  // Restore-on-open: land on the stored active session unless the URL already
-  // deep-links one. Navigation only follows a stored session of THIS project
-  // (the project detail's own list decides — entering project A must not yank
-  // the URL to wherever the profile last worked), so restore never waits on
-  // anything beyond the detail fetch and terminals open immediately.
-  // It waits for THIS project's detail (`projectDetail`), never the stale row a
-  // switch renders through: the stored session is looked up in that list.
-  useEffect(() => {
-    if (restored || !uiState.loaded || !projectDetail) return;
-    setRestoredProject(projectId);
-    const stored = uiState.snapshot.active_session;
-    const storedSession = sessions.find((s) => s.id === stored);
-    if (!activeSessionId && storedSession && storedSession.status !== 'archived') {
-      void navigate(`/project/${projectId}/session/${storedSession.id}`, { replace: true });
-    }
-  }, [restored, uiState, projectDetail, sessions, activeSessionId, navigate, projectId]);
-
-  // A session navigation or explicit notification click ensures a terminal for
-  // that session and focuses it — added to the currently focused pane if absent,
-  // else just focused — and records it as the stored active session (for reload
-  // restore + the left-sidebar bind). This must fire ONCE per navigation, not on
-  // every render: re-running it would re-assert the session's terminal as its
-  // leaf's active tab, so clicking a file tab that shares the pane would flip
-  // straight back to the terminal. Hence the ref-based `uiState`/`layout` access
-  // and the deps limited to what actually changes on navigation.
-  useEffect(() => {
-    if (!restored) return;
-    if (isNarrowRef.current) {
-      if (activeSessionId) {
-        setPhoneSelection(activeSessionId);
-        setPhoneVisited((ids) => (ids.includes(activeSessionId) ? ids : [...ids, activeSessionId]));
-      }
-      setNarrowSessions(false);
-      return;
-    }
-    // Navigation is how a phone picks a session — the overlay's job is done.
-    setNarrowSessions(false);
-    if (!activeSessionId) {
-      justClosedActive.current = null; // close completed; the URL caught up
-      return;
-    }
-    // Don't re-open the tab we're closing while the URL param still lags.
-    if (activeSessionId === justClosedActive.current && !notificationKey) return;
-    justClosedActive.current = null;
-    // A gesture that had to cross projects to reach its layout (see
-    // `pendingOpen`) says how the tab lands; any other navigation is a plain
-    // single click. One navigation consumes the intent whether it matched or not,
-    // so a stale one cannot pin a later open.
-    const intent = pendingOpen.current;
-    pendingOpen.current = null;
-    // Single-click navigation opens the session as an ephemeral preview tab
-    // (VSCode-style); double-clicking its tab promotes it to permanent.
-    layoutRef.current.ensureTerminal(activeSessionId, {
-      preview: intent?.session === activeSessionId ? !intent.pin : true,
-    });
-    const ui = uiStateRef.current;
-    if (ui.snapshot.active_session !== activeSessionId) {
-      ui.update({ active_session: activeSessionId });
-    }
-  }, [restored, activeSessionId, notificationKey]);
 
   // waiting_input is mirrored in the tab title (SPEC §12). The title's base
   // is the machine's label (display-name customisation first, then hostname),
@@ -758,172 +385,6 @@ function WorkspaceInner() {
       document.title = base;
     };
   }, [sessions, project?.name, host.data]);
-
-  // Closing a session from the sidebar / its lifecycle menu removes its terminal
-  // from the tree; if it was the URL-bound one, drop the binding.
-  const closeTab = useCallback(
-    (id: string) => {
-      const wasActive = activeSessionId === id;
-      if (wasActive) justClosedActive.current = id;
-      layout.removeTerminal(id);
-      if (wasActive) {
-        uiState.update({ active_session: null });
-        void navigate(`/project/${projectId}`);
-      }
-    },
-    [layout, uiState, activeSessionId, navigate, projectId],
-  );
-  // Sessions dropped on an archive target (rail icon / list header), or chosen
-  // through a selected row's batch menu: archive every one — no confirmation,
-  // nothing is destroyed (SPEC §4) — and drop their tabs.
-  // Declared HERE, with the other hooks: every hook in this component must run
-  // before the loading gate below returns early, or the gate flipping changes
-  // the hook count mid-life and React blanks the workspace (React #310).
-  const archiveSession = useArchiveSession();
-  const archiveSidebarSessions = useCallback(
-    async (ids: readonly string[]) => {
-      const uniqueIds = [...new Set(ids)];
-      const results = await Promise.allSettled(
-        uniqueIds.map((id) => archiveSession.mutateAsync(id)),
-      );
-      const archivedIds = uniqueIds.filter((_, index) => results[index]?.status === 'fulfilled');
-      for (const id of archivedIds) closeTab(id);
-      if (archivedIds.length > 0) {
-        setSelectedSessionIds((selection) => {
-          const next = new Set(selection);
-          for (const id of archivedIds) next.delete(id);
-          return next;
-        });
-        if (
-          sessionSelectionAnchor.current !== null &&
-          archivedIds.includes(sessionSelectionAnchor.current)
-        ) {
-          sessionSelectionAnchor.current = null;
-        }
-      }
-      const failures = results.filter((result) => result.status === 'rejected');
-      const firstFailure = failures[0];
-      if (failures.length === 1 && firstFailure) {
-        toastError(firstFailure.reason);
-      } else if (failures.length > 1) {
-        toast.error(`Couldn’t archive ${failures.length} of ${uniqueIds.length} sessions`);
-      }
-    },
-    [archiveSession, closeTab],
-  );
-  const sidebarSessionSelection: SidebarSessionSelection = {
-    ids: selectedSessionIds,
-    onSelect: selectSidebarSession,
-    onSelectOnly: selectOnlySidebarSession,
-    onArchive: (ids) => void archiveSidebarSessions(ids),
-  };
-
-  // Activating a tab focuses its pane; activating a terminal also navigates so
-  // the left sidebar binds to it. A terminal tab may belong to ANOTHER project
-  // (the cross-project sidebar can open one here), so navigate to the session's
-  // OWN project — otherwise the URL keeps this project and the file tree, bound
-  // to a session it doesn't own, shows empty. Closing a pane tab mirrors `closeTab`.
-  const onActivateTab = useCallback(
-    (leafId: string, ref: TabRef) => {
-      claimScrollDriver(leafId);
-      layout.activate(leafId, ref);
-      if (ref.type === 'terminal' && ref.session !== activeSessionId) {
-        // Navigate only when the owner is KNOWN: guessing the current project
-        // while the all-sessions list is still loading would bind another
-        // project's session under the wrong URL (empty header + file tree).
-        // The tab itself activates regardless; the URL catches up on the next
-        // click once the list has landed. Already-bound sessions skip the
-        // navigate — pane-body clicks would otherwise pile up history entries.
-        const owner = tabSessions.find((s) => s.id === ref.session)?.project_id;
-        if (owner) void navigate(`/project/${owner}/session/${ref.session}`);
-      }
-    },
-    [layout, navigate, tabSessions, activeSessionId, claimScrollDriver],
-  );
-  const onCloseTab = useCallback(
-    (leafId: string, ref: TabRef) => {
-      // Closing an untitled tab discards its profile-store draft — confirm
-      // first (the dialogue below); nothing else lists orphaned drafts.
-      if (ref.type === 'editor' && tabKind(ref.tab) === 'untitled') {
-        setDiscardingUntitled({ leafId, ref });
-        return;
-      }
-      // Remember where it sat so `tab.reopen` can put it back in the same pane
-      // at the same position (SPEC §11). Untitled drafts return above: closing
-      // one DELETES it, so there is nothing to reopen.
-      const from = findLeaf(layout.tree, leafId);
-      const index = from?.tabs.findIndex((t) => tabRefKey(t) === tabRefKey(ref)) ?? -1;
-      rememberClosedTab(scopeKey, { leafId, index: Math.max(0, index), ref });
-      layout.close(leafId, ref);
-      if (ref.type === 'terminal' && ref.session === activeSessionId) {
-        justClosedActive.current = ref.session;
-        uiState.update({ active_session: null });
-        void navigate(`/project/${projectId}`);
-      }
-    },
-    [layout, activeSessionId, uiState, navigate, projectId, scopeKey],
-  );
-  // `tab.reopen`: put the last closed tab back where it was — same pane, same
-  // position in its strip — through the very path a drag takes (`center` drop),
-  // so it lands permanent and focused. A closure whose session has since gone is
-  // discarded rather than resurrected; while the full session list is still
-  // loading nothing is known to be dead, so everything stays reopenable.
-  const reopenClosedTab = useCallback(() => {
-    const live = allSessionsRef.current;
-    const alive = live
-      ? new Set(live.filter((s) => s.status !== 'archived').map((s) => s.id))
-      : null;
-    const entry = takeClosedTab(scopeKey, (ref) => {
-      if (alive === null) return true;
-      const sid = ref.type === 'terminal' ? ref.session : ref.tab.session;
-      return alive.has(sid);
-    });
-    if (!entry) return;
-    const { ref } = entry;
-    // The pane it came from may itself be gone (a leaf that loses its last tab
-    // collapses): then the tab joins the pane being worked in, appended rather
-    // than forced to a position in a strip it never belonged to.
-    const home = findLeaf(layout.tree, entry.leafId);
-    const leafId = home ? entry.leafId : layout.focusedLeaf.id;
-    const index = home ? entry.index : undefined;
-    layout.drop({ ref, fromLeafId: leafId, toLeafId: leafId, edge: 'center', index });
-    // A reopened terminal claims the URL, exactly as activating its tab does.
-    if (ref.type === 'terminal' && ref.session !== activeSessionId) {
-      const owner = tabSessions.find((s) => s.id === ref.session)?.project_id;
-      if (owner) void navigate(`/project/${owner}/session/${ref.session}`);
-    }
-  }, [layout, scopeKey, activeSessionId, tabSessions, navigate]);
-  // A sidebar drag (file row / session row or dot) dropped onto a pane: open a
-  // PERMANENT tab there through the same dropTab path strip drags use — centre
-  // inserts, an edge splits — so a drag opens and positions in one gesture.
-  // As an OPEN (`copy`), not a move: a file already open elsewhere gains a
-  // second tab sharing its buffer rather than being yanked from its pane
-  // (dropTab keeps terminals unique — those still move). A dropped session
-  // also claims the URL, like activating its tab would.
-  const onDropTab = useCallback(
-    (leafId: string, ref: TabRef, edge: DropEdge) => {
-      const owner =
-        ref.type === 'terminal'
-          ? tabSessions.find((s) => s.id === ref.session)?.project_id
-          : undefined;
-      // Under project-based layouts, a session from another project belongs in
-      // THAT project's tree — dropping it here would file it under this project
-      // and then navigate away from the pane it landed in, so the tab vanished
-      // with the layout it was filed in. Switch projects and open it there
-      // instead, permanent as a drop implies. The dropped POSITION cannot
-      // follow: it names a pane in a tree that is not the destination's.
-      if (projectScoped && owner !== undefined && owner !== projectId && ref.type === 'terminal') {
-        pendingOpen.current = { session: ref.session, pin: true };
-        void navigate(`/project/${owner}/session/${ref.session}`);
-        return;
-      }
-      layout.drop({ ref, fromLeafId: leafId, toLeafId: leafId, edge, copy: true });
-      if (ref.type === 'terminal' && ref.session !== activeSessionId && owner !== undefined) {
-        void navigate(`/project/${owner}/session/${ref.session}`);
-      }
-    },
-    [layout, activeSessionId, tabSessions, navigate, projectScoped, projectId],
-  );
 
   // The whole left sidebar binds to one worktree: the pinned session if any,
   // otherwise the FOCUSED pane's active tab — every tab carries the worktree
@@ -969,130 +430,48 @@ function WorkspaceInner() {
   );
   const targetSession = sidebarTarget.session;
   const targetRoot = sidebarTarget.root;
-  const revealFileTab = useCallback(
-    (tab: EditorTab) => {
-      const owner = tabSessions.find((session) => session.id === tab.session);
-      if (tab.root === undefined && !owner) return;
-      const currentFiletreeRoot =
-        filetreeRootRef.current ?? targetRoot ?? targetSession?.worktree_path ?? null;
-      const target = fileTabRevealTarget(
-        tab,
-        owner?.worktree_path ?? tab.root ?? '',
-        currentFiletreeRoot,
-      );
+  const drafts = useWorkspaceDrafts({
+    baseUiState,
+    scopeKey,
+    projectId,
+    targetSession,
+    targetRoot,
+    openEditorTab,
+  });
+  const {
+    closeTab,
+    onActivateTab,
+    onCloseTab,
+    onDropTab,
+    reopenClosedTab,
+    phoneSelection,
+    phoneVisited,
+    selectPhoneSession,
+  } = useWorkspaceTabs({
+    layout,
+    uiState,
+    scopeKey,
+    projectScoped,
+    sessions,
+    allSessions: allSessions.data,
+    projectReady: !!projectDetail,
+    isNarrow,
+    onNavigate: () => setNarrowSessions(false),
+    claimScrollDriver,
+    requestDiscard: drafts.requestDiscard,
+  });
+  const sidebarSessionSelection = useSidebarSessionSelection(sessionGroups, closeTab);
 
-      if (isNarrowRef.current) setNarrowNav(true);
-      uiState.update({
-        sidebar_mode: 'files',
-        ...(isNarrowRef.current ? {} : { sidebar_collapsed: false }),
-      });
-
-      if (target.browseRoot !== undefined) {
-        // The standard ephemeral browse route used by command-palette paths and
-        // terminal directory links: pin a live owner (a project-directory tab
-        // carries the nil session id, which is not itself pinnable) and rebase
-        // Files.
-        const browseSession = owner?.id ?? targetSession?.id ?? tab.session;
-        setBrowseRequest({ session: browseSession, root: target.browseRoot, nonce: Date.now() });
-      } else {
-        if (currentFiletreeRoot !== target.directory) sidebarTarget.pin(tab.session);
-      }
-      requestReveal({
-        path: target.path,
-        directory: target.directory,
-      });
-    },
-    [sidebarTarget, tabSessions, targetRoot, targetSession?.worktree_path, uiState],
-  );
-  const renameFileTab = useCallback(
-    async (tab: EditorTab, newName: string): Promise<boolean> => {
-      const trimmed = newName.trim();
-      if (trimmed === '' || trimmed === basename(tab.path)) return true;
-      const nextPath = joinPath(dirOf(tab.path), trimmed);
-      try {
-        // Load the lazy buffer module BEFORE touching disk. If the editor chunk
-        // could not load, the file stays where it is and no dirty model is left
-        // stranded under the old path.
-        const { rekeyBuffer } = await import('../editor/buffers/buffer-store');
-        const result = await renameEntry(tab.session, tab.path, nextPath, tab.root);
-        const snapshot = rekeyBuffer(tab.session, tab.path, result.path, tab.root);
-        layoutRef.current.renameFile(tab, result.path);
-        void qc.invalidateQueries({ queryKey: ['wt-tree', tab.session] });
-        void qc.invalidateQueries({ queryKey: ['wt-git-status', tab.session] });
-
-        // The old editor body's cleanup flushes its debounced draft during the
-        // layout render. Run one task later so that old-key write finishes first,
-        // then preserve dirty text under the new identity and retire the orphan.
-        setTimeout(() => {
-          const moved = snapshot?.dirty
-            ? saveDraft(tab.session, result.path, snapshot.content, snapshot.baseMtimeMs, tab.root)
-            : Promise.resolve();
-          void moved.then(() => deleteDraft(tab.session, tab.path, tab.root));
-        }, 0);
-        return true;
-      } catch (error) {
-        toastError(error);
-        return false;
-      }
-    },
-    [qc],
-  );
-  const openFromTerminal = useCallback(
-    (session: string, target: FileLinkTarget) => {
-      if (target.kind === 'dir') {
-        if (isNarrowRef.current) setNarrowNav(true);
-        uiState.update({
-          sidebar_mode: 'files',
-          ...(isNarrowRef.current ? {} : { sidebar_collapsed: false }),
-        });
-        setBrowseRequest({ session, root: target.path, nonce: Date.now() });
-        return;
-      }
-      const browseRoot = externalBrowseRoot(target, targetRoot);
-      if (browseRoot !== null) {
-        // An external file's containing directory becomes the shared Files /
-        // Changes / Search location even when the current navigator stays put.
-        setBrowseRequest({ session, root: browseRoot, nonce: Date.now() });
-      }
-      openFile(
-        session,
-        target.path,
-        target.line !== undefined ? { line: target.line, column: target.column } : undefined,
-        target.root !== undefined ? { root: target.root } : undefined,
-      );
-    },
-    [openFile, uiState, targetRoot],
-  );
-  const pathSessionId = targetSession?.id ?? null;
-  const openTypedPath = useCallback(
-    async (path: string) => {
-      if (pathSessionId === null) throw new Error('No worktree is available for this project.');
-      const target = await resolveFileLinkTarget(pathSessionId, path, { root: targetRoot });
-      // A project-directory target uses the nil session id plus `root`. Files
-      // resolving inside that directory omit `root` in the response (they are
-      // inside the resolution base), so restore it for the external-tab API.
-      const rootedTarget: FileLinkTarget =
-        target.kind === 'file' && target.root === undefined && targetRoot !== undefined
-          ? { ...target, root: targetRoot }
-          : target;
-      if (rootedTarget.kind === 'dir' && rootedTarget.relativePath !== undefined) {
-        if (isNarrowRef.current) setNarrowNav(true);
-        uiState.update({
-          sidebar_mode: 'files',
-          ...(isNarrowRef.current ? {} : { sidebar_collapsed: false }),
-        });
-        requestReveal({
-          path: rootedTarget.relativePath,
-          root: targetRoot,
-          expandTarget: true,
-        });
-        return;
-      }
-      openFromTerminal(pathSessionId, rootedTarget);
-    },
-    [pathSessionId, targetRoot, openFromTerminal],
-  );
-  useEffect(() => registerOpenPathHandler(openTypedPath), [openTypedPath]);
+  const { browseRequest, filetreeRoot, rememberFiletreeRoot, revealFileTab, openFromTerminal } =
+    useWorkspaceFileNavigation({
+      uiState,
+      sidebarTarget,
+      tabSessions,
+      openFile,
+      scopeKey: `${profileId}:${projectId}:${scopeKey}`,
+      isNarrow,
+      showNavigator: () => setNarrowNav(true),
+    });
   const sidebarMode: SidebarMode = normalizeSidebarMode(uiState.snapshot.sidebar_mode);
   const sidebarCollapsed = uiState.snapshot.sidebar_collapsed;
   const sessionsCollapsed = uiState.snapshot.sessions_collapsed;
@@ -1153,7 +532,7 @@ function WorkspaceInner() {
     'tab.reopen': reopenClosedTab,
     // The keyboard route to the strip's double-click gesture: a fresh untitled
     // draft in the focused pane (SPEC §8).
-    'tab.newUntitled': () => onNewUntitled(layout.focusedLeaf),
+    'tab.newUntitled': () => void drafts.create(),
     'tab.next': () => cycleTab(1),
     'tab.prev': () => cycleTab(-1),
     // Save is captured by the shell before Monaco and routed through this
@@ -1343,7 +722,7 @@ function WorkspaceInner() {
       onNewTerminal={() => openCreate('terminal')}
       onCollapse={onCollapse}
       onArchived={closeTab}
-      onArchiveDrop={(ids) => void archiveSidebarSessions(ids)}
+      onArchiveDrop={sidebarSessionSelection.onArchive}
       selection={sidebarSessionSelection}
       projectActions={projectActions}
     />
@@ -1361,14 +740,7 @@ function WorkspaceInner() {
     sessions.find((session) => session.id === activeSessionId)?.id ??
     null;
   const mainArea = isNarrow ? (
-    <LocalPhonePane
-      sessions={sessions}
-      selected={phoneSession}
-      select={(id) => {
-        setPhoneSelection(id);
-        setPhoneVisited((ids) => (ids.includes(id) ? ids : [...ids, id]));
-      }}
-    />
+    <LocalPhonePane sessions={sessions} selected={phoneSession} select={selectPhoneSession} />
   ) : (
     <div className="flex h-full flex-col bg-ground">
       {compilation.watchers}
@@ -1395,7 +767,7 @@ function WorkspaceInner() {
           onOpenCompilationSettings={compilation.openSettings}
           onRevealPreviewSource={revealPreviewSource}
           onRevealCompiledSource={revealCompiledSource}
-          onNewUntitled={onNewUntitled}
+          onNewUntitled={() => void drafts.create()}
           onRevealFile={revealFileTab}
           onRenameFile={renameFileTab}
           focusedLeafId={layout.focusedLeaf.id}
@@ -1420,7 +792,7 @@ function WorkspaceInner() {
       <TilingDnd
         onDrop={layout.drop}
         onDropPane={layout.dropPane}
-        onArchive={(id) => void archiveSidebarSessions([id])}
+        onArchive={(id) => sidebarSessionSelection.onArchive([id])}
         renderOverlay={(ref) => {
           const s =
             ref.type === 'terminal' ? tabSessions.find((x) => x.id === ref.session) : undefined;
@@ -1466,7 +838,7 @@ function WorkspaceInner() {
                 onNewTerminal={() => openCreate('terminal')}
                 onNewSession={() => openCreate('agent')}
                 onArchived={closeTab}
-                onArchiveDrop={(ids) => void archiveSidebarSessions(ids)}
+                onArchiveDrop={sidebarSessionSelection.onArchive}
                 selection={sidebarSessionSelection}
                 projectActions={projectActions}
               />
@@ -1588,7 +960,7 @@ function WorkspaceInner() {
                     onNewTerminal={() => openCreate('terminal')}
                     onNewSession={() => openCreate('agent')}
                     onArchived={closeTab}
-                    onArchiveDrop={(ids) => void archiveSidebarSessions(ids)}
+                    onArchiveDrop={sidebarSessionSelection.onArchive}
                     selection={sidebarSessionSelection}
                     projectActions={projectActions}
                   />
@@ -1609,44 +981,8 @@ function WorkspaceInner() {
               void navigate(`/project/${session.project_id}/session/${session.id}`)
             }
           />
-          <UntitledSaveDialog
-            request={savingUntitled}
-            targetSession={targetSession}
-            targetRoot={targetRoot}
-            targetLabel={
-              targetSession === null
-                ? ''
-                : targetRoot !== undefined
-                  ? targetRoot
-                  : targetSession.branch
-            }
-            profileId={profileId}
-            onClose={() => setSavingUntitled(null)}
-            onSaved={finishUntitledSave}
-          />
+          {drafts.dialogs}
           {compilation.settingsDialog}
-          <Dialog
-            open={discardingUntitled !== null}
-            onOpenChange={(open) => !open && setDiscardingUntitled(null)}
-          >
-            <DialogContent>
-              <DialogHeader>
-                <DialogTitle>Discard this draft?</DialogTitle>
-                <DialogDescription>
-                  Closing an untitled tab deletes its draft — {saveKey} saves it into the worktree
-                  instead.
-                </DialogDescription>
-              </DialogHeader>
-              <DialogFooter>
-                <Button variant="ghost" onClick={() => setDiscardingUntitled(null)}>
-                  Keep editing
-                </Button>
-                <Button variant="danger" onClick={confirmDiscardUntitled}>
-                  Discard
-                </Button>
-              </DialogFooter>
-            </DialogContent>
-          </Dialog>
         </div>
       </TilingDnd>
     </KeepAliveHost>

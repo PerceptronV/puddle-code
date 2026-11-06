@@ -139,7 +139,7 @@ export function useWorkspaceLayout(
   // restored tabs need behind the existing loading gate; once warm, the lazy
   // wrappers render their components directly, with no Suspense pass at all.
   // A terminal-only workspace still loads no Monaco (SPEC §8); an empty one
-  // warms nothing. `.finally`: a failed import degrades to the old lazy path
+  // warms nothing. A failed import degrades to the old lazy path
   // rather than wedging the workspace. This gates the FIRST open only — a later
   // project switch keeps the workspace mounted (and its warmed chunks), and
   // must not re-blank it to wait on a chunk the new tree may not even need. It
@@ -150,12 +150,13 @@ export function useWorkspaceLayout(
     if (!uiState.loaded) return;
     let active = true;
     const tabs = flattenTabs(layoutRef.current.tree);
+    const ready = () => {
+      if (active) setChunksReady(true);
+    };
     void Promise.all([
       tabs.some((t) => t.type === 'terminal') ? warmTerminalChunk() : undefined,
       tabs.some((t) => t.type === 'editor') ? warmEditorChunk() : undefined,
-    ]).finally(() => {
-      if (active) setChunksReady(true);
-    });
+    ]).then(ready, ready);
     return () => {
       active = false;
     };

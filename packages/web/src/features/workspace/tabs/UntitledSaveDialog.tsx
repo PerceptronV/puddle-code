@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { Session } from '@puddle/shared';
 import {
   Dialog,
@@ -53,6 +53,16 @@ export function UntitledSaveDialog({
   const [path, setPath] = useState('');
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const inFlight = useRef(false);
+  const currentRequest = useRef(request);
+  currentRequest.current = request;
+  const mounted = useRef(true);
+  useEffect(() => {
+    mounted.current = true;
+    return () => {
+      mounted.current = false;
+    };
+  }, []);
   useEffect(() => {
     if (request) {
       setPath(request.name);
@@ -61,12 +71,13 @@ export function UntitledSaveDialog({
   }, [request]);
 
   const submit = async () => {
-    if (!request || !targetSession) return;
+    if (!request || !targetSession || inFlight.current) return;
     const rel = path.trim().replace(/^\/+/, '').replace(/\/+$/, '');
     if (rel === '') {
       setError('Give the file a path.');
       return;
     }
+    inFlight.current = true;
     setBusy(true);
     setError(null);
     try {
@@ -82,6 +93,7 @@ export function UntitledSaveDialog({
         else if (e instanceof ApiError && e.status === 413) exists = true;
         else throw e;
       }
+      if (!mounted.current || currentRequest.current !== request) return;
       if (exists) {
         setError(`${rel} already exists in ${targetLabel}.`);
         return;
@@ -97,9 +109,11 @@ export function UntitledSaveDialog({
       forgetUntitledContent(request.name);
       onSaved(request.name, targetSession.id, rel, targetRoot);
     } catch (e) {
-      setError(e instanceof Error ? e.message : 'Save failed');
+      if (mounted.current && currentRequest.current === request)
+        setError(e instanceof Error ? e.message : 'Save failed');
     } finally {
-      setBusy(false);
+      inFlight.current = false;
+      if (mounted.current) setBusy(false);
     }
   };
 

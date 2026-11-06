@@ -27,6 +27,8 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
+- Preserve draft text and original layout ownership when file renames, draft saves or archive replies finish after switching projects; discard stale path and draft-open completions.
+
 - Handle cancelled word highlighting and diff replies for disposed editor models during workspace transitions.
 
 - Fit collapsed project abbreviations to the rail at the largest readable size, without ellipses.

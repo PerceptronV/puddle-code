@@ -1,3 +1,6 @@
+import { openPath } from '../../src/lib/navigation/path-open';
+import { getHotkeyHandler } from '../../src/lib/navigation/hotkeys';
+import { requestUntitledSave } from '../../src/features/editor/buffers/untitled-save-store';
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router';
@@ -27,13 +30,64 @@ export function mountWorkspaceFixture() {
   initClientSettings();
   updateClientSettings({ projectBasedLayout: true, showAllProjectSessions: true });
   const secondProject = { ...project, id: '0000000003', name: 'Second project', abbrev: 'SECOND' };
-  const allSessions = [sessions[0]!, { ...sessions[1]!, project_id: secondProject.id }];
+  const allSessions = [
+    { ...sessions[0]!, status: 'exited' as const },
+    { ...sessions[1]!, project_id: secondProject.id },
+  ];
   let releaseProjects!: () => void;
   const projectsReady = new Promise<void>((resolve) => (releaseProjects = resolve));
+  const holds = new Map<string, { ready: Promise<void>; release: () => void }>();
+  const requests: { method: string; path: string; body: unknown }[] = [];
+  const drafts = new Map<string, string>();
+  const files = new Map<string, string>();
+  let draftCount = 0;
   installBrowserTransport({
     scope: 'ui-preview',
     request: async (method, path, body) => {
-      const route = new URL(path, 'http://preview').pathname;
+      const url = new URL(path, 'http://preview');
+      const route = url.pathname;
+      requests.push({ method, path, body });
+      await holds.get(`${method} ${route}`)?.ready;
+      if (route === `/api/profiles/${profile.id}/untitled` && method === 'POST') {
+        const name = `untitled-${++draftCount}.md`;
+        drafts.set(name, '');
+        return Response.json({ name });
+      }
+      if (route.startsWith(`/api/profiles/${profile.id}/untitled/`)) {
+        const name = route.split('/').at(-1)!;
+        if (method === 'DELETE') {
+          drafts.delete(name);
+          return Response.json({});
+        }
+        if (method === 'PUT') drafts.set(name, (body as { content: string }).content);
+        return Response.json({ name, content: drafts.get(name) ?? '', mtime_ms: 1 });
+      }
+      if (url.searchParams.get('path') === 'renamed-synthetic.md')
+        return previewRequest(method, path.replace('renamed-synthetic.md', 'README.md'), body);
+      if (route.endsWith('/resolve'))
+        return Response.json({ kind: 'file', path: 'resolved-synthetic.md' });
+      if (route.endsWith('/rename') && method === 'POST')
+        return Response.json({ path: (body as { to: string }).to });
+      if (route.endsWith('/archive') && method === 'POST') {
+        const row = allSessions.find((s) => route === `/api/sessions/${s.id}/archive`)!;
+        row.status = 'archived';
+        return Response.json(row);
+      }
+      if (route.endsWith('/file') && url.searchParams.get('path') === 'saved-synthetic.md') {
+        const key = route + url.search;
+        if (method === 'PUT') files.set(key, (body as { content: string }).content);
+        if (!files.has(key))
+          return Response.json(
+            { error: { code: 'not_found', message: 'Absent' } },
+            { status: 404 },
+          );
+        return Response.json({
+          path: 'saved-synthetic.md',
+          content: files.get(key),
+          binary: false,
+          mtime_ms: 1,
+        });
+      }
       if (method === 'GET' && route === '/api/projects') {
         await projectsReady;
         return Response.json([project, secondProject]);
@@ -117,6 +171,27 @@ export function mountWorkspaceFixture() {
     </QueryClientProvider>,
   );
   return {
+    profile: profile.id,
+    requests,
+    action: (name: string) => {
+      const handler = getHotkeyHandler(name);
+      if (!handler) throw new Error(`No action: ${name}`);
+      handler();
+    },
+    saveDraft: requestUntitledSave,
+    openPath,
+    hold: (method: string, route: string) => {
+      let release!: () => void;
+      const ready = new Promise<void>((resolve) => {
+        release = resolve;
+      });
+      holds.set(`${method} ${route}`, { ready, release });
+    },
+    release: (method: string, route: string) => {
+      const key = `${method} ${route}`;
+      holds.get(key)?.release();
+      holds.delete(key);
+    },
     first: project.id,
     second: secondProject.id,
     sessions: allSessions.map((s) => s.id),
