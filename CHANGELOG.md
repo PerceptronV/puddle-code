@@ -43,5 +43,5 @@ Past releases: see docs/changelogs/.
 #### Fixed
 
 - Recheck preparing owners promptly during launch while retaining recovery backoff for real failures and maintenance admission.
-- Reuse bounded Gemini version observations across runtime launches, invalidating them when the executable or launch environment changes.
+- Reuse bounded Claude and Gemini version observations across runtime launches, invalidating them when the executable or launch environment changes.
 - Observe Codex app-server readiness sooner and fail promptly when its process cannot start or exits under a signal.

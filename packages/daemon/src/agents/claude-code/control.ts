@@ -49,9 +49,17 @@ export function installClaudeTurnHooks(configDir: string): void {
 }
 
 export async function prepareClaudeInteractive(context: LifecycleLaunchContext) {
-  if (!(await lifecycleVersionAtLeast('claude', ['--version'], [2, 1, 300], context.env))) {
-    if (await lifecycleVersionAtLeast('claude', ['--version'], [2, 1, 238], context.env))
-      return { args: context.args, dispose() {} };
+  const supports = (minimum: readonly [number, number, number]) =>
+    lifecycleVersionAtLeast(
+      'claude',
+      ['--version'],
+      minimum,
+      context.env,
+      false,
+      context.account.config_dir,
+    );
+  if (!(await supports([2, 1, 300]))) {
+    if (await supports([2, 1, 238])) return { args: context.args, dispose() {} };
     throw new Error('Claude Code lifecycle hooks are unavailable');
   }
   // StopFailure is version-gated; older normal TUIs keep their existing hooks.

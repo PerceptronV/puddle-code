@@ -779,7 +779,7 @@ If a foreground-mode version probe is inconclusive, the adapter refuses launch;
 both runtime and legacy composition preserve that refusal instead of invoking
 an unqualified CLI fallback. Ordinary unsupported hook integrations may still
 degrade without changing process ownership.
-Optional Gemini capability probes may reuse one private account-local version
+Optional Claude and Gemini capability probes may reuse one private account-local version
 observation for at most 30 seconds, keyed by executable identity, arguments and
 launch environment. Replacing the executable or changing the environment invalidates
 it; runtime hook paths/nonces are excluded from the probe. Mandatory foreground

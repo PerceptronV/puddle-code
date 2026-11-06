@@ -266,7 +266,15 @@ export const claudeCode: AgentAdapter = {
     discover: (account) => discoverClaudeConversations(account.config_dir),
   },
   lifecycleSignals: true,
-  checkLifecycleSupport: () => lifecycleVersionAtLeast('claude', ['--version'], [2, 1, 238]),
+  checkLifecycleSupport: (account) =>
+    lifecycleVersionAtLeast(
+      'claude',
+      ['--version'],
+      [2, 1, 238],
+      undefined,
+      false,
+      account.config_dir,
+    ),
 
   subscriptionUsage(account) {
     return fetchSubscriptionUsage(account);
