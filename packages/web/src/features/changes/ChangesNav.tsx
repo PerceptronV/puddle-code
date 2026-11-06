@@ -1,7 +1,8 @@
 import { useEffect, useState, type ReactNode } from 'react';
 import { HeightHandle, useResizableHeight } from '../../components/resizable-height';
+import { browserTransport } from '../../lib/transport/browser-transport';
 import { useDaemonVersion } from '../../lib/queries/queries';
-import { sourceControlSupported } from '../../lib/transport/protocol-support';
+import { gitRestoreSupported, sourceControlSupported } from '../../lib/transport/protocol-support';
 import { useGitRepositories } from '../../lib/queries/worktree-queries';
 import { CommitGraph } from './CommitGraph';
 import { UncommittedPanel } from './UncommittedPanel';
@@ -76,7 +77,11 @@ export function ChangesNav({
             ) : (
               repositories.data.repositories.map((repository) => (
                 <SourceControlRepository
-                  key={repository.root}
+                  key={`${session}:${root ?? ''}:${repository.root}`}
+                  restoreSupported={
+                    (!browserTransport() || import.meta.env.MODE === 'ui-preview') &&
+                    gitRestoreSupported(version.data?.protocol)
+                  }
                   session={session}
                   targetRoot={root}
                   repository={repository}

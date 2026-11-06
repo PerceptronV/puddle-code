@@ -112,3 +112,7 @@ export const notebookWidgetsSupported = (p: Protocol): boolean =>
 /** Revision-aware notebook observation (26.3); older hosts return full snapshots. */
 export const notebookObservationSupported = (p: Protocol): boolean =>
   p !== undefined && atLeast(p, 26, 3);
+
+/** Per-file working-tree restore with explicit untracked deletion (26.4). */
+export const gitRestoreSupported = (p: Protocol): boolean =>
+  supportsApplicationFeature(p, { major: 26, minor: 4 });

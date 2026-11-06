@@ -1,5 +1,12 @@
 # The puddle communication protocol
 
+Application **26.4** adds local/SSH `POST /api/worktrees/:sid/git-restore`
+for one exact unstaged file. Tracked files restore from the index, preserving
+staged changes; deleting an untracked file requires `delete_untracked: true`.
+The host rechecks current status under the repository mutation lock and rejects
+directories, conflicts and stale deletion intent. New clients gate the control
+on 26.4. The remote write allowlist and remote protocol 5 remain unchanged.
+
 Application **26.3** adds optional `known` run identity/revision (or null for no
 run) to local/SSH notebook execution observation. Only callers supplying this
 field may receive `{ unchanged: true }`; omission always returns the original

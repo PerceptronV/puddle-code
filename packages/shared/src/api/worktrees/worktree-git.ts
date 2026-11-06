@@ -113,6 +113,13 @@ export const gitPathsRequestSchema = gitRepositoryRequestSchema.extend({
 });
 export type GitPathsRequest = z.infer<typeof gitPathsRequestSchema>;
 
+/** Restore one working-tree file from the index; untracked deletion requires consent. */
+export const gitRestoreRequestSchema = gitRepositoryRequestSchema.extend({
+  path: z.string().min(1),
+  delete_untracked: z.boolean().optional(),
+});
+export type GitRestoreRequest = z.infer<typeof gitRestoreRequestSchema>;
+
 export const gitCommitRequestSchema = gitRepositoryRequestSchema.extend({
   message: z.string().trim().min(1),
   /** Stage every change immediately before committing, under the same repo lock. */

@@ -16,6 +16,7 @@ import {
   gitCommitRequestSchema,
   gitPathsRequestSchema,
   gitPushRequestSchema,
+  gitRestoreRequestSchema,
   gitRepositoryRequestSchema,
 } from '@puddle/shared';
 import { git, GitError } from '../../../git/exec.js';
@@ -40,6 +41,7 @@ import {
   pullRepository,
   pushRepository,
   stagePaths,
+  restorePath,
   unstagePaths,
   type RepositoryLock,
 } from '../../../worktrees/repositories.js';
@@ -211,6 +213,15 @@ export function worktreeGitRoutes(deps: WorktreeDeps): Hono {
       const root = browseRoot(c, resolveWorktree(deps, c).root);
       const body = await parseBody(c, gitPathsRequestSchema);
       await gitMutation(() => unstagePaths(root, body.repository, body.paths, lock));
+      return c.json<GitMutationResponse>({ ok: true });
+    })
+
+    .post('/:sid/git-restore', async (c) => {
+      const root = browseRoot(c, resolveWorktree(deps, c).root);
+      const body = await parseBody(c, gitRestoreRequestSchema);
+      await gitMutation(() =>
+        restorePath(root, body.repository, body.path, body.delete_untracked === true, lock),
+      );
       return c.json<GitMutationResponse>({ ok: true });
     })
 

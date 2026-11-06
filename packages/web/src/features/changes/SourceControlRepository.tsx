@@ -10,8 +10,18 @@ import {
   Plus,
   Send,
   Upload,
+  Undo2,
 } from 'lucide-react';
 import { toast } from 'sonner';
+import { Button } from '../../components/ui/button';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogDescription,
+  DialogFooter,
+} from '../../components/ui/dialog';
 import { FileTypeIcon } from '../explorer/file-icons';
 import { HoverMarquee } from '../../components/hover-marquee';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
@@ -59,7 +69,7 @@ function IconAction({
             onClick();
           }}
           className={cn(
-            'rounded-sm p-1 text-fg-muted transition-colors hover:bg-elevated hover:text-fg disabled:cursor-not-allowed disabled:opacity-40',
+            'shrink-0 rounded-sm p-1 text-fg-muted transition-colors hover:bg-elevated hover:text-fg disabled:cursor-not-allowed disabled:opacity-40',
             className,
           )}
         >
@@ -80,6 +90,7 @@ function ChangeGroup({
   busy,
   flat,
   onAction,
+  onRestore,
   onOpen,
 }: {
   title: string;
@@ -90,6 +101,7 @@ function ChangeGroup({
   busy: boolean;
   flat: boolean;
   onAction(paths: string[]): void;
+  onRestore?(entry: GitChangeEntry): void;
   onOpen(path: string, opts?: SourceControlOpenOptions): void;
 }) {
   const [collapsed, setCollapsed] = useState(false);
@@ -129,6 +141,7 @@ function ChangeGroup({
               action={action}
               busy={busy}
               onAction={onAction}
+              onRestore={onRestore}
               onOpen={onOpen}
             />
           ))
@@ -141,6 +154,7 @@ function ChangeGroup({
             action={action}
             busy={busy}
             onAction={onAction}
+            onRestore={onRestore}
             onOpen={onOpen}
           />
         ))}
@@ -157,6 +171,7 @@ function ChangeFileRow({
   action,
   busy,
   onAction,
+  onRestore,
   onOpen,
 }: {
   entry: GitChangeEntry;
@@ -167,6 +182,7 @@ function ChangeFileRow({
   action: 'stage' | 'unstage';
   busy: boolean;
   onAction(paths: string[]): void;
+  onRestore?(entry: GitChangeEntry): void;
   onOpen(path: string, opts?: SourceControlOpenOptions): void;
 }) {
   const decoration = gitDecoration(entry.status);
@@ -174,7 +190,7 @@ function ChangeFileRow({
   return (
     <div
       className={cn(
-        'sidebar-row group flex items-center gap-1 pr-2 transition-colors hover:bg-explorer-hover',
+        'sidebar-row group flex items-center gap-1 pr-[calc(0.75rem-var(--ui-list-inset))] transition-colors hover:bg-explorer-hover',
         active && 'bg-explorer-selection',
       )}
       style={{ paddingLeft: 12 + depth * 12 }}
@@ -192,6 +208,15 @@ function ChangeFileRow({
         <FileTypeIcon name={entry.path.split('/').pop() ?? entry.path} className="size-4" />
         <HoverMarquee text={name} className="text-xs text-fg" hoverClass={CHANGE_MARQUEE} />
       </button>
+      {onRestore && (
+        <IconAction
+          label={`Restore ${entry.path}`}
+          disabled={busy}
+          onClick={() => onRestore(entry)}
+        >
+          <Undo2 className="size-3.5" />
+        </IconAction>
+      )}
       <IconAction
         label={`${stage ? 'Stage' : 'Unstage'} ${entry.path}`}
         disabled={busy}
@@ -211,6 +236,7 @@ function ChangeTreeRows({
   action,
   busy,
   onAction,
+  onRestore,
   onOpen,
 }: {
   nodes: TreeNode<GitChangeEntry>[];
@@ -220,6 +246,7 @@ function ChangeTreeRows({
   action: 'stage' | 'unstage';
   busy: boolean;
   onAction(paths: string[]): void;
+  onRestore?(entry: GitChangeEntry): void;
   onOpen(path: string, opts?: SourceControlOpenOptions): void;
 }) {
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set());
@@ -239,6 +266,7 @@ function ChangeTreeRows({
               action={action}
               busy={busy}
               onAction={onAction}
+              onRestore={onRestore}
               onOpen={onOpen}
             />
           );
@@ -247,7 +275,7 @@ function ChangeTreeRows({
         return (
           <div key={node.path}>
             <div
-              className="sidebar-row group flex items-center gap-1 pr-2 transition-colors hover:bg-explorer-hover"
+              className="sidebar-row group flex items-center gap-1 pr-[calc(0.75rem-var(--ui-list-inset))] transition-colors hover:bg-explorer-hover"
               style={{ paddingLeft: 12 + depth * 12 }}
             >
               <button
@@ -291,6 +319,7 @@ function ChangeTreeRows({
                 action={action}
                 busy={busy}
                 onAction={onAction}
+                onRestore={onRestore}
                 onOpen={onOpen}
               />
             )}
@@ -323,6 +352,7 @@ export function SourceControlRepository({
   targetRoot,
   repository,
   selected,
+  restoreSupported = false,
   activePath,
   onSelect,
   onOpen,
@@ -331,6 +361,7 @@ export function SourceControlRepository({
   targetRoot?: string;
   repository: GitRepository;
   selected: boolean;
+  restoreSupported?: boolean;
   activePath: string | null;
   onSelect(): void;
   onOpen(path: string, opts?: SourceControlOpenOptions): void;
@@ -338,6 +369,8 @@ export function SourceControlRepository({
   const [collapsed, setCollapsed] = useState(false);
   const [flat, setFlat] = useState(false);
   const [message, setMessage] = useState('');
+  const [pendingRestore, setPendingRestore] = useState<GitChangeEntry | null>(null);
+  const [restoreOpen, setRestoreOpen] = useState(false);
   const mutation = useGitMutation(session, targetRoot);
   const changes = [...repository.conflicts, ...repository.staged, ...repository.unstaged];
   const busy = mutation.isPending;
@@ -545,6 +578,14 @@ export function SourceControlRepository({
               />
               <ChangeGroup
                 title="Changes"
+                onRestore={
+                  restoreSupported
+                    ? (entry) => {
+                        setPendingRestore(entry);
+                        setRestoreOpen(true);
+                      }
+                    : undefined
+                }
                 entries={repository.unstaged}
                 area="unstaged"
                 activePath={activePath}
@@ -561,6 +602,45 @@ export function SourceControlRepository({
           )}
         </div>
       )}
+      <Dialog open={restoreOpen} onOpenChange={setRestoreOpen}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>
+              {pendingRestore?.status === 'untracked' ? 'Delete' : 'Restore'} “
+              {pendingRestore?.path}”?
+            </DialogTitle>
+            <DialogDescription>
+              {pendingRestore?.status === 'untracked'
+                ? 'This file is not tracked by Git. Restoring it permanently deletes the file. There is no undo.'
+                : 'This discards the unstaged changes to this file. Any staged changes are kept. There is no undo.'}
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="ghost" onClick={() => setRestoreOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              variant="danger"
+              disabled={busy}
+              onClick={() => {
+                if (!pendingRestore || busy || !restoreSupported) return;
+                void run(
+                  {
+                    action: 'restore',
+                    repository: repository.root,
+                    path: pendingRestore.path,
+                    delete_untracked: pendingRestore.status === 'untracked',
+                  },
+                  'Restored',
+                );
+                setRestoreOpen(false);
+              }}
+            >
+              {pendingRestore?.status === 'untracked' ? 'Delete file' : 'Restore'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </section>
   );
 }

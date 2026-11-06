@@ -11,6 +11,7 @@ import {
   nativeConversationSyncSupported,
   projectColourSupported,
   runtimeInspectionSupported,
+  gitRestoreSupported,
 } from '../../../src/lib/transport/protocol-support';
 
 describe('runtime inspection compatibility gate', () => {
@@ -89,5 +90,14 @@ describe('native conversation compatibility gate', () => {
     expect(nativeConversationSyncSupported({ major: 16, minor: 3 })).toBe(false);
     expect(nativeConversationSyncSupported({ major: 16, minor: 4 })).toBe(true);
     expect(nativeConversationSyncSupported({ major: 17, minor: 0 })).toBe(true);
+  });
+});
+
+describe('Git restore compatibility gate', () => {
+  it('requires confirmed support for deletion consent', () => {
+    expect(gitRestoreSupported(undefined)).toBe(false);
+    expect(gitRestoreSupported({ major: 26, minor: 3 })).toBe(false);
+    expect(gitRestoreSupported(PROTOCOL_VERSION)).toBe(true);
+    expect(gitRestoreSupported({ major: 25, minor: 99 })).toBe(false);
   });
 });

@@ -1,4 +1,4 @@
-import { mkdirSync, rmSync, writeFileSync } from 'node:fs';
+import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { Hono } from 'hono';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
@@ -294,6 +294,27 @@ describe('protocol 15.3 repository-aware source control routes', () => {
       exists: true,
       content: '# fixture\n',
     });
+  });
+
+  it('requires explicit untracked deletion and restores through a directory target', async () => {
+    writeFileSync(join(worktree, 'restore-route.txt'), 'new');
+    const request = (path: string, delete_untracked = false) =>
+      app.request(`/api/worktrees/${sid}/git-restore?root=${encodeURIComponent(worktree)}`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ repository, path, delete_untracked }),
+      });
+    const refused = await request('restore-route.txt');
+    expect(refused.status).toBe(409);
+    expect(errorCode(await refused.json())).toBe('restore_requires_deletion');
+    expect(existsSync(join(worktree, 'restore-route.txt'))).toBe(true);
+    expect((await request('restore-route.txt', true)).status).toBe(200);
+    expect(existsSync(join(worktree, 'restore-route.txt'))).toBe(false);
+    writeFileSync(join(worktree, 'restore-tracked.txt'), 'indexed');
+    sh(worktree, 'add', 'restore-tracked.txt');
+    writeFileSync(join(worktree, 'restore-tracked.txt'), 'working');
+    expect((await request('restore-tracked.txt')).status).toBe(200);
+    expect(readFileSync(join(worktree, 'restore-tracked.txt'), 'utf8')).toBe('indexed');
   });
 
   it('stages, unstages, and commits only the selected index content', async () => {

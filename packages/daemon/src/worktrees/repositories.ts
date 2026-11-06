@@ -1,5 +1,5 @@
-import { readdir, realpath, stat } from 'node:fs/promises';
-import { basename, isAbsolute, join, normalize, relative, resolve, sep } from 'node:path';
+import { lstat, readdir, realpath, stat, unlink } from 'node:fs/promises';
+import { basename, dirname, isAbsolute, join, normalize, relative, resolve, sep } from 'node:path';
 import type {
   GitChangeEntry,
   GitOriginalResponse,
@@ -566,6 +566,82 @@ export async function unstagePaths(
         await git(['--literal-pathspecs', 'rm', '--cached', '-r', '-q', '--', ...literal], {
           cwd: root,
         });
+      }
+    },
+    lock,
+  );
+}
+
+/** Restore only an exact changed file, preserving the index and unrelated paths. */
+export async function restorePath(
+  visibleRoot: string,
+  repository: string,
+  path: string,
+  deleteUntracked: boolean,
+  lock?: RepositoryLock,
+): Promise<void> {
+  const root = await requestedRepository(visibleRoot, repository);
+  literalPaths(root, [path]);
+  await underRepositoryLock(
+    root,
+    async () => {
+      const status = await repositoryStatus(root);
+      const entry = status.entries.find((entry) => entry.path === path && !entry.ignored);
+      if (!entry || entry.conflict || (!entry.untracked && entry.y === '.')) {
+        throw ApiError.conflict(
+          'restore_unavailable',
+          'This file has no restorable unstaged changes. Refresh Changes and try again.',
+        );
+      }
+      const absolute = resolve(root, path);
+      // Do not traverse a replaced/symlinked parent, or restore a directory/gitlink.
+      let parent = dirname(absolute);
+      while (parent !== root) {
+        const resolved = await realpath(parent).catch((error: NodeJS.ErrnoException) => {
+          if (error.code === 'ENOENT') return null;
+          throw error;
+        });
+        if (resolved !== null && resolved !== parent) {
+          throw ApiError.badRequest(
+            'path_outside_repository',
+            'Cannot restore through a symlinked directory',
+          );
+        }
+        parent = dirname(parent);
+      }
+      const indexed = await git(['--literal-pathspecs', 'ls-files', '--stage', '-z', '--', path], {
+        cwd: root,
+      });
+      if (indexed.startsWith('160000 ')) {
+        throw ApiError.conflict('restore_directory', 'Submodules cannot be restored here');
+      }
+      const info = await lstat(absolute).catch((error: NodeJS.ErrnoException) => {
+        if (error.code === 'ENOENT') return null;
+        throw error;
+      });
+      if (info?.isDirectory()) {
+        throw ApiError.conflict(
+          'restore_directory',
+          'Restore files individually; directories and submodules cannot be restored here',
+        );
+      }
+      if (entry.untracked) {
+        if (!deleteUntracked) {
+          throw ApiError.conflict(
+            'restore_requires_deletion',
+            'This file is now untracked. Refresh Changes and confirm its deletion.',
+          );
+        }
+        // unlink never recursively deletes directories or follows the final symlink.
+        await unlink(absolute);
+      } else {
+        if (deleteUntracked) {
+          throw ApiError.conflict(
+            'restore_changed',
+            'This file is now tracked. Refresh Changes before restoring it.',
+          );
+        }
+        await git(['--literal-pathspecs', 'restore', '--worktree', '--', path], { cwd: root });
       }
     },
     lock,

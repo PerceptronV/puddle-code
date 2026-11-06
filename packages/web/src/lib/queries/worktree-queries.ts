@@ -213,6 +213,7 @@ export function useIndexFile(
 }
 
 export type GitMutationVariables =
+  | { action: 'restore'; repository: string; path: string; delete_untracked?: boolean }
   | { action: 'stage' | 'unstage'; repository: string; paths: string[] }
   | { action: 'commit'; repository: string; message: string; stage_all?: boolean }
   | { action: 'fetch' | 'pull'; repository: string }
@@ -224,7 +225,11 @@ export function useGitMutation(sid: string, root?: string) {
   return useMutation({
     mutationFn: ({ action, ...body }: GitMutationVariables) =>
       api<GitMutationResponse>('POST', `/api/worktrees/${sid}/git-${action}${opQuery(root)}`, body),
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
+      if (variables.action === 'restore') {
+        void qc.invalidateQueries({ queryKey: ['wt-file', sid] });
+        void qc.invalidateQueries({ queryKey: ['wt-tree', sid] });
+      }
       void qc.invalidateQueries({ queryKey: ['git-repositories', sid] });
       void qc.invalidateQueries({ queryKey: ['wt-git-status', sid] });
       void qc.invalidateQueries({ queryKey: ['wt-diff', sid] });
