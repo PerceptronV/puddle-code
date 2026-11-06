@@ -11,7 +11,7 @@ interface Props {
   reduced: boolean;
   /** Replacing the contents of an already-open preview slot is quiet browsing. */
   preview?: boolean;
-  /** Switching to content that was already available needs no entrance motion. */
+  /** Switches stay immediate while both outgoing and incoming content remain available. */
   presentKeys?: readonly string[];
 }
 
@@ -35,7 +35,8 @@ class ContentMotionBoundary extends Component<Props> {
   getSnapshotBeforeUpdate(previous: Props): HTMLDivElement | null {
     if (
       previous.motionKey === this.props.motionKey ||
-      previous.presentKeys?.includes(this.props.motionKey) ||
+      (previous.presentKeys?.includes(this.props.motionKey) &&
+        this.props.presentKeys?.includes(previous.motionKey)) ||
       (previous.preview && this.props.preview) ||
       this.props.reduced ||
       placementMotionPending()
@@ -84,7 +85,8 @@ class ContentMotionBoundary extends Component<Props> {
       this.props.reduced ||
       placementMotionPending() ||
       (previous.motionKey !== this.props.motionKey &&
-        previous.presentKeys?.includes(this.props.motionKey)) ||
+        previous.presentKeys?.includes(this.props.motionKey) &&
+        this.props.presentKeys?.includes(previous.motionKey)) ||
       (previous.preview && this.props.preview && previous.motionKey !== this.props.motionKey)
     ) {
       this.clear();

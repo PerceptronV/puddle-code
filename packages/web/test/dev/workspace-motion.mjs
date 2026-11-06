@@ -73,6 +73,29 @@ try {
   assert.notEqual(paneEdge.edge, 'none');
   assert.equal(paneEdge.pointer, 'none');
 
+  await page.evaluate(() => {
+    window.motionRecords = [];
+  });
+  await page.locator('[data-path="README.md"]').dblclick();
+  assert.ok(
+    await page.evaluate(() =>
+      window.motionRecords.some((record) => record.frames[0].opacity === 0),
+    ),
+    'opening a new tab still fades in',
+  );
+  await page.waitForTimeout(220);
+  await page.locator('[data-pane-tab]').filter({ hasText: 'README.md' }).hover();
+  await page.evaluate(() => {
+    window.motionRecords = [];
+  });
+  await page.getByRole('button', { name: 'Close README.md', exact: true }).click();
+  assert.ok(
+    await page.evaluate(() => window.motionRecords.some((record) => record.snapshot)),
+    'closing the active tab cross-fades to an existing tab',
+  );
+  await page.waitForTimeout(220);
+  assert.equal(await page.locator('[data-motion-snapshot]').count(), 0);
+
   await page.getByRole('button', { name: 'Scratchpad', exact: true }).click();
   await page.getByText('Review checklist', { exact: true }).waitFor();
   await page.evaluate(() => {

@@ -18,6 +18,7 @@ Past releases: see docs/changelogs/.
 #### Fixed
 
 - Keep existing-tab and pane activation immediate without fading tabs or content, including across projects in a shared layout.
+- Preserve the content fade when closing the active tab while keeping ordinary tab switches immediate.
 
 ### Daemon
 

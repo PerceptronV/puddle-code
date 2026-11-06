@@ -2245,6 +2245,7 @@ existing lifetimes. Copies never mount browsing contexts, media or interactive
 controls. New tabs and their viewing areas fade in; replacing the content of an
 existing italic preview slot stays immediate. Activating an existing tab or focusing
 another pane is immediate, including across projects in a profile-wide layout.
+Closing the active tab retains the content cross-fade to the remaining tab or empty pane.
 File-tree Up/Down previews the selected file without moving keyboard focus;
 Enter pins it, Space previews it,
 and modified/range selection does not open files. Directories retain their
