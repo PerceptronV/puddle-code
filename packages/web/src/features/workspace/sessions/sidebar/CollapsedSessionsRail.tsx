@@ -154,14 +154,11 @@ function CollapsedSessionDot({
               aria-selected={selected}
               className={cn(
                 'session-hover-row relative flex items-center rounded-[var(--ui-radius)] p-1 transition-colors',
-                selected
-                  ? 'bg-explorer-selection'
-                  : session.id === activeSessionId && 'bg-explorer-hover',
+                (selected || session.id === activeSessionId) && 'bg-explorer-selection',
               )}
             >
-              {/* Active session marked with the same bg-elevated fill-shift the
-                  expanded list and the navigator's mode icons use — a theme
-                  colour, no border, no default-blue ring (HUMANS.md). Sizing
+              {/* Active sessions use the deeper selection fill in both sidebar modes.
+                  Sizing
                   settled by eye against the live rail (2026-08-06, three
                   rounds): 20px marks comfortable / 16px compact at 0.75×
                   stroke — the mark full-bleeds its box rather than floating a

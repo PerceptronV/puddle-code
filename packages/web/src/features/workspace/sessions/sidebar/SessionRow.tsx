@@ -89,9 +89,7 @@ export function SessionRow({
           aria-selected={selection ? selected : undefined}
           className={cn(
             'session-hover-row sidebar-row group relative flex items-center gap-[var(--ui-item-gap)] px-2 py-2 transition-colors compact:py-1.5',
-            selected
-              ? 'bg-explorer-selection'
-              : session.id === activeSessionId && 'bg-explorer-hover',
+            (selected || session.id === activeSessionId) && 'bg-explorer-selection',
           )}
         >
           <SessionGlyph
