@@ -59,6 +59,12 @@ try {
     }));
     assert.equal(appearance.background, 'rgba(0, 0, 0, 0)');
     assert.equal(appearance.blur, 'blur(8px)');
+    assert.equal(
+      await overlay
+        .locator('.island-outline')
+        .evaluate((el) => getComputedStyle(el).backgroundColor),
+      'rgba(0, 0, 0, 0)',
+    );
     await page.screenshot({ path: `/tmp/puddle-host-peek-${platform}.png` });
     await page.keyboard.up('Slash');
     await hidden();

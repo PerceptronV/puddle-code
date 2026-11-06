@@ -2204,14 +2204,8 @@ syntax and ANSI hues, semantic status colours, explicit project/profile colours,
 brand/file artwork and document colours remain independent. Palette changes notify
 the existing editor/terminal theme subscribers using resolved hex colours.
 Hold ⌘⌥/ on macOS or Ctrl+Alt+/ on Windows/Linux to blur the existing workspace
-and overlay the chosen host glyph above its name in large centred type. The overlay
-has no opaque/tinted replacement background, preserves editor focus, and disappears
-immediately when any chord key is released or the window loses focus/visibility.
-Key repeat does not toggle it. The binding is customisable in Hotkeys; entrance
-motion respects reduced motion and dismissal has no exit animation.
-Hold ⌘⌥/ on macOS or Ctrl+Alt+/ on Windows/Linux to blur the existing workspace
-and overlay the chosen host glyph above its name in large centred type. The overlay
-has no opaque/tinted replacement background, preserves editor focus, and disappears
+and overlay the chosen host glyph above its name in large centred type, enclosed
+in a rounded outline with no fill. The overlay has no opaque/tinted replacement background, preserves editor focus, and disappears
 immediately when any chord key is released or the window loses focus/visibility.
 Key repeat does not toggle it. The binding is customisable in Hotkeys; entrance
 motion respects reduced motion and dismissal has no exit animation.

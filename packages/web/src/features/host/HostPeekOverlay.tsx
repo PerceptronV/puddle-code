@@ -72,7 +72,7 @@ export function HostPeekOverlay() {
       role="status"
       aria-live="polite"
     >
-      <div className="flex max-w-full flex-col items-center gap-8 text-center">
+      <div className="island-outline flex max-w-full flex-col items-center gap-8 rounded-[var(--ui-surface-radius)] px-12 py-10 text-center">
         <HostGlyph icon={icon} className="size-[clamp(6rem,18vmin,14rem)] shrink-0" />
         <span className="max-w-full break-words font-sans text-[clamp(0.8333rem,2.3333vw,2.3333rem)] leading-tight font-medium">
           {hostLabel(host.data) ?? 'Host'}
