@@ -76,9 +76,14 @@ export function hostPalette(
   const base = read('--bg-base');
   const ink = dark ? white : black;
   const foundation = mix(ink, base, dark ? 0.08 : 0.06);
-  const surface = mix(accent, foundation, dark ? 0.13 : 0.05);
-  const elevated = mix(surface, ink, dark ? 0.92 : 0.96);
-  const backgrounds = [ground, base, surface, elevated];
+  const tintedSurface = mix(accent, foundation, dark ? 0.13 : 0.05);
+  const tintedElevated = mix(tintedSurface, ink, dark ? 0.92 : 0.96);
+  // Keep accent depth halfway between the original theme and the full tint.
+  const surface = mix(tintedSurface, read('--bg-surface'), 0.5);
+  const elevated = mix(tintedElevated, read('--bg-elevated'), 0.5);
+  const tray = mix(tintedElevated, read('--bg-tray'), 0.5);
+  const backgrounds = [ground, base, surface, elevated, tray];
+  const border = withContrast(mix(accent, tray, 0.3), backgrounds, ink, 1.5);
   primary = withContrast(primary, backgrounds, ink);
   secondary = withContrast(secondary, backgrounds, ink);
   muted = withContrast(muted, backgrounds, ink);
@@ -86,7 +91,8 @@ export function hostPalette(
   return {
     '--bg-surface': surface,
     '--bg-elevated': elevated,
-    '--border': mix(accent, ground, dark ? 0.28 : 0.14),
+    '--bg-tray': tray,
+    '--border': border,
     '--text-primary': primary,
     '--text-secondary': secondary,
     '--text-muted': muted,

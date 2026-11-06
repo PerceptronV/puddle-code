@@ -13,7 +13,7 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
-- Preserve default surface relationships under host accents: keep reading areas and active tabs untinted, match pane frames to sidebars, and deepen island/nested-tray backgrounds in light mode with the inverse in dark mode.
+- Preserve the original default theme and soften preset/custom accent backgrounds to half strength. Keep reading areas and active tabs untinted, match pane frames to sidebars, and strengthen accent borders beyond all background layers.
 
 - Keep Ripple active for Codex and other alternate-screen agents, rendering current screen contents with copyable text, Mermaid and LaTeX while preserving native CLI controls.
 

@@ -42,12 +42,23 @@ try {
     await page.waitForFunction(() => !document.documentElement.dataset.hostColour);
     const defaults = await page.evaluate(() => {
       const style = getComputedStyle(document.documentElement);
-      return ['--bg-surface', '--bg-pane', '--bg-elevated', '--bg-tray'].map((key) =>
+      return ['--bg-surface', '--bg-pane', '--bg-elevated', '--bg-tray', '--border'].map((key) =>
         style.getPropertyValue(key).trim(),
       );
     });
     assert.equal(defaults[0], defaults[1], `${theme} default pane/sidebar mapping`);
-    assert.equal(defaults[2], defaults[3], `${theme} default nested/elevated mapping`);
+    assert.deepEqual(
+      defaults,
+      theme === 'light'
+        ? ['#f7f7f7', '#f7f7f7', '#efefef', '#f7f7f7', '#e5e5e5']
+        : ['#00132b', '#00132b', '#001c3d', '#001c3d', '#163c6b'],
+      `${theme} default surfaces retain their original colours`,
+    );
+    await page.getByRole('button', { name: 'Close', exact: true }).click();
+    await nav.waitFor({ state: 'hidden' });
+    await page.screenshot({ path: `/private/tmp/puddle-islands-default-${theme}.png` });
+    await page.getByRole('button', { name: 'Settings', exact: true }).click();
+    await nav.getByRole('button', { name: 'Host', exact: true }).click();
     const held = await page.evaluate(() => {
       const style = getComputedStyle(document.documentElement);
       return Object.fromEntries(
@@ -113,7 +124,7 @@ try {
         const header = document.querySelector('header');
         const { xtermThemeFromCss } = await import('/src/lib/appearance/theme.ts');
         return {
-          surfaceOverrides: ['--bg-base', '--bg-pane', '--bg-tray'].map((key) =>
+          surfaceOverrides: ['--bg-base', '--bg-pane'].map((key) =>
             document.documentElement.style.getPropertyValue(key),
           ),
           terminal: xtermThemeFromCss().background,
@@ -134,6 +145,7 @@ try {
               '--bg-pane',
               '--bg-elevated',
               '--bg-tray',
+              '--border',
               '--action',
               '--action-ink',
             ].map((key) => [
@@ -154,7 +166,7 @@ try {
       );
       assert.deepEqual(
         styles.surfaceOverrides,
-        ['', '', ''],
+        ['', ''],
         `${theme}/${colour} accents preserve shared surface aliases and reading backgrounds`,
       );
       assert.equal(
@@ -187,6 +199,18 @@ try {
       const baseLight = luminance(rgb(styles.palette['--bg-base']));
       const surfaceLight = luminance(rgb(styles.palette['--bg-surface']));
       const trayLight = luminance(rgb(styles.palette['--bg-tray']));
+      const borderLight = luminance(rgb(styles.palette['--border']));
+      for (const surface of ['--bg-base', '--bg-surface', '--bg-elevated', '--bg-tray']) {
+        const surfaceLight = luminance(rgb(styles.palette[surface]));
+        assert.ok(
+          theme === 'dark' ? borderLight > surfaceLight : borderLight < surfaceLight,
+          `${theme}/${colour} borders are stronger than ${surface}`,
+        );
+        assert.ok(
+          ratio(styles.palette['--border'], styles.palette[surface]) >= 1.5,
+          `${theme}/${colour} borders remain visible against ${surface}`,
+        );
+      }
       assert.ok(
         theme === 'dark'
           ? baseLight < surfaceLight && surfaceLight < trayLight

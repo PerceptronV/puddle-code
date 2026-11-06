@@ -2297,14 +2297,17 @@ through cards, the command field, expanded/collapsed sidebars and mobile labels.
 Generated host palettes retain readable text and selection contrast for arbitrary
 colours. Host accents change palette values, never the relationships between UI
 surfaces: pane frames and tab strips share the sidebar's `--bg-surface` through
-the default `--bg-pane` alias; nested trays share `--bg-elevated` through
-`--bg-tray`. Host palettes do not override those aliases. Editor/terminal reading
+the default `--bg-pane` alias, which host palettes never override. Nested trays
+use `--bg-tray`. Editor/terminal reading
 surfaces and active tabs retain the default `--bg-base` (white in light mode,
-deep navy in dark mode). All island backgrounds are deeper in light mode and
-lighter in dark mode, with nested islands one further step in the same direction;
-this applies to default and accented themes alike. A neutral foundation retains
-these steps even for white or black custom accents. There is no separate pane/tab
-contrast adjustment.
+deep navy in dark mode). The default theme retains its original surface colours.
+Preset and custom accents blend island, elevated and tray backgrounds halfway
+between their original theme colours and the full accent tint, with nested islands
+one further step from the reading surface. A neutral foundation retains depth
+even for white or black custom accents. Accent borders are darker than every
+surface in light mode and lighter in dark mode, maintaining at least 1.5:1
+contrast against reading, island and nested backgrounds. Default borders stay
+unchanged. There is no separate pane/tab contrast adjustment.
 Compact Icon and Accent rows sit below
 the display name, without a separate section or preview card. A chosen accent
 rebuilds the entire chrome palette: text hierarchy, surfaces, borders, controls,
