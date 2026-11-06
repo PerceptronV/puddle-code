@@ -278,17 +278,31 @@ it('launches interactive providers, adopts offline native switches and resumes t
       ...runtimeIds,
       ...f.runtimes.live().map((runtime) => runtime.runtime_id),
     ])) {
-      try {
-        const { pid } = readRuntimeJson(
-          join(runtimeDirectory(f.home, id), 'test-supervisor-pid.json'),
-        ) as { pid: number };
-        process.kill(pid, 'SIGTERM');
-      } catch {
-        /* Only isolated fake-supervisor children; already stopped or never dispatched. */
-      }
+      await stopFixtureOwner(f.home, id);
     }
     if (daemon && daemon.child.exitCode === null && daemon.child.signalCode === null) await stop();
     await f.reconciler.close();
     f.db.close();
   }
 });
+
+async function stopFixtureOwner(home: string, id: string): Promise<void> {
+  try {
+    const { pid } = readRuntimeJson(
+      join(runtimeDirectory(home, id), 'test-supervisor-pid.json'),
+    ) as { pid: number };
+    process.kill(pid, 'SIGTERM');
+    await waitFor(() => {
+      try {
+        process.kill(pid, 0);
+        return false;
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code === 'ESRCH') return true;
+        throw error;
+      }
+    });
+  } catch (error) {
+    /* Only isolated fake-supervisor children; already stopped or never dispatched. */
+    if (!['ENOENT', 'ESRCH'].includes((error as NodeJS.ErrnoException).code ?? '')) throw error;
+  }
+}

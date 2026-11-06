@@ -48,11 +48,14 @@ interface Attachment {
   timer: NodeJS.Timeout | null;
   dirty: boolean;
   failed: boolean;
+  preparing: boolean;
   retryMs: number;
   disconnected: boolean;
   listen: (event: RuntimeEvent) => void;
   publishedStatus?: StatusEvent;
 }
+
+class RuntimePreparing extends Error {}
 
 /** Commit observations, never replay execution. One serial reconciler per owner. */
 export class RuntimeReconciler extends EventEmitter {
@@ -81,6 +84,7 @@ export class RuntimeReconciler extends EventEmitter {
       timer: null,
       dirty: false,
       failed: false,
+      preparing: false,
       retryMs: 0,
       disconnected: false,
       listen: () => {},
@@ -137,6 +141,8 @@ export class RuntimeReconciler extends EventEmitter {
       entry.dirty = true;
       return entry.active;
     }
+    if (entry.timer) clearTimeout(entry.timer);
+    entry.timer = null;
     entry.dirty = false;
     entry.active = this.admission.run(() =>
       this.reconcile(id, entry.client)
@@ -147,12 +153,14 @@ export class RuntimeReconciler extends EventEmitter {
               return;
             }
             entry.failed = entry.disconnected;
+            entry.preparing = false;
             entry.retryMs = 0;
           },
-          () => {
+          (error: unknown) => {
             // Keep the committed cursor, private journal and protected ownership. A
             // storage failure or uncertain response never causes a prompt/launch retry.
             entry.failed = true;
+            entry.preparing = error instanceof RuntimePreparing;
             entry.dirty = true;
             entry.retryMs = Math.min(entry.retryMs ? entry.retryMs * 2 : 1000, 30_000);
           },
@@ -163,6 +171,12 @@ export class RuntimeReconciler extends EventEmitter {
         }),
     );
     return entry.active;
+  }
+
+  /** A launching owner may become ready before the ordinary recovery timer fires. */
+  async refreshPreparing(id: string): Promise<void> {
+    const entry = this.attached.get(id);
+    if (entry?.preparing && !entry.disconnected) await this.refresh(id);
   }
 
   private schedule(id: string, entry: Attachment): void {
@@ -659,7 +673,7 @@ export class RuntimeReconciler extends EventEmitter {
   }
 
   private applyState(id: string, state: RuntimeState): void {
-    if (state.state === 'prepared') throw new Error('Runtime launch is still preparing');
+    if (state.state === 'prepared') throw new RuntimePreparing('Runtime launch is still preparing');
     this.deps.db.transaction(() => {
       const binding = this.current(id);
       if (

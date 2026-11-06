@@ -34,3 +34,10 @@ Past releases: see docs/changelogs/.
 #### Fixed
 
 - Ignore Claude-owned background copies’ inherited hooks so native `/fork` cannot rebind the original Puddle terminal or change its turn status.
+
+### Runtime
+
+#### Fixed
+
+- Recheck preparing owners promptly during launch while retaining recovery backoff for real failures and maintenance admission.
+- Reuse bounded Gemini version observations across runtime launches, invalidating them when the executable or launch environment changes.

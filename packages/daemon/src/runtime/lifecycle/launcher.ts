@@ -233,6 +233,9 @@ export class RuntimeLauncher {
       let delay = 50;
       while (!this.closed) {
         await this.deps.connections.connectOwner(identity.runtime_id);
+        // Only preparation may bypass recovery backoff. Storage, transport and
+        // adoption failures retain their ordinary retry cadence and ownership.
+        await this.deps.reconciler.refreshPreparing(identity.runtime_id);
         const binding = this.deps.runtimes.get(identity.runtime_id);
         const client = this.deps.connections.get(identity.runtime_id);
         if (

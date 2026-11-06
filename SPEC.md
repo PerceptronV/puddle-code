@@ -220,7 +220,11 @@ never falls back to daemon-owned PTYs. When the manager is unavailable, an owned
 `nohup`/`none` installation marker permits one detached owner with an explicitly
 limited host-session lifetime. Its private intent precedes dispatch, its own process
 group is checked before any provider/PTY starts, and authenticated adoption proves
-readiness. A failed supervised dispatch never tries another lifetime. Runtime
+readiness. During launch, only an attached owner's explicit `prepared` state may
+be rechecked ahead of ordinary reconciliation backoff. Storage, transport and
+adoption failures retain recovery backoff; maintenance admission and the committed
+binding, terminal and journal checks still gate readiness. A failed supervised
+dispatch never tries another lifetime. Runtime
 inspection shows the limitation; daemon-update preflight blocks limited or unknown
 lifetimes while runtime-default updates leave those owners alone. Separation from
 the daemon and ignoring SIGHUP do not prove logout/cgroup survival. Permanent
@@ -775,6 +779,12 @@ If a foreground-mode version probe is inconclusive, the adapter refuses launch;
 both runtime and legacy composition preserve that refusal instead of invoking
 an unqualified CLI fallback. Ordinary unsupported hook integrations may still
 degrade without changing process ownership.
+Optional Gemini capability probes may reuse one private account-local version
+observation for at most 30 seconds, keyed by executable identity, arguments and
+launch environment. Replacing the executable or changing the environment invalidates
+it; runtime hook paths/nonces are excluded from the probe. Mandatory foreground
+ownership checks never use a persisted observation. Cache failures fall back to
+the bounded native version command.
 Runtime IPC admits one provider turn at a time using a monotonic runtime-local
 identity and exact native-ref check. It reserves bounded journal space before
 dispatch, retains results across controller replacement, and records cancellation,

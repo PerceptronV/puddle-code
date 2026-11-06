@@ -49,7 +49,16 @@ export function geminiDriver(context: LifecycleLaunchContext): HeadlessDriver {
 }
 
 export async function prepareGeminiHeadless(context: LifecycleLaunchContext) {
-  if (!(await lifecycleVersionAtLeast('gemini', ['--version'], [0, 53, 1], context.env)))
+  if (
+    !(await lifecycleVersionAtLeast(
+      'gemini',
+      ['--version'],
+      [0, 53, 1],
+      context.env,
+      false,
+      context.account.config_dir,
+    ))
+  )
     throw new Error('Gemini CLI 0.53.1+ is required for headless mode');
   return prepareHeadless(context, geminiDriver(context));
 }
