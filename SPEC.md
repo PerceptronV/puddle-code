@@ -2238,7 +2238,11 @@ Host appearance is stored in the connected daemon's profile settings (`hostIcon`
 `hostColour`), so each (host, profile) pair has an independent identity. These keys
 are excluded from Settings Sync exports and imports. Host settings offer 63 curated
 playful icons, distinct from the 63 profile icons, plus a default server glyph
-and the shared theme-aware colour palette. Compact Icon and Accent rows sit below
+and the shared theme-aware colour palette. Profile colour and host accent also
+accept a custom six-digit hex colour, selected with the system colour picker
+seeded from the current choice (custom host accents require protocol 26.5).
+Generated host palettes retain readable text and selection contrast for arbitrary
+colours. Compact Icon and Accent rows sit below
 the display name, without a separate section or preview card. A chosen accent
 rebuilds the entire chrome palette: text hierarchy, surfaces, borders, controls,
 links, focus rings and persistent selections. File/session selections use a softer
@@ -2246,6 +2250,12 @@ fill. Editor/terminal backgrounds and neutral ink update with the same palette;
 syntax and ANSI hues, semantic status colours, explicit project/profile colours,
 brand/file artwork and document colours remain independent. Palette changes notify
 the existing editor/terminal theme subscribers using resolved hex colours.
+The desktop shell caches the last viewed profile's host name, colour and a bounded
+outline-glyph snapshot per connection target in `desktop-host-identities.json`.
+New Puddle Window uses this presentation even while a host is offline, retaining
+the original SSH target for connection and a tooltip; unknown hosts fall back to
+the target and server glyph. Only the registered cockpit's main frame can update
+its own target's entry. The cache contains no credentials or connection authority.
 Hold ⌘⌥/ on macOS or Ctrl+Alt+/ on Windows/Linux to blur the existing workspace
 and overlay the chosen host glyph above its name in large centred type, enclosed
 in a rounded outline with no fill. The overlay has no opaque/tinted replacement background, preserves editor focus, and disappears

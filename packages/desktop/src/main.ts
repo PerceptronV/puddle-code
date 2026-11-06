@@ -1,3 +1,4 @@
+import { loadHostIdentities, parseHostIdentity, saveHostIdentity } from './host-identities.js';
 import { isShellTheme, loadShellTheme, saveShellTheme } from './appearance.js';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -66,6 +67,7 @@ import { DesktopNotifications } from './notifications.js';
 const here = dirname(fileURLToPath(import.meta.url));
 const LOCAL = 'local';
 const appearanceFile = () => join(clientHome(), 'desktop-appearance.json');
+const hostIdentitiesFile = () => join(clientHome(), 'desktop-host-identities.json');
 let promptTheme = loadShellTheme(appearanceFile());
 
 const logger: Logger = {
@@ -458,7 +460,18 @@ async function openFromPicker(target: string): Promise<void> {
   }
 }
 
-ipcMain.handle('puddle:picker-recents', () => loadRecentHosts(recentsFile()));
+function pickerHosts() {
+  const identities = loadHostIdentities(hostIdentitiesFile());
+  return [LOCAL, ...loadRecentHosts(recentsFile())].map((target) => ({
+    target,
+    identity: identities.get(target) ?? null,
+  }));
+}
+ipcMain.handle('puddle:picker-recents', (event) => {
+  if (event.sender !== pickerWin?.webContents || event.senderFrame !== event.sender.mainFrame)
+    return [];
+  return pickerHosts();
+});
 ipcMain.on('puddle:picker-choose', (_event, target: unknown) => {
   if (typeof target === 'string') void openFromPicker(target);
 });
@@ -774,4 +787,18 @@ ipcMain.on('puddle:appearance', (event, value: unknown) => {
   if (promptTheme === value) return;
   promptTheme = value;
   saveShellTheme(appearanceFile(), value);
+});
+
+// Cache presentation only from the registered cockpit's exact main-frame origin.
+ipcMain.on('puddle:host-identity', (event, value: unknown) => {
+  if (event.senderFrame !== event.sender.mainFrame) return;
+  const identity = parseHostIdentity(value);
+  if (!identity) return;
+  const owner = [...shells.values()].find(
+    ({ win }) => !win.isDestroyed() && win.webContents === event.sender,
+  );
+  if (!owner || new URL(event.senderFrame.url).origin !== new URL(owner.cockpit.origin).origin)
+    return;
+  saveHostIdentity(hostIdentitiesFile(), owner.target, identity);
+  pickerWin?.webContents.send('puddle:picker-hosts', pickerHosts());
 });

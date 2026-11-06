@@ -1,5 +1,10 @@
 import { HostPeekOverlay } from '../host/HostPeekOverlay';
-import { HostGlyph, HostAppearanceTheme, useHostAppearance } from '../host/host-appearance';
+import {
+  HostGlyph,
+  HostAppearanceTheme,
+  DesktopHostIdentity,
+  useHostAppearance,
+} from '../host/host-appearance';
 import './shell-header.css';
 import { StorageBanner } from './StorageBanner';
 import { useEffect } from 'react';
@@ -353,6 +358,7 @@ function ShellBody() {
     // a nested surface at its limit from rubber-banding the whole window.
     <div className="flex h-screen flex-col overflow-hidden overscroll-y-none bg-ground">
       <HostAppearanceTheme />
+      <DesktopHostIdentity />
       <HostPeekOverlay />
       <TopBar />
       <main className="min-h-0 flex-1">

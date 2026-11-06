@@ -67,3 +67,24 @@ window.addEventListener('DOMContentLoaded', () => {
   });
   window.addEventListener('focus', report);
 });
+
+// The main process binds this presentation snapshot to the window's target.
+window.addEventListener('DOMContentLoaded', () => {
+  let previous = '';
+  const report = () => {
+    const value = document.documentElement.dataset.desktopHostIdentity;
+    if (!value || value === previous || value.length > 32_768) return;
+    try {
+      ipcRenderer.send('puddle:host-identity', JSON.parse(value));
+      previous = value;
+    } catch {
+      // Incomplete or invalid projections leave the last-known identity intact.
+    }
+  };
+  report();
+  new MutationObserver(report).observe(document.documentElement, {
+    attributes: true,
+    attributeFilter: ['data-desktop-host-identity'],
+  });
+  window.addEventListener('focus', report);
+});

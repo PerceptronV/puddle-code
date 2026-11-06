@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Show saved host names, colours and icons in the desktop New Puddle Window picker, including offline hosts.
+
 - Choose custom profile colours and host accents with a colour picker seeded from the current selection.
 
 - Restore individual files from Changes using a return-arrow action, with confirmation before discarding edits or deleting untracked files.

@@ -6,10 +6,10 @@ import {
   onThemeChange,
   notifyThemeChange,
 } from '../../lib/appearance/theme';
-import { useLayoutEffect, type ReactNode } from 'react';
+import { useLayoutEffect, useRef, type ReactNode } from 'react';
 import { PROFILE_ICON_COLOURS } from '@puddle/shared';
 import { Server } from 'lucide-react';
-import { useProfileSettings } from '../../lib/queries/queries';
+import { hostLabel, useHostInfo, useProfileSettings } from '../../lib/queries/queries';
 import { useCurrentProfileId } from '../profile/profile-store';
 import { HOST_ICON_BY_NAME } from './host-icons';
 import './host-appearance.css';
@@ -20,6 +20,7 @@ export function useHostAppearance(enabled = true) {
   const settings = useProfileSettings(enabled ? (profileId ?? undefined) : undefined);
   const colour = settings.data?.hostColour;
   return {
+    ready: enabled && settings.isSuccess,
     icon: settings.data?.hostIcon,
     colour:
       PROFILE_ICON_COLOURS.some((key) => key === colour) || isCustomColour(colour) ? colour : null,
@@ -90,5 +91,38 @@ export function HostHeader({ children, enabled }: { children: ReactNode; enabled
     <header className="remote-topbar host-header" data-host-colour={colour ?? undefined}>
       {children}
     </header>
+  );
+}
+
+/** The desktop preload mirrors this admitted host identity into its offline picker cache. */
+export function DesktopHostIdentity() {
+  const host = useHostInfo();
+  const { icon, colour, ready } = useHostAppearance();
+  const name = hostLabel(host.data);
+  const marker = useRef<HTMLSpanElement>(null);
+  useLayoutEffect(() => {
+    const root = document.documentElement;
+    const svg = marker.current?.querySelector('svg');
+    if (!ready || !name || !svg) return;
+    root.dataset.desktopHostIdentity = JSON.stringify({
+      name,
+      colour,
+      icon: [...svg.children].map((node) => ({
+        tag: node.localName,
+        attrs: Object.fromEntries(
+          [...node.attributes]
+            .filter((attribute) => attribute.name !== 'class')
+            .map((attribute) => [attribute.name, attribute.value]),
+        ),
+      })),
+    });
+    return () => {
+      delete root.dataset.desktopHostIdentity;
+    };
+  }, [ready, name, icon, colour]);
+  return (
+    <span hidden ref={marker}>
+      <HostGlyph icon={icon} />
+    </span>
   );
 }

@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { loadHostIdentities } from '../src/host-identities.js';
 import { loadReopenWindows, saveReopenWindows } from '../src/reopen.js';
 
 const mocks = vi.hoisted(() => ({
@@ -249,4 +250,34 @@ describe('desktop quit and reopen lifecycle', () => {
     app.emit('before-quit');
     expect(targets()).toEqual(['local']);
   });
+});
+
+it('binds host appearance reports to a registered cockpit main frame and target', async () => {
+  saveReopenWindows(file(), [{ target: 'local' }]);
+  await boot();
+  const win = BrowserWindow.getAllWindows()[0]!;
+  const frame = { url: 'http://localhost:7433/project/example' };
+  Object.assign(win.webContents, { mainFrame: frame });
+  const identity = {
+    name: 'Preferred host',
+    colour: '#12a6bc',
+    icon: [{ tag: 'path', attrs: { d: 'M1 1h20' } }],
+  };
+  const path = join(mocks.home, 'desktop-host-identities.json');
+  ipcMain.emit(
+    'puddle:host-identity',
+    { sender: win.webContents, senderFrame: { ...frame } },
+    identity,
+  );
+  expect(loadHostIdentities(path).size).toBe(0);
+  frame.url = 'https://other.example/';
+  ipcMain.emit('puddle:host-identity', { sender: win.webContents, senderFrame: frame }, identity);
+  expect(loadHostIdentities(path).size).toBe(0);
+  frame.url = 'http://localhost:7433/';
+  ipcMain.emit(
+    'puddle:host-identity',
+    { sender: win.webContents, senderFrame: frame },
+    { ...identity, target: 'user@other' },
+  );
+  expect([...loadHostIdentities(path)]).toEqual([['local', identity]]);
 });

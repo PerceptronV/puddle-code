@@ -35,7 +35,7 @@
       }
       button.host {
         display: flex;
-        align-items: baseline;
+        align-items: center;
         gap: 8px;
         width: 100%;
         text-align: left;
@@ -58,7 +58,21 @@
         cursor: default;
       }
       button.host .name {
-        font-family: ui-monospace, monospace;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+      button.host .identity-icon {
+        width: 18px;
+        height: 18px;
+        flex-shrink: 0;
+      }
+      button.host[data-colour] {
+        color: color-mix(in srgb, var(--host-colour) 45%, var(--host-shade));
+      }
+      [data-theme='dark'] button.host[data-colour] {
+        color: color-mix(in srgb, var(--host-colour) 18%, var(--host-paper));
       }
       button.host .note {
         color: var(--text-muted);
@@ -88,10 +102,54 @@
       const status = document.getElementById('status');
       let busy = false;
 
-      const row = (name, note, onPick) => {
+      const row = (name, note, onPick, target, identity) => {
         const button = document.createElement('button');
         button.className = 'host';
         button.type = 'button';
+        button.disabled = busy;
+        if (target) button.title = target;
+        const tokens = {
+          navy: '--identity-navy',
+          gold: '--identity-gold',
+          blue: '--ansi-blue',
+          green: '--ansi-green',
+          red: '--ansi-red',
+          violet: '--ansi-magenta',
+          cyan: '--ansi-cyan',
+        };
+        const colour = identity?.colour;
+        if (colour && (Object.hasOwn(tokens, colour) || /^#[0-9a-f]{6}$/i.test(colour))) {
+          button.dataset.colour = colour;
+          button.style.setProperty(
+            '--host-colour',
+            Object.hasOwn(tokens, colour) ? `var(${tokens[colour]})` : colour,
+          );
+        }
+        if (target) {
+          const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
+          for (const [key, value] of Object.entries({
+            viewBox: '0 0 24 24',
+            fill: 'none',
+            stroke: 'currentColor',
+            'stroke-width': '2',
+            'stroke-linecap': 'round',
+            'stroke-linejoin': 'round',
+            'aria-hidden': 'true',
+            class: 'identity-icon',
+          }))
+            svg.setAttribute(key, value);
+          const fallback = [
+            { tag: 'rect', attrs: { x: '2', y: '2', width: '20', height: '8', rx: '2' } },
+            { tag: 'rect', attrs: { x: '2', y: '14', width: '20', height: '8', rx: '2' } },
+            { tag: 'path', attrs: { d: 'M6 6h.01M6 18h.01' } },
+          ];
+          for (const node of identity?.icon ?? fallback) {
+            const shape = document.createElementNS('http://www.w3.org/2000/svg', node.tag);
+            for (const [key, value] of Object.entries(node.attrs)) shape.setAttribute(key, value);
+            svg.appendChild(shape);
+          }
+          button.appendChild(svg);
+        }
         const label = document.createElement('span');
         label.className = 'name';
         label.textContent = name;
@@ -109,13 +167,24 @@
         return button;
       };
 
-      window.puddlePicker.recents().then((recents) => {
-        row('this machine', 'local', () => window.puddlePicker.choose('local'));
-        for (const host of recents) {
-          row(host, 'ssh', () => window.puddlePicker.choose(host));
+      const renderHosts = (entries) => {
+        const focused = document.activeElement?.title;
+        hosts.replaceChildren();
+        for (const { target, identity } of entries) {
+          const name = identity?.name ?? (target === 'local' ? 'this machine' : target);
+          const button = row(
+            name,
+            target === 'local' ? 'local' : 'ssh',
+            () => window.puddlePicker.choose(target),
+            target,
+            identity,
+          );
+          if (focused === target) button.focus();
         }
         row('remote ssh', '⌘⇧O', () => window.puddlePicker.other());
-      });
+      };
+      window.puddlePicker.recents().then(renderHosts);
+      window.puddlePicker.onHosts(renderHosts);
 
       window.puddlePicker.onStatus(({ state, message }) => {
         busy = state === 'connecting';
