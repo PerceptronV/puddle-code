@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Cockpit
 
+- Hold ⌘⌥/ (Ctrl+Alt+/ on Windows/Linux) to blur the workspace and glance at the host icon and name; release to return immediately.
+
 - Customise each host’s icon and accent per profile, independently of Settings Sync; choose from 63 host-specific icons and the shared colour palette, with a coherent accent palette across text, controls, surfaces, borders and selections.
 
 - Coalesce custom cursor movement per frame and reuse hover-role/style checks while preserving theme, font and target changes.
@@ -32,6 +34,8 @@ Past releases: see docs/changelogs/.
 - Keep PDF zoom controls over the visible document instead of below its viewport; allow overlay trays to override their default positioning.
 
 ### Daemon
+
+- Stream uploads through bounded private staging with actual-byte limits, enumerate file trees asynchronously, and stop bounded directory downloads on cancellation.
 
 - Bound Claude reference discovery to transcript prefixes and stream asynchronous usage reads, preserving totals across file replacement, truncation and partial writes.
 

@@ -31,6 +31,7 @@ function KeyRecorder({
     <div className="flex items-center gap-1.5">
       <button
         type="button"
+        data-hotkey-recording={recording || undefined}
         onClick={() => setRecording(true)}
         onBlur={() => setRecording(false)}
         onKeyDown={(e) => {

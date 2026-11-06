@@ -71,6 +71,7 @@ export function HotkeysHost() {
     // its chord prefix) before a bubbling DOM listener can see them. Editor
     // actions other than save still belong to the Monaco instance itself.
     const onCaptureKey = (e: KeyboardEvent) => {
+      if (e.target instanceof Element && e.target.closest('[data-hotkey-recording]')) return;
       const binding = eventBinding(e);
       if (!binding) return;
       const id = actionForBinding(binding);
@@ -81,7 +82,7 @@ export function HotkeysHost() {
       if (!handler) return;
       e.preventDefault();
       e.stopPropagation();
-      handler();
+      if (!action.hold || !e.repeat) handler();
     };
     const onKey = (e: KeyboardEvent) => {
       const binding = eventBinding(e);

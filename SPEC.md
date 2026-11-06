@@ -1748,8 +1748,11 @@ Files      GET  /api/worktrees/:sid/tree?path=…      # + optional absolute `ro
            POST /api/worktrees/:sid/paste {mime, data}      # base64 clipboard image → .puddle/pastes/; returns {path} relative to the worktree (§7)
            POST /api/worktrees/:sid/upload?dir=…            # multipart file upload into a worktree directory, path-contained (drag-in transfer — §8);
                 # a multipart filename may carry a dir-relative path (folder drops) — intermediate directories are created, `..`/`.` segments dropped, never resolved;
-                # 512 MiB per-request cap (413 `upload_too_large`; the body is memory-buffered, so the cap guards the daemon) — the web batches big drops into ~64 MiB requests, so it binds only on one huge file; a same-name file already there is overwritten silently
+                # 512 MiB actual-byte per-request cap (413 `upload_too_large`), enforced while streaming into private disk staging; up to 10,000 files / 8 MiB of relative filenames per request — the web batches big drops into ~64 MiB requests; a same-name file already there is overwritten silently
            GET  /api/worktrees/:sid/download?path=…         # file → bytes; directory → zip stream excluding `.git` and symlinks (Content-Disposition attachment) (§8)
+                # asynchronous traversal, one active file plus one successor; ZIP metadata capped at 10,000 files / 8 MiB of paths / depth 128; exceeding a bound fails the stream rather than returning a truncated archive
+                # uploads and directory downloads share four active transfer slots (503 `transfer_busy`); cancellation closes source streams and enumeration handles
+                # uploads validate the complete multipart body before destination writes, preserve symlink/hard-link/mode overwrite semantics, and remove private staging on success/failure/cancellation; cancellation during commit finishes the current file and stops between files (a batch is not a filesystem transaction)
            GET  /api/worktrees/:sid/media?path=…            # file → raw bytes with its real content-type (image/*, video/*, audio/*, application/pdf) + inline disposition, for the media viewer; octet-stream fallback for unknown types (§8)
            GET  /api/worktrees/:sid/preview-asset?path=…    # 21.1: optional validated root; up to 8 MiB as {mime,data} (base64), bounded JSON for encrypted remote previews; 413 preview_too_large above the cap
            POST /api/worktrees/:sid/create {path, kind:file|dir}   # empty file / mkdir -p; 409 `already_exists`; path-contained (§8)
@@ -2200,6 +2203,12 @@ fill. Editor/terminal backgrounds and neutral ink update with the same palette;
 syntax and ANSI hues, semantic status colours, explicit project/profile colours,
 brand/file artwork and document colours remain independent. Palette changes notify
 the existing editor/terminal theme subscribers using resolved hex colours.
+Hold ⌘⌥/ on macOS or Ctrl+Alt+/ on Windows/Linux to blur the existing workspace
+and overlay the chosen host glyph above its name in large centred type. The overlay
+has no opaque/tinted replacement background, preserves editor focus, and disappears
+immediately when any chord key is released or the window loses focus/visibility.
+Key repeat does not toggle it. The binding is customisable in Hotkeys; entrance
+motion respects reduced motion and dismissal has no exit animation.
 Without a chosen accent the original theme returns, including gold navigation
 selection. The palette is cleared when leaving the host/profile.
 The existing extensible profile-settings API stores these optional fields without a

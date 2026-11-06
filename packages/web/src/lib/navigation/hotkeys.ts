@@ -29,6 +29,8 @@ export interface HotkeyAction {
   desktopBinding?: string;
   /** Bound inside Monaco (not the DOM dispatcher) — the editor owns the keys. */
   editor?: boolean;
+  /** Capture before editors/terminals; the owner releases the action on keyup. */
+  hold?: boolean;
   /** Yield to a focused terminal, which uses this key itself (e.g. ⌃A, ⌃`). */
   deferInTerminal?: boolean;
 }
@@ -36,6 +38,16 @@ export interface HotkeyAction {
 export const HOTKEY_GROUPS = ['Layout & tabs', 'Editor', 'Left sidebar', 'Right sidebar'] as const;
 
 export const HOTKEY_ACTIONS: HotkeyAction[] = [
+  {
+    id: 'host.peek',
+    label: 'Show host identity (hold)',
+    group: 'Layout & tabs',
+    defaultBinding:
+      typeof navigator !== 'undefined' && /Mac/.test(navigator.platform)
+        ? 'alt+meta+Slash'
+        : 'ctrl+alt+Slash',
+    hold: true,
+  },
   {
     id: 'palette.toggle',
     label: 'Command palette',
@@ -260,7 +272,9 @@ export const getHotkeyAction = (id: string): HotkeyAction | undefined => ACTION_
  * editor instance itself.
  */
 export function hotkeyNeedsCapture(action: HotkeyAction, monacoFocused: boolean): boolean {
-  return action.id === 'editor.save' || (monacoFocused && action.editor !== true);
+  return (
+    action.hold === true || action.id === 'editor.save' || (monacoFocused && action.editor !== true)
+  );
 }
 
 // --- merged bindings store (defaults overridden by the profile's settings) ---
