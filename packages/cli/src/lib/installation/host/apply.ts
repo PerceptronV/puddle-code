@@ -101,6 +101,18 @@ export async function applyHostUpdate(
     const fingerprint = inspection?.fingerprint ?? interruption;
     if (!inspection || !fingerprint || (!inspection.can_apply && !interruption)) {
       const blockers = review.ok ? review.review?.blockers.map((item) => item.code).join(', ') : '';
+      if (
+        inspection?.blockers.some((item) => item.code === 'daemon_supervisor_marker_permissions')
+      ) {
+        throw new CliError(
+          'upgrade_failed',
+          `Host update checks did not pass: ${blockers}`,
+          'On the daemon host, verify the supervisor marker matches the running service, then remove ' +
+            'group/other write permission with chmod go-w ~/.puddle/supervisor ' +
+            '(use the actual daemon home if customised). Retry the daemon upgrade after repair. ' +
+            `Inspect this operation with puddle updates --operation ${operation.id} on that host.`,
+        );
+      }
       throw hostUpdateFailure(
         operation,
         `Host update checks did not pass${blockers ? `: ${blockers}` : ''}`,

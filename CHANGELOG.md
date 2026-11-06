@@ -18,3 +18,9 @@ Past releases: see docs/changelogs/.
 #### Fixed
 
 - Keep existing-tab and pane activation immediate without fading tabs or content, including across projects in a shared layout.
+
+### Daemon
+
+#### Fixed
+
+- Identify legacy supervisor markers with group/other write permissions as a specific upgrade blocker and provide explicit host-side permission repair guidance in the CLI; keep inspection read-only and require fresh service checks after repair.

@@ -1,4 +1,4 @@
-import { chmodSync, symlinkSync, writeFileSync } from 'node:fs';
+import { chmodSync, statSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { HostUpdateSupervision } from '../../../src/updates/preflight/supervision.js';
@@ -55,7 +55,7 @@ it.each(['linux', 'darwin'] as const)(
   },
 );
 
-it.each(['missing', 'nohup', 'none', 'large', 'symlink', 'writable', 'other-platform'] as const)(
+it.each(['missing', 'nohup', 'none', 'large', 'symlink', 'other-platform'] as const)(
   'refuses a %s marker without starting or stopping services',
   async (failure) => {
     const f = setup();
@@ -66,20 +66,40 @@ it.each(['missing', 'nohup', 'none', 'large', 'symlink', 'writable', 'other-plat
     } else if (failure !== 'missing') {
       writeFileSync(
         marker,
-        failure === 'large'
-          ? 'x'.repeat(4096)
-          : failure === 'other-platform'
-            ? 'launchd'
-            : failure === 'writable'
-              ? 'systemd'
-              : failure,
+        failure === 'large' ? 'x'.repeat(4096) : failure === 'other-platform' ? 'launchd' : failure,
       );
-      if (failure === 'writable') chmodSync(marker, 0o666);
     }
     expect((await f.inspector.inspect(f.operation)).blockers).toEqual([
       { code: 'daemon_supervision_unknown', target: 'daemon' },
     ]);
     expect(f.run).toHaveBeenCalledOnce(); // Read-only manager probe, no service mutation.
+  },
+);
+
+it.each([0o664, 0o646, 0o666])(
+  'identifies unsafe marker permissions (%s) without repairing during inspection',
+  async (mode) => {
+    const f = setup();
+    const marker = join(f.home, 'supervisor');
+    writeFileSync(marker, 'systemd\n');
+    chmodSync(marker, mode);
+    expect((await f.inspector.inspect(f.operation)).blockers).toEqual([
+      { code: 'daemon_supervisor_marker_permissions', target: 'daemon' },
+    ]);
+    expect(statSync(marker).mode & 0o777).toBe(mode);
+    expect(f.run).toHaveBeenCalledOnce();
+
+    // Explicit host-side repair permits a fresh inspection, not automatic approval.
+    chmodSync(marker, mode & ~0o022);
+    expect((await f.inspector.inspect(f.operation)).blockers).toEqual([]);
+    f.run.mockImplementation(async () => ({
+      exitCode: 0,
+      stdout: systemdObservation(456),
+      stderr: '',
+    }));
+    expect((await f.inspector.inspect(f.operation)).blockers).toEqual([
+      { code: 'daemon_supervision_unknown', target: 'daemon' },
+    ]);
   },
 );
 

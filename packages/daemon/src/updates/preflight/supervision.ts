@@ -1,5 +1,8 @@
 import type { ServiceTarget } from '../../host/supervision/target.js';
-import { readSupervisorMarker } from '../../host/supervision/marker.js';
+import {
+  readSupervisorMarker,
+  SupervisorMarkerPermissionsError,
+} from '../../host/supervision/marker.js';
 import {
   hostUpdateOperationSchema,
   type HostUpdateOperation,
@@ -16,7 +19,10 @@ export interface UpdateSupervision {
   worker: Pick<ServiceTarget, 'kind' | 'domain'> | null;
   daemon: HostServiceReplacement | null;
   blockers: Array<{
-    code: 'supervisor_unavailable' | 'daemon_supervision_unknown';
+    code:
+      | 'supervisor_unavailable'
+      | 'daemon_supervision_unknown'
+      | 'daemon_supervisor_marker_permissions';
     target: string;
   }>;
 }
@@ -60,8 +66,14 @@ export class HostUpdateSupervision {
         this.deps.run,
       );
       result.daemon = await prepareServiceReplacement(this.deps.home, observed, this.deps);
-    } catch {
-      result.blockers.push({ code: 'daemon_supervision_unknown', target: 'daemon' });
+    } catch (error) {
+      result.blockers.push({
+        code:
+          error instanceof SupervisorMarkerPermissionsError
+            ? 'daemon_supervisor_marker_permissions'
+            : 'daemon_supervision_unknown',
+        target: 'daemon',
+      });
     }
     return result;
   }

@@ -190,6 +190,24 @@ it.each(['local', 'ssh'] as const)(
   },
 );
 
+it.each(['local', 'ssh'] as const)(
+  'explains explicit marker permission repair on the %s daemon host without dispatching',
+  async (kind) => {
+    const f = await fixture(kind, PROTOCOL_VERSION.minor, 'daemon');
+    f.inspection.fingerprint = null;
+    f.inspection.blockers = [{ code: 'daemon_supervisor_marker_permissions', target: 'daemon' }];
+    await expect(
+      upgradeHostComponent(f.transport, 'daemon', { version: '0.4.0' }),
+    ).rejects.toMatchObject({
+      code: 'upgrade_failed',
+      message: expect.stringContaining('daemon_supervisor_marker_permissions'),
+      hint: expect.stringContaining('chmod go-w ~/.puddle/supervisor'),
+    });
+    expect(f.dispatch).not.toHaveBeenCalled();
+    expect(f.commands.map(({ action }) => action)).toEqual(['begin', 'stage', 'inspect']);
+  },
+);
+
 it.each(['approve', 'decline', 'missing', 'changed-impact', 'changed-authority'] as const)(
   'binds daemon interruption approval to reviewed work and participating authority (%s)',
   async (answer) => {
