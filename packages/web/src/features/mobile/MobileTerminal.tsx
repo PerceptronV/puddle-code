@@ -17,7 +17,12 @@ export function MobileTerminal({
   return (
     <div className="phone-terminal" hidden={!active}>
       <div className="min-h-0 flex-1">
-        <LazyTerminal stream={session} term={term} paused={!active || !connected} />
+        <LazyTerminal
+          stream={session}
+          term={term}
+          paused={!active || !connected}
+          parked={!active}
+        />
       </div>
       <Composer session={session} term={term} connected={connected && attached && active} compact />
     </div>

@@ -30,8 +30,9 @@ import { allLeaves } from './layout/layout-tree';
  *
  * Which terminals are mounted is the union of the live tree's and `parked` — the
  * ones other projects' layouts hold open under project-based layout (SPEC §11).
- * A terminal only ever detaches from its PTY (`paused`); it unmounts when it is
- * closed everywhere, not when you look at another project.
+ * Portal ownership survives project switches until closed everywhere. The
+ * terminal keeps recent switches warm, and may compact an older paused viewer
+ * into a local transcript snapshot without changing this stable container.
  */
 
 interface KeepAliveCtx {
@@ -54,7 +55,7 @@ export function KeepAliveHost({
    * Sessions to keep mounted although the LIVE tree has no tab for them — the
    * terminals other projects' layouts hold open under project-based layout
    * (SPEC §11). They are never adopted by a pane, so they stay paused; keeping
-   * them spares a rebuild-and-replay on every project switch.
+   * recent views warm spares a rebuild-and-replay on quick project switches.
    */
   parked?: string[];
   /** A validated terminal link opened in `session`'s terminal (SPEC §7). */
@@ -64,10 +65,10 @@ export function KeepAliveHost({
   const parkingRef = useRef<HTMLDivElement>(null);
   const containers = useRef<Map<string, HTMLDivElement>>(new Map()).current;
 
-  // Which containers a pane currently shows. A parked terminal stays mounted
-  // (scrollback, addons, handlers all survive) but is told to pause via the
-  // `paused` prop, so it detaches its PTY viewer and stops parsing output the
-  // hidden DOM could never show. The daemon PTY is untouched by this — pausing
+  // Which containers a pane currently shows. A parked terminal pauses its PTY
+  // viewer and stops parsing output the hidden DOM could never show. Older
+  // viewers may release xterm resources while retaining a local transcript.
+  // The daemon PTY is untouched by this — pausing
   // is purely a viewer-side economy (SPEC §6: viewers are ephemeral).
   const [adopted, setAdoptedKeys] = useState<ReadonlySet<string>>(() => new Set());
   const setAdopted = useCallback((key: string, isAdopted: boolean) => {

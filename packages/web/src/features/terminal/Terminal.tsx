@@ -58,6 +58,14 @@ import { attachTerminalTouchScroll } from './scroll/touch-scroll';
 import { attachIosTerminalInput } from './input/ios-input';
 import { SelectionActions } from '../../components/selection-actions';
 import { TerminalRichOutput } from './rich-output/TerminalRichOutput';
+import { browserScope } from '../../lib/transport/browser-transport';
+import { RetainedTerminal } from './parked/RetainedTerminal';
+import { parkedTerminalPool } from './parked/pool';
+import {
+  captureParkedTerminal,
+  restoreParkedTerminal,
+  type ParkedTerminalSnapshot,
+} from './parked/snapshot';
 
 const IS_MAC = /Mac|iPhone|iPad/.test(navigator.platform);
 
@@ -135,6 +143,8 @@ export interface TerminalProps {
    * ephemeral by design (SPEC §6).
    */
   paused?: boolean;
+  /** Offscreen and eligible for cold storage; defaults to paused. A visible offline view is not parked. */
+  parked?: boolean;
 }
 
 /**
@@ -162,14 +172,37 @@ const DETACH_LINGER_MS = 1_500;
  * repaints prior scrollback; the theme regenerates from the CSS variables on
  * every theme switch so terminal and chrome never drift apart (SPEC §12).
  */
-export function Terminal({
+export function Terminal(props: TerminalProps) {
+  return (
+    <RetainedTerminal
+      key={browserScope(JSON.stringify([props.stream, props.term ?? 'agent']))}
+      parked={props.parked ?? props.paused ?? false}
+    >
+      {(snapshot, park, restored) => (
+        <TerminalView {...props} initialSnapshot={snapshot} onPark={park} onRestored={restored} />
+      )}
+    </RetainedTerminal>
+  );
+}
+
+function TerminalView({
   stream,
   term = 'agent',
   className,
   onExit,
   onOpenFile,
   paused = false,
-}: TerminalProps) {
+  parked = paused,
+  initialSnapshot,
+  onPark,
+  onRestored,
+}: TerminalProps & {
+  initialSnapshot: ParkedTerminalSnapshot | null;
+  onPark(snapshot: ParkedTerminalSnapshot): void;
+  onRestored(): void;
+}) {
+  const savedView = useRef(initialSnapshot);
+  const [localReplayReady, setLocalReplayReady] = useState(!initialSnapshot);
   const containerRef = useRef<HTMLDivElement>(null);
   const xtermRef = useRef<XTerm | null>(null);
   const [richTerminal, setRichTerminal] = useState<XTerm | null>(null);
@@ -269,6 +302,9 @@ export function Terminal({
     const container = containerRef.current;
     if (!xterm || !container || container.clientWidth === 0 || container.clientHeight === 0)
       return null;
+    // Local fallback bytes must first restore at their original grid. Reflow
+    // only after parsing completes, just as for a canonical attach snapshot.
+    if (savedView.current) return xterm;
     const guard = resizeScrollGuardRef.current;
     guard.capture(xterm);
     guard.beginManagedScroll();
@@ -344,6 +380,7 @@ export function Terminal({
       fontFamily: TERMINAL_FONT,
       fontSize: settings.terminalFontSize,
       scrollback: settings.terminalScrollback,
+      ...(savedView.current ? { cols: savedView.current.cols, rows: savedView.current.rows } : {}),
       cursorBlink: !reduceMotion,
       // A TUI that enables mouse reporting (Claude Code does, for wheel
       // scrolling) receives mouse drags itself — xterm then makes no local
@@ -372,9 +409,23 @@ export function Terminal({
     const urlLinks = registerUrlLinks(xterm, openUri);
     xterm.open(container);
     setRichTerminal(xterm);
-    fit.fit();
+    if (!savedView.current) fit.fit();
     fitRef.current = fit;
     searchRef.current = search;
+    const saved = savedView.current;
+    if (saved) {
+      replayingRef.current = true;
+      void restoreParkedTerminal(xterm, saved).then(() => {
+        if (xtermRef.current !== xterm) return;
+        savedView.current = null;
+        replayingRef.current = false;
+        hasReplayRef.current = true;
+        // Restore at the captured grid before a logical-line-aware fit/reflow.
+        fitPreservingScroll();
+        setLocalReplayReady(true);
+        onRestored();
+      });
+    }
     const searchResults = search.onDidChangeResults((result) => {
       find.setResult({ index: result.resultIndex, count: result.resultCount });
     });
@@ -595,7 +646,7 @@ export function Terminal({
   // carries that news to the UI.
   useEffect(() => {
     const xterm = xtermRef.current;
-    if (!xterm || !attached) return;
+    if (!xterm || !attached || !localReplayReady) return;
     // Adoption may have just given the container real dimensions — size the
     // buffer first so the attach carries the dims the PTY should have.
     const container = containerRef.current;
@@ -713,7 +764,48 @@ export function Terminal({
     daemonAnswersColours,
     fitPreservingScroll,
     restoreResizeScroll,
+    localReplayReady,
   ]);
+
+  useEffect(() => {
+    if (!parked || attached || !localReplayReady) return;
+    let alive = true;
+    let cancelDrain: (() => void) | undefined;
+    const registration = parkedTerminalPool.register(async () => {
+      const xterm = xtermRef.current;
+      const eligible = () =>
+        alive &&
+        !activeRef.current &&
+        xtermRef.current === xterm &&
+        hasReplayRef.current &&
+        !replayingRef.current &&
+        !find.open;
+      if (!xterm || !eligible()) return false;
+      let drained = false;
+      await new Promise<void>((resolve) => {
+        const timer = setTimeout(resolve, 5000);
+        cancelDrain = () => {
+          clearTimeout(timer);
+          resolve();
+        };
+        xterm.write('', () => {
+          drained = true;
+          cancelDrain?.();
+        });
+      });
+      if (!drained || !eligible()) return false;
+      const snapshot = captureParkedTerminal(xterm);
+      if (!snapshot || !eligible()) return false;
+      onPark(snapshot);
+      return true;
+    });
+    registration.setParked(true);
+    return () => {
+      alive = false;
+      cancelDrain?.();
+      registration.dispose();
+    };
+  }, [parked, attached, localReplayReady, find.open, onPark]);
 
   // Font size and scrollback patch the LIVE instance (recreating it would drop
   // scrollback). A font change resizes the CELL, not the container, so the

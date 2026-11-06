@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Cockpit
 
+- Reduce memory held by long-inactive terminals while preserving their local transcripts, scroll position and offline copy; keep recent switches and unsupported terminal states warm.
+
 - Share session lifecycle eligibility across mobile and desktop; explain unavailable resumes on mobile while keeping live sessions stoppable.
 
 - Support selective component releases and manifest-pinned bootstrap; notify only for newly published host components, and reject explicitly requested skipped versions.

@@ -42,6 +42,8 @@ jobs:
         run: node packages/web/test/release-notes/browser.mjs
       - name: verify synchronised terminal rendering
         run: node packages/web/test/terminal/synchronised-output.browser.mjs
+      - name: verify parked terminal preservation
+        run: node packages/web/test/terminal/parked-snapshot.browser.mjs && node packages/web/test/terminal/parked-view.browser.mjs
       - name: verify terminal projection updates and download cleanup
         run: node packages/web/test/terminal/rich-output.browser.mjs
       - name: verify mobile and desktop session eligibility
