@@ -27,6 +27,8 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
+- Handle cancelled word highlighting and diff replies for disposed editor models during workspace transitions.
+
 - Fit collapsed project abbreviations to the rail at the largest readable size, without ellipses.
 - Avoid full-screen terminal redraws for cursor-only synchronised updates while preserving buffered output and the terminal's refresh timeout.
 - Improve compact project-rail label sizing and vertical spacing; align selection and hover fills during dialogue scaling, and dismiss tab actions after pointer exit without losing keyboard access.

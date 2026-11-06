@@ -17,3 +17,5 @@ allowBuilds:
   electron-winstaller: false
   esbuild: true
   node-pty: true
+patchedDependencies:
+  monaco-editor@0.55.1: patches/monaco-editor@0.55.1.patch

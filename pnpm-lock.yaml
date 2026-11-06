@@ -8,6 +8,9 @@ overrides:
   '@types/react': ^19.0.0
   '@types/react-dom': ^19.0.0
 
+patchedDependencies:
+  monaco-editor@0.55.1: 0a0b8c88dec5b0fdbe4bd5f45e761f8c35899ce0e78acafa3c4df635ef1e8143
+
 importers:
 
   .:
@@ -273,7 +276,7 @@ importers:
         version: 1.0.15(react@19.2.7)
       '@monaco-editor/react':
         specifier: ^4.7.0
-        version: 4.7.0(monaco-editor@0.55.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
+        version: 4.7.0(monaco-editor@0.55.1(patch_hash=0a0b8c88dec5b0fdbe4bd5f45e761f8c35899ce0e78acafa3c4df635ef1e8143))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)
       '@puddle/remote-transport':
         specifier: workspace:*
         version: link:../remote-transport
@@ -369,7 +372,7 @@ importers:
         version: 11.17.2
       monaco-editor:
         specifier: ^0.55.1
-        version: 0.55.1
+        version: 0.55.1(patch_hash=0a0b8c88dec5b0fdbe4bd5f45e761f8c35899ce0e78acafa3c4df635ef1e8143)
       parse5:
         specifier: ^8.0.1
         version: 8.0.1
@@ -5796,10 +5799,10 @@ snapshots:
     dependencies:
       state-local: 1.0.7
 
-  '@monaco-editor/react@4.7.0(monaco-editor@0.55.1)(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
+  '@monaco-editor/react@4.7.0(monaco-editor@0.55.1(patch_hash=0a0b8c88dec5b0fdbe4bd5f45e761f8c35899ce0e78acafa3c4df635ef1e8143))(react-dom@19.2.7(react@19.2.7))(react@19.2.7)':
     dependencies:
       '@monaco-editor/loader': 1.7.0
-      monaco-editor: 0.55.1
+      monaco-editor: 0.55.1(patch_hash=0a0b8c88dec5b0fdbe4bd5f45e761f8c35899ce0e78acafa3c4df635ef1e8143)
       react: 19.2.7
       react-dom: 19.2.7(react@19.2.7)
 
@@ -8476,7 +8479,7 @@ snapshots:
     dependencies:
       minimist: 1.2.8
 
-  monaco-editor@0.55.1:
+  monaco-editor@0.55.1(patch_hash=0a0b8c88dec5b0fdbe4bd5f45e761f8c35899ce0e78acafa3c4df635ef1e8143):
     dependencies:
       dompurify: 3.2.7
       marked: 14.0.0

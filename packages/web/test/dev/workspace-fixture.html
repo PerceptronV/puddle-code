@@ -1,0 +1,15 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Workspace fixture</title>
+  </head>
+  <body>
+    <div id="root" style="height: 100vh"></div>
+    <script type="module">
+      import { mountWorkspaceFixture } from './workspace-fixture.tsx';
+      window.workspaceFixture = mountWorkspaceFixture();
+    </script>
+  </body>
+</html>
