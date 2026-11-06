@@ -2,7 +2,7 @@ import { once } from 'node:events';
 import { copyFileSync, cpSync, rmSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
-import { runtimeSupervisorSchema, sessionSchema } from '@puddle/shared';
+import { RUNTIME_PROTOCOL_VERSION, runtimeSupervisorSchema, sessionSchema } from '@puddle/shared';
 import {
   CompilationCommandError,
   runCompilationCommand,
@@ -61,7 +61,11 @@ it.runIf(process.platform === 'darwin' && process.env.PUDDLE_TEST_RUNTIME_SUPERV
         f.sessions.setStatus(f.session.id, 'exited'),
       );
       sh(f.home, 'init', '-b', 'main');
-      const release = runtimeRelease(f.home, '0.4.0-test');
+      const release = runtimeRelease(
+        f.home,
+        '0.4.0-test',
+        `${RUNTIME_PROTOCOL_VERSION.major}.${RUNTIME_PROTOCOL_VERSION.minor}`,
+      );
       copyFileSync(process.execPath, join(release.release, 'bin', 'node'));
       copyFileSync(
         join(bundleDir, 'provider-owner.mjs'),

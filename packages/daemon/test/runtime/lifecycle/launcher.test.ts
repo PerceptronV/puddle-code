@@ -1,3 +1,5 @@
+import { providerResumeGuard } from '../../../src/sessions/runtime/provider.js';
+import { runtimeTestAdapter } from '../../helpers/runtime-test-adapter.js';
 import { dirname, join } from 'node:path';
 import { randomUUID } from 'node:crypto';
 import { readFileSync, readdirSync, rmSync } from 'node:fs';
@@ -152,6 +154,46 @@ it('checks the reviewed release and authority before writing replacement intent'
     expect(guard).toHaveBeenCalledWith(f.launcher.selectedRelease());
     expect(f.runtimes.ownerOf(f.session.id)).toBeNull();
     expect(run).not.toHaveBeenCalled();
+  } finally {
+    await f.close();
+  }
+});
+
+it('refuses native background attachment on an older pinned runtime before recording intent', async () => {
+  const run = vi.fn<CompilationCommandRunner>();
+  const f = fixture(run, true);
+  const release = runtimeRelease(f.home, '1.2.3', '1.0');
+  release.select();
+  const before = readdirSync(join(f.home, 'runtimes')).sort();
+  const authorised = vi.fn();
+  const account = new AccountStore(f.db).create({
+    profile_id: f.profile.id,
+    agent_type: 'runtime-test',
+    label: 'fixture',
+    config_dir: f.home,
+    skip_permissions_default: false,
+  });
+  try {
+    const guard = await providerResumeGuard(
+      {
+        ...runtimeTestAdapter,
+        resumeRuntimeProtocol: async () => ({ major: 1, minor: 1 }),
+      },
+      account,
+      'native-copy',
+      authorised,
+    );
+    await expect(
+      f.launcher.launch(f.session.id, () => f.launch.main, { beforeLaunch: guard }),
+    ).rejects.toMatchObject({ code: 'runtime_provider_unsupported' });
+    expect(authorised).toHaveBeenCalledWith(f.launcher.selectedRelease());
+    expect(run).not.toHaveBeenCalled();
+    expect(f.runtimes.ownerOf(f.session.id)).toBeNull();
+    expect(readdirSync(join(f.home, 'runtimes')).sort()).toEqual(before);
+    const supporting = { ...f.launcher.selectedRelease(), protocol: { major: 1, minor: 1 } };
+    expect(() => guard!(supporting)).not.toThrow();
+    const ordinary = await providerResumeGuard(runtimeTestAdapter, account, 'ordinary', authorised);
+    expect(ordinary).toBe(authorised);
   } finally {
     await f.close();
   }

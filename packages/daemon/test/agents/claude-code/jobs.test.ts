@@ -1,15 +1,18 @@
+import type { Account } from '@puddle/shared';
+import { claudeCode } from '../../../src/agents/claude-code/index.js';
 import type { LifecycleLaunchContext } from '../../../src/agents/adapter.js';
 import { prepareClaudeJob } from '../../../src/agents/claude-code/jobs/launch.js';
 import { chmodSync, mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
 import { createServer, type Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { afterEach, expect, it } from 'vitest';
+import { afterEach, expect, it, vi } from 'vitest';
 import { claudeJobs, inspectClaudeJob } from '../../../src/agents/claude-code/jobs/store.js';
 import { claudeJobRequest } from '../../../src/agents/claude-code/jobs/control.js';
 
 const homes: string[] = [];
 afterEach(() => {
+  vi.unstubAllEnvs();
   for (const home of homes.splice(0)) rmSync(home, { recursive: true, force: true });
 });
 function home() {
@@ -136,6 +139,19 @@ it('separates immutable job identity from the current conversation and refuses u
       { mode: 0o700 },
     );
   respond(live);
+  vi.stubEnv('PATH', bin);
+  const account = { config_dir: root } as Account;
+  await expect(claudeCode.resumeRuntimeProtocol!(parent, account)).resolves.toEqual({
+    major: 1,
+    minor: 1,
+  });
+  await expect(claudeCode.resumeRuntimeProtocol!(ref, account)).resolves.toBeNull();
+  respond({ ...live, state: 'working', pid: null });
+  await expect(claudeCode.resumeRuntimeProtocol!(parent, account)).resolves.toEqual({
+    major: 1,
+    minor: 1,
+  });
+  respond(live);
   expect(await inspectClaudeJob(root, ref, { PATH: bin })).toBeNull();
   expect(await inspectClaudeJob(root, parent, { PATH: bin })).toMatchObject({
     id: '12345678',
@@ -145,6 +161,7 @@ it('separates immutable job identity from the current conversation and refuses u
     pid: process.pid,
   });
   respond({ ...live, state: 'stopped', pid: null });
+  await expect(claudeCode.resumeRuntimeProtocol!(parent, account)).resolves.toBeNull();
   await expect(
     prepareClaudeJob({
       account: { config_dir: root },
@@ -155,6 +172,9 @@ it('separates immutable job identity from the current conversation and refuses u
   writeFileSync(executable, `#!${process.execPath}\nprocess.stdout.write('unavailable');\n`, {
     mode: 0o700,
   });
+  await expect(claudeCode.resumeRuntimeProtocol!(parent, account)).rejects.toThrow(
+    'refusing a duplicate',
+  );
   await expect(inspectClaudeJob(root, parent, { PATH: bin })).rejects.toThrow(
     'refusing a duplicate',
   );

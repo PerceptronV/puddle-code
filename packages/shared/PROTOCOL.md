@@ -1,5 +1,13 @@
 # The puddle communication protocol
 
+Runtime **1.1** advertises exact Claude-owned background job attachment. The
+application and remote protocols, IPC shapes and retained-state formats are
+unchanged; major-1 owners remain adoptable. Before dispatching a resume that
+would attach a live native job, the daemon inspects its provider requirement and
+checks the exact pinned runtime's protocol. Runtime 1.0 refuses that launch
+instead of starting duplicate foreground execution. Ordinary launches do not
+require the capability, and installed release names are not compatibility checks.
+
 Application **26.6** allows six-digit `#RRGGBB` project colours alongside
 existing presets and null, on create, patch and project responses. Clients gate
 custom project colour writes on 26.6. Storage remains the existing nullable TEXT

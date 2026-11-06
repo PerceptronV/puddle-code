@@ -7,7 +7,7 @@ remain release gates; the legacy backend is an internal fixture override.
 The full delivery scope is tracked in
 [the persistent runtimes roadmap](../../docs/roadmap/persistent-runtimes.md).
 
-`RUNTIME_PROTOCOL_VERSION` starts at **1.0**, independently of application
+`RUNTIME_PROTOCOL_VERSION` is **1.1**, independently of application
 `PROTOCOL_VERSION`, `REMOTE_PROTOCOL_VERSION` and component release versions.
 Executable schemas are in `src/runtime/protocol.ts`; local record formats are in
 `src/runtime/storage.ts`. Do not reuse REST session/account schemas here.
@@ -24,6 +24,13 @@ placement switching and programme reconciliation use these same owner identities
 the roadmap records their implementation and remaining acceptance evidence.
 
 ## Compatibility
+
+Runtime 1.1 adds exact attachment to Claude-owned background jobs. Before writing
+launch intent, the daemon checks the provider's requirement against the pinned
+runtime's minor capability. A live native job cannot be resumed through runtime
+1.0 because it would create duplicate foreground execution. Ordinary launches
+and adoption of existing major-1 owners remain supported; IPC and retained-state
+shapes are unchanged.
 
 The same major is compatible; additive minor capabilities must be detected before
 use. This guarantee covers IPC and the retained state needed for adoption. Local

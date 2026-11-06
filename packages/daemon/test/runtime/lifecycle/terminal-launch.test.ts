@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import WebSocket from 'ws';
 import { expect, it } from 'vitest';
 import {
+  RUNTIME_PROTOCOL_VERSION,
   sessionSchema,
   sessionRuntimeInspectionSchema,
   type WsServerMessage,
@@ -23,7 +24,11 @@ it('creates and resumes terminal owners through the real daemon while ordinary r
   let ws: WebSocket | undefined;
   const runtimeIds = new Set<string>();
   const installRuntime = (version: string) => {
-    const release = runtimeRelease(f.home, version);
+    const release = runtimeRelease(
+      f.home,
+      version,
+      `${RUNTIME_PROTOCOL_VERSION.major}.${RUNTIME_PROTOCOL_VERSION.minor}`,
+    );
     copyFileSync(process.execPath, join(release.release, 'bin', 'node'));
     copyFileSync(
       join(bundleDir, 'provider-owner.mjs'),

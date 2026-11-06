@@ -477,14 +477,20 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     catalogue.on(
       'background-conversation',
       (event: { accountId: number; conversationId: number }) => {
-        void service.attachBackground(event.accountId, event.conversationId).catch(() => {
-          service.emit('notice', {
-            level: 'warning',
-            title: 'Native fork could not attach',
-            detail:
-              'The original conversation and native copy are preserved. Inspect the copy before resuming it explicitly.',
+        void service
+          .attachBackground(event.accountId, event.conversationId)
+          .catch((error: unknown) => {
+            service.emit('notice', {
+              level: 'warning',
+              title: 'Native fork could not attach',
+              detail:
+                'The original conversation and native copy are preserved. ' +
+                ((error as { code?: string })?.code === 'runtime_provider_unsupported' &&
+                error instanceof Error
+                  ? error.message
+                  : 'Inspect the copy before resuming it explicitly.'),
+            });
           });
-        });
       },
     );
 

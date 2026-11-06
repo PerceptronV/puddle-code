@@ -51,6 +51,7 @@ import {
   buildInterruptedResumeNote,
   buildOnboardingPreamble,
 } from './onboarding.js';
+import { providerResumeGuard } from './runtime/provider.js';
 import { SessionRuntimeService } from './runtime/service.js';
 import { attachNativeBackground } from './native-background.js';
 import { preserveNativeSource } from './native-creation.js';
@@ -1287,7 +1288,7 @@ export class SessionService extends EventEmitter {
           }),
           {
             programme,
-            beforeLaunch,
+            beforeLaunch: await providerResumeGuard(adapter, account, resumeRef, beforeLaunch),
             provider: {
               id: adapter.id,
               config_dir: account.config_dir,

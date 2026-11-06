@@ -59,6 +59,10 @@ Past releases: see docs/changelogs/.
 
 ### Runtime
 
+#### Changed
+
+- Runtime protocol 1.1 advertises native background attachment; refuse those launches on older selected runtimes while preserving existing-owner adoption.
+
 #### Fixed
 
 - Recheck preparing owners promptly during launch while retaining recovery backoff for real failures and maintenance admission.

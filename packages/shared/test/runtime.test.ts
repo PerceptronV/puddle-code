@@ -146,7 +146,8 @@ describe('private runtime protocol', () => {
     expect(() => parseRuntimeMessage({ t: 123 })).toThrow();
   });
   it('negotiates independently of release versions and accepts additive minors', () => {
-    expect(RUNTIME_PROTOCOL_VERSION).toEqual({ major: 1, minor: 0 });
+    expect(RUNTIME_PROTOCOL_VERSION).toEqual({ major: 1, minor: 1 });
+    expect(compatibleRuntimeProtocol({ major: 1, minor: 0 })).toBe(true);
     expect(compatibleRuntimeProtocol({ major: 1, minor: 99 })).toBe(true);
     expect(compatibleRuntimeProtocol({ major: 2, minor: 0 })).toBe(false);
     expect(compatibleRuntimeProtocol({ major: 0, minor: 99 })).toBe(false);

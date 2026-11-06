@@ -203,6 +203,9 @@ second project. Keep two browser windows open for the multi-viewer checks.
    conversation and independently resume the saved old conversation. Native job
    launch IDs must not substitute for current conversation IDs. Unsupported
    supervisor versions must refuse attachment without launching a duplicate.
+   With runtime 1.0 selected, live background attachment must refuse before
+   launch intent and explain the runtime upgrade requirement. Selecting runtime
+   1.1 permits explicit attachment; existing 1.0 owners remain adoptable.
    Automated turns must wait for a native clean-composer boundary after attachment.
    Shell tabs, exported environment, and detected app ports must follow. The
    target keeps its own Puddle title overlay and receives branch ownership.

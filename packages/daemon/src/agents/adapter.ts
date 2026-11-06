@@ -316,6 +316,11 @@ export interface AgentAdapter {
   lifecycleSignals?: boolean;
   /** Per-launch installed-version capability probe for hook/plugin channels. */
   checkLifecycleSupport?(account: Pick<Account, 'config_dir'>): Promise<boolean>;
+  /** Optional launch capability required by an existing native execution owner. */
+  resumeRuntimeProtocol?(
+    ref: string,
+    account: Account,
+  ): Promise<{ major: number; minor: number } | null>;
   /** Per-runtime exact lifecycle transport (Codex app-server bridge). */
   prepareLifecycleLaunch?(context: LifecycleLaunchContext): Promise<LifecycleLaunchResource>;
   /** Structured execution with a readable transcript instead of a native TUI. */

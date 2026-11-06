@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 /** Private daemon ↔ runtime contract, independent of the application and remote protocols. */
-export const RUNTIME_PROTOCOL_VERSION = { major: 1, minor: 0 } as const;
+export const RUNTIME_PROTOCOL_VERSION = { major: 1, minor: 1 } as const;
 
 export const RUNTIME_LIMITS = {
   frameBytes: 8 * 1024 * 1024,

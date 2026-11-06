@@ -1,4 +1,4 @@
-import { observeClaudeJobs } from './jobs/store.js';
+import { inspectClaudeJob, observeClaudeJobs } from './jobs/store.js';
 import { prepareClaudeInteractive } from './control.js';
 import { prepareClaudeHeadless } from './headless.js';
 import { claudeRuntimeAssets } from './runtime-assets.js';
@@ -276,6 +276,12 @@ export const claudeCode: AgentAdapter = {
     discover: (account) => discoverClaudeConversations(account.config_dir),
   },
   lifecycleSignals: true,
+  async resumeRuntimeProtocol(ref, account) {
+    const job = await inspectClaudeJob(account.config_dir, ref);
+    return job && (job.pid !== null || !['done', 'failed', 'stopped'].includes(job.state))
+      ? { major: 1, minor: 1 }
+      : null;
+  },
   checkLifecycleSupport: (account) =>
     lifecycleVersionAtLeast(
       'claude',
