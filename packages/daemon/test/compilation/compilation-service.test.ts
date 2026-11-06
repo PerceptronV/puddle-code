@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { describe, expect, it, vi } from 'vitest';
 import { CompilationService, type CompilationEvent } from '../../src/compilation/service.js';
 import type { CompilationProvider } from '../../src/compilation/provider.js';
+import { DependencyObserver } from '../../src/compilation/dependency-observer.js';
 import { ApiError } from '../../src/http/errors.js';
 
 const commandSupport = {
@@ -295,3 +296,73 @@ it('drains compilation without cancelling it and coalesces observed eager change
     rmSync(directory, { recursive: true, force: true });
   }
 });
+
+function emptyProvider(): CompilationProvider {
+  return {
+    id: 'example',
+    displayName: 'Example',
+    extensions: ['demo'],
+    inputExtensions: ['demo'],
+    eager: true,
+    capability: () => ({ available: true, executor: 'examplec' }),
+    ...commandSupport,
+    watchInputs: () => [],
+    run: vi.fn(async (source) => ({
+      executor: 'examplec',
+      source,
+      artifacts: [],
+      dependencies: [],
+    })),
+  };
+}
+
+it('expires unobserved eager targets while retaining targets still read by a client', async () => {
+  vi.useFakeTimers();
+  const service = new CompilationService([emptyProvider()]);
+  const source = { session: '00000000-0000-0000-0000-000000000000', path: 'input.demo' };
+  const other = { ...source, path: 'other.demo' };
+  try {
+    await service.setMode({ source, mode: 'eager' });
+    await service.setMode({ source: other, mode: 'eager' });
+    await vi.advanceTimersByTimeAsync(10 * 60_000);
+    expect(service.status({ source }).mode).toBe('eager');
+    await vi.advanceTimersByTimeAsync(6 * 60_000);
+    expect(service.interruptionInventory()).toHaveLength(1);
+    expect(service.status({ source }).mode).toBe('eager');
+    expect(service.status({ source: other }).mode).toBe('on_demand');
+  } finally {
+    service.dispose();
+    vi.useRealTimers();
+  }
+});
+
+it.each(['on_demand', 'dispose', 'maintenance'] as const)(
+  'does not start an obsolete eager registration after %s while initial stats are pending',
+  async (action) => {
+    let release!: () => void;
+    const ready = new Promise<void>((resolve) => (release = resolve));
+    const subscribe = vi
+      .spyOn(DependencyObserver.prototype, 'subscribe')
+      .mockReturnValue({ ready, close: vi.fn() });
+    const provider = emptyProvider();
+    const service = new CompilationService([provider]);
+    const source = { session: '00000000-0000-0000-0000-000000000000', path: 'input.demo' };
+    try {
+      const pending = service.setMode({ source, mode: 'eager' });
+      if (action === 'on_demand') await service.setMode({ source, mode: 'on_demand' });
+      else if (action === 'dispose') service.dispose();
+      else await service.pause().drain();
+      const result =
+        action === 'maintenance'
+          ? expect(pending).rejects.toMatchObject({ code: 'host_maintenance' })
+          : expect(pending).resolves.toMatchObject({ mode: 'on_demand' });
+      release();
+      await result;
+      expect(provider.run).not.toHaveBeenCalled();
+    } finally {
+      release();
+      service.dispose();
+      subscribe.mockRestore();
+    }
+  },
+);

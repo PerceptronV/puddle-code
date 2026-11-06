@@ -36,6 +36,8 @@ Past releases: see docs/changelogs/.
 
 #### Changed
 
+- Share eager compilation dependency watches and bounded asynchronous stats across targets; verify missed events less often with healthy watches and retire unobserved targets sooner.
+
 - Protocol 26.3: acknowledge unchanged notebook execution revisions without resending outputs; back off idle and unfocused observation while preserving cross-window discovery and full reconnect snapshots.
 - Stream uploads through bounded private staging with actual-byte limits, enumerate file trees asynchronously, and stop bounded directory downloads on cancellation.
 - Bound Claude reference discovery to transcript prefixes and stream asynchronous usage reads, preserving totals across file replacement, truncation and partial writes.

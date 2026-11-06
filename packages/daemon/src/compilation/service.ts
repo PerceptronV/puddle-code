@@ -29,9 +29,10 @@ import {
   type CompilationProviderResult,
 } from './provider.js';
 import { disposeCompilationCommands } from './process.js';
+import { DependencyObserver } from './dependency-observer.js';
 import { DependencyWatcher } from './dependency-watcher.js';
 
-const WATCH_IDLE_TTL_MS = 6 * 60 * 60 * 1_000;
+const WATCH_IDLE_TTL_MS = 15 * 60 * 1_000;
 
 export type CompilationEvent =
   | { type: 'started'; key: string; status: CompilationStatusResponse }
@@ -64,6 +65,7 @@ interface CompilationServiceDeps {
  * replacement used by editors and coding agents.
  */
 export class CompilationService {
+  private readonly dependencies = new DependencyObserver();
   private readonly providers = new Map<string, CompilationProvider>();
   private readonly targets = new Map<string, TargetState>();
   private readonly listeners = new Set<(event: CompilationEvent) => void>();
@@ -81,7 +83,7 @@ export class CompilationService {
         throw new Error(`duplicate compiler provider ${provider.id}`);
       this.providers.set(provider.id, provider);
     }
-    this.sweepTimer = setInterval(() => this.sweepIdleWatches(), 30 * 60 * 1_000);
+    this.sweepTimer = setInterval(() => this.sweepIdleWatches(), 60 * 1_000);
     this.sweepTimer.unref();
   }
 
@@ -114,7 +116,8 @@ export class CompilationService {
     state.status = { ...state.status, mode: 'eager' };
     // Install the provider's entry-point watchers before compiling: a broken
     // first build must remain live and retry when an editor or agent fixes it.
-    state.watcher.replace(state.provider.watchInputs(state.source));
+    const current = await state.watcher.replace(state.provider.watchInputs(state.source));
+    if (!current || this.disposed || state.status.mode !== 'eager') return state.status;
     // Registration includes an initial build, so restoring an eager tab never
     // waits for another filesystem event before it has a preview.
     await this.execute(state, 'eager');
@@ -280,6 +283,7 @@ export class CompilationService {
       state.status = { ...state.status, mode: 'on_demand' };
       state.watcher.close();
     }
+    this.dependencies.dispose();
     for (const provider of this.providers.values()) provider.dispose?.();
     disposeCompilationCommands();
     this.targets.clear();
@@ -291,14 +295,13 @@ export class CompilationService {
     const key = targetKey(provider.id, request);
     const existing = this.targets.get(key);
     if (existing) return existing;
-    const watcher = new DependencyWatcher(() => {
+    const watcher = new DependencyWatcher(this.dependencies, () => {
       const current = this.targets.get(key);
       if (!current) return;
       if (this.paused) {
         current.dirty = true;
         return;
       }
-      current.lastTouched = Date.now();
       void this.execute(current, 'eager').catch(() => undefined);
     });
     const state: TargetState = {
@@ -376,7 +379,7 @@ export class CompilationService {
               }
             : {}),
         })
-        .then((product) => {
+        .then(async (product) => {
           const result = responseOf(state.provider, product, revision);
           state.status = {
             ...state.status,
@@ -385,7 +388,7 @@ export class CompilationService {
             result,
             error: null,
           };
-          if (state.status.mode === 'eager') state.watcher.replace(product.dependencies);
+          if (state.status.mode === 'eager') await state.watcher.replace(product.dependencies);
           this.emit({ type: 'completed', key: state.key, status: state.status });
           return result;
         })
