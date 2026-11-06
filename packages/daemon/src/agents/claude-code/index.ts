@@ -10,15 +10,15 @@ import {
   readFileSync,
   readSync,
   readdirSync,
-  realpathSync,
   statSync,
   writeFileSync,
-  type Dirent,
 } from 'node:fs';
 import { cp, open, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { promisify } from 'node:util';
-import type { AgentAdapter, AgentUsage } from '../adapter.js';
+import type { AgentAdapter } from '../adapter.js';
+import { discoverClaudeRef, transcriptFiles, transcriptHead } from './transcript-files.js';
+import { claudeUsage } from './usage.js';
 import { claudeConversationShare } from './share.js';
 import { installStatusHooks } from './hooks.js';
 import { installStatusLine, readLiveUsage } from './statusline.js';
@@ -28,22 +28,6 @@ import { matchesAgentProcess } from '../process-match.js';
 import { lastJsonlOutput } from '../notification-output.js';
 
 const execFileAsync = promisify(execFile);
-
-/**
- * Per-file token subtotals keyed by absolute path, invalidated on
- * (size, mtimeMs) change — conversation JSONLs only ever grow, so a warm
- * cache reparses nothing and a live session's file is re-read only when it
- * has actually changed since the last usage call.
- */
-const usageCache = new Map<string, { size: number; mtimeMs: number; usage: AgentUsage }>();
-
-const EMPTY_USAGE: AgentUsage = {
-  input_tokens: 0,
-  output_tokens: 0,
-  cache_read_input_tokens: 0,
-  cache_creation_input_tokens: 0,
-  message_count: 0,
-};
 
 /**
  * Claude Code adapter.
@@ -200,32 +184,7 @@ export const claudeCode: AgentAdapter = {
   },
 
   discoverSessionRef(worktreePath, account) {
-    const projectsDir = join(account.config_dir, 'projects');
-    if (!existsSync(projectsDir)) return null;
-    const targets = new Set([worktreePath]);
-    try {
-      targets.add(realpathSync(worktreePath)); // /var vs /private/var on macOS
-    } catch {
-      // A vanished worktree still matches on the recorded string.
-    }
-    let best: { ref: string; mtime: number } | null = null;
-    for (const dir of readdirSync(projectsDir)) {
-      let files: string[];
-      try {
-        files = readdirSync(join(projectsDir, dir));
-      } catch {
-        continue;
-      }
-      for (const file of files) {
-        if (!file.endsWith('.jsonl')) continue;
-        const path = join(projectsDir, dir, file);
-        if (!conversationCwdMatches(path, targets)) continue;
-        const mtime = statSync(path).mtimeMs;
-        // Newest wins: a worktree can host successive conversations.
-        if (!best || mtime > best.mtime) best = { ref: file.slice(0, -'.jsonl'.length), mtime };
-      }
-    }
-    return best?.ref ?? null;
+    return discoverClaudeRef(account.config_dir, worktreePath);
   },
 
   hasConversation(ref, account) {
@@ -289,24 +248,7 @@ export const claudeCode: AgentAdapter = {
   },
 
   usageStats(account) {
-    const projectsDir = join(account.config_dir, 'projects');
-    if (!existsSync(projectsDir)) return null;
-    const total = { ...EMPTY_USAGE };
-    let sawFile = false;
-    for (const dir of readdirSync(projectsDir)) {
-      let files: string[];
-      try {
-        files = readdirSync(join(projectsDir, dir));
-      } catch {
-        continue;
-      }
-      for (const file of files) {
-        if (!file.endsWith('.jsonl')) continue;
-        sawFile = true;
-        addUsage(total, fileUsage(join(projectsDir, dir, file)));
-      }
-    }
-    return sawFile ? total : null;
+    return claudeUsage(account.config_dir);
   },
 
   liveUsage(account) {
@@ -513,25 +455,6 @@ function pickTitle(text: string): string | null {
   return norm === '' ? null : norm;
 }
 
-/** The conversation's cwd appears within the first few JSONL records. */
-function conversationCwdMatches(path: string, targets: Set<string>): boolean {
-  let head: string;
-  try {
-    head = readFileSync(path, 'utf8').slice(0, 16_384);
-  } catch {
-    return false;
-  }
-  for (const line of head.split('\n').slice(0, 10)) {
-    try {
-      const record = JSON.parse(line) as { cwd?: string };
-      if (record.cwd !== undefined && targets.has(record.cwd)) return true;
-    } catch {
-      // Partial trailing line inside the head window — ignore.
-    }
-  }
-  return false;
-}
-
 interface ClaudeCatalogueCacheEntry {
   size: number;
   mtimeMs: number;
@@ -549,28 +472,8 @@ async function discoverClaudeConversations(
   configDir: string,
 ): Promise<import('../adapter.js').NativeConversation[]> {
   await new Promise<void>((resolve) => setImmediate(resolve));
-  const root = join(configDir, 'projects');
   const files: string[] = [];
-  let projects: Dirent[];
-  try {
-    projects = await readdir(root, { withFileTypes: true });
-  } catch {
-    return [];
-  }
-  for (const project of projects) {
-    if (!project.isDirectory() && !project.isSymbolicLink()) continue;
-    let entries: Dirent[];
-    try {
-      entries = await readdir(join(root, project.name), { withFileTypes: true });
-    } catch {
-      continue;
-    }
-    for (const entry of entries) {
-      if ((entry.isFile() || entry.isSymbolicLink()) && entry.name.endsWith('.jsonl')) {
-        files.push(join(root, project.name, entry.name));
-      }
-    }
-  }
+  for await (const path of transcriptFiles(configDir)) files.push(path);
   const live = new Set(files);
   for (const path of claudeCatalogueCache.keys()) {
     if (!live.has(path)) claudeCatalogueCache.delete(path);
@@ -594,9 +497,7 @@ async function readClaudeMetadata(
     }
     const handle = await open(path, 'r');
     try {
-      const headBuffer = Buffer.allocUnsafe(Math.min(16_384, Math.max(1, stats.size)));
-      const { bytesRead } = await handle.read(headBuffer, 0, headBuffer.length, 0);
-      const head = headBuffer.toString('utf8', 0, bytesRead);
+      const head = await transcriptHead(handle);
       let cwd: string | null = null;
       for (const line of head.split('\n').slice(0, 20)) {
         try {
@@ -630,54 +531,6 @@ async function readClaudeMetadata(
   } catch {
     return null;
   }
-}
-
-function addUsage(into: AgentUsage, more: AgentUsage): void {
-  into.input_tokens += more.input_tokens;
-  into.output_tokens += more.output_tokens;
-  into.cache_read_input_tokens += more.cache_read_input_tokens;
-  into.cache_creation_input_tokens += more.cache_creation_input_tokens;
-  into.message_count += more.message_count;
-}
-
-/** Cached per-file token subtotal; reparses only when (size, mtime) changed. */
-function fileUsage(path: string): AgentUsage {
-  let stat: { size: number; mtimeMs: number };
-  try {
-    stat = statSync(path);
-  } catch {
-    return EMPTY_USAGE;
-  }
-  const cached = usageCache.get(path);
-  if (cached && cached.size === stat.size && cached.mtimeMs === stat.mtimeMs) {
-    return cached.usage;
-  }
-  const usage = { ...EMPTY_USAGE };
-  let raw: string;
-  try {
-    raw = readFileSync(path, 'utf8');
-  } catch {
-    return EMPTY_USAGE;
-  }
-  for (const line of raw.split('\n')) {
-    if (line === '') continue;
-    let record: { type?: string; message?: { usage?: Record<string, number> } };
-    try {
-      record = JSON.parse(line) as typeof record;
-    } catch {
-      continue; // a partial trailing line from a live writer
-    }
-    if (record.type !== 'assistant') continue;
-    const u = record.message?.usage;
-    if (!u) continue;
-    usage.message_count += 1;
-    usage.input_tokens += u['input_tokens'] ?? 0;
-    usage.output_tokens += u['output_tokens'] ?? 0;
-    usage.cache_read_input_tokens += u['cache_read_input_tokens'] ?? 0;
-    usage.cache_creation_input_tokens += u['cache_creation_input_tokens'] ?? 0;
-  }
-  usageCache.set(path, { size: stat.size, mtimeMs: stat.mtimeMs, usage });
-  return usage;
 }
 
 /**

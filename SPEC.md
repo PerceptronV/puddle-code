@@ -1545,6 +1545,15 @@ Adding an agent = adding one file + registering it; PRs adding adapters must not
 
 Conversation identity is unique by `(profile_id, agent_type, agent_session_ref)`, not account: accounts in one profile may expose the same native store. A conversation has at most one placement per `(project, canonical worktree)`, but may appear in several projects that register the same repository. Ref recovery uses the catalogue's `native_created_at` when known, otherwise the Puddle row's immutable `created_at`, together with cwd and the pre-launch ref snapshot; it never guesses “newest in this directory”. If no creation-time match exists, resume fails visibly rather than opening an unrelated conversation.
 
+Claude reference recovery reads only a 16 KiB transcript prefix per candidate,
+using asynchronous directory/file access. Account usage observation streams native
+JSONL in 64 KiB reads; oversized records retain only usage fields rather than
+message content. Concurrent reads of one account coalesce. Unchanged totals use
+file identity, size, mtime and ctime; changed files are rescanned without assuming
+append-only writes. An observation changed during reading is not cached. Partial
+or malformed records do not hide later valid records, and replacement/truncation
+invalidate old totals. Cache eviction never truncates history or changes totals.
+
 ### Native catalogue discovery and battery budget
 
 Each adapter's `conversationDiscovery` returns only normalised metadata — ref, cwd, title, parent ref, and native timestamps — using asynchronous, cached, bounded reads. Discovery never reads transcript bodies. The coordinator maps native cwd to its containing canonical Git worktree, then creates an exited, unarchived placement in every eligible project: same profile as the conversation account, same registered repository, non-archived project, and a worktree exposed by that repository. It never crosses profiles or imports into archived projects; unarchiving a project immediately makes it eligible and schedules discovery. Polling updates native titles and existence but never unarchives a placement or grants branch ownership.

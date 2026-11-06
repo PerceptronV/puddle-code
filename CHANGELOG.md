@@ -33,6 +33,8 @@ Past releases: see docs/changelogs/.
 
 ### Daemon
 
+- Bound Claude reference discovery to transcript prefixes and stream asynchronous usage reads, preserving totals across file replacement, truncation and partial writes.
+
 - Share pending terminal snapshots at the same input boundary, preserving per-reader memory admission, fresh replay and durable checkpoint behaviour.
 
 - Batch native conversation ingestion, avoid rewriting unchanged metadata, and read Codex file timestamps asynchronously while retaining complete discovery and missing-file confirmation.

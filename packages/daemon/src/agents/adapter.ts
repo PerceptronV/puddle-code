@@ -259,7 +259,7 @@ export interface AgentAdapter {
    * on-disk history. Best-effort and non-authoritative (not billing data);
    * null when the agent keeps no readable record.
    */
-  usageStats?(account: Account): AgentUsage | null;
+  usageStats?(account: Account): StorageLookup<AgentUsage | null>;
   /**
    * The most recent live-session usage the agent emitted (context-window
    * fill, cost). Credential-free; null when nothing has been captured yet.

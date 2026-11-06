@@ -68,9 +68,9 @@ describe('claude-code adapter', () => {
     expect(state['hasCompletedOnboarding']).toBe(true);
   });
 
-  it('sums assistant token usage across conversations, or null when none', () => {
+  it('sums assistant token usage across conversations, or null when none', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'puddle-cc-'));
-    expect(claudeCode.usageStats!(account(dir))).toBeNull();
+    expect(await claudeCode.usageStats!(account(dir))).toBeNull();
 
     const project = join(dir, 'projects', '-Users-alice-src-my-repo');
     mkdirSync(project, { recursive: true });
@@ -84,7 +84,7 @@ describe('claude-code adapter', () => {
     );
     writeFileSync(join(project, 'b.jsonl'), line({ input_tokens: 7, output_tokens: 1 }));
 
-    const usage = claudeCode.usageStats!(account(dir));
+    const usage = await claudeCode.usageStats!(account(dir));
     expect(usage).toEqual({
       input_tokens: 157,
       output_tokens: 31,

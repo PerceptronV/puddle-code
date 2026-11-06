@@ -177,7 +177,7 @@ export function accountRoutes(deps: AccountRouteDeps): Hono {
         last_activity_at: counts.last_activity_at,
         // Best-effort token totals from the agent's own history; null if it
         // keeps none (or has never run for this account).
-        agent_usage: adapter.usageStats?.(account) ?? null,
+        agent_usage: (await adapter.usageStats?.(account)) ?? null,
         // Live per-session signal captured during runs (context fill, cost).
         live_usage: adapter.liveUsage?.(account) ?? null,
         subscription: windows ? { windows } : null,
