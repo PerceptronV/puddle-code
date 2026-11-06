@@ -11,6 +11,23 @@ const bundle = await build({
   platform: 'browser',
   format: 'iife',
   loader: { '.css': 'empty' },
+  plugins: [
+    {
+      name: 'omit-editor-buffers',
+      setup(build) {
+        // This fixture checks tab resolution and tooltip context, not Monaco's
+        // separately tested dirty-buffer/close controls.
+        build.onResolve({ filter: /\/lazy-editor-parts$/ }, (args) => ({
+          path: args.path,
+          namespace: 'editor-stub',
+        }));
+        build.onLoad({ filter: /.*/, namespace: 'editor-stub' }, () => ({
+          contents:
+            'export const LazyEditorDirtyDot = () => null; export const LazyEditorTabClose = () => null;',
+        }));
+      },
+    },
+  ],
 });
 const browser = await chromium.launch();
 try {
@@ -29,11 +46,12 @@ try {
     if (request.method() !== 'GET') mutations.push(new URL(request.url()).pathname);
     const path = new URL(request.url()).pathname;
     return route.fulfill({
-      json: path.endsWith('/accounts')
-        ? []
-        : path.endsWith('/version')
-          ? { protocol: { major: 26, minor: 0 } }
-          : {},
+      json:
+        path.endsWith('/accounts') || path.endsWith('/projects')
+          ? []
+          : path.endsWith('/version')
+            ? { protocol: { major: 26, minor: 0 } }
+            : {},
     });
   });
   await page.goto('http://session.test/');
@@ -80,9 +98,29 @@ try {
   await show('mobile', { status: 'archived' });
   await expect(page.getByRole('button', { name: 'Resume', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Restore session' })).toBeEnabled();
+  // Exercise the actual strip's session resolution, path labels and tooltip
+  // context for worktree files, external roots, drafts and missing sessions.
+  for (const [kind, missing, label, context] of [
+    ['terminal', false, 'Synthetic session', true],
+    ['file', false, '/synthetic/project/src/example.txt', true],
+    ['external', false, '/synthetic/external/src/example.txt', false],
+    ['untitled', false, 'Untitled-1', false],
+    ['file', true, 'src/example.txt', false],
+    ['terminal', true, '00000000-0000-4000-8000-000000000002', false],
+  ]) {
+    await page.mouse.move(380, 800);
+    await page.evaluate(({ kind, missing }) => window.showStrip(kind, missing), { kind, missing });
+    const tab = page.locator('[data-pane-tab]');
+    await expect(tab).toHaveAttribute('aria-label', label);
+    await tab.focus();
+    const tooltip = page.getByRole('tooltip');
+    await expect(tooltip).toContainText(label);
+    if (context) await expect(tooltip).toContainText('main');
+    else await expect(tooltip).not.toContainText('main');
+  }
   assert.deepEqual(errors, []);
   console.log(
-    'Mobile, menu, tab and overlay lifecycle eligibility agree; stop and resume dispatch remain correct.',
+    'Lifecycle actions agree; tab paths and tooltip context preserve worktree, external, draft and missing-session behaviour.',
   );
 } finally {
   await browser.close();
