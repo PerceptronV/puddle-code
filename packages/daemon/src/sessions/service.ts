@@ -1,30 +1,20 @@
-import type { RuntimeControls } from '../runtime/controller/controls.js';
-import type { RuntimeLauncher, RuntimeLaunchGuard } from '../runtime/lifecycle/launcher.js';
-import { SessionRuntimeService } from './runtime/service.js';
-import { migrateSessionAccount } from './migration/service.js';
-import { RuntimePersistence } from '../storage/runtime-persistence.js';
-import { HostBackgroundTasks } from '../host/lifecycle/background.js';
-import { HostAdmission } from '../host/lifecycle/admission.js';
-import { storageUnavailable, type StorageMonitor } from '../storage/monitor.js';
-import { randomUUID } from 'node:crypto';
-import { EventEmitter } from 'node:events';
-import { existsSync, statSync } from 'node:fs';
-import { isAbsolute, join, relative, resolve, sep } from 'node:path';
 import type {
   Account,
-  AgentNotification,
   AgentSignalRequest,
   AgentTurnSignal,
   ClearSessionEnvResponse,
   CreateSessionRequest,
+  RestartSessionRuntimeRequest,
   Session,
   SessionEnvResponse,
-  SessionStatus,
   SessionRuntimeInspection,
-  RestartSessionRuntimeRequest,
+  SessionStatus,
 } from '@puddle/shared';
-import type { AgentAdapter, LaunchOpts, LifecycleLaunchResource } from '../agents/adapter.js';
-import { AgentLaunchError } from '../agents/launch-error.js';
+import { randomUUID } from 'node:crypto';
+import { EventEmitter } from 'node:events';
+import { existsSync, statSync } from 'node:fs';
+import { join, relative } from 'node:path';
+import type { AgentAdapter, LaunchOpts } from '../agents/adapter.js';
 import { assertBinaryAvailable } from '../agents/binary.js';
 import type { AdapterRegistry } from '../agents/registry.js';
 import type { AccountStore } from '../db/stores/accounts.js';
@@ -33,37 +23,36 @@ import type { EventStore } from '../db/stores/events.js';
 import type { ProfileStore } from '../db/stores/profiles.js';
 import type { ProjectStore } from '../db/stores/projects.js';
 import type { RepoStore } from '../db/stores/repos.js';
-import type { SessionStore } from '../db/stores/sessions.js';
 import type { RuntimeStore } from '../db/stores/runtimes.js';
+import type { SessionStore } from '../db/stores/sessions.js';
 import { KeyedMutex } from '../git/mutex.js';
+import { HostAdmission } from '../host/lifecycle/admission.js';
 import { ApiError } from '../http/errors.js';
 import { containedPath } from '../http/routes/worktrees/worktree-shared.js';
 import type { LogStore } from '../logs/log-store.js';
-import { extractOscTitle, stripAnsi } from '../pty/ansi.js';
-import type {
-  PtyDataEvent,
-  PtyCwdEvent,
-  PtyEnvDeltaEvent,
-  PtyExitEvent,
-  PtyManager,
-} from '../pty/pty-manager.js';
-import { isDeniedEnvName, type ShellHooks } from '../pty/shell-hooks.js';
-import { StatusDetector, type DetectedStatus } from '../pty/status-detector.js';
+import type { PtyManager } from '../pty/pty-manager.js';
+import type { ShellHooks } from '../pty/shell-hooks.js';
+import type { ProgrammeOperation } from '../puddlang/runtime-turn-store.js';
+import type { RuntimeControls } from '../runtime/controller/controls.js';
+import type { RuntimeProgrammeTurns } from '../runtime/controller/programme-turns.js';
+import type { RuntimeLauncher, RuntimeLaunchGuard } from '../runtime/lifecycle/launcher.js';
+import type { StorageMonitor } from '../storage/monitor.js';
+import { RuntimePersistence } from '../storage/runtime-persistence.js';
 import type { CreateWorktreeResult, WorktreeManager } from '../worktrees/manager.js';
 import type { ConversationShare } from './conversation-share.js';
+import { SessionEnvironment } from './environment.js';
 import { buildHandoffPrompt } from './handoff.js';
-import { terminalCommandArgs, type TerminalCommand } from './terminal-command.js';
-import type { RuntimeProgrammeTurns } from '../runtime/controller/programme-turns.js';
-import type { ProgrammeOperation } from '../puddlang/runtime-turn-store.js';
+import { SessionIdentity } from './identity.js';
+import { LegacySessionOwner } from './legacy/owner.js';
+import { migrateSessionAccount } from './migration/service.js';
+import type { MarkerFileSync } from './onboarding.js';
 import {
   buildConcurrentWorktreeNote,
   buildInterruptedResumeNote,
   buildOnboardingPreamble,
 } from './onboarding.js';
-import type { MarkerFileSync } from './onboarding.js';
-import { SessionRefs } from './session-refs.js';
-import { TerminalAgentMonitor } from './terminal-agent-monitor.js';
-import { notificationContent } from './notification-content.js';
+import { SessionRuntimeService } from './runtime/service.js';
+import { terminalCommandArgs, type TerminalCommand } from './terminal-command.js';
 
 export interface SessionServiceDeps {
   storage?: StorageMonitor;
@@ -136,65 +125,12 @@ export interface SessionSwitchEvent {
   outcome: 'rebound' | 'focused-existing';
 }
 
-interface LiveAgent {
-  /** Stable identity for the process tree, independent of its active placement. */
-  runtimeId: string;
-  activeSessionId: string;
-  conversationId: number | null;
-  lifecycleResource: LifecycleLaunchResource | null;
-  /** Null for terminal sessions — a plain shell has no status detector. */
-  detector: StatusDetector | null;
-  /** When this PTY was spawned, to tell a failed launch from a later crash. */
-  startedAt: number;
-  status: Extract<SessionStatus, 'starting' | 'running' | 'waiting_input'>;
-  lastTouch: number;
-  /** Throttle for the OSC-title-driven agent-name re-read (see onPtyData). */
-  lastTitleCheck: number;
-  /** Last OSC "sequence" title seen, to persist/broadcast only on a real change. */
-  lastOscTitle: string | null;
-  /** Per-spawn secret for /agent-signal (SPEC §4); null for shells. */
-  signalNonce: string | null;
-  /**
-   * True once a hook signal arrived: from then on the agent's own hooks are
-   * authoritative for running ⇄ waiting_input and the regex detector is
-   * ignored (TUI redraws would otherwise flap an idle session back to
-   * running with no hook event to restore it).
-   */
-  signalled: boolean;
-}
-
 const LIVE_STATUSES: SessionStatus[] = ['starting', 'running', 'waiting_input'];
-
-// How often to re-read each live agent's own session name. A rename made INSIDE
-// the agent (e.g. Claude Code's `/rename`) is a client-side transcript edit that
-// triggers no status change and — while the session sits idle — no terminal-title
-// escape either, so the event-driven refreshes (status change, OSC title, exit)
-// all miss it. Cheap per tick: adapter.sessionTitle is a cached stat that
-// early-returns while the transcript's (size, mtime) are unchanged.
-const TITLE_REFRESH_MS = 3000;
-
-// A `running` agent whose transcript has been quiet this long is flagged
-// `stale_running` (computed on read, like worktree_missing) — probably a
-// wedged agent process. Advisory only: a genuinely long tool call looks the
-// same, so the daemon must never kill or downgrade the session itself.
-const STALE_RUNNING_MS = 60 * 60 * 1000;
-
-// An agent dying this soon after spawn failed to START — a rejected flag, a
-// missing credential — rather than crashing mid-work. The status is no use for
-// telling these apart: a launch error printed to the terminal is output like
-// any other, so it flips the session to `running` on its way out.
-const STARTUP_FAILURE_MS = 5000;
-
-// Captured-env caps (SPEC §4), enforced daemon-side regardless of what the
-// shell hook reports. Oversized values and overflow names are dropped with a
-// one-time [puddle] note in the reporting terminal.
-const MAX_ENV_VALUE_BYTES = 32 * 1024;
-const MAX_ENV_VARS = 128;
 
 /**
  * Orchestrates the session state machine (SPEC §4). SQLite rows are the
- * durable truth; `liveAgents` tracks the in-memory attachment (detector +
- * cached status) for each live agent PTY. Emits 'status' (StatusEvent) and
+ * durable truth; LegacySessionOwner owns daemon-hosted processes and the
+ * independent launcher owns new persistent runtimes. Emits 'status' (StatusEvent) and
  * 'renamed' (RenameEvent).
  */
 export class SessionService extends EventEmitter {
@@ -202,7 +138,7 @@ export class SessionService extends EventEmitter {
   scriptRuntime(reference: string) {
     const external = this.deps.runtimeProgrammeTurns?.inspect(reference);
     if (external) return { ...external, session: this.get(external.handle.session_id) };
-    const live = this.runtimes.get(reference) ?? this.liveAgents.get(reference);
+    const live = this.legacy.runtime(reference) ?? this.legacy.session(reference);
     if (!live) throw ApiError.conflict('agent_not_live', 'The agent has no live runtime');
     const control = live.lifecycleResource?.control;
     if (!control)
@@ -227,7 +163,7 @@ export class SessionService extends EventEmitter {
     dispatched?: () => void,
   ): Promise<string> {
     const runtime = this.scriptRuntime(reference);
-    const live = this.runtimes.get(runtime.handle.runtime_id);
+    const live = this.legacy.runtime(runtime.handle.runtime_id);
     if (live?.lifecycleResource?.control)
       return live.lifecycleResource.control.ask(prompt, signal, schema);
     if (!scope || !this.deps.runtimeProgrammeTurns)
@@ -264,98 +200,56 @@ export class SessionService extends EventEmitter {
       );
       return;
     }
-    const live = this.runtimes.get(id);
+    const live = this.legacy.runtime(id);
     if (!live) return;
     const sessionId = live.activeSessionId;
     await this.kill(
       sessionId,
       () =>
-        this.runtimes.get(id) === live &&
+        this.legacy.runtime(id) === live &&
         live.activeSessionId === sessionId &&
         this.deps.projects.get(this.get(sessionId).project_id).profile_id === profile,
     );
   }
-  private readonly liveAgents = new Map<string, LiveAgent>();
-  /** nonce → session id for /agent-signal lookups; entries die with the PTY. */
-  private readonly signalNonces = new Map<string, LiveAgent>();
-  /** Stable runtime registry and the one-live-runtime-per-conversation index. */
-  private readonly runtimes = new Map<string, LiveAgent>();
-  private readonly conversationRuntimes = new Map<number, LiveAgent>();
   private readonly lifecycleMutex = new KeyedMutex();
   private readonly lifecycleAdmission = new HostAdmission();
-  /** The daemon's bound port, once known — enables the signal env injection. */
-  private signalPort: number | null = null;
-  /** Sessions whose conversation is already adopted — stops the retry loop. */
-  private readonly adopted = new Set<string>();
-  /**
-   * Streams (or `${stream}:${term}` pairs) being stopped on purpose, so their
-   * non-zero exit raises no notice. Entries are consumed by the matching exit.
-   */
-  private readonly expectedExits = new Set<string>();
-  /** `${sessionId}:${name}` pairs already warned about, so cap notes fire once. */
-  private readonly envDropNoted = new Set<string>();
-  private readonly sessionRefs: SessionRefs;
-  private readonly adoptions = new HostBackgroundTasks();
+  private readonly launchBackend:
+    { kind: 'independent'; launcher: RuntimeLauncher } | { kind: 'legacy' };
+  private readonly legacy: LegacySessionOwner;
+  private readonly environment: SessionEnvironment;
+  private readonly identity: SessionIdentity;
   private shuttingDown = false;
-  private observationsPaused = false;
-  private readonly titleTimer: ReturnType<typeof setInterval>;
-  private readonly terminalAgents: TerminalAgentMonitor;
   private readonly persistence: RuntimePersistence;
-  private lastPersistenceRetry = 0;
 
   private readonly runtimeMaintenance: SessionRuntimeService;
 
   constructor(private readonly deps: SessionServiceDeps) {
     super();
+    this.launchBackend = deps.runtimeLauncher
+      ? { kind: 'independent', launcher: deps.runtimeLauncher }
+      : { kind: 'legacy' };
     this.runtimeMaintenance = new SessionRuntimeService(
       deps,
       (id, guard) => this.resumeCore(id, guard),
       (account, adapter) => this.assertLoggedIn(account, adapter),
     );
+    this.environment = new SessionEnvironment(deps);
     this.persistence = new RuntimePersistence(deps.sessions, deps.events, deps.storage);
-    this.sessionRefs = new SessionRefs(deps);
-    this.terminalAgents = new TerminalAgentMonitor({
-      adapters: deps.adapters.list(),
-      quietMs: deps.statusQuietMs,
-      notify: (session, reason) =>
-        this.persistence.observe(() => this.notifyAgent(session, reason)),
-      targets: () =>
-        [...this.liveAgents.values()].flatMap((live) => {
-          if (live.detector !== null) return [];
-          const pid = deps.ptys.pidFor(live.activeSessionId, 'agent');
-          return pid === null
-            ? []
-            : [{ session: live.activeSessionId, runtime: live.runtimeId, pid }];
-        }),
-      changed: (id) => {
-        this.emit('sessions-changed', { projectIds: [deps.sessions.get(id).project_id] });
-      },
-    });
-    deps.ptys.on('data', (e: PtyDataEvent) => this.persistence.observe(() => this.onPtyData(e)));
-    deps.ptys.on('exit', (e: PtyExitEvent) => this.persistence.observe(() => this.onPtyExit(e)));
-    deps.ptys.on('input', (e: { stream: string; term: string }) => {
-      if (e.term === 'agent') this.liveAgents.get(e.stream)?.lifecycleResource?.control?.input?.();
-    });
-    deps.ptys.on('env-delta', (e: PtyEnvDeltaEvent) =>
-      this.persistence.observe(() => this.onEnvDelta(e)),
+    this.identity = new SessionIdentity(
+      deps,
+      this.persistence,
+      (id) => this.legacy.bindRuntimeConversation(id),
+      (event) => this.emit('renamed', event),
     );
-    deps.ptys.on('cwd', (e: PtyCwdEvent) => this.persistence.observe(() => this.onCwd(e)));
-    // Catch in-agent renames that emit no signal (see TITLE_REFRESH_MS). Unref'd
-    // so it never keeps the process (or a test run) alive.
-    this.titleTimer = setInterval(() => {
-      if (this.observationsPaused) return;
-      if (Date.now() - this.lastPersistenceRetry >= 30_000) {
-        this.lastPersistenceRetry = Date.now();
-        const saved = this.persistence.retry();
-        if (saved.length)
-          this.emit('sessions-changed', {
-            projectIds: [...new Set(saved.map((id) => deps.sessions.get(id).project_id))],
-          });
-      }
-      for (const id of this.liveAgents.keys())
-        this.persistence.observe(() => this.refreshAgentIdentity(id));
-    }, this.deps.titleRefreshMs ?? TITLE_REFRESH_MS);
-    this.titleTimer.unref?.();
+    this.legacy = new LegacySessionOwner(deps, this.environment, this.identity, this.persistence, {
+      transition: (id, status) => this.transition(id, status),
+      assertLegacyRuntime: (id) => this.assertLegacyRuntime(id),
+      runLifecycle: (work) =>
+        this.lifecycleAdmission.run(() =>
+          this.lifecycleMutex.run('native-conversation-switch', work),
+        ),
+      emit: (event, ...args) => this.emit(event, ...args),
+    });
   }
 
   /**
@@ -367,23 +261,21 @@ export class SessionService extends EventEmitter {
   beginShutdown(): void {
     this.shuttingDown = true;
     this.lifecycleAdmission.close();
-    this.sessionRefs.beginShutdown();
-    this.adoptions.beginShutdown();
-    clearInterval(this.titleTimer);
-    this.terminalAgents.dispose();
+    this.identity.beginShutdown();
+    this.legacy.beginShutdown();
   }
 
   /** Drain native capture before pausing the shared-store adoption it can trigger. */
   pause(): ReturnType<HostAdmission['pause']> {
     // Legacy agents have no independent journal for identity events during a pause.
     // Their first upgrade still uses the explicitly interrupting migration path.
-    if (this.liveAgents.size)
+    if (this.legacy.liveCount)
       throw new ApiError(
         503,
         'host_maintenance',
         'Daemon-owned agents require an interrupting upgrade.',
       );
-    const refs = this.sessionRefs.pause();
+    const refs = this.identity.pauseCapture();
     let lifecycle: ReturnType<HostAdmission['pause']>;
     try {
       lifecycle = this.lifecycleAdmission.pause();
@@ -391,7 +283,7 @@ export class SessionService extends EventEmitter {
       refs.release();
       throw error;
     }
-    this.observationsPaused = true;
+    const resumeObservations = this.legacy.pauseObservations();
     let adoption: ReturnType<HostAdmission['pause']> | undefined;
     let released = false;
     return {
@@ -401,7 +293,7 @@ export class SessionService extends EventEmitter {
         await lifecycle.drain(deadline - performance.now());
         if (released || this.shuttingDown)
           throw new Error('Native observation pause ended before drainage');
-        adoption ??= this.adoptions.pause();
+        adoption ??= this.identity.pauseAdoption();
         await adoption.drain(deadline - performance.now());
       },
       release: () => {
@@ -410,7 +302,7 @@ export class SessionService extends EventEmitter {
         adoption?.release();
         lifecycle.release();
         refs.release();
-        this.observationsPaused = false;
+        resumeObservations();
       },
     };
   }
@@ -418,11 +310,7 @@ export class SessionService extends EventEmitter {
   /** Await native identity/switch and shared-store observations admitted before shutdown. */
   async drainObservations(): Promise<void> {
     this.beginShutdown();
-    await Promise.all([
-      this.sessionRefs.close(),
-      this.adoptions.close(),
-      this.lifecycleAdmission.drain(),
-    ]);
+    await Promise.all([this.identity.drain(), this.lifecycleAdmission.drain()]);
   }
 
   get(id: string): Session {
@@ -466,78 +354,6 @@ export class SessionService extends EventEmitter {
       osc_title: session.osc_title ?? null,
     } satisfies RenameEvent);
     return session;
-  }
-
-  /**
-   * Captures a minted conversation ref once it becomes visible, then refreshes
-   * the independent human-readable agent name. Codex keeps its stable UUID in
-   * `agent_session_ref` while `/rename` only changes the conversation's native
-   * title; every placement reads that title through the store join.
-   */
-  private refreshAgentIdentity(sessionId: string): void {
-    if (this.shuttingDown) return;
-    let session: Session;
-    let account: Account;
-    let adapter: AgentAdapter;
-    try {
-      session = this.deps.sessions.get(sessionId);
-      if (session.kind !== 'agent' || session.account_id === null) return;
-      account = this.deps.accounts.get(session.account_id);
-      adapter = this.deps.adapters.get(session.agent_type ?? account.agent_type);
-    } catch {
-      return; // best-effort identity refresh; title refresh follows the same rule
-    }
-    void (
-      session.agent_mode === 'headless'
-        ? Promise.resolve(false)
-        : this.sessionRefs.refreshAvailable(session, account, adapter)
-    )
-      .catch((error: unknown) => {
-        this.deps.storage?.noteFailure(error);
-        return false;
-      })
-      .then(() =>
-        this.persistence.observe(() => {
-          if (this.shuttingDown) return;
-          this.bindRuntimeConversation(sessionId);
-          this.refreshAgentTitle(sessionId);
-        }),
-      );
-  }
-
-  /**
-   * Re-reads the agent's own session name (adapter.sessionTitle) and, when it
-   * changed, stores it on the native conversation and broadcasts — so an
-   * attached client's joined `agent_title` tracks the agent live (a placement
-   * user override still wins).
-   * Best-effort: hooked off status changes and exit, and never throws upward.
-   */
-  private refreshAgentTitle(sessionId: string): void {
-    let session: Session;
-    try {
-      session = this.deps.sessions.get(sessionId);
-    } catch {
-      return; // session gone
-    }
-    if (session.kind !== 'agent' || !session.agent_session_ref || session.account_id === null)
-      return;
-    let next: string | null;
-    try {
-      const account = this.deps.accounts.get(session.account_id);
-      const adapter = this.deps.adapters.get(session.agent_type ?? account.agent_type);
-      if (!adapter.sessionTitle) return;
-      next = adapter.sessionTitle(session.agent_session_ref, account);
-    } catch {
-      return;
-    }
-    if ((next ?? null) === (session.agent_title ?? null)) return;
-    this.deps.sessions.setAgentTitle(sessionId, next);
-    this.emit('renamed', {
-      session: sessionId,
-      title: session.title,
-      agent_title: next,
-      osc_title: session.osc_title ?? null,
-    } satisfies RenameEvent);
   }
 
   async create(
@@ -653,15 +469,15 @@ export class SessionService extends EventEmitter {
         undefined,
         programme,
       );
-    if (agentMode === 'headless' || this.deps.runtimeLauncher) await spawn();
+    if (agentMode === 'headless' || this.launchBackend.kind === 'independent') await spawn();
     else
-      await this.sessionRefs.launchAndCapture(
+      await this.identity.refs.launchAndCapture(
         session,
         account,
         adapter,
         launchOpts,
         spawn,
-        () => this.refreshAgentIdentity(sessionId),
+        () => this.identity.refreshAgentIdentity(sessionId),
         (error, phase) => {
           // Minted-id launches run after the HTTP response has returned, so no
           // request remains to carry an unexpected spawn/capture failure.
@@ -678,10 +494,10 @@ export class SessionService extends EventEmitter {
           }
         },
       );
-    this.bindRuntimeConversation(sessionId);
+    this.legacy.bindRuntimeConversation(sessionId);
     // Adopt-after-first-write: the conversation file rarely exists this early,
     // so this is a best-effort first attempt; the waiting_input flip retries.
-    this.scheduleAdopt(sessionId);
+    this.identity.scheduleAdopt(sessionId);
     this.deps.events.record(sessionId, 'created', {
       branch: worktree.branch,
       base_ref: worktree.baseRef,
@@ -879,12 +695,12 @@ export class SessionService extends EventEmitter {
     beforeLaunch?: RuntimeLaunchGuard,
   ): Promise<void> {
     this.assertLegacyRuntime(sessionId);
-    if (this.deps.runtimeLauncher) {
+    if (this.launchBackend.kind === 'independent') {
       try {
-        await this.deps.runtimeLauncher.launch(
+        await this.launchBackend.launcher.launch(
           sessionId,
           (hooks) => {
-            const { shell, args, env } = this.shellSpawnParts(sessionId, false, hooks);
+            const { shell, args, env } = this.environment.shellSpawnParts(sessionId, false, hooks);
             return {
               file: command ? '/bin/sh' : shell,
               args: command ? terminalCommandArgs(command, shell, args) : args,
@@ -911,37 +727,7 @@ export class SessionService extends EventEmitter {
       }
       return;
     }
-    const { shell, args, env } = this.shellSpawnParts(sessionId);
-    try {
-      this.deps.runtimes?.useLegacyTerminals(sessionId);
-      this.deps.ptys.spawn(
-        sessionId,
-        'agent',
-        command ? '/bin/sh' : shell,
-        command ? terminalCommandArgs(command, shell, args) : args,
-        { cwd: command?.cwd ?? worktreePath, env: { ...env, ...command?.env } },
-      );
-    } catch (e) {
-      this.transition(sessionId, 'exited');
-      this.deps.events.record(sessionId, 'spawn_failed', { message: (e as Error).message });
-      throw new ApiError(500, 'spawn_failed', `could not start ${shell}: ${(e as Error).message}`);
-    }
-    const live: LiveAgent = {
-      runtimeId: randomUUID(),
-      activeSessionId: sessionId,
-      conversationId: null,
-      lifecycleResource: null,
-      detector: null,
-      startedAt: Date.now(),
-      status: 'starting',
-      lastTouch: 0,
-      lastTitleCheck: 0,
-      lastOscTitle: null,
-      signalNonce: null,
-      signalled: false,
-    };
-    this.liveAgents.set(sessionId, live);
-    this.runtimes.set(live.runtimeId, live);
+    this.legacy.spawnTerminal(sessionId, worktreePath, command);
   }
 
   async resume(id: string): Promise<Session> {
@@ -962,7 +748,7 @@ export class SessionService extends EventEmitter {
       );
     }
     if (session.conversation_id !== null && session.conversation_id !== undefined) {
-      const owner = this.conversationRuntimes.get(session.conversation_id);
+      const owner = this.legacy.conversation(session.conversation_id);
       if (owner && owner.activeSessionId !== id) {
         const existing = this.deps.sessions.get(owner.activeSessionId);
         throw ApiError.conflict(
@@ -1012,7 +798,7 @@ export class SessionService extends EventEmitter {
     const ref =
       session.agent_mode === 'headless' && !session.agent_session_ref
         ? undefined
-        : await this.sessionRefs.resolveForResume(
+        : await this.identity.refs.resolveForResume(
             session,
             account,
             adapter,
@@ -1082,7 +868,7 @@ export class SessionService extends EventEmitter {
       undefined,
       opts.beforeLaunch,
     );
-    this.bindRuntimeConversation(session.id);
+    this.legacy.bindRuntimeConversation(session.id);
     if (!this.deps.runtimes?.usesExternalTerminals(session.id))
       this.transition(session.id, 'running');
     if (downgraded) {
@@ -1221,24 +1007,7 @@ export class SessionService extends EventEmitter {
       return this.get(id);
     }
     this.assertLegacyRuntime(id);
-    const session = this.deps.sessions.get(id);
-    this.expectExit(id); // asked for: its non-zero exit raises no notice
-    this.deps.ptys.killAll(id);
-    const deadline = Date.now() + 4000;
-    let escalated = false;
-    while (this.deps.ptys.liveTerms(id).length > 0) {
-      if (Date.now() > deadline + 2000)
-        throw new ApiError(500, 'kill_failed', 'session PTYs refused to die');
-      if (!escalated && Date.now() > deadline) {
-        this.deps.ptys.killAll(id, 'SIGKILL');
-        escalated = true;
-      }
-      await new Promise((r) => setTimeout(r, 25));
-    }
-    if (LIVE_STATUSES.includes(session.status)) {
-      // The exit handler normally does this; cover the no-PTY edge.
-      if (this.deps.sessions.get(id).status !== 'exited') this.transition(id, 'exited');
-    }
+    await this.legacy.kill(id);
     this.deps.events.record(id, 'killed');
     return this.get(id);
   }
@@ -1271,7 +1040,7 @@ export class SessionService extends EventEmitter {
         'The session started again while archive was waiting.',
       );
     this.deps.onboarding.unwatch(id);
-    this.adopted.delete(id);
+    this.identity.forget(id);
     this.transition(id, 'archived');
     this.deps.events.record(id, 'archived', {});
     return this.get(id);
@@ -1337,7 +1106,7 @@ export class SessionService extends EventEmitter {
       throw ApiError.conflict('worktree_missing', 'worktree is gone');
     }
     if (external) {
-      const { shell, args, env } = this.shellSpawnParts(sessionId, false);
+      const { shell, args, env } = this.environment.shellSpawnParts(sessionId, false);
       return this.deps.runtimeControls!.spawnShell(
         sessionId,
         {
@@ -1348,22 +1117,12 @@ export class SessionService extends EventEmitter {
           cols: 120,
           rows: 32,
         },
-        () => this.captureEnvEnabled(session.project_id),
+        () => this.environment.captureEnvEnabled(session.project_id),
         authorised,
       );
     }
     if (!authorised()) throw new ApiError(401, 'upstream_expired', 'Connection authority expired');
-    const used = new Set([
-      ...this.deps.logs.listTerms(sessionId),
-      ...this.deps.ptys.liveTerms(sessionId),
-    ]);
-    let n = 1;
-    while (used.has(`shell-${n}`)) n++;
-    const term = `shell-${n}`;
-    const { shell, args, env } = this.shellSpawnParts(sessionId);
-    // A second shell opens where the session lives, matching its first one.
-    this.deps.ptys.spawn(sessionId, term, shell, args, { cwd: this.startDirOf(session), env });
-    return term;
+    return this.legacy.spawnShell(sessionId, this.startDirOf(session));
   }
 
   /**
@@ -1402,106 +1161,8 @@ export class SessionService extends EventEmitter {
     return settings.allowSkipPermissions === true && account.skip_permissions_default;
   }
 
-  /** The profile gate for captured env (SPEC §4): reporting, consumption, and re-injection. */
-  private captureEnvEnabled(projectId: string): boolean {
-    const project = this.deps.projects.get(projectId);
-    return this.deps.profiles.getSettings(project.profile_id).captureSessionEnv;
-  }
-
-  /**
-   * Consume a captured-env report from a session PTY's OSC 7733 side-channel.
-   * Non-session streams (home, login-*) report nothing consumable; denylist and
-   * caps are re-checked here even though the hook filters — the emitter is an
-   * arbitrary process in the worktree, not just our hook.
-   */
-  private onEnvDelta(e: PtyEnvDeltaEvent): void {
-    if (this.shuttingDown) return;
-    let session: Session;
-    try {
-      session = this.deps.sessions.get(e.stream);
-    } catch {
-      return;
-    }
-    if (!this.captureEnvEnabled(session.project_id)) return;
-    const { delta } = e;
-    if (isDeniedEnvName(delta.name)) return;
-    if (delta.op === 'unset') {
-      this.deps.sessions.mergeEnv(session.id, {}, [delta.name]);
-      return;
-    }
-    const value = delta.value ?? '';
-    if (Buffer.byteLength(value) > MAX_ENV_VALUE_BYTES) {
-      this.noteEnvDropOnce(session.id, e.term, delta.name, 'its value exceeds 32 KiB');
-      return;
-    }
-    const current = this.deps.sessions.getEnv(session.id);
-    if (!(delta.name in current) && Object.keys(current).length >= MAX_ENV_VARS) {
-      this.noteEnvDropOnce(
-        session.id,
-        e.term,
-        delta.name,
-        `the session already holds ${MAX_ENV_VARS} captured vars`,
-      );
-      return;
-    }
-    this.deps.sessions.mergeEnv(session.id, { [delta.name]: value }, []);
-  }
-
-  /**
-   * Persist a terminal shell's last prompt directory for its next spawn. The
-   * public cwd contract is deliberately worktree-relative, so an outside cwd
-   * resets the restart location to the worktree root instead of storing an
-   * arbitrary absolute path. Agent sessions ignore shell-tab reports.
-   */
-  private onCwd(e: PtyCwdEvent): void {
-    if (this.shuttingDown) return;
-    let session: Session;
-    try {
-      session = this.deps.sessions.get(e.stream);
-    } catch {
-      return;
-    }
-    if (session.kind !== 'terminal') return;
-
-    const absolute = resolve(e.cwd);
-    try {
-      if (!existsSync(absolute) || !statSync(absolute).isDirectory()) return;
-    } catch {
-      // The directory may disappear between exists/stat; ignore a stale prompt.
-      return;
-    }
-    const rel = relative(resolve(session.worktree_path), absolute);
-    const outside = rel === '..' || rel.startsWith(`..${sep}`) || isAbsolute(rel);
-    const cwd = outside || rel === '' ? null : rel;
-    if ((session.cwd ?? null) !== cwd) this.deps.sessions.setCwd(session.id, cwd);
-  }
-
-  private noteEnvDropOnce(sessionId: string, term: string, name: string, reason: string): void {
-    const key = `${sessionId}:${name}`;
-    if (this.envDropNoted.has(key)) return;
-    this.envDropNoted.add(key);
-    this.deps.ptys.note(sessionId, term, `captured env: ${name} not persisted — ${reason}`);
-  }
-
-  /**
-   * Captured vars to merge into a session PTY's spawn env, denylist-refiltered
-   * (defence against rows written by an older build). Empty when the profile
-   * gate is off — the feature goes fully dormant, but the stored map is kept.
-   */
-  private capturedSpawnEnv(session: Session): Record<string, string> {
-    if (!this.captureEnvEnabled(session.project_id)) return {};
-    return Object.fromEntries(
-      Object.entries(this.deps.sessions.getEnv(session.id)).filter(([k]) => !isDeniedEnvName(k)),
-    );
-  }
-
-  /** Captured vars for the authenticated cockpit's env strip (SPEC §4). */
   capturedEnv(id: string): SessionEnvResponse {
-    const env = this.deps.sessions.getEnv(id); // 404s for an unknown session
-    const vars = Object.entries(env)
-      .map(([name, value]) => ({ name, value, bytes: Buffer.byteLength(value) }))
-      .sort((a, b) => a.name.localeCompare(b.name));
-    return { vars };
+    return this.environment.capturedEnv(id);
   }
 
   /** DELETE /api/sessions/:id/env: stop injecting; returns how many vars were dropped. */
@@ -1518,42 +1179,13 @@ export class SessionService extends EventEmitter {
     return { cleared: this.deps.sessions.clearEnv(id) };
   }
 
-  /** Shell command, hook args, and env for a session terminal spawn (SPEC §4). */
-  private shellSpawnParts(
-    sessionId: string,
-    includeCaptured = true,
-    pinnedHooks?: ShellHooks,
-  ): {
-    shell: string;
-    args: string[];
-    env: Record<string, string>;
-  } {
-    const shell = process.env.SHELL ?? 'bash';
-    const session = this.deps.sessions.get(sessionId);
-    const captureEnv = this.captureEnvEnabled(session.project_id);
-    const captured = includeCaptured ? this.capturedSpawnEnv(session) : {};
-    const historyFile = this.deps.logs.historyFile(sessionId);
-    const owner = this.deps.runtimes?.ownerOf(sessionId);
-    const hooks =
-      pinnedHooks ??
-      (owner ? this.deps.runtimeShellHooks?.(owner.runtime_id) : null) ??
-      this.deps.shellHooks;
-    const hook = hooks?.spawnConfig(shell, { captureEnv, historyFile });
-    // Hook control vars win over anything captured (ZDOTDIR is denylisted anyway).
-    return {
-      shell,
-      args: hook?.args ?? [],
-      env: { ...captured, HISTFILE: historyFile, ...(hook?.env ?? {}) },
-    };
-  }
-
   private async spawnAgent(
     sessionId: string,
     worktreePath: string,
     account: Account,
     adapter: AgentAdapter,
     args: string[],
-    initial: LiveAgent['status'],
+    initial: Extract<SessionStatus, 'starting' | 'running' | 'waiting_input'>,
     launchOpts?: LaunchOpts,
     resumeRef?: string,
     programme?: ProgrammeOperation,
@@ -1566,7 +1198,7 @@ export class SessionService extends EventEmitter {
       account.config_dir,
     ]);
     this.assertLegacyRuntime(sessionId);
-    if (this.deps.runtimeLauncher) {
+    if (this.launchBackend.kind === 'independent') {
       try {
         const mode = this.deps.sessions.get(sessionId).agent_mode ?? 'interactive';
         const opts = launchOpts ?? {
@@ -1583,7 +1215,7 @@ export class SessionService extends EventEmitter {
             ? [...(await adapter.existingSessionRefs(worktreePath, account))]
             : undefined;
         if (initialRef !== undefined) this.deps.sessions.setAgentSessionRef(sessionId, initialRef);
-        await this.deps.runtimeLauncher.launch(
+        await this.launchBackend.launcher.launch(
           sessionId,
           () => ({
             file: adapter.binary,
@@ -1628,638 +1260,35 @@ export class SessionService extends EventEmitter {
       }
       return;
     }
-    // The status-signal side-channel (SPEC §4): a per-spawn nonce plus the
-    // daemon's own /agent-signal URL, injected so agent hook processes (which
-    // inherit this env) can report running ⇄ waiting_input authoritatively.
-    const signalNonce = this.signalPort !== null ? randomUUID() : null;
-    // A fresh agent is never an expected exit — clear any flag a previous
-    // kill left behind so this run's crash is reported.
-    this.expectedExits.delete(sessionId);
-    let lifecycleResource: LifecycleLaunchResource | null = null;
-    let spawnArgs = args;
-    let nativeSync: NonNullable<Session['native_sync']> = 'fallback';
-    let lifecycleUnavailable = false;
-    const headless = this.deps.sessions.get(sessionId).agent_mode === 'headless';
-    if (headless && (signalNonce === null || !adapter.prepareHeadlessLaunch)) {
-      this.transition(sessionId, 'exited');
-      throw ApiError.conflict(
-        'headless_mode_unavailable',
-        'Headless execution requires an adapter control channel',
-      );
-    }
-    if (signalNonce !== null && this.signalPort !== null) {
-      const prepare = headless ? adapter.prepareHeadlessLaunch : adapter.prepareLifecycleLaunch;
-      if (prepare) {
-        try {
-          lifecycleResource = await prepare({
-            account,
-            reportLifecycleUnavailable: () => {
-              lifecycleUnavailable = true;
-            },
-            opts: launchOpts ?? {
-              worktreePath,
-              sessionId,
-              skipPermissions: this.deps.sessions.get(sessionId).skip_permissions,
-            },
-            args,
-            signalUrl: `http://127.0.0.1:${this.signalPort}/agent-signal`,
-            signalNonce,
-            resumeRef,
-            env: this.capturedSpawnEnv(this.deps.sessions.get(sessionId)),
-            writeInput: (data) => {
-              const live = this.signalNonces.get(signalNonce);
-              if (!live) throw new Error('Agent terminal is no longer live');
-              this.deps.ptys.write(live.activeSessionId, 'agent', data, 'script');
-            },
-            reportStatus: (state) => {
-              this.signalAgentStatus(signalNonce, state);
-            },
-            bindConversation: async (ref) => {
-              const accepted = await this.signalAgentLifecycle({
-                nonce: signalNonce,
-                event: 'session_start',
-                agent_session_ref: ref,
-                cwd: worktreePath,
-                source: resumeRef ? 'resume' : 'startup',
-              });
-              if (!accepted)
-                throw new Error('Agent runtime ended before its conversation was bound');
-            },
-          });
-          spawnArgs = lifecycleResource.args;
-          nativeSync = lifecycleUnavailable ? 'fallback' : 'full';
-        } catch (error) {
-          if (headless || error instanceof AgentLaunchError) {
-            this.transition(sessionId, 'exited');
-            this.deps.events.record(sessionId, 'spawn_failed', { message: String(error) });
-            throw ApiError.conflict(
-              headless ? 'headless_mode_unavailable' : 'agent_launch_failed',
-              String(error),
-            );
-          }
-          console.warn(
-            `${adapter.displayName} lifecycle bridge unavailable: ${(error as Error).message}`,
-          );
-        }
-      } else if (adapter.lifecycleSignals) {
-        try {
-          nativeSync =
-            (await adapter.checkLifecycleSupport?.(account)) === false ? 'fallback' : 'full';
-        } catch (error) {
-          console.warn(
-            `${adapter.displayName} lifecycle capability check failed: ${(error as Error).message}`,
-          );
-        }
-      }
-    }
-    try {
-      this.assertLegacyRuntime(sessionId);
-      this.deps.runtimes?.useLegacyTerminals(sessionId);
-      this.deps.ptys.spawn(
-        sessionId,
-        'agent',
-        lifecycleResource?.binary ?? adapter.binary,
-        spawnArgs,
-        {
-          cwd: worktreePath,
-          // Adapter env is sacrosanct (e.g. CLAUDE_CONFIG_DIR) — it wins over
-          // captured vars; process.env is merged underneath by PtyManager.
-          env: {
-            ...this.capturedSpawnEnv(this.deps.sessions.get(sessionId)),
-            ...adapter.env(account),
-            ...(signalNonce !== null
-              ? {
-                  PUDDLE_AGENT_SIGNAL_URL: `http://127.0.0.1:${this.signalPort}/agent-signal`,
-                  PUDDLE_AGENT_SIGNAL_NONCE: signalNonce,
-                }
-              : {}),
-          },
-        },
-      );
-    } catch (e) {
-      await lifecycleResource?.dispose();
-      if (e instanceof ApiError && e.code === 'runtime_reconciliation_required') throw e;
-      this.transition(sessionId, 'exited');
-      this.deps.events.record(sessionId, 'spawn_failed', { message: (e as Error).message });
-      throw new ApiError(
-        500,
-        'spawn_failed',
-        `could not start ${adapter.binary}: ${(e as Error).message}`,
-      );
-    }
-    // Detector callbacks follow the stable runtime's current placement. A
-    // closure over the spawn-time session id would silently stop status
-    // updates after a native switch for regex-driven agents.
-    let live: LiveAgent | null = null;
-    const detector = new StatusDetector(
-      adapter.statusPatterns,
-      {
-        onStatus: (s) =>
-          this.persistence.observe(() => this.onDetected(live?.activeSessionId ?? sessionId, s)),
-        onLimitReached: () =>
-          this.persistence.observe(() =>
-            this.deps.events.record(live?.activeSessionId ?? sessionId, 'limit_reached'),
-          ),
-      },
-      this.deps.statusQuietMs ?? 2000,
+    await this.legacy.spawnAgent(
+      sessionId,
+      worktreePath,
+      account,
+      adapter,
+      args,
+      initial,
+      launchOpts,
+      resumeRef,
     );
-    const current = this.deps.sessions.get(sessionId);
-    live = {
-      runtimeId: randomUUID(),
-      activeSessionId: sessionId,
-      conversationId: current.conversation_id ?? null,
-      lifecycleResource,
-      detector,
-      startedAt: Date.now(),
-      status: initial,
-      lastTouch: 0,
-      lastTitleCheck: 0,
-      lastOscTitle: null,
-      signalNonce,
-      signalled: false,
-    };
-    this.liveAgents.set(sessionId, live);
-    this.runtimes.set(live.runtimeId, live);
-    if (live.conversationId !== null) this.conversationRuntimes.set(live.conversationId, live);
-    if (signalNonce !== null) this.signalNonces.set(signalNonce, live);
-    if (lifecycleResource?.sidecarPids?.length || lifecycleResource?.hiddenPorts?.length) {
-      this.deps.ptys.registerSidecars(
-        sessionId,
-        lifecycleResource.sidecarPids ?? [],
-        lifecycleResource.hiddenPorts ?? [],
-      );
-    }
-    this.deps.sessions.setNativeSync(sessionId, nativeSync);
-    if (nativeSync === 'fallback' && signalNonce !== null) {
-      this.emit('notice', {
-        level: 'warning',
-        title: 'Conversation switching is not synchronised',
-        detail: `${adapter.displayName} will keep running, but in-agent conversation switches will stay in this terminal tab.`,
-        session: sessionId,
-      } satisfies NoticeEvent);
-    }
   }
 
-  private onPtyData(e: PtyDataEvent): void {
-    if (this.shuttingDown) return;
-    const live = this.liveAgents.get(e.stream);
-    if (!live) return;
-    const now = Date.now();
-    if (now - live.lastTouch > 1000) {
-      live.lastTouch = now;
-      this.persistence.observe(() =>
-        this.deps.sessions.touchActivity(e.stream, new Date(now).toISOString()),
-      );
-    }
-    if (e.term !== 'agent') return;
-    if (live.status === 'starting') {
-      live.status = 'running';
-      this.observeTransition(e.stream, 'running');
-    }
-    live.detector?.feed(e.data);
-    if (live.detector === null) this.terminalAgents.feed(e.stream, e.data);
-    // A session announces a name change by setting its terminal title (OSC
-    // 0/1/2) — e.g. Claude Code's `/rename`, handled client-side with no status
-    // transition. `extractOscTitle` returns the de-animated title (spinner
-    // glyphs stripped) or null (SPEC §4).
-    const oscTitle = extractOscTitle(e.data);
-    if (oscTitle !== null) {
-      // The "sequence" name: the default label for sessions without an
-      // adapter-maintained agent_title (terminals, agents whose adapter has no
-      // sessionTitle). Persist only on a real change — already de-animated.
-      if (oscTitle !== live.lastOscTitle) {
-        live.lastOscTitle = oscTitle;
-        this.captureOscTitle(e.stream, oscTitle);
-      }
-      // For an adapter that keeps its own name (Claude Code → transcript), the
-      // title emission is the cue to re-read it; throttled, transcript wins.
-      if (now - live.lastTitleCheck > 1000) {
-        live.lastTitleCheck = now;
-        this.refreshAgentIdentity(e.stream);
-      }
-    }
-  }
-
-  /**
-   * Stores the terminal-title "sequence" name and broadcasts a `renamed` so an
-   * attached client's default label tracks it live. A user `title` and an
-   * adapter's `agent_title` both still win in the display order (SPEC §4).
-   * Best-effort: never throws upward.
-   */
-  private captureOscTitle(sessionId: string, oscTitle: string): void {
-    let session: Session;
-    try {
-      session = this.deps.sessions.get(sessionId);
-    } catch {
-      return; // session gone
-    }
-    if ((session.osc_title ?? null) === oscTitle) return; // already current
-    this.deps.sessions.setOscTitle(sessionId, oscTitle);
-    this.emit('renamed', {
-      session: sessionId,
-      title: session.title,
-      agent_title: session.agent_title ?? null,
-      osc_title: oscTitle,
-    } satisfies RenameEvent);
-  }
-
-  /**
-   * The daemon's bound port, learnt after listen — from then on every agent
-   * spawn carries the /agent-signal env pair (see spawnAgent).
-   */
   setSignalPort(port: number): void {
-    this.signalPort = port;
+    this.legacy.setSignalPort(port);
   }
-
-  /** This session's live signal nonce (tests/diagnostics), or null. */
-  signalNonceFor(sessionId: string): string | null {
-    return this.liveAgents.get(sessionId)?.signalNonce ?? null;
+  signalNonceFor(session: string): string | null {
+    return this.legacy.signalNonceFor(session);
   }
-
-  /**
-   * POST /agent-signal (SPEC §4): an agent hook reports its own state. The
-   * nonce is the auth — unknown or stale (PTY exited) → false, and the route
-   * 404s without leaking whether the nonce ever existed. The first signal
-   * flips the session to hooks-are-authoritative (see LiveAgent.signalled).
-   */
   signalAgentStatus(nonce: string, state: 'working' | 'waiting_input'): boolean {
-    if (this.shuttingDown) return false;
-    const live = this.signalNonces.get(nonce);
-    if (!live || !this.runtimes.has(live.runtimeId)) return false;
-    const sessionId = live.activeSessionId;
-    live.signalled = true;
-    this.onDetected(sessionId, state === 'working' ? 'running' : 'waiting_input', 'signal');
-    return true;
+    return this.legacy.signalAgentStatus(nonce, state);
   }
-
   signalAgentTurn(signal: AgentTurnSignal): boolean {
-    if (this.shuttingDown) return false;
-    const live = this.signalNonces.get(signal.nonce);
-    if (!live || !this.runtimes.has(live.runtimeId) || !live.lifecycleResource?.control?.signal)
-      return false;
-    const state = live.lifecycleResource.control.signal(signal);
-    if (state) this.signalAgentStatus(signal.nonce, state);
-    return true;
+    return this.legacy.signalAgentTurn(signal);
   }
-
-  /**
-   * Consume an exact top-level native lifecycle event. Compact and initial
-   * startup only refresh identity; clear/resume/fork may atomically move the
-   * stable runtime to another immutable Puddle placement.
-   */
-  async signalAgentLifecycle(signal: LifecycleSignal): Promise<boolean> {
-    if (this.shuttingDown) return false;
-    const runtime = this.signalNonces.get(signal.nonce);
-    if (!runtime || !this.runtimes.has(runtime.runtimeId)) return false;
-    const apply = async () => {
-      if (!this.runtimes.has(runtime.runtimeId)) return false;
-      if (this.deps.storage?.status().database_degraded) throw storageUnavailable();
-      const sourceId = runtime.activeSessionId;
-      const source = this.deps.sessions.get(sourceId);
-      runtime.lifecycleResource?.control?.lifecycle?.(
-        signal.agent_session_ref,
-        signal.event === 'session_end',
-      );
-      if (signal.event === 'session_end') {
-        this.deps.events.record(sourceId, 'native_session_end', {
-          source: signal.source,
-          ref: signal.agent_session_ref ?? source.agent_session_ref,
-        });
-        return true;
-      }
-      if (!signal.agent_session_ref || source.account_id === null || source.agent_type === null) {
-        return true;
-      }
-      const account = this.deps.accounts.get(source.account_id);
-      const project = this.deps.projects.get(source.project_id);
-      const parentRef =
-        signal.parent_agent_session_ref ??
-        (signal.source === 'fork' ? (source.agent_session_ref ?? undefined) : undefined);
-      const conversation = this.deps.conversations.upsert(
-        project.profile_id,
-        source.agent_type,
-        account.id,
-        {
-          ref: signal.agent_session_ref,
-          cwd: signal.cwd,
-          ...(signal.native_title !== undefined ? { title: signal.native_title } : {}),
-          ...(parentRef !== undefined ? { parentRef } : {}),
-          ...(signal.native_created_at !== undefined
-            ? { createdAt: signal.native_created_at }
-            : {}),
-          ...(signal.native_updated_at !== undefined
-            ? { updatedAt: signal.native_updated_at }
-            : {}),
-        },
-      );
-      // An exact event proves which account currently owns the native
-      // conversation, unlike catalogue polling of a profile-shared store.
-      this.deps.conversations.setPreferredAccount(conversation.id, account.id);
-
-      const sameConversation = source.conversation_id === conversation.id;
-      if (signal.source === 'compact' || sameConversation) {
-        if (!sameConversation && source.conversation_id == null) {
-          this.deps.sessions.setConversation(sourceId, conversation.id);
-        }
-        this.bindRuntimeConversation(sourceId);
-        this.deps.sessions.setNativeSync(sourceId, 'full');
-        return true;
-      }
-      if (!['clear', 'resume', 'fork'].includes(signal.source)) {
-        if (source.conversation_id == null) {
-          this.deps.sessions.setConversation(sourceId, conversation.id);
-          this.bindRuntimeConversation(sourceId);
-        }
-        this.deps.sessions.setNativeSync(sourceId, 'full');
-        return true;
-      }
-
-      const cause = signal.source as SessionSwitchEvent['cause'];
-      const existingRuntime = this.conversationRuntimes.get(conversation.id);
-      if (existingRuntime && existingRuntime !== runtime) {
-        const target = this.deps.sessions.get(existingRuntime.activeSessionId);
-        this.expectExit(sourceId);
-        this.deps.ptys.killAll(sourceId);
-        if (LIVE_STATUSES.includes(source.status)) this.transition(sourceId, 'exited');
-        this.deps.events.record(sourceId, 'native_switch_conflict', {
-          cause,
-          target_session: target.id,
-          target_project: target.project_id,
-        });
-        this.emit('session-switched', {
-          sourceSession: sourceId,
-          targetSession: target.id,
-          targetProject: target.project_id,
-          cause,
-          outcome: 'focused-existing',
-        } satisfies SessionSwitchEvent);
-        return true;
-      }
-
-      const canonicalPath = this.deps.sessions.canonicalWorktreePath(sourceId);
-      let targetId = this.deps.conversations.placement(
-        conversation.id,
-        source.project_id,
-        canonicalPath,
-      );
-      if (targetId === null) {
-        targetId = randomUUID();
-        this.deps.sessions.create({
-          id: targetId,
-          project_id: source.project_id,
-          account_id: source.account_id,
-          conversation_id: conversation.id,
-          worktree_path: source.worktree_path,
-          base_branch: source.base_branch,
-          branch: source.branch,
-          separate_branch: source.separate_branch,
-          branch_owned: false,
-          kind: 'agent',
-          agent_type: source.agent_type,
-          title: null,
-          status: 'exited',
-          native_sync: 'full',
-          skip_permissions: source.skip_permissions,
-        });
-      }
-      if (targetId === sourceId) {
-        this.bindRuntimeConversation(sourceId);
-        return true;
-      }
-
-      this.deps.sessions.adoptRuntimeState(sourceId, targetId);
-      this.deps.sessions.transferBranchOwnership(sourceId, targetId);
-      this.liveAgents.delete(sourceId);
-      this.liveAgents.set(targetId, runtime);
-      runtime.activeSessionId = targetId;
-      if (runtime.conversationId !== null) {
-        const indexed = this.conversationRuntimes.get(runtime.conversationId);
-        if (indexed === runtime) this.conversationRuntimes.delete(runtime.conversationId);
-      }
-      runtime.conversationId = conversation.id;
-      this.conversationRuntimes.set(conversation.id, runtime);
-      try {
-        await this.deps.ptys.rebindStream(sourceId, targetId);
-      } catch (error) {
-        this.liveAgents.delete(targetId);
-        this.liveAgents.set(sourceId, runtime);
-        runtime.activeSessionId = sourceId;
-        throw error;
-      }
-      this.deps.onboarding.unwatch(sourceId);
-      this.adopted.delete(sourceId);
-      this.transition(sourceId, 'exited');
-      const runtimeStillLive = this.runtimes.has(runtime.runtimeId);
-      if (runtimeStillLive) this.transition(targetId, runtime.status);
-      this.deps.onboarding.watch(targetId, project.repo_id, source.worktree_path);
-      if (runtimeStillLive) this.deps.ptys.redraw(targetId, 'agent');
-      this.deps.events.record(sourceId, 'native_switched_away', {
-        cause,
-        target_session: targetId,
-        conversation_id: conversation.id,
-      });
-      this.deps.events.record(targetId, 'native_switched_to', {
-        cause,
-        source_session: sourceId,
-        conversation_id: conversation.id,
-      });
-      this.emit('session-switched', {
-        sourceSession: sourceId,
-        targetSession: targetId,
-        targetProject: source.project_id,
-        cause,
-        outcome: 'rebound',
-      } satisfies SessionSwitchEvent);
-      return true;
-    };
-    return this.lifecycleAdmission.run(() =>
-      this.lifecycleMutex.run('native-conversation-switch', apply),
-    );
+  signalAgentLifecycle(signal: LifecycleSignal): Promise<boolean> {
+    return this.legacy.signalAgentLifecycle(signal);
   }
-
-  private bindRuntimeConversation(sessionId: string): void {
-    const runtime = this.liveAgents.get(sessionId);
-    if (!runtime) return;
-    const conversationId = this.deps.sessions.get(sessionId).conversation_id ?? null;
-    if (runtime.conversationId !== null && runtime.conversationId !== conversationId) {
-      const indexed = this.conversationRuntimes.get(runtime.conversationId);
-      if (indexed === runtime) this.conversationRuntimes.delete(runtime.conversationId);
-    }
-    runtime.conversationId = conversationId;
-    if (conversationId === null) return;
-    const existing = this.conversationRuntimes.get(conversationId);
-    if (existing && existing !== runtime) {
-      this.emit('notice', {
-        level: 'warning',
-        title: 'Conversation already running',
-        detail: 'A duplicate runtime was stopped to keep native conversation ownership unique.',
-        session: sessionId,
-      } satisfies NoticeEvent);
-      this.expectExit(sessionId);
-      this.deps.ptys.killAll(sessionId);
-      return;
-    }
-    this.conversationRuntimes.set(conversationId, runtime);
-  }
-
-  private onDetected(
-    sessionId: string,
-    detected: DetectedStatus,
-    source: 'detector' | 'signal' = 'detector',
-  ): void {
-    const live = this.liveAgents.get(sessionId);
-    if (!live || live.status === detected) return;
-    // Regex output cannot establish an idle state before the PTY has produced
-    // its first chunk. An authoritative hook can: Claude's first Stop hook may
-    // beat its first visible TUI draw, and dropping it leaves the session amber
-    // until another hook happens to fire.
-    if (live.status === 'starting' && source === 'detector') return;
-    // Once hooks have spoken, the regex detector no longer drives status —
-    // its output-based flips misread idle TUI redraws as activity.
-    if (source === 'detector' && live.signalled) return;
-    live.status = detected;
-    this.observeTransition(sessionId, detected);
-    // Backstop for adoption: by waiting_input the agent has written its
-    // conversation file, which was usually absent at spawn time.
-    if (detected === 'waiting_input') {
-      this.scheduleAdopt(sessionId);
-      this.notifyAgent(sessionId, 'waiting_input');
-    }
-    // The agent's own name lands in (and updates within) the transcript as the
-    // conversation progresses; pick it up on each status change.
-    this.refreshAgentIdentity(sessionId);
-  }
-
-  /**
-   * Best-effort adopt of a session's conversation into the shared store. Runs
-   * at most once successfully per session (the `adopted` set); a run that finds
-   * nothing on disk yet leaves the session out so a later flip retries.
-   */
-  private scheduleAdopt(sessionId: string): void {
-    const share = this.deps.share;
-    if (this.shuttingDown || !share || this.adopted.has(sessionId)) return;
-    let session;
-    try {
-      session = this.deps.sessions.get(sessionId);
-    } catch {
-      return; // session gone
-    }
-    this.adoptions.start(`conversation-adopt:${sessionId}`, async () => {
-      if (await share.adoptIfNeeded(session)) this.adopted.add(sessionId);
-    });
-  }
-
-  private onPtyExit(e: PtyExitEvent): void {
-    const live = this.liveAgents.get(e.stream);
-    // Shells have no agent state to tear down, but a shell dying on its own is
-    // still something the user should hear about.
-    if (e.term !== 'agent') {
-      this.noticeOnAbnormalExit(e, false);
-      return;
-    }
-    if (!live) return;
-    const startupFailure = Date.now() - live.startedAt < STARTUP_FAILURE_MS;
-    live.detector?.dispose();
-    if (live.signalNonce !== null) this.signalNonces.delete(live.signalNonce);
-    this.deps.ptys.unregisterSidecars(e.stream);
-    void live.lifecycleResource?.dispose();
-    this.runtimes.delete(live.runtimeId);
-    if (
-      live.conversationId !== null &&
-      this.conversationRuntimes.get(live.conversationId) === live
-    ) {
-      this.conversationRuntimes.delete(live.conversationId);
-    }
-    this.liveAgents.delete(e.stream);
-    if (this.shuttingDown) return; // reconcile turns these into `interrupted` next boot
-    const expected =
-      this.expectedExits.has(e.stream) || this.expectedExits.has(`${e.stream}:agent`);
-    if (!expected) {
-      if (live.detector === null) this.terminalAgents.exited(e.stream);
-      else this.notifyAgent(e.stream, 'exited');
-    }
-    this.observeTransition(e.stream, 'exited', e.exitCode);
-    this.terminalAgents.forget(e.stream);
-    this.refreshAgentIdentity(e.stream); // capture the final ref/name for the durable row
-    this.noticeOnAbnormalExit(e, startupFailure);
-    this.expectedExits.delete(e.stream);
-    this.expectedExits.delete(`${e.stream}:agent`);
-  }
-
-  /**
-   * Turns an unexpected non-zero exit into a user-visible notice (SPEC §4).
-   * Errors used to be silent here: a bad flag or a failed auth killed the
-   * process in milliseconds, and unless the user happened to be looking at
-   * that exact terminal they saw nothing at all.
-   *
-   * Deliberately quiet for exits we asked for (kill, archive, delete, shell
-   * close, shutdown) and for clean ones — a notice the user learns to ignore
-   * is worse than no notice.
-   */
-  private noticeOnAbnormalExit(e: PtyExitEvent, startupFailure: boolean): void {
-    if (this.shuttingDown || e.exitCode === 0) return;
-    if (this.expectedExits.delete(`${e.stream}:${e.term}`)) return;
-    // A whole-session stop covers every term, so the flag is consumed by the
-    // agent's exit rather than the first shell's — otherwise it would linger
-    // and silence a genuine crash after the next resume.
-    if (this.expectedExits.has(e.stream)) {
-      if (e.term === 'agent') this.expectedExits.delete(e.stream);
-      return;
-    }
-    const label = e.term === 'agent' ? 'Agent' : 'Terminal';
-    this.emit('notice', {
-      level: 'error',
-      title: startupFailure
-        ? `${label} failed to start (exit ${e.exitCode})`
-        : `${label} exited unexpectedly (exit ${e.exitCode})`,
-      detail: this.exitDetail(e),
-      session: e.stream,
-      term: e.term,
-    } satisfies NoticeEvent);
-  }
-
-  /** The last few lines the process printed — usually the whole diagnosis. */
-  private exitDetail(e: PtyExitEvent): string | undefined {
-    let tail: string;
-    try {
-      tail = stripAnsi(this.deps.logs.readTail(e.stream, e.term));
-    } catch {
-      return undefined;
-    }
-    const lines = tail
-      .split('\n')
-      .map((l) => l.trimEnd())
-      .filter((l) => l.trim() !== '');
-    if (lines.length === 0) return undefined;
-    return lines.slice(-4).join('\n').slice(-400);
-  }
-
-  /**
-   * Marks a stream (or one term of it) as being stopped on purpose, so its
-   * exit does not raise a notice. Cleared by the matching exit.
-   */
   expectExit(stream: string, term?: string): void {
-    this.expectedExits.add(term === undefined ? stream : `${stream}:${term}`);
-  }
-
-  private notifyAgent(session: string, reason: AgentNotification['reason']): void {
-    if (this.shuttingDown) return;
-    this.persistence.observe(() => this.refreshAgentTitle(session));
-    const event: AgentNotification = {
-      t: 'agent-notification',
-      id: randomUUID(),
-      session,
-      reason,
-    };
-    const placement = this.deps.sessions.get(session);
-    void notificationContent(placement, reason, this.deps)
-      .then((content) => {
-        if (!this.shuttingDown)
-          this.emit('agent-notification', { ...event, content } satisfies AgentNotification);
-      })
-      .catch(() => {
-        if (!this.shuttingDown) this.emit('agent-notification', event);
-      });
+    this.legacy.expectExit(stream, term);
   }
 
   private transition(id: string, status: SessionStatus): void {
@@ -2272,55 +1301,24 @@ export class SessionService extends EventEmitter {
     } satisfies StatusEvent);
   }
 
-  private observeTransition(id: string, status: SessionStatus, exitCode?: number): void {
-    this.persistence.save(id, { status, ...(exitCode !== undefined ? { exitCode } : {}) });
-    const s = this.deps.sessions.get(id);
-    this.emit('status', {
-      session: id,
-      status,
-      last_activity_at: s.last_activity_at,
-    } satisfies StatusEvent);
-  }
-
   /** Worktree-missing and stale-running badges are computed, never stored (SPEC §4). */
   private withComputed(session: Session): Session {
     const pending = this.persistence.state(session.id);
     if (pending) session = { ...session, status: pending.status, persistence_pending: true };
     if (session.kind === 'terminal') {
-      const live = this.liveAgents.get(session.id);
+      const detected = this.legacy.terminalAgent(session.id);
       session = {
         ...session,
-        detected_agent_type: live
-          ? this.terminalAgents.get(session.id, live.runtimeId)
-          : (this.deps.runtimeTerminalAgent?.(session.id) ?? null),
+        detected_agent_type:
+          detected === undefined
+            ? (this.deps.runtimeTerminalAgent?.(session.id) ?? null)
+            : detected,
       };
     }
     if (session.status === 'archived') return session;
     const computed = existsSync(session.worktree_path)
       ? session
       : { ...session, worktree_missing: true };
-    return this.staleRunning(computed) ? { ...computed, stale_running: true } : computed;
-  }
-
-  /** See STALE_RUNNING_MS. Best-effort: any failure reads as "not stale". */
-  private staleRunning(session: Session): boolean {
-    if (
-      session.status !== 'running' ||
-      session.kind !== 'agent' ||
-      !session.agent_session_ref ||
-      session.account_id === null ||
-      !this.liveAgents.has(session.id)
-    )
-      return false;
-    try {
-      const account = this.deps.accounts.get(session.account_id);
-      const adapter = this.deps.adapters.get(session.agent_type ?? account.agent_type);
-      const activityAt = adapter.sessionActivityAt?.(session.agent_session_ref, account);
-      return activityAt !== null && activityAt !== undefined
-        ? Date.now() - activityAt.getTime() > STALE_RUNNING_MS
-        : false;
-    } catch {
-      return false;
-    }
+    return this.legacy.staleRunning(computed) ? { ...computed, stale_running: true } : computed;
   }
 }

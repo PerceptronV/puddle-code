@@ -27,7 +27,8 @@ packages/
 │   ├── src/latex/        # local TeX discovery/recipes, managed outputs, and inverse SyncTeX
 │   ├── src/notebooks/    # daemon-owned Jupyter kernels, bounded bridge and explicit lifecycle
 │   ├── src/host/         # lifecycle admission, supervision, installation exclusion, startup and removal
-│   ├── src/sessions/     # immutable placement service + stable live runtimes + watched conversation catalogue
+│   ├── src/sessions/     # placement service, shared environment/identity and watched conversation catalogue
+│   │   └── legacy/       # daemon-owned PTYs, nonce/conversation indexes, signals and exit handling
 │   ├── src/runtime/      # puddler entry point and owner composition (standard backend for 0.4.0)
 │   │   ├── ownership/   # claims, private records and owner discovery/retirement
 │   │   ├── transport/   # bounded IPC framing, client and controller connections

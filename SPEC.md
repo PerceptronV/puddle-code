@@ -1365,6 +1365,15 @@ Desktop menus, tab shortcuts, pane overlays and mobile actions share session lif
 
 ### Native conversation lifecycle
 
+Placement orchestration stays in `sessions/service.ts`; `sessions/legacy/owner.ts`
+owns daemon-hosted PTYs, nonce/conversation indexes, status detection, native
+rebinding and exit handling. `sessions/environment.ts` and `identity.ts` own
+shared shell preparation and native reference/title/adoption work. Launch backend
+selection is fixed at service composition. Controls still follow durable current
+ownership; an independent launch failure never falls through to an in-process
+spawn. The existing lifecycle mutex, maintenance admission and stores retain
+placement consistency across these owners.
+
 A live agent is owned by an internal stable runtime identity, not by the placement currently shown in its URL. That runtime owns the agent PTY, shell PTYs, sidecars, captured environment, port roots, signal nonce, and an `activeSessionId`. A keyed mutex serialises native switches and REST resumes, and the daemon indexes runtimes by conversation so at most one Puddle runtime can own a native conversation.
 
 Adapters report exact top-level `SessionStart`/`SessionEnd` transitions through the nonce route. `/clear`, `/resume`, and `/fork` may switch placement; startup binds initial identity and `/compact` remains the same conversation. Reviews, ephemeral Codex threads, OpenCode children with `parentID`, and other child/subagent sessions are excluded. On a switch the daemon resolves or creates the target conversation placement in the **current project and current canonical worktree**, even when native metadata records another cwd. It preserves the target placement's Puddle title, clears `archived`, adopts the runtime's account, environment, permission and sync state, and transfers branch ownership. It then quiesces output, closes the old log/screen segment, freezes the old placement as `exited`, rebinds agent and shell PTYs to the target, starts the target segment, and forces a full TUI redraw. Durable events and `session-switched` tell every viewer what happened; only a viewer focused on the source follows automatically, retaining the old terminal as frozen history in the pane.
