@@ -1,4 +1,4 @@
-/* global document, getComputedStyle */
+/* global document, window, navigator, getComputedStyle */
 import assert from 'node:assert/strict';
 import { chromium } from '@playwright/test';
 const browser = await chromium.launch({ headless: true });
@@ -137,6 +137,39 @@ try {
   await swatches.getByRole('button', { name: 'violet', exact: true }).click();
   await page.waitForTimeout(250);
   await page.screenshot({ path: '/tmp/puddle-host-appearance.png' });
+  // Exercise the native macOS header branch, including its traffic-light inset.
+  const mac = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await mac.addInitScript(() => {
+    Object.defineProperty(navigator, 'platform', { value: 'MacIntel' });
+    window.puddleDesktop = {
+      raiseWindow() {},
+      isFullScreen: async () => false,
+      onFullScreenChange(callback) {
+        window.setPreviewFullScreen = callback;
+        return () => {};
+      },
+    };
+  });
+  await mac.goto(process.env.PREVIEW_URL ?? 'http://localhost:5174/');
+  await mac.getByRole('button', { name: 'Close', exact: true }).click();
+  const macHeader = mac.locator('header.host-header');
+  assert.equal(await macHeader.evaluate((el) => getComputedStyle(el).paddingLeft), '84px');
+  assert.ok(await macHeader.locator('.lucide-server').isVisible());
+  await mac.getByRole('button', { name: 'Settings', exact: true }).click();
+  await mac
+    .getByRole('group', { name: 'Settings sections' })
+    .getByRole('button', { name: 'Host', exact: true })
+    .click();
+  await mac.getByRole('button', { name: 'Choose a host icon' }).click();
+  await mac.getByRole('button', { name: 'origami', exact: true }).click();
+  await mac.getByRole('button', { name: 'Close', exact: true }).click();
+  assert.ok(await macHeader.locator('.lucide-origami').isVisible());
+  await mac.evaluate(() => window.setPreviewFullScreen(true));
+  await mac.waitForFunction(
+    () => getComputedStyle(document.querySelector('header.host-header')).paddingLeft === '0px',
+  );
+  assert.ok(await macHeader.locator('.lucide-origami').isVisible());
+  await mac.close();
   assert.deepEqual(errors, []);
   console.log(
     'Host icon selection, accent propagation, reset, and all palette contrast checks passed.',
