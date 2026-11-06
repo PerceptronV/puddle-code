@@ -8,7 +8,7 @@
  *
  * Usage: node scripts/extract-changelog.mjs <version>   # e.g. 0.0.2
  * Strips the leading HTML-comment template header, the `# Changelog` title,
- * and the `## [x.y.z] — date` heading, leaving just the `### Added/…` body.
+ * and the `## [x.y.z] — date` heading, leaving the component headings and their nested Added/Changed/Fixed sections.
  */
 import { readFileSync } from 'node:fs';
 import { dirname, join, resolve } from 'node:path';
