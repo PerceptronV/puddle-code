@@ -8,3 +8,9 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Cockpit
+
+#### Fixed
+
+- Use one shared font size for collapsed project abbreviations, matching the smallest size needed to fit the rail.

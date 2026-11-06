@@ -1,40 +1,49 @@
 import { useLayoutEffect, useRef } from 'react';
 
-/** Fit the full rail abbreviation, capped at the ordinary label size. */
-export function ProjectAbbreviation({ text }: { text: string }) {
-  const box = useRef<HTMLSpanElement>(null);
-  const measure = useRef<HTMLSpanElement>(null);
-  const label = useRef<HTMLSpanElement>(null);
+/** Give every project the smallest size needed to fit any abbreviation in this rail. */
+export function useProjectAbbreviationSize(labelsKey: string) {
+  const rail = useRef<HTMLDivElement>(null);
 
   useLayoutEffect(() => {
-    const container = box.current!;
-    const probe = measure.current!;
-    const visible = label.current!;
+    const root = rail.current!;
+    const probes = [...root.querySelectorAll<HTMLElement>('[data-project-abbreviation-measure]')];
     const fit = () => {
-      // Computed layout widths retain fractions and ignore sidebar transforms.
-      const available = parseFloat(getComputedStyle(container).width);
-      const natural = parseFloat(getComputedStyle(probe).width);
-      if (available > 0 && natural > 0) {
-        visible.style.fontSize = `${Math.min(1, available / natural)}em`;
+      let scale = 1;
+      for (const probe of probes) {
+        // Computed layout widths retain fractions and ignore sidebar transforms.
+        const available = parseFloat(getComputedStyle(probe.parentElement!).width);
+        const natural = parseFloat(getComputedStyle(probe).width);
+        if (available > 0 && natural > 0) scale = Math.min(scale, available / natural);
       }
+      root.style.setProperty('--project-abbreviation-size', `${scale}em`);
     };
     fit();
     const observer = new ResizeObserver(fit);
-    observer.observe(container);
-    observer.observe(probe); // also catches UI font changes and font loading
+    for (const probe of probes) {
+      observer.observe(probe.parentElement!);
+      observer.observe(probe); // also catches UI font changes and font loading
+    }
     return () => observer.disconnect();
-  }, [text]);
+  }, [labelsKey]);
 
+  return rail;
+}
+
+export function ProjectAbbreviation({ text }: { text: string }) {
   return (
-    <span ref={box} className="relative block whitespace-nowrap">
+    <span className="relative block whitespace-nowrap">
       <span
-        ref={measure}
+        data-project-abbreviation-measure
         aria-hidden="true"
         className="pointer-events-none invisible absolute left-0 top-0 w-max"
       >
         {text}
       </span>
-      <span ref={label} className="inline-block" data-project-abbreviation>
+      <span
+        className="inline-block"
+        data-project-abbreviation
+        style={{ fontSize: 'var(--project-abbreviation-size, 1em)' }}
+      >
         {text}
       </span>
     </span>

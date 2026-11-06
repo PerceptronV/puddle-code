@@ -19,7 +19,7 @@ import { cn } from '../../../../lib/utils';
 import { useSessionTitleRenderer } from '../../../profile/use-session-title';
 import { SessionGlyph } from '../../../status/SessionGlyph';
 import { encodeTabTransfer, TAB_MIME } from '../../tabs/tab-transfer';
-import { ProjectAbbreviation } from '../ProjectAbbreviation';
+import { ProjectAbbreviation, useProjectAbbreviationSize } from '../ProjectAbbreviation';
 import { SessionContextMenuBody, useSessionMenu } from '../SessionActions';
 import { SessionHoverList } from '../SessionHoverList';
 import { moveWithinGroups } from '../session-order';
@@ -234,6 +234,9 @@ export function CollapsedSessionsRail({
   } | null>(null);
   const [dragProject, setDragProject] = useState<string | null>(null);
   const [editingAbbrev, setEditingAbbrev] = useState<string | null>(null);
+  const abbreviationRail = useProjectAbbreviationSize(
+    JSON.stringify([groups.map(({ projectId, abbrev }) => [projectId, abbrev]), editingAbbrev]),
+  );
   const patchProject = usePatchProject();
   const accountLabel = new Map(accounts.map((a) => [a.id, a.label]));
   const visibleIds = useMemo(
@@ -252,7 +255,10 @@ export function CollapsedSessionsRail({
     patchProject.mutate({ id: group.projectId, abbrev: next }, { onError: (e) => toastError(e) });
   };
   return (
-    <div className="flex h-full min-h-0 w-9 shrink-0 flex-col items-center gap-[var(--ui-surface-gap)] overflow-hidden">
+    <div
+      ref={abbreviationRail}
+      className="flex h-full min-h-0 w-9 shrink-0 flex-col items-center gap-[var(--ui-surface-gap)] overflow-hidden"
+    >
       <div className="relative flex w-full shrink-0 flex-col items-center gap-1 compact:gap-0.5">
         <ControlTray label="New sessions" variant="island" vertical>
           <IconButton
