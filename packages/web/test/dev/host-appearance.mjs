@@ -33,6 +33,51 @@ try {
     const values = [luminance(rgb(a)), luminance(rgb(b))].sort((a, b) => b - a);
     return (values[0] + 0.05) / (values[1] + 0.05);
   };
+  const checkControlFills = async (accented, theme) => {
+    await nav.getByRole('button', { name: 'Appearance', exact: true }).click();
+    const field = page.locator('#ui-font-size');
+    const toggle = page.locator('#ripple-enabled');
+    await page.mouse.move(0, 0);
+    await page.waitForTimeout(200);
+    const expected = async (fill) =>
+      page.evaluate((fill) => {
+        const probe = document.createElement('span');
+        probe.style.backgroundColor = fill;
+        document.body.append(probe);
+        const colour = getComputedStyle(probe).backgroundColor;
+        probe.remove();
+        return colour;
+      }, fill);
+    const background = (element) => element.evaluate((el) => getComputedStyle(el).backgroundColor);
+    const rest = await expected(
+      accented ? 'var(--explorer-hover)' : 'color-mix(in oklab, var(--border) 50%, transparent)',
+    );
+    assert.equal(await background(field), rest);
+    assert.equal(await background(page.getByRole('combobox').first()), rest);
+    assert.equal(
+      await background(toggle.locator('span').first()),
+      await expected(accented ? 'var(--explorer-hover)' : 'var(--border)'),
+    );
+    await page.screenshot({
+      path: `/private/tmp/puddle-controls-${accented ? 'accent' : 'default'}-${theme}.png`,
+    });
+    await field.hover();
+    await page.waitForTimeout(200);
+    assert.equal(
+      await background(field),
+      await expected(
+        accented
+          ? 'color-mix(in oklab, var(--explorer-selection) 50%, transparent)'
+          : 'color-mix(in oklab, var(--border) 80%, transparent)',
+      ),
+    );
+    await toggle.click();
+    await page.mouse.move(0, 0);
+    await page.waitForTimeout(200);
+    assert.equal(await background(toggle.locator('span').first()), await expected('var(--action)'));
+    await toggle.click();
+    await nav.getByRole('button', { name: 'Host', exact: true }).click();
+  };
   for (const theme of ['light', 'dark']) {
     await page.evaluate(async (theme) => {
       const { applyTheme } = await import('/src/lib/appearance/theme.ts');
@@ -54,6 +99,7 @@ try {
         : ['#00132b', '#00132b', '#001c3d', '#001c3d', '#163c6b'],
       `${theme} default surfaces retain their original colours`,
     );
+    await checkControlFills(false, theme);
     await page.getByRole('button', { name: 'Close', exact: true }).click();
     await nav.waitFor({ state: 'hidden' });
     await page.screenshot({ path: `/private/tmp/puddle-islands-default-${theme}.png` });
@@ -227,6 +273,8 @@ try {
         `${theme}/${colour} host label contrast`,
       );
     }
+    await swatches.getByRole('button', { name: 'green', exact: true }).click();
+    await checkControlFills(true, theme);
     await swatches.getByRole('button', { name: 'blue', exact: true }).click();
     await page.getByRole('button', { name: 'Close', exact: true }).click();
     await nav.waitFor({ state: 'hidden' });

@@ -10,6 +10,7 @@
  * two sidebars.
  */
 @custom-variant compact (&:where([data-density='compact'], [data-density='compact'] *));
+@custom-variant host-accent (&:where([data-host-colour], [data-host-colour] *));
 
 /*
  * Tailwind v4 theme: utilities map onto semantic tokens only (SPEC §12).

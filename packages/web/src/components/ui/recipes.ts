@@ -9,10 +9,10 @@ import './overlay-motion.css';
  * - Menu rows: highlight is the ink action fill, never the accent blue.
  */
 
-/* Fields rest at what used to be their hover fill so they read as clickable
-   even on elevated surfaces; hover/focus deepen the same fill. */
+/* Default fields retain their border-derived fill. Accented fields use the
+   lighter file-hover fill independently of the stronger island outlines. */
 export const fieldSurface =
-  'rounded-[var(--ui-radius)] bg-border/50 text-sm text-fg placeholder:text-fg-muted transition-colors hover:bg-border/80 focus:bg-border/80 disabled:cursor-not-allowed disabled:opacity-50';
+  'rounded-[var(--ui-radius)] bg-border/50 text-sm text-fg placeholder:text-fg-muted transition-colors hover:bg-border/80 focus:bg-border/80 host-accent:bg-explorer-hover host-accent:hover:bg-explorer-selection/50 host-accent:focus:bg-explorer-selection/50 disabled:cursor-not-allowed disabled:opacity-50';
 
 export const menuRow =
   'relative flex cursor-pointer select-none items-center gap-2 rounded-[var(--ui-menu-radius)] px-2 py-1.5 text-sm text-fg outline-none transition-colors';

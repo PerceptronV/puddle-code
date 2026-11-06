@@ -2307,7 +2307,9 @@ one further step from the reading surface. A neutral foundation retains depth
 even for white or black custom accents. Accent borders are darker than every
 surface in light mode and lighter in dark mode, maintaining at least 1.5:1
 contrast against reading, island and nested backgrounds. Default borders stay
-unchanged. There is no separate pane/tab contrast adjustment.
+unchanged. Accented form fields and inactive switches use the lighter file-hover
+fill, with a subtle deeper fill on interaction; checked switches retain the action
+fill. Default controls stay unchanged. There is no separate pane/tab contrast adjustment.
 Compact Icon and Accent rows sit below
 the display name, without a separate section or preview card. A chosen accent
 rebuilds the entire chrome palette: text hierarchy, surfaces, borders, controls,
