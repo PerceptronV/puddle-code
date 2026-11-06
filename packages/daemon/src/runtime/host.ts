@@ -933,7 +933,9 @@ export class RuntimeHost {
   private closeAgent(): Promise<void> {
     if (!this.closingAgent) {
       this.turns.interrupt('Agent runtime exited before its turn completed');
-      this.closingAgent = (this.agent?.close() ?? Promise.resolve())
+      this.closingAgent = (
+        this.agent?.close(this.expectedExit ? 'stop' : 'detach') ?? Promise.resolve()
+      )
         .catch(() => {
           this.status = 'failed';
         })

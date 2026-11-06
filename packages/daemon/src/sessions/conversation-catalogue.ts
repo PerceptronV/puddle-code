@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { EventEmitter } from 'node:events';
 import { realpathSync, watch, type FSWatcher } from 'node:fs';
 import type { Account, Repo } from '@puddle/shared';
+import type { NativeConversation } from '../agents/adapter.js';
 import type { AdapterRegistry } from '../agents/registry.js';
 import type { AccountStore } from '../db/stores/accounts.js';
 import {
@@ -69,6 +70,8 @@ export class ConversationCatalogue extends EventEmitter {
   private readonly states = new Map<number, WatchState>();
   private readonly scans = new Map<number, Promise<void>>();
   private readonly resumedScans = new Set<number>();
+  private readonly discoveredAccounts = new Set<number>();
+  private readonly refreshAfterScan = new Set<number>();
   private readonly repoKeys = new Map<number, Promise<string>>();
   private readonly safetyTimer: ReturnType<typeof setInterval>;
 
@@ -256,6 +259,8 @@ export class ConversationCatalogue extends EventEmitter {
     if (this.inactive) return Promise.resolve();
     const active = this.scans.get(accountId);
     if (active) {
+      if (trigger === 'activation' && this.discoveredAccounts.has(accountId))
+        this.refreshAfterScan.add(accountId);
       if (eventTriggered) void active.finally(() => this.scheduleDeletionVerification(accountId));
       return active;
     }
@@ -283,6 +288,11 @@ export class ConversationCatalogue extends EventEmitter {
         })
         .finally(() => {
           if (this.scans.get(accountId) === pending) this.scans.delete(accountId);
+          this.discoveredAccounts.delete(accountId);
+          if (this.refreshAfterScan.delete(accountId))
+            queueMicrotask(() => {
+              void this.scan(accountId, 'activation');
+            });
           if (measurement) {
             measurement.elapsedMs = performance.now() - started;
             try {
@@ -314,6 +324,7 @@ export class ConversationCatalogue extends EventEmitter {
     let native: Awaited<ReturnType<typeof discovery.discover>>;
     try {
       native = await discovery.discover(account);
+      this.discoveredAccounts.add(accountId);
     } catch (error) {
       // Failed scans never advance missing state.
       console.warn(
@@ -336,7 +347,7 @@ export class ConversationCatalogue extends EventEmitter {
     const seenRefs = new Set<string>();
     const discovered: Array<{
       conversation: AgentConversation;
-      metadata: NativeConversationMetadata;
+      metadata: NativeConversation;
     }> = [];
     const observations = this.deps.conversations.upsertMany(
       account.profile_id,
@@ -384,6 +395,11 @@ export class ConversationCatalogue extends EventEmitter {
         changedProjects.add(projectId);
       }
       if (this.inactive) return;
+      if (metadata.background)
+        this.emit('background-conversation', {
+          accountId: account.id,
+          conversationId: conversation.id,
+        });
     }
     if (measurement) measurement.placementMs = performance.now() - phaseStarted;
     for (const conversationId of this.deps.conversations.completeSuccessfulScan(

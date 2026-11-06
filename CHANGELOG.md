@@ -53,7 +53,8 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
-- Ignore Claude-owned background copies’ inherited hooks so native `/fork` cannot rebind the original Puddle terminal or change its turn status.
+- Attach supported Claude-owned background forks in separate terminal tabs while keeping the original active. Route copied hooks to their own runtime, recover viewers without duplicating workers, and distinguish detachment from an explicit stop.
+- Preserve native catalogue refreshes requested after a running scan has already published metadata.
 - Synchronise OpenCode 2.2.5+ native terminal selection, new/fork conversations and exact automated replies; discover both V1 and V2 SQLite histories without waiting on native database locks.
 
 ### Runtime

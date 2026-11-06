@@ -23,13 +23,16 @@ try {
   );
   const firstNew = 'd12cb167-a09d-4e2e-a667-99003ccf1111';
   const secondNew = 'd12cb167-a09d-4e2e-a667-99003ccf2222';
-  for (const [source, target, cause] of [
-    [sessions[0], firstNew, 'fork'],
-    [firstNew, secondNew, 'clear'],
+  const background = 'd12cb167-a09d-4e2e-a667-99003ccf3333';
+  for (const [source, target, cause, outcome] of [
+    [sessions[0], firstNew, 'fork', 'rebound'],
+    [firstNew, secondNew, 'clear', 'rebound'],
+    [secondNew, background, 'fork', 'focused-existing'],
   ]) {
     await page.evaluate(
-      ([source, target, cause]) => window.workspaceFixture.nativeCreation(source, target, cause),
-      [source, target, cause],
+      ([source, target, cause, outcome]) =>
+        window.workspaceFixture.nativeCreation(source, target, cause, outcome),
+      [source, target, cause, outcome],
     );
     await page.waitForFunction(
       (id) => window.workspaceFixture.bridge()?.capture.active_session === id,
@@ -48,7 +51,7 @@ try {
   const tree = JSON.stringify(
     await page.evaluate(() => window.workspaceFixture.bridge().capture.layout_tree),
   );
-  for (const id of [sessions[0], firstNew, secondNew]) assert.ok(tree.includes(id));
+  for (const id of [sessions[0], firstNew, secondNew, background]) assert.ok(tree.includes(id));
   assert.deepEqual(errors, []);
   await page.evaluate(() => window.workspaceFixture.remove());
   console.log('Native fork/clear preserve original and new terminal tabs.');

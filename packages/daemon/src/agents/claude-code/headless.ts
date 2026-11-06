@@ -1,3 +1,5 @@
+import { inspectClaudeJob } from './jobs/store.js';
+import { AgentLaunchError } from '../launch-error.js';
 import type { LifecycleLaunchContext } from '../adapter.js';
 import { lifecycleVersionAtLeast } from '../lifecycle-version.js';
 import { prepareHeadless } from '../headless/control.js';
@@ -61,6 +63,13 @@ export function claudeDriver(context: LifecycleLaunchContext): HeadlessDriver {
 }
 
 export async function prepareClaudeHeadless(context: LifecycleLaunchContext) {
+  const job = context.resumeRef
+    ? await inspectClaudeJob(context.account.config_dir, context.resumeRef, context.env)
+    : null;
+  if (job && (job.pid !== null || !['done', 'failed', 'stopped'].includes(job.state)))
+    throw new AgentLaunchError(
+      'A Claude-owned background job requires its interactive attachment; refusing duplicate headless execution',
+    );
   if (!(await lifecycleVersionAtLeast('claude', ['--version'], [2, 1, 300], context.env)))
     throw new Error('Claude Code 2.1.300+ is required for headless mode');
   return prepareHeadless(context, claudeDriver(context));

@@ -94,7 +94,7 @@ export function useWorkspaceTabs({
     () =>
       wsManager.onSessionSwitched((event) => {
         if (event.source_session !== activeSessionId) return;
-        const creation = event.outcome === 'rebound' && event.cause !== 'resume';
+        const creation = event.cause !== 'resume';
         pendingOpen.current = { session: event.target_session, pin: creation };
         if (event.target_project === projectId) {
           layoutRef.current.ensureTerminal(event.target_session, {

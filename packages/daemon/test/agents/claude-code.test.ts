@@ -142,19 +142,19 @@ describe('claude-code adapter', () => {
     expect(claudeCode.sessionTitle!(ref, account(dir))).toBe('early title');
   });
 
-  it('finds conversations in any escaped project dir, and only real ones', () => {
+  it('finds conversations in any escaped project dir, and only real ones', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'puddle-cc-'));
     const ref = '67194578-8ea8-484a-bb7d-6698b3049cc4';
     // No projects dir at all → no conversation.
-    expect(claudeCode.hasConversation!(ref, account(dir))).toBe(false);
+    expect(await claudeCode.hasConversation!(ref, account(dir))).toBe(false);
     // Worktree sessions store under the MAIN repo's escaped path, so the
     // lookup must scan project dirs rather than derive one from the cwd.
     const project = join(dir, 'projects', '-Users-alice-src-my-repo');
     mkdirSync(project, { recursive: true });
-    expect(claudeCode.hasConversation!(ref, account(dir))).toBe(false);
+    expect(await claudeCode.hasConversation!(ref, account(dir))).toBe(false);
     writeFileSync(join(project, `${ref}.jsonl`), '{}\n');
-    expect(claudeCode.hasConversation!(ref, account(dir))).toBe(true);
-    expect(claudeCode.hasConversation!('someone-else', account(dir))).toBe(false);
+    expect(await claudeCode.hasConversation!(ref, account(dir))).toBe(true);
+    expect(await claudeCode.hasConversation!('someone-else', account(dir))).toBe(false);
   });
 
   it('catalogues cached normalised metadata without reading full transcripts', async () => {

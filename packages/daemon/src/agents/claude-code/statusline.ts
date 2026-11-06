@@ -1,4 +1,8 @@
 import {
+  installClaudeHookDispatcher as installHookDispatcher,
+  claudeHookCommand as managedHookCommand,
+} from './jobs/hooks.js';
+import {
   closeSync,
   constants,
   existsSync,
@@ -9,12 +13,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import {
-  installHookDispatcher,
-  legacyHelperCommand,
-  managedHookCommand,
-  writeManagedHelper,
-} from '../managed-helpers.js';
+import { legacyHelperCommand, writeManagedHelper } from '../managed-helpers.js';
 
 /**
  * Live per-session usage capture for claude-code, via the documented

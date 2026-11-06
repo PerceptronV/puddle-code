@@ -52,6 +52,7 @@ import {
   buildOnboardingPreamble,
 } from './onboarding.js';
 import { SessionRuntimeService } from './runtime/service.js';
+import { attachNativeBackground } from './native-background.js';
 import { preserveNativeSource } from './native-creation.js';
 import { terminalCommandArgs, type TerminalCommand } from './terminal-command.js';
 
@@ -760,6 +761,22 @@ export class SessionService extends EventEmitter {
       return;
     }
     this.legacy.spawnTerminal(sessionId, worktreePath, command);
+  }
+
+  /** Discovery is metadata; admission and exact native attachment remain launch responsibilities. */
+  async attachBackground(accountId: number, conversationId: number): Promise<void> {
+    await this.lifecycleAdmission.run(() =>
+      this.lifecycleMutex.run('native-conversation-switch', async () => {
+        const event = await attachNativeBackground(
+          this.deps,
+          accountId,
+          conversationId,
+          (id, guard) => this.resumeCore(id, guard, guard),
+          () => !this.shuttingDown,
+        );
+        if (event) this.emit('session-switched', event);
+      }),
+    );
   }
 
   async resume(id: string): Promise<Session> {

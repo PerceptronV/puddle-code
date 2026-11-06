@@ -52,7 +52,7 @@ describe('claude-code status line capture', () => {
     const settings = JSON.parse(readFileSync(join(dir, 'settings.json'), 'utf8')) as {
       statusLine: { command: string; padding: number };
     };
-    expect(settings.statusLine.command).toContain('puddle-hooks-v1.sh');
+    expect(settings.statusLine.command).toContain('puddle-claude-hooks-v2.sh');
     expect(settings.statusLine.padding).toBe(2);
     writeFileSync(
       join(dir, 'puddle-statusline.mjs'),

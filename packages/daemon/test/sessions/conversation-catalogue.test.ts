@@ -516,6 +516,26 @@ describe('ConversationCatalogue', () => {
     expect(f.service.get(placement.id).agent_title).toBe('Back again');
   });
 
+  it('does not discard activation after a scan has published its metadata', async () => {
+    const { f, catalogue, discover, setNative } = setup({ fakeWatch: 'healthy' });
+    const first: NativeConversation = {
+      ref: 'refresh-boundary',
+      cwd: f.repoPath,
+      title: 'Before',
+      parentRef: null,
+      createdAt: null,
+      updatedAt: null,
+    };
+    setNative([first]);
+    catalogue.once('sessions-changed', () => {
+      setNative([{ ...first, title: 'After' }]);
+      catalogue.refreshProject(f.ids.project);
+    });
+    catalogue.refreshProject(f.ids.project);
+    await waitFor(() => f.service.list().some((session) => session.agent_title === 'After'));
+    expect(discover).toHaveBeenCalledTimes(2);
+  });
+
   it('coalesces concurrent activation refreshes for one account', async () => {
     const { f, catalogue, discover, setNative, blockNext } = setup();
     setNative([]);

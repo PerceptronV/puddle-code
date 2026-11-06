@@ -1,10 +1,10 @@
+import {
+  installClaudeHookDispatcher as installHookDispatcher,
+  claudeHookCommand as managedHookCommand,
+} from './jobs/hooks.js';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
-import {
-  installHookDispatcher,
-  managedHookCommand,
-  writeManagedHelper,
-} from '../managed-helpers.js';
+import { writeManagedHelper } from '../managed-helpers.js';
 
 /**
  * Hook-driven status signals for claude-code (SPEC §4/§5): the reliable

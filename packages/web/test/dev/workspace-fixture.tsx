@@ -201,7 +201,12 @@ export function mountWorkspaceFixture() {
     second: secondProject.id,
     sessions: allSessions.map((s) => s.id),
     releaseProjects,
-    nativeCreation: (source: string, target: string, cause: 'fork' | 'clear') => {
+    nativeCreation: (
+      source: string,
+      target: string,
+      cause: 'fork' | 'clear',
+      outcome: 'rebound' | 'focused-existing' = 'rebound',
+    ) => {
       const original = allSessions.find((s) => s.id === source)!;
       allSessions.push({ ...original, id: target, title: `Native ${cause}` });
       for (const socket of sockets)
@@ -213,7 +218,7 @@ export function mountWorkspaceFixture() {
               target_session: target,
               target_project: original.project_id,
               cause,
-              outcome: 'rebound',
+              outcome,
             }),
           }),
         );

@@ -1,3 +1,4 @@
+import { observeClaudeJobs } from './jobs/store.js';
 import { prepareClaudeInteractive } from './control.js';
 import { prepareClaudeHeadless } from './headless.js';
 import { claudeRuntimeAssets } from './runtime-assets.js';
@@ -187,7 +188,13 @@ export const claudeCode: AgentAdapter = {
     return discoverClaudeRef(account.config_dir, worktreePath);
   },
 
-  hasConversation(ref, account) {
+  async hasConversation(ref, account) {
+    if (
+      (await observeClaudeJobs(account.config_dir)).some(
+        (job) => job.ref === ref || job.launchRef === ref,
+      )
+    )
+      return true;
     const projectsDir = join(account.config_dir, 'projects');
     if (!existsSync(projectsDir)) return false;
     return readdirSync(projectsDir).some((dir) =>
@@ -262,7 +269,10 @@ export const claudeCode: AgentAdapter = {
   conversationShare: claudeConversationShare,
 
   conversationDiscovery: {
-    watchRoots: (account) => [join(account.config_dir, 'projects')],
+    watchRoots: (account) => [
+      join(account.config_dir, 'projects'),
+      join(account.config_dir, 'jobs'),
+    ],
     discover: (account) => discoverClaudeConversations(account.config_dir),
   },
   lifecycleSignals: true,
@@ -491,7 +501,22 @@ async function discoverClaudeConversations(
     const batch = await Promise.all(files.slice(offset, offset + 32).map(readClaudeMetadata));
     for (const metadata of batch) if (metadata) out.push(metadata);
   }
-  return out.sort((a, b) => Date.parse(b.updatedAt ?? '') - Date.parse(a.updatedAt ?? ''));
+  const merged = new Map(out.map((row) => [row.ref, row]));
+  for (const job of await observeClaudeJobs(configDir)) {
+    const transcript = merged.get(job.ref);
+    merged.set(job.ref, {
+      ref: job.ref,
+      cwd: job.cwd,
+      title: transcript?.title ?? job.title,
+      parentRef: job.parentRef,
+      createdAt: job.createdAt,
+      updatedAt: transcript?.updatedAt ?? job.updatedAt,
+      background: job.backend === 'daemon' && job.parentRef !== null,
+    });
+  }
+  return [...merged.values()].sort(
+    (a, b) => Date.parse(b.updatedAt ?? '') - Date.parse(a.updatedAt ?? ''),
+  );
 }
 
 async function readClaudeMetadata(

@@ -39,6 +39,7 @@ export class RuntimeAgent {
   private ref: string | null = null;
   private signalled = false;
   private closed = false;
+  private retainedSidecars: number[] = [];
 
   constructor(
     private readonly home: string,
@@ -174,7 +175,7 @@ export class RuntimeAgent {
       agent_session_ref: this.ref,
       control_ready:
         !this.closed && !this.lifecycleUnavailable && (this.resource?.control?.ready ?? false),
-      sidecar_pids: this.closed ? [] : (this.resource?.sidecarPids ?? []),
+      sidecar_pids: this.closed ? this.retainedSidecars : (this.resource?.sidecarPids ?? []),
       hidden_ports: this.closed
         ? []
         : [...(this.resource?.hiddenPorts ?? []), ...(this.signalPort ? [this.signalPort] : [])],
@@ -243,14 +244,24 @@ export class RuntimeAgent {
     if (!this.closed) this.observers.state(this.state());
   }
 
-  async close(): Promise<void> {
+  async close(reason: 'stop' | 'detach' = 'stop'): Promise<void> {
     if (this.closed) return;
     this.closed = true;
     this.status = 'exited';
     this.detector.dispose();
     try {
       await this.signals.close();
-      await this.resource?.dispose();
+      try {
+        if (this.resource?.stop) {
+          this.retainedSidecars = [...(this.resource.sidecarPids ?? [])];
+          if (reason === 'stop') {
+            await this.resource.stop();
+            this.retainedSidecars = [];
+          }
+        }
+      } finally {
+        await this.resource?.dispose();
+      }
     } finally {
       this.claim.close();
     }

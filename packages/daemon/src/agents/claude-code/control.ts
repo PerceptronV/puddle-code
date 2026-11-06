@@ -1,14 +1,15 @@
+import { prepareClaudeJob } from './jobs/launch.js';
+import {
+  installClaudeHookDispatcher as installHookDispatcher,
+  claudeHookCommand as managedHookCommand,
+} from './jobs/hooks.js';
 import { readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import type { LifecycleLaunchContext } from '../adapter.js';
 import { lifecycleVersionAtLeast } from '../lifecycle-version.js';
 import { interactiveResource } from '../interactive/control.js';
 import { turnHookSource } from '../interactive/hook-source.js';
-import {
-  installHookDispatcher,
-  managedHookCommand,
-  writeManagedHelper,
-} from '../managed-helpers.js';
+import { writeManagedHelper } from '../managed-helpers.js';
 
 /** Native UserPromptSubmit/Stop payloads, Claude Code 2.1.300 hook contract. */
 export const CLAUDE_TURN_SOURCE = turnHookSource(`
@@ -49,6 +50,8 @@ export function installClaudeTurnHooks(configDir: string): void {
 }
 
 export async function prepareClaudeInteractive(context: LifecycleLaunchContext) {
+  const job = await prepareClaudeJob(context);
+  if (job) return job;
   const supports = (minimum: readonly [number, number, number]) =>
     lifecycleVersionAtLeast(
       'claude',

@@ -32,6 +32,13 @@ and native catalogue ancestry. No paid provider is contacted. The V1 server
 loader and V2 TUI entry remain separate; `session.viewed` is never selection
 evidence. Installed-profile and busy-fork acceptance below remain separate.
 
+Claude 2.1.318 background forks have an opt-in native regression:
+`PUDDLE_NATIVE_CLAUDE_BINARY=/absolute/path/to/claude pnpm exec vitest run packages/daemon/test/agents/claude-code/native-jobs.test.ts`.
+It uses synthetic saved history and a loopback model server. It verifies separate
+composers, recovery with the same worker processes, copy-specific `/clear`, an
+independent resume of the cleared original, exact turn completion and stopping
+only the copy. It does not modify installed profiles or contact a paid provider.
+
 ## 1. Status regexes — OpenCode and Gemini CLI remain
 
 Codex, OpenCode, and Gemini still use `statusPatterns` for working/waiting
@@ -190,9 +197,13 @@ second project. Keep two browser windows open for the multi-viewer checks.
    Claude 2.1.212+ with agent view enabled uses `/fork` for a native background
    copy instead: verify that the original Puddle terminal retains its identity,
    input and status while the copy waits or runs. Its inherited hooks must not
-   rebind or complete the foreground conversation. Automatic Puddle-tab attachment
-   of that Claude-owned copy is not yet supported; test this separately from
-   foreground branching.
+   rebind or complete the foreground conversation. On verified 2.1.318, the copy must attach automatically in another permanent
+   Puddle tab. Closing a viewer or recovering its owner must preserve the worker;
+   an explicit Puddle stop must end only that copy. After `/clear`, recover the new
+   conversation and independently resume the saved old conversation. Native job
+   launch IDs must not substitute for current conversation IDs. Unsupported
+   supervisor versions must refuse attachment without launching a duplicate.
+   Automated turns must wait for a native clean-composer boundary after attachment.
    Shell tabs, exported environment, and detected app ports must follow. The
    target keeps its own Puddle title overlay and receives branch ownership.
 3. Exercise `/compact`. It must not create or focus another placement. Repeat

@@ -474,6 +474,20 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       worktrees,
     });
 
+    catalogue.on(
+      'background-conversation',
+      (event: { accountId: number; conversationId: number }) => {
+        void service.attachBackground(event.accountId, event.conversationId).catch(() => {
+          service.emit('notice', {
+            level: 'warning',
+            title: 'Native fork could not attach',
+            detail:
+              'The original conversation and native copy are preserved. Inspect the copy before resuming it explicitly.',
+          });
+        });
+      },
+    );
+
     failedStartup.push(async () => {
       service.beginShutdown();
       await catalogue.dispose();

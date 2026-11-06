@@ -64,6 +64,8 @@ export type StorageLookup<T> = T | Promise<T>;
 
 /** Normalised, credential-free metadata returned by a native store scan. */
 export interface NativeConversation {
+  /** Discovery hint only; exact worker ownership must be checked again at launch. */
+  background?: boolean;
   ref: string;
   cwd: string;
   title: string | null;
@@ -90,6 +92,8 @@ export interface LifecycleLaunchResource {
   sidecarPids?: number[];
   /** Internal bridge ports excluded from the user-facing port catalogue. */
   hiddenPorts?: number[];
+  /** Explicit session stop; ordinary viewer teardown must not stop a native-owned worker. */
+  stop?(): Promise<void>;
   dispose(): void | Promise<void>;
 }
 
