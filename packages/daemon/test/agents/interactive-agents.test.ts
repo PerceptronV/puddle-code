@@ -420,8 +420,14 @@ describe('generated native hooks', () => {
       PuddleSync: (
         input: unknown,
       ) => Promise<Record<string, (input: unknown, output?: unknown) => Promise<void>>>;
+      default: { id: string; server: unknown; setup: () => void };
     };
-    const hooks = await plugin.PuddleSync({
+    expect(plugin.default.id).toBe('puddle.native-sync');
+    expect(plugin.default.server).toBe(plugin.PuddleSync);
+    // V2 accepts the definition but must not run the V1 event bridge.
+    plugin.default.setup();
+    expect(fetch).not.toHaveBeenCalled();
+    const hooks = await (plugin.default.server as typeof plugin.PuddleSync)({
       directory: '/work',
       client: { session: { message: nativeMessage } },
     });

@@ -156,6 +156,9 @@ export const PuddleSync = async (context) => {
   const plugin = await import(source);
   return plugin.PuddleSync(context);
 };
+// OpenCode 1.18.10 selects server(); V2 selects setup(). The latter deliberately
+// registers no V1 hooks: exact V2 TUI/turn support is not yet advertised.
+export default { id: 'puddle.native-sync', server: PuddleSync, setup() {} };
 `,
   );
 }

@@ -36,6 +36,7 @@ Past releases: see docs/changelogs/.
 #### Fixed
 
 - Ignore Claude-owned background copies’ inherited hooks so native `/fork` cannot rebind the original Puddle terminal or change its turn status.
+- Load the managed OpenCode plugin compatibly on V1 and V2, retaining fallback synchronisation on V2 without a native plugin-load error.
 
 ### Runtime
 
