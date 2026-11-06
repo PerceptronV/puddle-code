@@ -1,5 +1,12 @@
 # The puddle communication protocol
 
+Application **26.3** adds optional `known` run identity/revision (or null for no
+run) to local/SSH notebook execution observation. Only callers supplying this
+field may receive `{ unchanged: true }`; omission always returns the original
+full snapshot. New browsers feature-detect 26.3, retain full cached snapshots
+and request full observation after reconnect/invalidation. Notebook execution,
+input, kernel control and remote authority are unchanged; remote protocol is 5.
+
 Application **26.2** adds opt-in component release catalogues. Private status and
 remote maintenance status accept `include_component_releases: true`; supporting
 cockpits/connectors request it only for opted-in reads (`?components=1`). Older

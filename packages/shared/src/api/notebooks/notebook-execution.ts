@@ -41,11 +41,27 @@ export const notebookExecutionSchema = z.object({
   error: z.string().max(32768).optional(),
 });
 export type NotebookExecution = z.infer<typeof notebookExecutionSchema>;
-export const notebookExecutionRequestSchema = z.object({ source: compilationFileTargetSchema });
+const notebookRevisionSchema = z
+  .object({
+    id: z.string().uuid(),
+    revision: z.number().int().nonnegative(),
+  })
+  .nullable();
+export const notebookExecutionRequestSchema = z.object({
+  source: compilationFileTargetSchema,
+  /** Opt in to an unchanged reply; omission always asks for a full snapshot. */
+  known: notebookRevisionSchema.optional(),
+});
 export const notebookExecutionResponseSchema = z.object({
   execution: notebookExecutionSchema.nullable(),
 });
 export type NotebookExecutionResponse = z.infer<typeof notebookExecutionResponseSchema>;
+export const notebookObservationResponseSchema = z.union([
+  notebookExecutionResponseSchema,
+  z.object({ unchanged: z.literal(true) }),
+]);
+export type NotebookObservationResponse = z.infer<typeof notebookObservationResponseSchema>;
+
 export const notebookInputReplySchema = z.object({
   source: compilationFileTargetSchema,
   run_id: z.string().uuid(),

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import type {
   CompilationFileTarget,
@@ -10,9 +10,12 @@ import { api } from '../../../lib/transport/api';
 import { useDaemonVersion } from '../../../lib/queries/queries';
 import {
   notebookExecutionSupported,
+  notebookObservationSupported,
   notebookIntelligenceSupported,
 } from '../../../lib/transport/protocol-support';
 import { browserTransport } from '../../../lib/transport/browser-transport';
+import { wsManager } from '../../../lib/transport/ws';
+import { notebookObservation, notebookObservationInterval } from './notebook-observation';
 import { notebookText, type Notebook } from './notebook-format';
 import { mergeNotebookExecution } from './notebook-execution-results';
 import { registerNotebookRunner } from './notebook-run-registry';
@@ -40,13 +43,31 @@ export function useNotebookExecution(
       mounted.current = false;
     };
   }, []);
-  const key = ['notebook-execution', source];
+  const revisions = notebookObservationSupported(version.data?.protocol);
+  const observation = useMemo(
+    () => notebookObservation(queryClient, source, revisions),
+    // Source identity is its wire target, not the parent's object allocation.
+    [queryClient, source.session, source.path, source.root, revisions],
+  );
+  const key = observation.queryKey;
+  useEffect(() => {
+    if (!supported) return;
+    return wsManager.onConnectionChange((connected) => {
+      observation.reset();
+      if (connected) void queryClient.invalidateQueries({ queryKey: observation.queryKey });
+      else void queryClient.cancelQueries({ queryKey: observation.queryKey });
+    });
+  }, [supported, observation, queryClient]);
   const query = useQuery({
     queryKey: key,
-    queryFn: () => api<NotebookExecutionResponse>('POST', '/api/notebooks/execution', { source }),
+    queryFn: observation.queryFn,
+    refetchOnReconnect: () => {
+      observation.reset();
+      return 'always';
+    },
     enabled: supported,
     retry: false,
-    refetchInterval: (query) => (query.state.data?.execution?.state === 'running' ? 250 : 1500),
+    refetchInterval: (query) => notebookObservationInterval(query.state.data),
   });
   const execution = query.data?.execution;
   useEffect(() => {
@@ -82,6 +103,7 @@ export function useNotebookExecution(
         '/api/notebooks/execute',
         request,
       );
+      await queryClient.cancelQueries({ queryKey: key });
       if (mounted.current) queryClient.setQueryData(key, response);
     } catch (error) {
       if (mounted.current)

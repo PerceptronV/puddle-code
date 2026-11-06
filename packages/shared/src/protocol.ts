@@ -330,7 +330,8 @@
 // 26.0: exact host-approved remote-device maintenance authority and bounded update controls.
 // 26.1: explicit profile-authorised read/discard of retained programme outcomes.
 // 26.2: opt-in per-component release catalogue; legacy strict responses remain unchanged.
-export const PROTOCOL_VERSION = { major: 26, minor: 2 } as const;
+// 26.3: opt-in revision-aware notebook execution observation.
+export const PROTOCOL_VERSION = { major: 26, minor: 3 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

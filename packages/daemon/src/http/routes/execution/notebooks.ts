@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import {
   notebookExecuteSchema,
+  notebookExecutionRequestSchema,
   notebookInputReplySchema,
   notebookIntelligenceRequestSchema,
   notebookWidgetsRequestSchema,
@@ -41,11 +42,19 @@ export function notebookRoutes(
     .post('/execute', async (c) =>
       c.json(await kernels.executeCells(await parseBody(c, notebookExecuteSchema))),
     )
-    .post('/execution', async (c) =>
-      c.json(
-        await kernels.executionStatus((await parseBody(c, notebookKernelRequestSchema)).source),
-      ),
-    )
+    .post('/execution', async (c) => {
+      const request = await parseBody(c, notebookExecutionRequestSchema);
+      const snapshot = await kernels.executionStatus(request.source);
+      const run = snapshot.execution;
+      const known = request.known;
+      if (
+        known !== undefined &&
+        (run === null ? known === null : known?.id === run.id && known.revision === run.revision)
+      ) {
+        return c.json({ unchanged: true as const });
+      }
+      return c.json(snapshot);
+    })
     .post('/input', async (c) => {
       await kernels.replyToInput(await parseBody(c, notebookInputReplySchema));
       return c.body(null, 204);

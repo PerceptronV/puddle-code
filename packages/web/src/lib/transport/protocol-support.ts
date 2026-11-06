@@ -108,3 +108,7 @@ export const notebookIntelligenceSupported = (p: Protocol): boolean =>
 /** Live widget comms and retained model state (25.4). */
 export const notebookWidgetsSupported = (p: Protocol): boolean =>
   p !== undefined && atLeast(p, 25, 4);
+
+/** Revision-aware notebook observation (26.3); older hosts return full snapshots. */
+export const notebookObservationSupported = (p: Protocol): boolean =>
+  p !== undefined && atLeast(p, 26, 3);

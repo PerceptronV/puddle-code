@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Cockpit
 
+- Fit collapsed project abbreviations to the rail at the largest readable size, without ellipses.
+
 - Hold ⌘⌥/ (Ctrl+Alt+/ on Windows/Linux) to blur the workspace and glance at the host icon and name; release to return immediately.
 
 - Customise each host’s icon and accent per profile, independently of Settings Sync; choose from 63 host-specific icons and the shared colour palette, with a coherent accent palette across text, controls, surfaces, borders and selections.
@@ -34,6 +36,8 @@ Past releases: see docs/changelogs/.
 - Keep PDF zoom controls over the visible document instead of below its viewport; allow overlay trays to override their default positioning.
 
 ### Daemon
+
+- Protocol 26.3: acknowledge unchanged notebook execution revisions without resending outputs; back off idle and unfocused observation while preserving cross-window discovery and full reconnect snapshots.
 
 - Stream uploads through bounded private staging with actual-byte limits, enumerate file trees asynchronously, and stop bounded directory downloads on cancellation.
 
