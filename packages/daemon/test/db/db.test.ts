@@ -256,6 +256,34 @@ describe('openDatabase', () => {
 });
 
 describe('stores', () => {
+  it('keeps host appearance per profile and persists it without changing other settings', () => {
+    const file = freshDbFile();
+    const s = stores(file);
+    const alice = s.profiles.create({ name: 'alice', branch_prefix: 'alice/' });
+    const bob = s.profiles.create({ name: 'bob', branch_prefix: 'bob/' });
+    s.profiles.patchSettings(alice.id, {
+      hostIcon: 'cpu',
+      hostColour: 'cyan',
+      allowSkipPermissions: true,
+    });
+    expect(s.profiles.getSettings(bob.id).hostColour).toBeUndefined();
+    s.profiles.patchSettings(alice.id, { hostIcon: 'laptop' });
+    s.db.close();
+    const reopened = stores(file);
+    expect(reopened.profiles.getSettings(alice.id)).toMatchObject({
+      hostIcon: 'laptop',
+      hostColour: 'cyan',
+      allowSkipPermissions: true,
+    });
+    reopened.profiles.patchSettings(alice.id, { hostColour: null });
+    expect(reopened.profiles.getSettings(alice.id)).toMatchObject({
+      hostIcon: 'laptop',
+      hostColour: null,
+    });
+    expect(() => reopened.profiles.patchSettings(alice.id, { hostColour: 'unknown' })).toThrow();
+    reopened.db.close();
+  });
+
   it('round-trips a profile with settings', () => {
     const s = stores();
     const p = s.profiles.create({ name: 'alice', branch_prefix: 'alice/' });

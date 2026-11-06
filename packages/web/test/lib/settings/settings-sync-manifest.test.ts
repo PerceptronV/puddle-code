@@ -1,5 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import {
+  SYNC_GROUPS,
   applyImport,
   collectExport,
   missingScratchpadEntries,
@@ -157,4 +158,21 @@ describe('missingScratchpadEntries', () => {
       missingScratchpadEntries([{ title: '', body: 'note', tags: [], agent_type: null }], local),
     ).toEqual([]);
   });
+});
+
+it('never exports or imports host appearance, even in an injected sync document', () => {
+  const local = sources({ profileSettings: { hostIcon: 'cpu', hostColour: 'cyan' } });
+  const groups = SYNC_GROUPS.map((group) => group.id);
+  const exported = collectExport(groups, local);
+  expect(JSON.stringify(exported)).not.toContain('hostIcon');
+  expect(JSON.stringify(exported)).not.toContain('hostColour');
+  const sink = sinks();
+  applyImport(
+    Object.fromEntries(groups.map((id) => [id, { hostIcon: 'laptop', hostColour: 'red' }])),
+    sink,
+    local,
+  );
+  expect(
+    sink.calls.settings.every((patch) => !('hostIcon' in patch) && !('hostColour' in patch)),
+  ).toBe(true);
 });

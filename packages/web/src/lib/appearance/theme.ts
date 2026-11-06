@@ -46,7 +46,7 @@ export function applyTheme(pref: ThemePreference): ThemeName {
   localStorage.setItem(STORAGE_KEY, pref);
   const resolved = resolveTheme(pref);
   document.documentElement.dataset['theme'] = resolved;
-  for (const listener of listeners) listener(resolved);
+  notifyThemeChange();
   return resolved;
 }
 
@@ -58,9 +58,20 @@ export function initTheme(): void {
   });
 }
 
-/** Re-runs on every theme change; returns an unsubscribe. */
-export function onThemeChange(listener: ThemeListener): () => void {
-  listeners.add(listener);
+/** Notify canvas renderers and host colour reporting after any palette change. */
+export function notifyThemeChange(): void {
+  const theme = currentTheme();
+  for (const listener of listeners) listener(theme);
+}
+
+/** Subscribe to palette changes; derivations run before consumers read tokens. */
+export function onThemeChange(listener: ThemeListener, options?: { first?: boolean }): () => void {
+  if (options?.first) {
+    const previous = [...listeners];
+    listeners.clear();
+    listeners.add(listener);
+    for (const existing of previous) listeners.add(existing);
+  } else listeners.add(listener);
   return () => listeners.delete(listener);
 }
 

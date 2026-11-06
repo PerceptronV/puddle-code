@@ -5,7 +5,7 @@ Reviewed 2026-11-05; source references checked against `60fc193`.
 ## Assessment
 
 The desktop workspace now has a recognisable design language: floating islands,
-empty gutters, rounded action trays, persistent gold selections, and motion that
+empty gutters, rounded action trays, persistent accent-coloured selections (gold by default), and motion that
 preserves the identity of controls. The remaining work is mainly bringing older
 surfaces and shared primitives into that language and documenting its rules.
 
@@ -53,7 +53,7 @@ Suggested wording for the design framework:
 > borders stable. For resizing, emphasise the facing island edges in their existing
 > border colour, following their rounded corners; leave the gutter empty.
 >
-> **Selection and colour.** Use gold for persistent navigation selection, distinct
+> **Selection and colour.** Use the host accent for persistent navigation selection (gold when unset), distinct
 > from hover and temporary pressed states. Hover stays beneath selection and content.
 > Primary text and controls use the same visual language as the editor; reserve muted
 > text for secondary information. Preserve explicitly chosen project and profile
@@ -92,7 +92,7 @@ cleanup does not undo the iteration:
   applies to the project label and shortcut. The hostname uses the standard primary text colour and independent
   of project colour. Profile colours remain separate.
 - Settings have separate navigation and content islands. The navigation island owns
-  its title and close button; its persistent selection is gold.
+  its title and close button; its persistent selection follows the host accent (gold when unset).
 - Reduced motion sits directly below Density without explanatory body text.
 
 Update SPEC §12's introductory “no boxes/borders” shorthand when adopting this brief.
@@ -392,3 +392,21 @@ leave a close button behind. Collapsed project labels share a UI-scaled text siz
 across densities, with extra project padding in compact mode. `rail-focus.mjs`
 checks alignment under a paused scale animation, pointer/keyboard visibility and
 compact/comfortable geometry.
+
+### Per-host, per-profile appearance (2026-11-05)
+
+Host appearance now lives in the daemon's profile settings and is deliberately
+excluded from Settings Sync. The picker provides 63 icons distinct from profile
+icons, plus a default server glyph. Compact Icon and Accent rows sit below the host
+name. The accent rebuilds the full chrome palette: text, controls, backgrounds,
+borders, links, focus rings and persistent selections. Editor/terminal neutral ink
+and backgrounds follow too; syntax/ANSI hues and document colours stay intact.
+File/session selection fills use a softer tint. Gold is the default
+when no accent is chosen, superseding the earlier gold-only selection rule.
+Project/profile colours and semantic status colours remain independent.
+
+The root appearance scope reaches portalled settings and clears on leaving the
+host/profile. Browser checks cover all seven accents in both themes at a 4.5:1
+text contrast floor, icon selection, and clearing the accent. Storage tests cover
+profile isolation and persistence; sync tests reject both export and import of
+the host appearance fields.

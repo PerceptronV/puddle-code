@@ -62,6 +62,7 @@
 
   /* neutral (light-theme grounds — white, not paper; HUMANS.md) */
   --neutral-0: #ffffff;
+  --neutral-950: #000000;
   --neutral-50: #f7f7f7;
   --neutral-100: #efefef;
   --neutral-200: #e5e5e5;
@@ -111,6 +112,10 @@
  * Dark (default): storm-navy ground, the pastel family as light.
  */
 [data-theme='dark'] {
+  --identity-navy: var(--mist-100);
+  --identity-gold: var(--khaki-300);
+  --host-shade: var(--neutral-950);
+  --host-paper: var(--neutral-0);
   color-scheme: dark;
 
   --bg-base: var(--navy-950);
@@ -182,6 +187,10 @@
  * burnt-wood secondary text; the accent hues keep their deep steps.
  */
 [data-theme='light'] {
+  --identity-navy: var(--navy-800);
+  --identity-gold: var(--bark-500);
+  --host-shade: var(--neutral-950);
+  --host-paper: var(--neutral-0);
   color-scheme: light;
 
   --bg-base: var(--neutral-0);

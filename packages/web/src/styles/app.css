@@ -59,6 +59,8 @@
 
   /* Theme-aware hues for application glyphs; vendored file-type artwork
      preserves its upstream colours. */
+  --color-identity-navy: var(--identity-navy);
+  --color-identity-gold: var(--identity-gold);
   --color-icon-blue: var(--ansi-blue);
   --color-icon-green: var(--ansi-green);
   --color-icon-amber: var(--ansi-yellow);

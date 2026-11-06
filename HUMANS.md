@@ -36,8 +36,12 @@ focus and touch access; essential actions must not depend on hover. Keep ordinar
 borders stable. For resizing, emphasise the facing island edges in their existing
 border colour, following their rounded corners; leave the gutter empty.
 
-**Selection and colour.** Use gold for persistent navigation selection, distinct
-from hover and temporary pressed states. Hover stays beneath selection and content.
+**Selection and colour.** Persistent navigation selection follows the chosen host
+accent, distinct from hover and temporary pressed states; use gold when no accent
+is chosen. A chosen host accent carries through the whole interface's text,
+controls, surfaces and borders, not just selected items. Keep semantic status,
+syntax/ANSI, document/artwork and explicit project/profile colours independent.
+Hover stays beneath selection and content.
 Primary text and controls use the same visual language as the editor; reserve muted
 text for secondary information. Preserve explicitly chosen project and profile
 colours in their respective contexts. Application colours come from the shared

@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Cockpit
 
+- Customise each host’s icon and accent per profile, independently of Settings Sync; choose from 63 host-specific icons and the shared colour palette, with a coherent accent palette across text, controls, surfaces, borders and selections.
+
 - Coalesce custom cursor movement per frame and reuse hover-role/style checks while preserving theme, font and target changes.
 
 - Reduce memory held by long-inactive terminals while preserving their local transcripts, scroll position and offline copy; keep recent switches and unsupported terminal states warm.

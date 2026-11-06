@@ -1,7 +1,7 @@
 /** Shared profile/project palette, entirely derived from the active theme. */
 const COLOUR_CLASSES: Record<string, string> = {
-  navy: 'text-fg',
-  gold: 'text-fg-gold',
+  navy: 'text-identity-navy',
+  gold: 'text-identity-gold',
   blue: 'text-icon-blue',
   green: 'text-icon-green',
   amber: 'text-icon-amber',

@@ -1,3 +1,4 @@
+import { HostIdentity, HostHeader, HostAppearanceTheme } from '../host/host-appearance';
 import { useEffect, useState } from 'react';
 import { House, Monitor, Settings2, ShieldCheck } from 'lucide-react';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
@@ -83,9 +84,10 @@ export function ConnectedHost({
   return (
     <QueryClientProvider client={queryClient}>
       <ErrorBoundary scope="remote host">
+        <HostAppearanceTheme enabled={admitted} />
         <HostReleaseNotes hostKey={client.scope} enabled={state === 'ready' && admitted} />
         <div className="remote-connected">
-          <header className="remote-topbar">
+          <HostHeader enabled={admitted}>
             <Button variant="ghost" size="icon" aria-label="All projects" onClick={leave}>
               <House />
             </Button>
@@ -95,7 +97,7 @@ export function ConnectedHost({
               title={projectName ? `${hostName}/${projectName}` : hostName}
               onClick={leave}
             >
-              {hostName}
+              <HostIdentity name={hostName} enabled={admitted} />
               {projectName && `/${projectName}`}
             </button>
             <span role="status" className={state === 'ready' ? 'sr-only' : 'text-xs text-fg-muted'}>
@@ -116,7 +118,7 @@ export function ConnectedHost({
               </Button>
               {admitted && <RemoteHostUpdates hostName={hostName} />}
             </ControlTray>
-          </header>
+          </HostHeader>
           {!admitted && (
             <div className="flex min-h-0 flex-1 items-center justify-center p-6">
               <div className="max-w-sm space-y-5 text-center">

@@ -1927,7 +1927,7 @@ This is the Docker-daemon model reduced to its useful core: a negotiated, versio
 
 **Embedded preview drag shield.** While a strip drag is active, every pane body carries a transparent interaction shield so an HTML iframe cannot swallow the pointer and make that pane unreachable. Generated LaTeX PDF tabs remain ordinary persistent external tabs: they move, reorder, and edge-split into any pane through the same layout reducer as every other file tab.
 
-**Control trays.** Related controls share `ControlTray`, common geometry and theme-token fills. Navigator mode trays use `--bg-elevated` and gold for the selected mode. Action-only groups have hover feedback without a selected mode: header/notebook actions remain unfilled, while expanded new-session controls have the navigator tray fill. Collapsed control trays and project/session groups use `--bg-tray`, with a brighter navy step in dark mode. Filled trays have the shared island outline and surface radius; floating PDF zoom controls retain their overlay backing. Collapsed sidebar toggles sit above a horizontal separator inside their trays, aligned with the pane islands. The archive target is a separate full-rail-width island at the bottom.
+**Control trays.** Related controls share `ControlTray`, common geometry and theme-token fills. Navigator mode trays use `--bg-elevated` and the host accent for the selected mode (gold when unset). Action-only groups have hover feedback without a selected mode: header/notebook actions remain unfilled, while expanded new-session controls have the navigator tray fill. Collapsed control trays and project/session groups use `--bg-tray`, with a brighter navy step in dark mode. Filled trays have the shared island outline and surface radius; floating PDF zoom controls retain their overlay backing. Collapsed sidebar toggles sit above a horizontal separator inside their trays, aligned with the pane islands. The archive target is a separate full-rail-width island at the bottom.
 
 **Shared geometry and file presentation.** The shared Files/Search/Changes target heading shows the folder basename in bold at the file-tree row font size. Long names scroll from the left, resetting on location changes; the tooltip sits immediately to the right and shows the absolute path. Row height, tab-strip height, control height, corner radius, list inset and icon gap live in `--ui-*` tokens, with compact density overrides. Search and Changes reuse explorer file-type icons; Git badges remain independent. Search, Changes, Worktrees and expanded session rows use the same rounded list insets, while multi-line session rows can grow vertically. Collapsed session marks are 20px normally and 16px in compact density, before UI scaling.
 
@@ -2178,6 +2178,23 @@ Profiles are identity, not auth. First load shows a profile picker (create-or-se
 The new-session account picker sorts alphabetically by its displayed `agent-type/account-label`, without changing the profile's configured default account.
 
 ### Settings
+
+Host appearance is stored in the connected daemon's profile settings (`hostIcon`,
+`hostColour`), so each (host, profile) pair has an independent identity. These keys
+are excluded from Settings Sync exports and imports. Host settings offer 63 curated
+playful icons, distinct from the 63 profile icons, plus a default server glyph
+and the shared theme-aware colour palette. Compact Icon and Accent rows sit below
+the display name, without a separate section or preview card. A chosen accent
+rebuilds the entire chrome palette: text hierarchy, surfaces, borders, controls,
+links, focus rings and persistent selections. File/session selections use a softer
+fill. Editor/terminal backgrounds and neutral ink update with the same palette;
+syntax and ANSI hues, semantic status colours, explicit project/profile colours,
+brand/file artwork and document colours remain independent. Palette changes notify
+the existing editor/terminal theme subscribers using resolved hex colours.
+Without a chosen accent the original theme returns, including gold navigation
+selection. The palette is cleared when leaving the host/profile.
+The existing extensible profile-settings API stores these optional fields without a
+migration; older clients preserve them without displaying them.
 
 A settings panel, reachable from a gear icon and ⌘K → "Settings". Three scopes, each stored where it belongs:
 

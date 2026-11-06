@@ -1,3 +1,4 @@
+import { HostGlyph, HostAppearanceTheme, useHostAppearance } from '../host/host-appearance';
 import './shell-header.css';
 import { StorageBanner } from './StorageBanner';
 import { useEffect } from 'react';
@@ -129,7 +130,7 @@ function useStatusCacheSync() {
 }
 
 /**
- * The way home: the small puddle mark and the daemon's host name, as one
+ * The way home: the chosen host glyph and the daemon's host name, as one
  * clickable block → all projects. The host tells you which machine you're
  * driving (the daemon reports it via /api/host; the origin/port never shows).
  *
@@ -141,6 +142,7 @@ function useStatusCacheSync() {
  * top bar, so it stays under the cursor.
  */
 function HomeButton() {
+  const appearance = useHostAppearance();
   const host = useHostInfo();
   const patchConfig = usePatchConfig();
   const [editing, setEditing] = useState(false);
@@ -156,12 +158,12 @@ function HomeButton() {
     );
   };
 
-  const mark = !shellTitleBar && <img src="/puddle.svg" alt="Puddle" className="size-4" />;
+  const mark = <HostGlyph icon={appearance.icon} />;
   const box = cn(
-    'flex h-full shrink-0 items-center gap-2 px-4',
+    'host-identity flex h-full shrink-0 items-center gap-2 px-4',
     shellTitleBar && '[-webkit-app-region:no-drag]',
   );
-  const type = 'truncate font-sans text-xs font-normal text-fg';
+  const type = 'truncate font-sans text-xs font-normal';
 
   if (editing && label !== undefined) {
     return (
@@ -183,8 +185,6 @@ function HomeButton() {
       className={cn(box, 'hover:bg-elevated focus-visible:bg-elevated')}
       title="All projects"
     >
-      {/* Under the macOS shell the app's own chrome already says puddle —
-          the title bar shows the host name alone. */}
       {mark}
       {label !== undefined && (
         <span className={type} {...editOnDoubleClick(() => setEditing(true))}>
@@ -234,6 +234,7 @@ function CommandField() {
 }
 
 function TopBar() {
+  const appearance = useHostAppearance();
   // macOS hides the inlaid traffic lights in full-screen, so the inset kept for
   // them would indent the host name against nothing. Full-screen therefore drops
   // the inset — the name slides to the left edge — but NOT the height: the bar is
@@ -249,6 +250,7 @@ function TopBar() {
   const inlaidLights = shellTitleBar && !fullScreen;
   return (
     <header
+      data-host-colour={appearance.colour ?? undefined}
       onClick={(event) => {
         const target = event.target as HTMLElement;
         if (!event.currentTarget.contains(target)) return;
@@ -261,7 +263,7 @@ function TopBar() {
         openCommandPalette();
       }}
       className={cn(
-        'island-outline relative grid shrink-0 cursor-pointer grid-cols-[auto_1px_minmax(0,1fr)_1px_auto] items-center overflow-hidden rounded-[var(--ui-surface-radius)] bg-surface',
+        'host-header island-outline relative grid shrink-0 cursor-pointer grid-cols-[auto_1px_minmax(0,1fr)_1px_auto] items-center overflow-hidden rounded-[var(--ui-surface-radius)] bg-surface',
         'h-9',
         !shellTitleBar && 'mx-1.5 mt-1.5',
         inlaidLights && 'pl-[84px] [-webkit-app-region:drag]',
@@ -349,6 +351,7 @@ function ShellBody() {
     // surfaces within it. Clip any missed descendant constraint here and stop
     // a nested surface at its limit from rubber-banding the whole window.
     <div className="flex h-screen flex-col overflow-hidden overscroll-y-none bg-ground">
+      <HostAppearanceTheme />
       <TopBar />
       <main className="min-h-0 flex-1">
         {/* The routed view gets its OWN boundary so a crash in it leaves the top

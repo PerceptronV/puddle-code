@@ -123,6 +123,9 @@ export type SessionDefaults = z.infer<typeof sessionDefaultsSchema>;
  * notifications, …) without a daemon migration. Phase 1 validates only the gate.
  */
 export const profileSettingsSchema = z.looseObject({
+  /** Host identity for this profile on this daemon; deliberately excluded from sync. */
+  hostIcon: z.string().max(64).nullable().optional(),
+  hostColour: z.enum(PROFILE_ICON_COLOURS).nullable().optional(),
   allowSkipPermissions: z.boolean().default(false),
   /**
    * Captured session environment (SPEC §4): whether this profile's session

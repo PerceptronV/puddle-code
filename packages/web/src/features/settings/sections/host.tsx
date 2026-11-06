@@ -1,3 +1,4 @@
+import { HostAppearance } from './host-appearance';
 import { toastError } from '../../../lib/transport/errors';
 import type { DaemonConfig } from '@puddle/shared';
 import { Input } from '../../../components/ui/input';
@@ -67,14 +68,22 @@ export function HostSection() {
   const protocol = useDaemonVersion().data?.protocol;
   const retentionSupported =
     protocol && (protocol.major > 25 || (protocol.major === 25 && protocol.minor >= 6));
-  if (!config.data) return <HostUpdatesSection />;
+  if (!config.data)
+    return (
+      <>
+        <HostAppearance />
+        <HostUpdatesSection />
+      </>
+    );
 
   return (
     <div>
       <HostUpdatesSection />
       {/* The port is deliberately absent: transport is the CLI's business
           (--port / config.json), never the UI's (decision 2026-07-13). */}
-      <SectionTitle note="Affects all profiles on this host">Host</SectionTitle>
+      <SectionTitle note="Icon and accent are per profile and not synced; other settings affect all profiles.">
+        Host
+      </SectionTitle>
       <SettingRow
         label="Display name"
         description="Shown in place of the hostname across the UI. Leave blank for the hostname."
@@ -97,6 +106,7 @@ export function HostSection() {
           }}
         />
       </SettingRow>
+      <HostAppearance />
       <NumberSetting
         label="Fetch interval (minutes)"
         description="Periodic git fetch for repos with active sessions."
