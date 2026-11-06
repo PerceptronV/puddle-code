@@ -142,7 +142,7 @@ For example:
   To explicitly continue a supported interrupted daemon update, use `puddle updates user@host --operation <id> --continue` (omit the host for local updates). This requires application protocol 25.12 on the live daemon, or on the verified staged daemon build when the daemon is unavailable. It dispatches an independent recovery worker only after checking the recorded update and prior worker lifetimes. Recorded acceptance or worker consumption does not mean the update completed: inspect the same operation again without `--continue` to see its result. A lost reply never causes automatic resubmission. Unsupported failure states remain pending; no old database is restored.
 
 > [!NOTE]
-> On Linux, `puddle install desktop` asks where to put `Puddle.AppImage`, defaulting to `~/puddle`. Update from inside the app and remove it by quitting and deleting the AppImage file. CLI desktop upgrade/removal is available only on macOS. Desktop releases cover macOS on Apple silicon and Linux x64.
+> On Linux, `puddle install desktop` asks where to put `Puddle.AppImage`, defaulting to `~/puddle`. Update from inside the app and remove it by quitting and deleting the AppImage file. CLI desktop upgrade/removal is available only on macOS. Desktop releases cover macOS on Apple silicon and Linux x64/arm64.
 
 `install` keeps an existing installation unless you name a version. `upgrade` selects the newest release or the named version; explicit daemon upgrades and macOS desktop upgrades also install a missing component. For example, `puddle upgrade cli@X.Y.Z` selects a published CLI version, including an older one. Keep CLI and daemon protocol versions compatible when pinning versions.
 

@@ -104,7 +104,7 @@ Runtime install/upgrade requires a running daemon with host-update support (appl
 
 **Desktop app (optional):**
 
-The same cockpit also ships as a standalone desktop app — identical UI and engine, plus a File → "Connect to SSH Host…" menu for remote hosts. Install it with `puddle install desktop` (macOS arm64 or Linux x64). Once installed, it runs independently of the CLI.
+The same cockpit also ships as a standalone desktop app — identical UI and engine, plus a File → "Connect to SSH Host…" menu for remote hosts. Install it with `puddle install desktop` (macOS arm64 or Linux x64/arm64). Once installed, it runs independently of the CLI.
 
 An installed Puddle CLI manages the desktop app directly: quit Puddle, then `puddle install desktop`, `puddle upgrade desktop`, or `puddle remove desktop`. On macOS a fresh install goes to `/Applications` when writable, otherwise `~/Applications`; on Linux `install desktop` asks where to put the AppImage (default `~/puddle`) and opens the folder — later updates happen from inside the app.
 

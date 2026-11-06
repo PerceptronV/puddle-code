@@ -142,10 +142,12 @@ jobs:
     # resources. This does not provide Developer ID trust or OS notification
     # approval. AppImage needs no signing.
     strategy:
+      fail-fast: false
       matrix:
         include:
           - { runner: macos-15, target: darwin-arm64 }
           - { runner: ubuntu-22.04, target: linux-x64 }
+          - { runner: ubuntu-22.04-arm, target: linux-arm64 }
     runs-on: ${{ matrix.runner }}
     steps:
       - uses: actions/checkout@v4
@@ -191,6 +193,40 @@ jobs:
         if: runner.os == 'macOS'
         working-directory: packages/desktop
         run: codesign --verify --deep --strict --verbose=2 release/mac-arm64/Puddle.app
+      - name: verify Linux AppImage architecture and contents
+        if: runner.os == 'Linux'
+        working-directory: packages/desktop/release
+        env:
+          DESKTOP_TARGET: ${{ matrix.target }}
+        run: |
+          set -- *.AppImage
+          test "$#" -eq 1
+          appimage="$PWD/$1"
+          case "$DESKTOP_TARGET:$1" in
+            linux-arm64:*-arm64.AppImage) ;;
+            linux-x64:*-arm64.AppImage) exit 1 ;;
+            linux-x64:*.AppImage) ;;
+            *) exit 1 ;;
+          esac
+          extraction=$(mktemp -d)
+          trap 'rm -rf "$extraction"' EXIT
+          cd "$extraction"
+          # Exercise the native AppImage runtime without FUSE, a display or
+          # starting Puddle (which would bootstrap the user's local daemon).
+          "$appimage" --appimage-extract > /dev/null
+          test -s squashfs-root/resources/app.asar
+          node --input-type=module <<'NODE'
+          import assert from 'node:assert/strict';
+          import { openSync, readSync, closeSync } from 'node:fs';
+          const arch = process.env.DESKTOP_TARGET.slice('linux-'.length);
+          assert.equal(process.arch, arch, 'Packaging must run on the target architecture');
+          const fd = openSync('squashfs-root/puddle-desktop', 'r');
+          const header = Buffer.alloc(20);
+          try { assert.equal(readSync(fd, header, 0, header.length, 0), header.length); }
+          finally { closeSync(fd); }
+          assert.deepEqual([...header.subarray(0, 6)], [0x7f, 0x45, 0x4c, 0x46, 2, 1]);
+          assert.equal(header.readUInt16LE(18), arch === 'arm64' ? 183 : 62);
+          NODE
       - name: checksums
         working-directory: packages/desktop/release
         run: |

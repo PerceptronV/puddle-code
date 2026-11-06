@@ -8,3 +8,9 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Cockpit
+
+#### Added
+
+- Add Linux arm64 AppImage releases, built on a native arm64 runner alongside Linux x64 and macOS arm64. Linux packaging verifies extraction, bundled application contents and executable architecture before publication.
