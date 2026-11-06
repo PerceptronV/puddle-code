@@ -31,6 +31,8 @@ Past releases: see docs/changelogs/.
 
 ### Daemon
 
+- Batch native conversation ingestion, avoid rewriting unchanged metadata, and read Codex file timestamps asynchronously while retaining complete discovery and missing-file confirmation.
+
 - Resolve daemon and runtime updates independently from a release manifest, preserving existing pins and legacy catalogue readers.
 
 - Avoid writing conversation presence twice during one catalogue scan, preserving newer lifecycle observations and two-scan deletion confirmation.

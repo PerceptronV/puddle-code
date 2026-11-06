@@ -37,6 +37,22 @@ function toConversation(row: Row): AgentConversation {
 export class ConversationStore {
   constructor(private readonly db: Db) {}
 
+  /** One synchronous transaction per observation; no Git/filesystem await holds SQLite open. */
+  upsertMany(
+    profileId: string,
+    agentType: string,
+    accountId: number,
+    metadata: readonly NativeConversationMetadata[],
+    seenAt: string,
+  ): Array<{ before: AgentConversation | undefined; conversation: AgentConversation }> {
+    return this.db.transaction(() =>
+      metadata.map((row) => ({
+        before: this.getByRef(profileId, agentType, row.ref),
+        conversation: this.upsert(profileId, agentType, accountId, row, seenAt),
+      })),
+    )();
+  }
+
   get(id: number): AgentConversation | undefined {
     const row = this.db.prepare(`SELECT * FROM agent_conversations WHERE id = ?`).get(id) as
       Row | undefined;
@@ -134,6 +150,36 @@ export class ConversationStore {
       return this.get(Number(info.lastInsertRowid))!;
     }
 
+    const title = metadata.title === undefined ? existing.native_title : metadata.title;
+    const createdAt =
+      metadata.createdAt === undefined ? existing.native_created_at : metadata.createdAt;
+    const updatedAt =
+      metadata.updatedAt === undefined ? existing.native_updated_at : metadata.updatedAt;
+    const preferredAccount = existing.preferred_account_id ?? accountId;
+    const lastSeenAt = existing.last_seen_at > seenAt ? existing.last_seen_at : seenAt;
+    if (
+      existing.native_cwd === metadata.cwd &&
+      existing.native_title === title &&
+      existing.parent_conversation_id === parentConversationId &&
+      existing.preferred_account_id === preferredAccount &&
+      existing.native_created_at === createdAt &&
+      existing.native_updated_at === updatedAt
+    ) {
+      // Presence is a separate observation, not a native metadata rewrite.
+      if (
+        existing.last_seen_at !== lastSeenAt ||
+        existing.missing ||
+        existing.missing_scan_count !== 0
+      )
+        this.db
+          .prepare(
+            `UPDATE agent_conversations
+          SET last_seen_at = ?, missing_scan_count = 0, missing = 0 WHERE id = ?`,
+          )
+          .run(lastSeenAt, existing.id);
+      return { ...existing, last_seen_at: lastSeenAt, missing: false, missing_scan_count: 0 };
+    }
+
     this.db
       .prepare(
         `UPDATE agent_conversations SET
@@ -150,12 +196,12 @@ export class ConversationStore {
       )
       .run(
         metadata.cwd,
-        metadata.title === undefined ? existing.native_title : metadata.title,
+        title,
         parentConversationId,
         accountId,
-        metadata.createdAt === undefined ? existing.native_created_at : metadata.createdAt,
-        metadata.updatedAt === undefined ? existing.native_updated_at : metadata.updatedAt,
-        seenAt,
+        createdAt,
+        updatedAt,
+        lastSeenAt,
         existing.id,
       );
     return this.get(existing.id)!;

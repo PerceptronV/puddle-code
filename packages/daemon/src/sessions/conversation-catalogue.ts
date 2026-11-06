@@ -33,6 +33,19 @@ interface WatchState {
   signature: string | null;
 }
 
+type ScanTrigger = 'activation' | 'watch' | 'verification' | 'sweep' | 'fallback' | 'resume';
+
+/** Opt-in local work counters; never includes native paths, refs, titles or account identity. */
+export interface CatalogueScanMeasurement {
+  trigger: ScanTrigger;
+  conversations: number;
+  discoveryMs: number;
+  ingestionMs: number;
+  placementMs: number;
+  elapsedMs: number;
+  completed: boolean;
+}
+
 export interface SessionsChangedEvent {
   projectIds: string[];
 }
@@ -77,6 +90,7 @@ export class ConversationCatalogue extends EventEmitter {
       deletionVerifyMs?: number;
       /** Deterministic watch backend for battery/debounce tests. */
       watchFactory?: (root: string, listener: () => void) => FSWatcher;
+      observeScan?: (measurement: Readonly<CatalogueScanMeasurement>) => void;
     } = {},
   ) {
     super();
@@ -84,7 +98,7 @@ export class ConversationCatalogue extends EventEmitter {
     this.safetyTimer = setInterval(() => {
       this.reconcileWatchers();
       for (const [accountId, state] of this.states) {
-        if (state.healthy) void this.scan(accountId, false);
+        if (state.healthy) void this.scan(accountId, 'sweep');
       }
     }, timings.healthySweepMs ?? HEALTHY_SWEEP_MS);
     this.safetyTimer.unref?.();
@@ -98,7 +112,7 @@ export class ConversationCatalogue extends EventEmitter {
     this.reconcileWatchers();
     for (const account of this.deps.accounts.list(project.profile_id)) {
       if (!this.deps.adapters.get(account.agent_type).conversationDiscovery) continue;
-      void this.scan(account.id, false);
+      void this.scan(account.id, 'activation');
     }
   }
 
@@ -134,7 +148,7 @@ export class ConversationCatalogue extends EventEmitter {
           // Follow it with fresh discovery rather than coalescing away recovery.
           void (this.scans.get(accountId) ?? Promise.resolve()).then(() => {
             this.resumedScans.delete(accountId);
-            return this.scan(accountId, false);
+            return this.scan(accountId, 'resume');
           });
         }
       },
@@ -213,7 +227,7 @@ export class ConversationCatalogue extends EventEmitter {
     if (state.debounce) clearTimeout(state.debounce);
     state.debounce = setTimeout(() => {
       state.debounce = null;
-      void this.scan(accountId, true);
+      void this.scan(accountId, 'watch');
     }, this.timings.watchDebounceMs ?? WATCH_DEBOUNCE_MS);
     state.debounce.unref?.();
   }
@@ -232,20 +246,33 @@ export class ConversationCatalogue extends EventEmitter {
     if (!state || state.healthy || state.fallback) return;
     state.fallback = setTimeout(() => {
       state.fallback = null;
-      void this.scan(accountId, false).finally(() => this.scheduleFallback(accountId));
+      void this.scan(accountId, 'fallback').finally(() => this.scheduleFallback(accountId));
     }, state.fallbackDelay);
     state.fallback.unref?.();
   }
 
-  private scan(accountId: number, eventTriggered: boolean): Promise<void> {
+  private scan(accountId: number, trigger: ScanTrigger): Promise<void> {
+    const eventTriggered = trigger === 'watch';
     if (this.inactive) return Promise.resolve();
     const active = this.scans.get(accountId);
     if (active) {
       if (eventTriggered) void active.finally(() => this.scheduleDeletionVerification(accountId));
       return active;
     }
+    const started = performance.now();
+    const measurement: CatalogueScanMeasurement | undefined = this.timings.observeScan
+      ? {
+          trigger,
+          conversations: 0,
+          discoveryMs: 0,
+          ingestionMs: 0,
+          placementMs: 0,
+          elapsedMs: 0,
+          completed: false,
+        }
+      : undefined;
     const pending = this.admission.run(() =>
-      this.scanCore(accountId, eventTriggered)
+      this.scanCore(accountId, eventTriggered, measurement)
         .catch((error) => {
           // Catalogue upkeep is background work. A failed pass may have refreshed
           // rows it did read, but it must never advance deletion state or become
@@ -256,13 +283,25 @@ export class ConversationCatalogue extends EventEmitter {
         })
         .finally(() => {
           if (this.scans.get(accountId) === pending) this.scans.delete(accountId);
+          if (measurement) {
+            measurement.elapsedMs = performance.now() - started;
+            try {
+              this.timings.observeScan?.(Object.freeze(measurement));
+            } catch {
+              /* Optional diagnostics cannot affect catalogue upkeep. */
+            }
+          }
         }),
     );
     this.scans.set(accountId, pending);
     return pending;
   }
 
-  private async scanCore(accountId: number, eventTriggered: boolean): Promise<void> {
+  private async scanCore(
+    accountId: number,
+    eventTriggered: boolean,
+    measurement?: CatalogueScanMeasurement,
+  ): Promise<void> {
     let account: Account;
     try {
       account = this.deps.accounts.get(accountId);
@@ -271,6 +310,7 @@ export class ConversationCatalogue extends EventEmitter {
     }
     const discovery = this.deps.adapters.get(account.agent_type).conversationDiscovery;
     if (!discovery) return;
+    let phaseStarted = performance.now();
     let native: Awaited<ReturnType<typeof discovery.discover>>;
     try {
       native = await discovery.discover(account);
@@ -280,6 +320,8 @@ export class ConversationCatalogue extends EventEmitter {
         `conversation scan failed for account ${accountId}: ${(error as Error).message}`,
       );
       return;
+    } finally {
+      if (measurement) measurement.discoveryMs = performance.now() - phaseStarted;
     }
 
     // Adapter discovery and Git mapping yield independently of the watcher.
@@ -287,6 +329,8 @@ export class ConversationCatalogue extends EventEmitter {
     if (this.inactive) return;
     // One observation timestamp lets completion avoid rewriting presence that
     // metadata ingestion already persisted. A newer lifecycle observation wins.
+    phaseStarted = performance.now();
+    if (measurement) measurement.conversations = native.length;
     const seenAt = new Date().toISOString();
     const changedProjects = new Set<string>();
     const seenRefs = new Set<string>();
@@ -294,20 +338,16 @@ export class ConversationCatalogue extends EventEmitter {
       conversation: AgentConversation;
       metadata: NativeConversationMetadata;
     }> = [];
-    for (const metadata of native) {
+    const observations = this.deps.conversations.upsertMany(
+      account.profile_id,
+      account.agent_type,
+      account.id,
+      native,
+      seenAt,
+    );
+    for (const [index, metadata] of native.entries()) {
       seenRefs.add(metadata.ref);
-      const before = this.deps.conversations.getByRef(
-        account.profile_id,
-        account.agent_type,
-        metadata.ref,
-      );
-      const conversation = this.deps.conversations.upsert(
-        account.profile_id,
-        account.agent_type,
-        account.id,
-        metadata,
-        seenAt,
-      );
+      const { before, conversation } = observations[index]!;
       if (
         before &&
         (before.native_title !== conversation.native_title ||
@@ -320,6 +360,8 @@ export class ConversationCatalogue extends EventEmitter {
       }
       discovered.push({ conversation, metadata });
     }
+    if (measurement) measurement.ingestionMs = performance.now() - phaseStarted;
+    phaseStarted = performance.now();
     // Existing placements already have everything needed to display native
     // metadata. Publish it before filesystem/Git discovery for new placements.
     if (changedProjects.size > 0) {
@@ -343,6 +385,7 @@ export class ConversationCatalogue extends EventEmitter {
       }
       if (this.inactive) return;
     }
+    if (measurement) measurement.placementMs = performance.now() - phaseStarted;
     for (const conversationId of this.deps.conversations.completeSuccessfulScan(
       account.id,
       seenRefs,
@@ -373,6 +416,7 @@ export class ConversationCatalogue extends EventEmitter {
     // A watch event may be the deletion itself. One short successful follow-up
     // confirms it without waiting for the five-minute safety sweep.
     if (eventTriggered) this.scheduleDeletionVerification(account.id);
+    if (measurement) measurement.completed = true;
   }
 
   private scheduleDeletionVerification(accountId: number): void {
@@ -382,7 +426,7 @@ export class ConversationCatalogue extends EventEmitter {
       const current = this.states.get(accountId);
       if (current !== state) return;
       state.verification = null;
-      void this.scan(accountId, false);
+      void this.scan(accountId, 'verification');
     }, this.timings.deletionVerifyMs ?? DELETION_VERIFY_MS);
     state.verification.unref?.();
   }

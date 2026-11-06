@@ -1547,6 +1547,8 @@ Eligible accounts install adapter-declared `fs.watch` roots with per-store debou
 
 **Catalogue presence observations**: a complete native-conversation scan shares one observation timestamp between metadata ingestion and presence confirmation. Completion does not rewrite already-observed rows or replace newer lifecycle timestamps. Missing conversations still require two successful observations, and reappearing conversations clear missing state immediately.
 
+Metadata ingestion runs in one synchronous SQLite transaction per accepted scan, before asynchronous Git mapping. Unchanged native fields receive only a presence update; a failed batch rolls back before publication, and newer lifecycle observation timestamps survive ingestion as well as completion. Codex retains complete dated-tree discovery and merges historical rollouts omitted by its native index; file timestamps are read asynchronously in batches of at most 32. This avoids synchronous per-file work without introducing an incomplete scan or stale worktree cache. Optional internal scan diagnostics report trigger, row count and phase durations only, with no conversation identities or content.
+
 ### Errors are never silent
 
 A failure the user cannot see is a bug. Two mechanisms guarantee they surface:

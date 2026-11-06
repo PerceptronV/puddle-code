@@ -3,7 +3,7 @@ import { execFile } from 'node:child_process';
 import { statSync } from 'node:fs';
 import { stat } from 'node:fs/promises';
 import { promisify } from 'node:util';
-import type { AgentAdapter } from '../adapter.js';
+import type { AgentAdapter, NativeConversation } from '../adapter.js';
 import { matchesAgentProcess } from '../process-match.js';
 import {
   allRollouts,
@@ -332,20 +332,33 @@ export const codex: AgentAdapter = {
             title: null,
           })),
       ];
-      return rows.map((thread) => ({
-        ref: thread.id,
-        cwd: thread.cwd,
-        title: thread.title,
-        parentRef: parentById.get(thread.id) ?? null,
-        createdAt: thread.createdAt === null ? null : new Date(thread.createdAt).toISOString(),
-        updatedAt: (() => {
-          try {
-            return statSync(thread.rolloutPath).mtime.toISOString();
-          } catch {
-            return null;
-          }
-        })(),
-      }));
+      const conversations: NativeConversation[] = [];
+      // Keep complete discovery, but do not block the daemon on one synchronous
+      // stat per historical transcript or enqueue an unbounded filesystem burst.
+      for (let offset = 0; offset < rows.length; offset += 32) {
+        conversations.push(
+          ...(await Promise.all(
+            rows.slice(offset, offset + 32).map(async (thread) => {
+              let updatedAt: string | null = null;
+              try {
+                updatedAt = (await stat(thread.rolloutPath)).mtime.toISOString();
+              } catch {
+                /* Missing/unreadable native file. */
+              }
+              return {
+                ref: thread.id,
+                cwd: thread.cwd,
+                title: thread.title,
+                parentRef: parentById.get(thread.id) ?? null,
+                createdAt:
+                  thread.createdAt === null ? null : new Date(thread.createdAt).toISOString(),
+                updatedAt,
+              };
+            }),
+          )),
+        );
+      }
+      return conversations;
     },
   },
 

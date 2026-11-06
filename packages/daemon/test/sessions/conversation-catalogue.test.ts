@@ -4,7 +4,10 @@ import { join } from 'node:path';
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
 import { openDatabase } from '../../src/db/db.js';
 import type { NativeConversation } from '../../src/agents/adapter.js';
-import { ConversationCatalogue } from '../../src/sessions/conversation-catalogue.js';
+import {
+  ConversationCatalogue,
+  type CatalogueScanMeasurement,
+} from '../../src/sessions/conversation-catalogue.js';
 import { fakeAdapter, fixture, waitFor } from '../helpers/daemon-fixtures.js';
 
 const catalogues: ConversationCatalogue[] = [];
@@ -97,6 +100,51 @@ function setup(
 }
 
 describe('ConversationCatalogue', () => {
+  it('observes accepted scan triggers and phases without conversation data', async () => {
+    const measurements: Readonly<CatalogueScanMeasurement>[] = [];
+    const { f, catalogue, triggerWatch, setNative, setFail } = setup({
+      fakeWatch: 'healthy',
+      timings: {
+        watchDebounceMs: 10,
+        deletionVerifyMs: 10,
+        healthySweepMs: 60_000,
+        observeScan: (measurement) => measurements.push(measurement),
+      },
+    });
+    setNative([
+      {
+        ref: 'synthetic',
+        cwd: f.repoPath,
+        title: null,
+        parentRef: null,
+        createdAt: null,
+        updatedAt: null,
+      },
+    ]);
+    catalogue.refreshProject(f.ids.project);
+    catalogue.refreshProject(f.ids.project);
+    await waitFor(() => measurements.length === 1);
+    for (let i = 0; i < 25; i++) triggerWatch();
+    await waitFor(() => measurements.length === 3);
+    expect(measurements.map((row) => row.trigger)).toEqual(['activation', 'watch', 'verification']);
+    expect(
+      measurements.every(
+        (row) =>
+          row.completed &&
+          row.conversations === 1 &&
+          row.elapsedMs >= row.discoveryMs + row.ingestionMs + row.placementMs,
+      ),
+    ).toBe(true);
+    setFail(true);
+    catalogue.refreshProject(f.ids.project);
+    await waitFor(() => measurements.length === 4);
+    expect(measurements[3]).toMatchObject({
+      trigger: 'activation',
+      conversations: 0,
+      completed: false,
+    });
+  });
+
   it('writes presence once per discovered row and retains newer lifecycle observations', async () => {
     const { f, catalogue, setNative } = setup({ fakeWatch: 'healthy' });
     const db = openDatabase(f.paths.dbFile, { migrate: false });
