@@ -8,3 +8,9 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Cockpit
+
+#### Added
+
+- Add customisable ⌘0–⌘9 shortcuts for the first ten non-archived projects in profile order, with current bindings shown in the command palette; move desktop Reset Zoom to ⌥⌘0.

@@ -636,7 +636,21 @@ function buildMenu(): void {
     },
     // editMenu is load-bearing on macOS: without it ⌘C/⌘V/⌘A do nothing.
     { role: 'editMenu' },
-    { role: 'viewMenu' },
+    {
+      role: 'viewMenu',
+      submenu: [
+        { role: 'reload' },
+        { role: 'forceReload' },
+        { role: 'toggleDevTools' },
+        { type: 'separator' },
+        // Plain ⌘0 belongs to project switching in the renderer.
+        { role: 'resetZoom', accelerator: 'CmdOrCtrl+Alt+0' },
+        { role: 'zoomIn' },
+        { role: 'zoomOut' },
+        { type: 'separator' },
+        { role: 'togglefullscreen' },
+      ],
+    },
     {
       // The windowMenu role keeps macOS's automatic open-window list; the
       // custom submenu puts New Window (the host picker) at the top.

@@ -25,7 +25,12 @@ import {
 import { applyTheme } from '../../lib/appearance/theme';
 import { triggerConnectionRefresh } from '../../lib/transport/cockpit-refresh';
 import { registerCommandPalette } from '../../lib/navigation/command-palette';
-import { registerHotkey } from '../../lib/navigation/hotkeys';
+import {
+  formatBinding,
+  PROJECT_HOTKEY_ACTIONS,
+  registerHotkey,
+  useHotkeyBindings,
+} from '../../lib/navigation/hotkeys';
 import { openSettings } from '../../lib/navigation/hash-route';
 import { openPath } from '../../lib/navigation/path-open';
 import { useProfileSettings, useProjects, useSessions } from '../../lib/queries/queries';
@@ -56,6 +61,7 @@ export function CommandPalette({
   const profileSettings = useProfileSettings(profileId ?? undefined);
   const sessions = useSessions(projectId);
   const renderTitle = useSessionTitleRenderer();
+  const bindings = useHotkeyBindings();
 
   // The ⌘K binding is the `palette.toggle` hotkey (customisable, SPEC §11).
   useEffect(() => registerHotkey('palette.toggle', () => setOpen((o) => !o)), []);
@@ -79,13 +85,15 @@ export function CommandPalette({
       (projects.data ?? []).filter((project) => !project.archived),
       profileSettings.data?.projectOrder ?? [],
     );
-    for (const project of orderedProjects) {
+    for (const [index, project] of orderedProjects.entries()) {
+      const action = PROJECT_HOTKEY_ACTIONS[index];
       items.push({
         id: `project-${project.id}`,
         group: 'Projects',
         label: project.name,
         icon: FolderOpen,
         keywords: 'switch project open',
+        shortcut: action ? formatBinding(bindings[action.id] ?? '') : undefined,
         run: () => void navigate(`/project/${project.id}`),
       });
     }
@@ -197,6 +205,7 @@ export function CommandPalette({
     );
     return [...items, ...collectCommands()];
   }, [
+    bindings,
     projects.data,
     profileSettings.data?.projectOrder,
     sessions.data,

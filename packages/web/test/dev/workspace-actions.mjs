@@ -14,6 +14,14 @@ try {
   await page.evaluate(() => window.workspaceFixture.releaseProjects());
   await page.waitForFunction(() => window.workspaceFixture.state().layout_mode === 'project');
   const { sessions, first, second, profile } = await page.evaluate(() => window.workspaceFixture);
+  // Project shortcuts must escape Monaco and switch the real workspace layout.
+  await page.locator('.monaco-editor textarea').first().focus();
+  await page.keyboard.press('Meta+1');
+  await page.waitForFunction((p) => window.workspaceFixture.bridge()?.projectId === p, second);
+  await page.keyboard.press('Meta+0');
+  await page.waitForFunction((p) => window.workspaceFixture.bridge()?.projectId === p, first);
+  await page.keyboard.press('Meta+9');
+  assert.equal(await page.evaluate(() => window.workspaceFixture.bridge()?.projectId), first);
   const visit = async (project, session) => {
     await page.evaluate(([p, s]) => window.workspaceFixture.visit(p, s), [project, session]);
     await page.waitForFunction((p) => window.workspaceFixture.bridge()?.projectId === p, project);

@@ -5,6 +5,7 @@ import {
   formatBinding,
   hotkeyNeedsCapture,
   HOTKEY_ACTIONS,
+  PROJECT_HOTKEY_ACTIONS,
   setHotkeyOverrides,
   shellDefaultBinding,
 } from '../../../src/lib/navigation/hotkeys';
@@ -22,6 +23,19 @@ const keydown = (code: string, mods: Partial<Record<'ctrl' | 'alt' | 'shift' | '
   }) as KeyboardEvent;
 
 describe('shellDefaultBinding', () => {
+  it('maps Command+0 through Command+9 to the first ten project slots in both shells', () => {
+    setHotkeyOverrides(undefined);
+    for (const [index, action] of PROJECT_HOTKEY_ACTIONS.entries()) {
+      for (const desktop of [false, true]) {
+        expect(shellDefaultBinding(action, desktop)).toBe(`meta+Digit${index}`);
+      }
+      expect(actionForBinding(eventBinding(keydown(`Digit${index}`, { meta: true }))!)).toBe(
+        action.id,
+      );
+      expect(hotkeyNeedsCapture(action, true)).toBe(true);
+    }
+  });
+
   it('forks the intuitive natives on desktop and keeps the web-safe set in a tab', () => {
     expect(shellDefaultBinding(byId('tab.close'), true)).toBe('meta+KeyW');
     expect(shellDefaultBinding(byId('tab.close'), false)).toBe('ctrl+alt+KeyW');

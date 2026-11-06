@@ -6,6 +6,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router';
 import { savedLayoutSchema, uiStateSnapshotSchema, type SavedLayout } from '@puddle/shared';
 import { Workspace } from '../../src/features/workspace/Workspace';
+import { HotkeysHost } from '../../src/features/shell/HotkeysHost';
 import { NewSessionProvider } from '../../src/features/shell/new-session-context';
 import { TooltipProvider } from '../../src/components/ui/tooltip';
 import {
@@ -166,6 +167,7 @@ export function mountWorkspaceFixture() {
         <NewSessionProvider>
           <MemoryRouter initialEntries={[`/project/${project.id}`]} useTransitions={false}>
             <Controls />
+            <HotkeysHost />
             <Routes>
               <Route path="/project/:id" element={<Workspace />} />
               <Route path="/project/:id/session/:sid" element={<Workspace />} />

@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import { useNavigate } from 'react-router';
 import { desktopBridge } from '../../lib/desktop';
 import {
   actionForBinding,
@@ -6,11 +7,13 @@ import {
   getHotkeyAction,
   getHotkeyHandler,
   hotkeyNeedsCapture,
+  PROJECT_HOTKEY_ACTIONS,
   registerHotkey,
   setHotkeyOverrides,
 } from '../../lib/navigation/hotkeys';
-import { useProfileSettings } from '../../lib/queries/queries';
+import { useProfileSettings, useProjects } from '../../lib/queries/queries';
 import { useCurrentProfileId } from '../profile/profile-store';
+import { orderByDrag } from '../workspace/sessions/session-order';
 
 /** A focused terminal owns its keys — the dispatcher yields ⌃A/⌃` etc. to it. */
 function terminalFocused(): boolean {
@@ -37,7 +40,9 @@ function monacoFocused(): boolean {
  * through the workspace's logical active tab; see the capture handler below.
  */
 export function HotkeysHost() {
+  const navigate = useNavigate();
   const profileId = useCurrentProfileId();
+  const projects = useProjects(profileId ?? undefined);
   const settings = useProfileSettings(profileId ?? undefined);
   const overrides = settings.data?.['hotkeys'];
 
@@ -48,6 +53,22 @@ export function HotkeysHost() {
         : undefined,
     );
   }, [overrides]);
+
+  // Shell-owned so project switching works from the dashboard as well as a workspace.
+  useEffect(() => {
+    if (profileId === null) return;
+    const ordered = orderByDrag(
+      (projects.data ?? []).filter((project) => !project.archived),
+      settings.data?.projectOrder ?? [],
+    );
+    const unregister = PROJECT_HOTKEY_ACTIONS.map((action, index) =>
+      registerHotkey(action.id, () => {
+        const project = ordered[index];
+        if (project) void navigate(`/project/${project.id}`);
+      }),
+    );
+    return () => unregister.forEach((remove) => remove());
+  }, [navigate, profileId, projects.data, settings.data?.projectOrder]);
 
   // Closing the window is a shell action, not a workspace one: it belongs here
   // so it works on the dashboard too. In the desktop shell only the main

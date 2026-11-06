@@ -35,9 +35,24 @@ export interface HotkeyAction {
   deferInTerminal?: boolean;
 }
 
-export const HOTKEY_GROUPS = ['Layout & tabs', 'Editor', 'Left sidebar', 'Right sidebar'] as const;
+export const HOTKEY_GROUPS = [
+  'Layout & tabs',
+  'Projects',
+  'Editor',
+  'Left sidebar',
+  'Right sidebar',
+] as const;
+
+/** Zero-based number keys follow the current profile's visible project order. */
+export const PROJECT_HOTKEY_ACTIONS: HotkeyAction[] = Array.from({ length: 10 }, (_, index) => ({
+  id: `project.switch${index}`,
+  label: `Switch to project ${index + 1}`,
+  group: 'Projects',
+  defaultBinding: `meta+Digit${index}`,
+}));
 
 export const HOTKEY_ACTIONS: HotkeyAction[] = [
+  ...PROJECT_HOTKEY_ACTIONS,
   {
     id: 'host.peek',
     label: 'Show host identity (hold)',
