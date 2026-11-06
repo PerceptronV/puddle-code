@@ -334,10 +334,11 @@ async function waitForWebSocket(
   errorText: () => string,
 ): Promise<void> {
   const deadline = Date.now() + 5_000;
+  let delay = 10;
   for (;;) {
-    if (process.exitCode !== null) {
+    if (!process.pid || process.exitCode !== null || process.signalCode !== null) {
       throw new Error(
-        `Codex app-server exited before ready: ${errorText().trim() || process.exitCode}`,
+        `Codex app-server exited before ready: ${errorText().trim() || process.signalCode || process.exitCode}`,
       );
     }
     const ready = await new Promise<boolean>((resolve) => {
@@ -360,7 +361,8 @@ async function waitForWebSocket(
     if (Date.now() >= deadline) {
       throw new Error(`Codex app-server did not become ready: ${errorText().trim()}`);
     }
-    await new Promise((resolve) => setTimeout(resolve, 100));
+    await new Promise((resolve) => setTimeout(resolve, delay));
+    delay = Math.min(delay * 2, 100);
   }
 }
 
