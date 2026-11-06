@@ -435,7 +435,10 @@ it.each(['local', 'ssh'] as const)(
     mkdirSync(join(f.root, 'bin'));
     mkdirSync(join(f.root, 'daemon'));
     writeFileSync(join(f.root, 'VERSION'), '0.4.0\n');
-    writeFileSync(join(f.root, 'RUNTIME_PROTOCOL'), '1.0\n');
+    writeFileSync(
+      join(f.root, 'RUNTIME_PROTOCOL'),
+      `${f.capabilities.runtime.major}.${f.capabilities.runtime.minor}\n`,
+    );
     writeFileSync(join(f.root, 'bin/node'), '#!/bin/sh\nexit 99\n', { mode: 0o755 });
     writeFileSync(join(f.root, 'daemon/puddler.mjs'), '// fixture\n');
     symlinkSync(f.root, join(f.home, 'bin/runtime-current'));
