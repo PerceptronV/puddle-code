@@ -1,24 +1,16 @@
 import { mediaMime } from './media-mime.js';
-import {
-  createReadStream,
-  existsSync,
-  lstatSync,
-  mkdirSync,
-  readdirSync,
-  readFileSync,
-  statSync,
-  writeFileSync,
-} from 'node:fs';
-import { basename, dirname, join } from 'node:path';
-import { Readable } from 'node:stream';
+import { createReadStream, existsSync, readFileSync, statSync, writeFileSync } from 'node:fs';
+import { basename, dirname } from 'node:path';
+import { stat } from 'node:fs/promises';
+import { directoryEntries } from './files/tree.js';
+import { directoryZip, webFileStream } from './files/download.js';
+import { MAX_UPLOAD_BYTES, uploadFiles, uploadTooLarge } from './files/upload.js';
 import { Hono } from 'hono';
 import { newFileContent } from '../../../notebooks/empty.js';
-import { ZipFile } from 'yazl';
 import {
   putFileRequestSchema,
   type FileResponse,
   type PutFileResponse,
-  type TreeEntry,
   type TreeResponse,
   type UploadResponse,
 } from '@puddle/shared';
@@ -33,17 +25,6 @@ import {
 
 /** Editor read cap: generous for source files, hostile to accidentally opening a media dump. */
 const MAX_FILE_BYTES = 5 * 1024 * 1024;
-/**
- * Multipart upload cap, checked against the raw `content-length` before
- * parsing. Sized for folder drops (the web splits those into ~64 MiB batches,
- * so this effectively caps a single file).
- */
-const MAX_UPLOAD_BYTES = 512 * 1024 * 1024;
-
-/** `284972166` → `“271.8 MB”` — for error messages a human will read. */
-function formatMB(bytes: number): string {
-  return `${(bytes / (1024 * 1024)).toFixed(1).replace(/\.0$/, '')} MB`;
-}
 /** Binary sniffing looks for a NUL byte within this many leading bytes. */
 const SNIFF_BYTES = 8 * 1024;
 
@@ -52,68 +33,21 @@ function contentDisposition(filename: string): string {
 }
 
 /**
- * One tree entry for a directory child. A plain file/dir is described from its
- * `lstat`. A symlink is *resolved* so a link to a directory is explorable and a
- * link to a file opens — its `type` reports the target kind and `symlink` flags
- * it (the tree draws the link icon at that row). Targets outside the worktree
- * are followed too (see `containedPath`); only a broken or unresolvable link
- * (or a non-file/dir target like a socket) stays a `symlink` leaf.
- */
-function describeEntry(dir: string, name: string): TreeEntry {
-  const full = join(dir, name);
-  const lst = lstatSync(full);
-  if (!lst.isSymbolicLink()) {
-    if (lst.isDirectory()) return { name, type: 'dir', size: null, symlink: false };
-    return { name, type: 'file', size: statSync(full).size, symlink: false };
-  }
-  try {
-    const st = statSync(full); // follows the link, wherever it points
-    if (st.isDirectory()) return { name, type: 'dir', size: null, symlink: true };
-    if (st.isFile()) return { name, type: 'file', size: st.size, symlink: true };
-    return { name, type: 'symlink', size: null, symlink: true };
-  } catch {
-    return { name, type: 'symlink', size: null, symlink: true }; // dangling or unreadable
-  }
-}
-
-/** Recursively list zip-worthy files under `dir`, skipping `.git` and symlinks; `prefix` is the in-zip path so far. */
-function collectZipEntries(dir: string, prefix: string): Array<{ abs: string; rel: string }> {
-  const out: Array<{ abs: string; rel: string }> = [];
-  for (const entry of readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name === '.git') continue;
-    const abs = join(dir, entry.name);
-    const rel = prefix ? `${prefix}/${entry.name}` : entry.name;
-    const lst = lstatSync(abs);
-    if (lst.isSymbolicLink()) continue;
-    if (lst.isDirectory()) out.push(...collectZipEntries(abs, rel));
-    else if (lst.isFile()) out.push({ abs, rel });
-  }
-  return out;
-}
-
-/**
  * Browse, read, write, upload to, and download from a session's worktree
  * (SPEC §6/§8, Phase 3 file explorer). Mounted by `worktrees.ts`.
  */
 export function worktreeFileRoutes(deps: WorktreeDeps): Hono {
   return new Hono()
-    .get('/:sid/tree', (c) => {
+    .get('/:sid/tree', async (c) => {
       // `?root=` (protocol 10.2): browse outside the worktree, read-only.
       const root = browseRoot(c, resolveWorktree(deps, c).root);
       const rel = c.req.query('path') ?? '';
       const dir = containedPath(root, rel);
-      if (!existsSync(dir)) throw ApiError.notFound('path', rel || '.');
-      if (!statSync(dir).isDirectory()) {
+      const metadata = await stat(dir).catch(() => null);
+      if (!metadata) throw ApiError.notFound('path', rel || '.');
+      if (!metadata.isDirectory())
         throw ApiError.badRequest('not_a_directory', `${rel || '.'} is not a directory`);
-      }
-      const entries = readdirSync(dir)
-        .filter((name) => name !== '.git')
-        .map((name) => describeEntry(dir, name))
-        .sort((a, b) => {
-          if (a.type === 'dir' && b.type !== 'dir') return -1;
-          if (a.type !== 'dir' && b.type === 'dir') return 1;
-          return a.name.localeCompare(b.name, undefined, { sensitivity: 'base' });
-        });
+      const entries = await directoryEntries(dir, c.req.raw.signal);
       return c.json<TreeResponse>({ path: rel, entries });
     })
 
@@ -181,53 +115,16 @@ export function worktreeFileRoutes(deps: WorktreeDeps): Hono {
 
     .post('/:sid/upload', async (c) => {
       const contentLength = Number(c.req.header('content-length') ?? '0');
-      if (contentLength > MAX_UPLOAD_BYTES) {
-        throw new ApiError(
-          413,
-          'upload_too_large',
-          `This upload is ${formatMB(contentLength)}; the cap is ${formatMB(MAX_UPLOAD_BYTES)} per request`,
-        );
-      }
+      if (contentLength > MAX_UPLOAD_BYTES) throw uploadTooLarge();
       // `?root=` (12.3): a drop into the browse tree lands under that root, not
       // the worktree — the browse tree is the worktree tree, moved elsewhere.
       const root = browseRoot(c, resolveWorktree(deps, c).root);
       const rel = c.req.query('dir') ?? '';
       const dir = containedPath(root, rel);
-      if (!existsSync(dir) || !statSync(dir).isDirectory()) {
+      if (!(await stat(dir).catch(() => null))?.isDirectory()) {
         throw ApiError.badRequest('not_a_directory', `${rel || '.'} is not a directory`);
       }
-
-      const form = await c.req.parseBody({ all: true });
-      const files = Object.values(form)
-        .flat()
-        .filter((value): value is File => value instanceof File);
-      if (files.length === 0) {
-        throw ApiError.badRequest('nothing_uploaded', 'no files were present in the upload');
-      }
-
-      const uploaded: UploadResponse['files'] = [];
-      for (const file of files) {
-        // A multipart filename may carry a dir-relative path (folder drag-in:
-        // the client walks the dropped directory and names each file with its
-        // path under the drop target). Sanitise per segment — `''`, `.` and
-        // `..` are dropped, so `../../evil.txt` is neutralised to `evil.txt`
-        // and lands inside `dir` — then contain the joined path as before.
-        const name = file.name
-          .split('/')
-          .filter((seg) => seg !== '' && seg !== '.' && seg !== '..')
-          .join('/');
-        if (!name) continue;
-        const relPath = rel ? `${rel}/${name}` : name;
-        const dest = containedPath(root, relPath);
-        mkdirSync(dirname(dest), { recursive: true });
-        const bytes = Buffer.from(await file.arrayBuffer());
-        writeFileSync(dest, bytes);
-        uploaded.push({ path: relPath, size: bytes.byteLength });
-      }
-      if (uploaded.length === 0) {
-        throw ApiError.badRequest('nothing_uploaded', 'no files were present in the upload');
-      }
-      return c.json<UploadResponse>({ files: uploaded }, 201);
+      return c.json<UploadResponse>(await uploadFiles(c.req.raw, root, rel), 201);
     })
 
     .get('/:sid/media', (c) => {
@@ -242,7 +139,7 @@ export function worktreeFileRoutes(deps: WorktreeDeps): Hono {
       const st = statSync(target);
       if (!st.isFile()) throw ApiError.badRequest('not_a_file', `${rel} is not a file`);
       const name = basename(target);
-      const stream = Readable.toWeb(createReadStream(target)) as ReadableStream;
+      const stream = webFileStream(createReadStream(target));
       return new Response(stream, {
         headers: {
           'content-type': mediaMime(name) ?? 'application/octet-stream',
@@ -252,16 +149,16 @@ export function worktreeFileRoutes(deps: WorktreeDeps): Hono {
       });
     })
 
-    .get('/:sid/download', (c) => {
+    .get('/:sid/download', async (c) => {
       const root = browseRoot(c, resolveWorktree(deps, c).root);
       const rel = c.req.query('path') ?? '';
       const target = containedPath(root, rel);
-      if (!existsSync(target)) throw ApiError.notFound('path', rel);
-      const st = statSync(target);
+      const st = await stat(target).catch(() => null);
+      if (!st) throw ApiError.notFound('path', rel);
       const name = basename(target) || 'worktree';
 
       if (st.isFile()) {
-        const stream = Readable.toWeb(createReadStream(target)) as ReadableStream;
+        const stream = webFileStream(createReadStream(target));
         return new Response(stream, {
           headers: {
             'content-type': 'application/octet-stream',
@@ -273,12 +170,7 @@ export function worktreeFileRoutes(deps: WorktreeDeps): Hono {
 
       // Directory: stream a zip built from every non-.git, non-symlink file.
       // Pure-JS (yazl) deliberately — no native deps in the prebuilt tarball.
-      const zipfile = new ZipFile();
-      for (const { abs, rel: zipRel } of collectZipEntries(target, '')) {
-        zipfile.addFile(abs, zipRel);
-      }
-      zipfile.end();
-      const stream = Readable.toWeb(zipfile.outputStream as Readable) as ReadableStream;
+      const stream = directoryZip(target, c.req.raw.signal);
       return new Response(stream, {
         headers: {
           'content-type': 'application/zip',

@@ -73,7 +73,7 @@ export function HostPeekOverlay() {
       aria-live="polite"
     >
       <div className="flex max-w-full flex-col items-center gap-8 text-center">
-        <HostGlyph icon={icon} className="size-[clamp(9rem,27vmin,21rem)] shrink-0" />
+        <HostGlyph icon={icon} className="size-[clamp(6rem,18vmin,14rem)] shrink-0" />
         <span className="max-w-full break-words font-sans text-[clamp(0.8333rem,2.3333vw,2.3333rem)] leading-tight font-medium">
           {hostLabel(host.data) ?? 'Host'}
         </span>

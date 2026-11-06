@@ -2209,6 +2209,12 @@ has no opaque/tinted replacement background, preserves editor focus, and disappe
 immediately when any chord key is released or the window loses focus/visibility.
 Key repeat does not toggle it. The binding is customisable in Hotkeys; entrance
 motion respects reduced motion and dismissal has no exit animation.
+Hold ⌘⌥/ on macOS or Ctrl+Alt+/ on Windows/Linux to blur the existing workspace
+and overlay the chosen host glyph above its name in large centred type. The overlay
+has no opaque/tinted replacement background, preserves editor focus, and disappears
+immediately when any chord key is released or the window loses focus/visibility.
+Key repeat does not toggle it. The binding is customisable in Hotkeys; entrance
+motion respects reduced motion and dismissal has no exit animation.
 Without a chosen accent the original theme returns, including gold navigation
 selection. The palette is cleared when leaving the host/profile.
 The existing extensible profile-settings API stores these optional fields without a
