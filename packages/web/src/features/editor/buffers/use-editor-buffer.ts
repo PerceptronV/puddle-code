@@ -1,3 +1,4 @@
+import { useFileEditorSettings } from '../settings/file-editor-settings';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { toast } from 'sonner';
 import { ApiError } from '../../../lib/transport/api';
@@ -119,6 +120,7 @@ export function useEditorBuffer(
 ): EditorBuffer {
   const passive = opts?.passive === true;
   const focused = opts?.focused ?? true;
+  const { fileSettingsKey } = useFileEditorSettings();
   const key = bufferKey(session, path, root);
   const file = useWorktreeFile(session, path, { root, live: opts?.live });
   const saveMutation = useSaveWorktreeFile(session, root);
@@ -414,10 +416,10 @@ export function useEditorBuffer(
   const onMount = useCallback(
     (editor: monaco.editor.IStandaloneCodeEditor) => {
       editorRef.current = editor;
-      registerEditorKeybindings(editor, { onSave: () => saveRef.current() });
+      registerEditorKeybindings(editor, { onSave: () => saveRef.current(), fileSettingsKey });
       applyReveal();
     },
-    [applyReveal],
+    [applyReveal, fileSettingsKey],
   );
 
   useEffect(() => {

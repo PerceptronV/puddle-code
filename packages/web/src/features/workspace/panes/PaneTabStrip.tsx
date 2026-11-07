@@ -19,7 +19,12 @@ import { useSessionTitleRenderer } from '../../profile/use-session-title';
 import { SessionGlyph } from '../../status/SessionGlyph';
 import { editorTabLabel } from '../../editor/buffers/buffer-logic';
 import { tabKind, type EditorTab, type EditorView } from '../../editor/tabs/editor-tabs';
-import { LazyEditorDirtyDot, LazyEditorTabClose } from '../../editor/lazy-editor-parts';
+import {
+  LazyEditorDirtyDot,
+  LazyEditorTabClose,
+  LazyFileEditorSettingsMenu,
+} from '../../editor/lazy-editor-parts';
+import { mediaKind } from '../../editor/previews/media-kind';
 import { previewKind } from '../../editor/previews/preview-kind';
 import {
   compilationSourceKey,
@@ -445,6 +450,7 @@ function PaneTab({
   onRenameFile: (newName: string) => Promise<boolean>;
 }) {
   const [renaming, setRenaming] = useState(false);
+  const [settingsOpen, setSettingsOpen] = useState(false);
   const renderTitle = useSessionTitleRenderer();
   const key = tabRefKey(tab);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -592,6 +598,9 @@ function PaneTab({
                       onSetMode={onSetCompilationMode}
                     />
                   )}
+                {!mediaKind(tab.tab.path) && (
+                  <LazyFileEditorSettingsMenu tab={tab.tab} onOpenChange={setSettingsOpen} />
+                )}
                 <LazyEditorTabClose
                   session={tab.tab.session}
                   path={tab.tab.path}
@@ -612,7 +621,11 @@ function PaneTab({
   // sits at the top of its pane, so upwards it would cover the strip above it —
   // or, in the first pane, the window's traffic lights.
   const tooltip = (
-    <TooltipContent side="bottom" className="max-w-[calc(100vw-2rem)] break-all">
+    <TooltipContent
+      side="bottom"
+      portalled={!single}
+      className={cn('max-w-[calc(100vw-2rem)] break-all', single && 'pointer-events-none z-0')}
+    >
       <TabTooltipBody
         name={
           tab.type === 'terminal'
@@ -647,7 +660,7 @@ function PaneTab({
     (tabKind(tab.tab) === 'file' || tabKind(tab.tab) === 'external')
   ) {
     return (
-      <Tooltip open={renaming ? false : undefined}>
+      <Tooltip open={renaming || settingsOpen ? false : undefined}>
         <FileTabContextMenu
           tab={tab.tab}
           directory={fileDirectory}
@@ -663,7 +676,7 @@ function PaneTab({
     );
   }
   return (
-    <Tooltip>
+    <Tooltip open={settingsOpen ? false : undefined}>
       <TooltipTrigger asChild>{body}</TooltipTrigger>
       {tooltip}
     </Tooltip>

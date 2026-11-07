@@ -1,6 +1,7 @@
 // Load-bearing: the Monaco bootstrap must import before anything mounts an
 // <Editor> (see EditorZone.tsx / monaco-setup.ts). Keep this first.
 import './monaco/monaco-setup';
+import { FileEditorSettingsProvider } from './settings/file-editor-settings';
 
 import type { LatexSynctexResponse } from '@puddle/shared';
 import type { EditorPosition, RevealTarget } from '../workspace/editor-context';
@@ -21,7 +22,7 @@ import { tabKey, tabKind, type EditorTab } from './tabs/editor-tabs';
  * only applies to file tabs. Behind the lazy editor chunk so Monaco stays
  * code-split (its own first import is `./monaco-setup`).
  */
-export function PaneEditorBody({
+function PaneEditorContent({
   tab,
   reveal,
   focused,
@@ -180,5 +181,13 @@ export function PaneEditorBody({
       scrollReceiver={scrollReceiver}
       scrollChannel={scrollChannel}
     />
+  );
+}
+
+export function PaneEditorBody(props: Parameters<typeof PaneEditorContent>[0]) {
+  return (
+    <FileEditorSettingsProvider tab={props.tab}>
+      <PaneEditorContent {...props} />
+    </FileEditorSettingsProvider>
   );
 }

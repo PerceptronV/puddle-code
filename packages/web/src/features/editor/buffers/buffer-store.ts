@@ -11,6 +11,7 @@
  * unit-testable without monaco, which cannot initialise under vitest.
  */
 import { monaco } from '../monaco/monaco-setup';
+import { languageForPath } from '../monaco/languages';
 import {
   RefCounter,
   SavedStateMap,
@@ -38,21 +39,6 @@ function modelUri(session: string, path: string, root?: string): monaco.Uri {
   const segments = path.split('/').map(encodeURIComponent);
   const query = root === undefined ? '' : `?root=${encodeURIComponent(root)}`;
   return monaco.Uri.parse(`puddle://${encodeURIComponent(session)}/${segments.join('/')}${query}`);
-}
-
-function extensionOf(path: string): string {
-  const base = path.split('/').pop() ?? path;
-  const dot = base.lastIndexOf('.');
-  return dot > 0 ? base.slice(dot) : ''; // dot > 0: a leading-dot file (.gitignore) has no "extension"
-}
-
-/** Best-effort language id from the path's extension; 'plaintext' otherwise. */
-function languageForPath(path: string): string {
-  const ext = extensionOf(path);
-  if (!ext) return 'plaintext';
-  if (ext.toLowerCase() === '.ipynb') return 'json';
-  const match = monaco.languages.getLanguages().find((lang) => lang.extensions?.includes(ext));
-  return match?.id ?? 'plaintext';
 }
 
 interface Entry {

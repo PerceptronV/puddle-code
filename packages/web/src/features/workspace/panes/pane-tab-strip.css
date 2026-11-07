@@ -16,8 +16,20 @@
 }
 .pane-single-tab > .pane-tab-controls {
   top: 0.375rem;
-  right: 0.375rem;
+  right: 0.125rem;
   translate: none;
+}
+/* Bridge the inset all the way to the top/right corner, including slow diagonal
+   pointer movement. The bridge shares the tray's visibility and hit testing. */
+.pane-single-tab > .pane-tab-controls::before {
+  content: '';
+  position: absolute;
+  inset: -0.375rem -0.125rem 0 0;
+  z-index: -1;
+}
+.pane-tab-controls:has([data-state='open']) {
+  opacity: 1;
+  pointer-events: auto;
 }
 .pane-single-tab.pane-tab-renaming {
   height: var(--ui-field-height);

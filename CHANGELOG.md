@@ -11,7 +11,13 @@ Past releases: see docs/changelogs/.
 
 ### Cockpit
 
+#### Added
+
+- Add per-file editor settings for tab size, word wrap and searchable syntax language, with inherited defaults and window-local overrides.
+
 #### Fixed
+
+- Keep single-tab action trays above file details and reachable from the top-right corner, including narrow LaTeX panes.
 
 - Keep the newest covered Ripple output visible at a high boundary by omitting older complete blocks first, preserving pinned prompts, fixed typography and original terminal click anchors. Restore omitted content when the reading area expands.
 - Remove the Ripple divider line and place a vertical handle at the far-right edge, retaining the larger mobile touch target.

@@ -1,7 +1,8 @@
+import { languageForPath } from '../editor/monaco/languages';
 import { useEffect, useMemo, useRef } from 'react';
 import { DiffEditor } from '@monaco-editor/react';
 import type { DiffEntry } from '@puddle/shared';
-import { useClientSettings } from '../../lib/settings/client-settings';
+import { useFileEditorSettings } from '../editor/settings/file-editor-settings';
 import { useFileAt } from '../../lib/queries/worktree-queries';
 import { ApiError } from '../../lib/transport/api';
 import { DeletedContent, Note, ReadOnlyView, viewerUri } from '../diff/FileDiffContent';
@@ -72,7 +73,7 @@ function HistoryDiffEditor({
   modifiedContent: string;
   root?: string;
 }) {
-  const settings = useClientSettings();
+  const settings = useFileEditorSettings();
   const restoreView = useDiffViewState([
     session,
     root,
@@ -116,6 +117,7 @@ function HistoryDiffEditor({
         `${modifiedRef}:${root ?? ''}`,
         modifiedPath,
       )}
+      language={settings.editorLanguage ?? languageForPath(modifiedPath)}
       original={originalContent}
       modified={modifiedContent}
       theme={THEME_NAME}
@@ -138,6 +140,7 @@ function HistoryDiffEditor({
         fontFamily: fontMono,
         fontSize: settings.editorFontSize,
         ...editorIndentationOptions(settings.editorTabSize),
+        wordWrap: settings.editorWordWrap ? 'on' : 'off',
         minimap: { enabled: false },
         fixedOverflowWidgets: true,
         scrollBeyondLastLine: false,

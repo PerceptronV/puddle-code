@@ -123,3 +123,17 @@ export function LazyEditorTabClose(props: {
     </Suspense>
   );
 }
+
+const SettingsMenuInner = lazy(() =>
+  import('./settings/FileEditorSettingsMenu').then((m) => ({ default: m.FileEditorSettingsMenu })),
+);
+export function LazyFileEditorSettingsMenu(props: {
+  tab: EditorTab;
+  onOpenChange?: (open: boolean) => void;
+}) {
+  return (
+    <Suspense fallback={null}>
+      <SettingsMenuInner {...props} />
+    </Suspense>
+  );
+}

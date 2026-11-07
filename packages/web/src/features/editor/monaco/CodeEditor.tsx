@@ -1,9 +1,10 @@
+import { languageForPath } from './languages';
 import { useReducedMotion } from '../../../lib/appearance/motion';
 import { useEffect, useMemo, useState } from 'react';
 import Editor from '@monaco-editor/react';
 import { Download } from 'lucide-react';
 import { toast } from 'sonner';
-import { useClientSettings } from '../../../lib/settings/client-settings';
+import { useFileEditorSettings } from '../settings/file-editor-settings';
 import { downloadPath } from '../../../lib/queries/worktree-queries';
 import { ConflictSurface } from '../conflicts/ConflictSurface';
 import { THEME_NAME } from './monaco-setup';
@@ -80,7 +81,7 @@ export function CodeEditor({
   scrollReceiver?: boolean;
   scrollChannel?: string;
 }) {
-  const settings = useClientSettings();
+  const settings = useFileEditorSettings();
   const reduceMotion = useReducedMotion();
   const restoreView = useCodeViewState([session, root, path]);
   const buffer = useEditorBuffer(session, path, reveal, root, { focused });
@@ -223,6 +224,7 @@ export function CodeEditor({
         {buffer.model && (
           <Editor
             path={buffer.model.uri.toString()}
+            language={settings.editorLanguage ?? languageForPath(path)}
             defaultValue={buffer.model.getValue()}
             theme={THEME_NAME}
             keepCurrentModel

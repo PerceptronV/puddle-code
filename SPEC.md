@@ -1987,6 +1987,8 @@ This is the Docker-daemon model reduced to its useful core: a negotiated, versio
 
 **Editor surfaces.** Each editor pane has a small side/bottom inset and rounded corners using the shared radius token. Source editors, diffs, notebooks and document previews share the clipped surface beneath the floating tabs, with a further 4px interior inset so line highlights do not meet the outer background. Terminal bodies retain the outer inset framing and their existing resize observation. Ordinary source editors reserve one line-number digit initially, grow automatically with the model's line count, add a small left inset and reserve 5px for decorations plus Monaco's folding controls.
 
+**Per-file editor settings.** Each text-file tab offers a compact Editor settings menu for tab size (1–8), word wrap and a searchable syntax-highlighting language from the bundled Monaco catalogue, including plain text. Tab size and wrapping inherit client defaults until explicitly overridden; syntax defaults to extension detection. Overrides are bounded to 500 file identities in the current browser window and survive pane/tab remounts, but not reloads. Scope includes the transport host, session, browse root and path; untitled drafts include their profile, and commit views include their revision. File and working-tree diff views share overrides. Settings do not edit file contents or change compilation providers. Notebook tab indentation/wrapping also apply to cells; its syntax setting applies to JSON source, with cell languages unchanged. The wrap shortcut in a file tab updates that file’s override. Non-file surfaces retain their client-wide shortcut.
+
 **Pane tabs.** Active tabs float inside the strip with rounded corners on all sides and space above and below. Tabs are separated by space, with no divider lines. Hover controls preserve the rounded shape. Dragging blank tab-strip space moves the entire pane with its tabs, active tab and preview state intact: centre drops swap panes, edge drops place the pane beside the target. Self-drops, drops outside the grid and Escape cancellation leave the layout unchanged. Individual tabs retain their existing drag behaviour.
 
 **Session tab controls.** Hovering an agent or terminal tab reveals Stop before Close while the session is starting, running or waiting for input; exited or interrupted sessions instead show Resume, Archive and Close. The controls use the same overlay and styling as a file tab's preview control, and coarse-pointer devices keep them visible. Resume is disabled when the worktree or native conversation is missing. Stop, resume and archive use the existing session mutations without confirmation, disable lifecycle actions while pending and report failures; resume follows an existing live conversation when the daemon identifies its placement. Archive closes the session's tabs only after success, including when a session update has already unmounted the archive button. Empty split panes collapse through the normal tab-close behaviour; closing a tab alone retains the session.
@@ -2586,7 +2588,10 @@ Puddle's UI must read as a polished, intentional developer cockpit — dense, ca
 A pane with one tab uses its full content area without a title strip. Its thin top
 edge retains drag, context-menu and keyboard access and shows the full file path
 on hover: relative to the displayed file tree when contained within it, otherwise
-absolute. Floating actions retain their own portalled tooltips. Opening or dropping
+absolute. File/session information stays inside the pane below the floating action
+tray in the stacking order and cannot intercept its clicks. The tray sits close to
+the right edge, with a continuous hover bridge from the top-right corner.
+Floating actions retain their own portalled tooltips. Opening or dropping
 a second file preserves the first and restores the normal tab strip; subsequent
 preview replacement in a multi-tab pane retains the usual preview slot behaviour.
 Closing back to one tab restores the full-pane presentation. Session hover fills

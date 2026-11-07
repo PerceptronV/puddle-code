@@ -1,7 +1,8 @@
+import { languageForPath } from '../editor/monaco/languages';
 import { useEffect, useMemo, useRef, type ReactNode } from 'react';
 import Editor, { DiffEditor } from '@monaco-editor/react';
 import type { DiffEntry, GitArea } from '@puddle/shared';
-import { useClientSettings } from '../../lib/settings/client-settings';
+import { useFileEditorSettings } from '../editor/settings/file-editor-settings';
 import { useFileAt, useIndexFile } from '../../lib/queries/worktree-queries';
 import { ApiError } from '../../lib/transport/api';
 import { CodeEditor } from '../editor/monaco/CodeEditor';
@@ -82,7 +83,7 @@ export function ReadOnlyView({
   path: string;
   content: string;
 }) {
-  const settings = useClientSettings();
+  const settings = useFileEditorSettings();
   const restoreView = useCodeViewState([session, refName, path]);
   const fontMono = useMemo(
     () =>
@@ -93,6 +94,7 @@ export function ReadOnlyView({
   return (
     <Editor
       path={viewerUri('puddle-view', session, refName, path)}
+      language={settings.editorLanguage ?? languageForPath(path)}
       defaultValue={content}
       theme={THEME_NAME}
       saveViewState={false}
@@ -104,6 +106,7 @@ export function ReadOnlyView({
         fontFamily: fontMono,
         fontSize: settings.editorFontSize,
         ...editorIndentationOptions(settings.editorTabSize),
+        wordWrap: settings.editorWordWrap ? 'on' : 'off',
         minimap: { enabled: false },
         fixedOverflowWidgets: true,
         scrollBeyondLastLine: false,
@@ -172,7 +175,7 @@ function ModifiedContent({
   indexBase?: boolean;
   focused?: boolean;
 }) {
-  const settings = useClientSettings();
+  const settings = useFileEditorSettings();
   const restoreView = useDiffViewState([session, root, against, indexBase, path]);
   // NB: when the same file is also open as an editor tab, its useEditorBuffer
   // instance and this one BOTH persist a draft per keystroke. The writes are
@@ -240,7 +243,7 @@ function ModifiedContent({
       modifiedModelPath={buffer.model.uri.toString()}
       originalModelPath={viewerUri('puddle-base', session, `${against}:${root ?? ''}`, basePath)}
       original={base.data.content ?? ''}
-      language={buffer.model.getLanguageId()}
+      language={settings.editorLanguage ?? languageForPath(path)}
       theme={THEME_NAME}
       keepCurrentModifiedModel
       loading={<Note>…</Note>}
@@ -286,7 +289,7 @@ function StagedContent({
   entry: DiffEntry;
   root?: string;
 }) {
-  const settings = useClientSettings();
+  const settings = useFileEditorSettings();
   const restoreView = useDiffViewState([session, root, against, 'staged', entry.path]);
   const basePath = entry.old_path ?? entry.path;
   const base = useFileAt(session, against, basePath, {
@@ -330,6 +333,7 @@ function StagedContent({
       modifiedModelPath={viewerUri('puddle-index', session, `${against}:${root ?? ''}`, entry.path)}
       original={base.data.content ?? ''}
       modified={indexed.data.content ?? ''}
+      language={settings.editorLanguage ?? languageForPath(entry.path)}
       onMount={restoreView}
       theme={THEME_NAME}
       loading={<Note>…</Note>}

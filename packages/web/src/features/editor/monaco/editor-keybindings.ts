@@ -2,6 +2,7 @@ import { clientSettings, updateClientSettings } from '../../../lib/settings/clie
 import { hotkeyBinding } from '../../../lib/navigation/hotkeys';
 import { nextWordWrap } from './editor-keybindings-logic';
 import { monaco } from './monaco-setup';
+import { fileSettingsStore } from '../settings/file-settings-store';
 
 /**
  * Translate one canonical hotkey binding (`shift+meta+KeyS`) into a Monaco
@@ -33,9 +34,8 @@ function toMonacoKeybinding(binding: string): number | null {
  *
  * - `editor.save` (default `⌘S`) — local fallback delegated to the buffer's
  *   save; the shell normally captures it first to honour logical pane focus.
- * - `editor.wordWrap` (default `⌥Z`) — flips the `editorWordWrap` client setting,
- *   which every open editor's `wordWrap` option is bound to, so the change
- *   applies live to all editors and persists (VSCode's view-toggle, made sticky).
+ * - `editor.wordWrap` (default `⌥Z`) — toggles the current file's override when
+ *   hosted in a file tab; other surfaces retain the client-wide toggle.
  *
  * Bindings are read at editor-mount, so a rebind applies to newly opened editors.
  * Monaco's stock bindings (multi-cursor, `⌘/` comment, find/replace) are left as
@@ -43,7 +43,7 @@ function toMonacoKeybinding(binding: string): number | null {
  */
 export function registerEditorKeybindings(
   editor: monaco.editor.IStandaloneCodeEditor,
-  opts: { onSave: () => void },
+  opts: { onSave: () => void; fileSettingsKey?: string },
 ): void {
   const save = toMonacoKeybinding(hotkeyBinding('editor.save'));
   if (save !== null) editor.addCommand(save, () => opts.onSave());
@@ -53,7 +53,14 @@ export function registerEditorKeybindings(
     id: 'puddle.toggleWordWrap',
     label: 'Toggle Word Wrap',
     keybindings: wrap !== null ? [wrap] : [],
-    run: () =>
-      updateClientSettings({ editorWordWrap: nextWordWrap(clientSettings().editorWordWrap) }),
+    run: () => {
+      if (opts.fileSettingsKey) {
+        const current =
+          fileSettingsStore.get(opts.fileSettingsKey).wordWrap ?? clientSettings().editorWordWrap;
+        fileSettingsStore.update(opts.fileSettingsKey, { wordWrap: nextWordWrap(current) });
+      } else {
+        updateClientSettings({ editorWordWrap: nextWordWrap(clientSettings().editorWordWrap) });
+      }
+    },
   });
 }

@@ -1,6 +1,7 @@
+import { languageForPath } from '../monaco/languages';
 import { useEffect, useId, useMemo, useRef } from 'react';
 import { DiffEditor } from '@monaco-editor/react';
-import { useClientSettings } from '../../../lib/settings/client-settings';
+import { useFileEditorSettings } from '../settings/file-editor-settings';
 import { monaco, THEME_NAME } from '../monaco/monaco-setup';
 import { editorIndentationOptions } from '../monaco/monaco-options';
 import type { ComparedDiskConflict } from './conflict-store';
@@ -42,7 +43,7 @@ export function ConflictView({
   onSave(): void;
   onReady?(revision: number): void;
 }) {
-  const settings = useClientSettings();
+  const settings = useFileEditorSettings();
   const restoreView = useDiffViewState(['conflict', model.uri.toString()]);
   const instanceId = useId();
   const fontMono = useMemo(
@@ -107,7 +108,7 @@ export function ConflictView({
             .map(encodeURIComponent)
             .join('/')}`}
           original={conflict.content}
-          language={model.getLanguageId()}
+          language={settings.editorLanguage ?? languageForPath(path)}
           theme={THEME_NAME}
           keepCurrentModifiedModel
           loading={<div className="p-3 text-xs text-fg-muted">…</div>}

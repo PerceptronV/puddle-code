@@ -1,8 +1,9 @@
+import { languageForPath } from '../monaco/languages';
 import { useEffect, useMemo, useRef } from 'react';
 import Editor from '@monaco-editor/react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { useClientSettings } from '../../../lib/settings/client-settings';
+import { useFileEditorSettings } from '../settings/file-editor-settings';
 import { debounce, type Debounced } from '../../../lib/debounce';
 import { useHotkeyLabel } from '../../../lib/navigation/hotkeys';
 import {
@@ -30,7 +31,7 @@ const PERSIST_DEBOUNCE_MS = 800;
  * keyed to worktree files, which a draft only becomes on save.
  */
 export function UntitledTabBody({ name }: { name: string }) {
-  const settings = useClientSettings();
+  const settings = useFileEditorSettings();
   const profileId = useCurrentProfileId();
   const restoreView = useCodeViewState([profileId, name]);
   const file = useUntitledFile(profileId, name);
@@ -86,6 +87,7 @@ export function UntitledTabBody({ name }: { name: string }) {
       <div className="min-h-0 flex-1">
         <Editor
           path={`puddle-untitled://${profileId}/${name}`}
+          language={settings.editorLanguage ?? languageForPath(name)}
           defaultValue={file.data.content}
           theme={THEME_NAME}
           keepCurrentModel={false}
@@ -95,7 +97,10 @@ export function UntitledTabBody({ name }: { name: string }) {
             restoreView(editor);
             editorRef.current = editor;
             publishUntitledContent(name, editor.getValue());
-            registerEditorKeybindings(editor, { onSave: saveAs });
+            registerEditorKeybindings(editor, {
+              onSave: saveAs,
+              fileSettingsKey: settings.fileSettingsKey,
+            });
           }}
           onChange={(value) => {
             const content = value ?? '';

@@ -5,7 +5,7 @@ import Editor from '@monaco-editor/react';
 import { monaco, THEME_NAME } from '../monaco/monaco-setup';
 import { editorIndentationOptions } from '../monaco/monaco-options';
 import { registerEditorKeybindings } from '../monaco/editor-keybindings';
-import { useClientSettings } from '../../../lib/settings/client-settings';
+import { useFileEditorSettings } from '../settings/file-editor-settings';
 
 /** Cell models survive viewport eviction; their owning cell disposes them on removal. */
 export function NotebookCellEditor({
@@ -31,7 +31,7 @@ export function NotebookCellEditor({
   onSave: () => void;
   match?: { start: number; end: number };
 }) {
-  const settings = useClientSettings();
+  const settings = useFileEditorSettings();
   const lineHeight = Math.round(settings.editorFontSize * 1.5);
   const notebook = useContext(NotebookRenderingContext);
   const [mounted, setMounted] = useState<monaco.editor.ITextModel | null>(null);
@@ -148,7 +148,10 @@ export function NotebookCellEditor({
             } else model.current = instance.getModel();
             editor.current = instance;
             setMounted(instance.getModel());
-            registerEditorKeybindings(instance, { onSave: () => callbacks.current.onSave() });
+            registerEditorKeybindings(instance, {
+              onSave: () => callbacks.current.onSave(),
+              fileSettingsKey: settings.fileSettingsKey,
+            });
             if (view.current) instance.restoreViewState(view.current);
             // Cell source expands vertically; never retain an internal vertical viewport.
             instance.setScrollTop(0);
