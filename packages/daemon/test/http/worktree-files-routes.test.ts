@@ -5,12 +5,13 @@ import {
   readFileSync,
   rmSync,
   symlinkSync,
+  statSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { basename, join } from 'node:path';
 import { Hono } from 'hono';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
 import * as yauzl from 'yauzl';
 import {
   fileResponseSchema,
@@ -28,6 +29,7 @@ let fx: Fixture;
 let sessionId: string;
 let worktree: string;
 let app: Hono;
+const fileChanged = vi.fn();
 
 beforeAll(async () => {
   fx = fixture();
@@ -48,7 +50,11 @@ beforeAll(async () => {
   );
   app.route(
     '/api/worktrees',
-    worktreeRoutes({ sessions: fx.stores.sessions, repos: fx.stores.repos }),
+    worktreeRoutes({
+      sessions: fx.stores.sessions,
+      repos: fx.stores.repos,
+      compilation: { fileChanged },
+    }),
   );
 });
 
@@ -59,6 +65,30 @@ afterAll(async () => {
 function errorCode(body: unknown): string {
   return (body as { error: { code: string } }).error.code;
 }
+
+it('notifies eager compilation after each accepted save, including rooted files, but never after a stale save', async () => {
+  const path = 'eager-save.tex';
+  writeFileSync(join(worktree, path), 'initial');
+  const initial = statSync(join(worktree, path)).mtimeMs;
+  fileChanged.mockClear();
+  const save = await putFile(sessionId, path, { content: 'saved', expected_mtime_ms: initial });
+  expect(save.status).toBe(200);
+  expect(fileChanged).toHaveBeenCalledExactlyOnceWith(join(worktree, path));
+  const stale = await putFile(sessionId, path, { content: 'stale', expected_mtime_ms: -1 });
+  expect(stale.status).toBe(409);
+  expect(fileChanged).toHaveBeenCalledTimes(1);
+  const rooted = await app.request(
+    `/api/worktrees/00000000-0000-0000-0000-000000000000/file?root=${encodeURIComponent(worktree)}&path=${path}`,
+    {
+      method: 'PUT',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ content: 'rooted save' }),
+    },
+  );
+  expect(rooted.status).toBe(200);
+  expect(fileChanged).toHaveBeenCalledTimes(2);
+  expect(fileChanged).toHaveBeenLastCalledWith(join(worktree, path));
+});
 
 function tree(sid: string, path?: string) {
   const qs = path === undefined ? '' : `?path=${encodeURIComponent(path)}`;

@@ -465,8 +465,15 @@ function unquote(value: string): string {
 function sourceDependencies(root: string, source: string, reported: readonly string[]): string[] {
   const dependencies = new Set<string>([source]);
   const managedRoot = join(root, '.puddle', 'latex');
+  const canonicalRoot = safeRealpath(root);
   for (const input of reported) {
-    const path = normalize(isAbsolute(input) ? input : resolve(dirname(source), input));
+    let path = normalize(isAbsolute(input) ? input : resolve(dirname(source), input));
+    // TeX can report canonical paths even when the selected root is a symlink
+    // (including macOS /tmp). Map those back into the selected source tree.
+    const canonicalRel = relative(canonicalRoot, path);
+    if (canonicalRel !== '' && !canonicalRel.startsWith('..') && !isAbsolute(canonicalRel)) {
+      path = join(root, canonicalRel);
+    }
     const rel = relative(root, path);
     const managedRel = relative(managedRoot, path);
     const inManagedOutput =

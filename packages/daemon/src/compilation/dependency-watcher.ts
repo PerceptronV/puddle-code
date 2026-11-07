@@ -13,11 +13,18 @@ export class DependencyWatcher {
     private readonly onChange: () => void,
   ) {}
 
-  async replace(dependencies: readonly string[]): Promise<boolean> {
+  async replace(
+    dependencies: readonly string[],
+    sources: readonly string[] = [],
+  ): Promise<boolean> {
     const generation = ++this.generation;
     const previous = this.subscription;
     // Subscribe before releasing retained paths so baselines/watchers survive builds.
-    this.subscription = this.observer.subscribe(dependencies, () => this.schedule(generation));
+    this.subscription = this.observer.subscribe(
+      [...new Set([...sources, ...dependencies])],
+      () => this.schedule(generation),
+      sources,
+    );
     previous?.close();
     // A change arriving just before build completion must survive replacement.
     if (this.debounceTimer) this.schedule(generation);

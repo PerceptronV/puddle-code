@@ -118,6 +118,45 @@ it('detects silent VM/network changes, deletion and recreation without watch eve
   expect(changed).toHaveBeenCalledTimes(3);
 });
 
+it('checks entry points quickly even when an installed watcher silently misses external writes', async () => {
+  const shared = observer();
+  const changed = vi.fn();
+  const target = new DependencyWatcher(shared, changed);
+  await target.replace(['/project/dependency'], ['/project/source']);
+  values.set('/project/source', 2);
+  await vi.advanceTimersByTimeAsync(1800);
+  expect(changed).toHaveBeenCalledTimes(1);
+  expect(fs.stat.mock.calls.filter(([path]) => path === '/project/dependency')).toHaveLength(1);
+  // A provider omitting the entry point from its result cannot retire it.
+  await target.replace(['/project/dependency'], ['/project/source']);
+  values.set('/project/source', 3);
+  await vi.advanceTimersByTimeAsync(1800);
+  expect(changed).toHaveBeenCalledTimes(2);
+  target.close();
+});
+
+it('notifies explicit saves even without watch events or a distinguishable timestamp, without duplicate builds', async () => {
+  const shared = observer();
+  const changed = vi.fn();
+  const target = new DependencyWatcher(shared, changed);
+  await target.replace(['/project/source']);
+  shared.invalidate('/unrelated/source');
+  shared.invalidate('/project/source');
+  watched.get('/project')!.listener('change', 'source');
+  shared.invalidate('/project/source');
+  await vi.advanceTimersByTimeAsync(400);
+  expect(changed).toHaveBeenCalledTimes(1);
+  await vi.advanceTimersByTimeAsync(10_000);
+  expect(changed).toHaveBeenCalledTimes(1);
+  shared.invalidate('/project/source');
+  await vi.advanceTimersByTimeAsync(400);
+  expect(changed).toHaveBeenCalledTimes(2);
+  target.close();
+  shared.invalidate('/project/source');
+  await vi.advanceTimersByTimeAsync(400);
+  expect(changed).toHaveBeenCalledTimes(2);
+});
+
 it('uses a faster bounded fallback on unavailable watches and recovers after directory recreation', async () => {
   const shared = observer();
   const changed = vi.fn();

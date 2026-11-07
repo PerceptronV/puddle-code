@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { realpath } from 'node:fs/promises';
 import {
   compilationFailureDetailsSchema,
   type CompilationFailure,
@@ -46,6 +47,7 @@ interface TargetState {
   source: CompilationFileTarget;
   status: CompilationStatusResponse;
   watcher: DependencyWatcher;
+  inputs: string[];
   running: Promise<CompilationRunResponse> | null;
   dirty: boolean;
   lastTouched: number;
@@ -113,10 +115,14 @@ export class CompilationService {
         `${state.provider.displayName} does not support eager compilation`,
       );
     }
+    // Re-observing a live target must not discard discovered dependencies or
+    // start an extra build. A new/expired target still gets an initial build.
+    if (state.status.mode === 'eager') return state.status;
+    state.inputs = state.provider.watchInputs(state.source);
     state.status = { ...state.status, mode: 'eager' };
     // Install the provider's entry-point watchers before compiling: a broken
     // first build must remain live and retry when an editor or agent fixes it.
-    const current = await state.watcher.replace(state.provider.watchInputs(state.source));
+    const current = await state.watcher.replace([], state.inputs);
     if (!current || this.disposed || state.status.mode !== 'eager') return state.status;
     // Registration includes an initial build, so restoring an eager tab never
     // waits for another filesystem event before it has a preview.
@@ -229,6 +235,18 @@ export class CompilationService {
     return state.status;
   }
 
+  /** Notify all eager sources which use this file, regardless of the saving tab. */
+  fileChanged(path: string): void {
+    this.dependencies.invalidate(path);
+    // Compiler dependency reports can use canonical paths while a browse root
+    // (notably /tmp on macOS) uses an alias for that same file.
+    void realpath(path)
+      .then((canonical) => {
+        if (canonical !== path) this.dependencies.invalidate(canonical);
+      })
+      .catch(() => undefined);
+  }
+
   subscribe(listener: (event: CompilationEvent) => void): () => void {
     this.listeners.add(listener);
     return () => this.listeners.delete(listener);
@@ -297,7 +315,7 @@ export class CompilationService {
     if (existing) return existing;
     const watcher = new DependencyWatcher(this.dependencies, () => {
       const current = this.targets.get(key);
-      if (!current) return;
+      if (!current || current.status.mode !== 'eager') return;
       if (this.paused) {
         current.dirty = true;
         return;
@@ -318,6 +336,7 @@ export class CompilationService {
         error: null,
       },
       watcher,
+      inputs: [],
       running: null,
       dirty: false,
       lastTouched: Date.now(),
@@ -388,7 +407,9 @@ export class CompilationService {
             result,
             error: null,
           };
-          if (state.status.mode === 'eager') await state.watcher.replace(product.dependencies);
+          if (state.status.mode === 'eager') {
+            await state.watcher.replace(product.dependencies, state.inputs);
+          }
           this.emit({ type: 'completed', key: state.key, status: state.status });
           return result;
         })

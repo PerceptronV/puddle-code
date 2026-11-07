@@ -2027,14 +2027,29 @@ Cancellation affects observation only and never submits/replays execution.
   Dependency observation is shared across eager targets by exact path and parent
   directory, with reference-counted subscriptions and at most eight asynchronous
   stats in flight. Initial baselines complete before the initial build; unchanged
-  dependencies retain their baseline across builds. Healthy directory watches
-  trigger the existing 350 ms debounce, with ten-second signature verification
-  for missed events/VM mounts. Unavailable or failed watches retain a 500 ms
+  dependencies retain their baseline across builds. Entry points remain watched
+  even when a compiler’s dependency report omits them. Successful file PUTs
+  directly invalidate eager sources using the saved file, including rooted saves
+  and canonical-path aliases, without relying on OS events. Healthy directory
+  watches trigger the existing 350 ms debounce; entry points also receive
+  one-second signature verification, while other discovered dependencies retain
+  ten-second verification for missed events/VM mounts. Unavailable or failed
+  watches retain a 500 ms
   fallback scheduler, retry attachment every five seconds, and healthy handles
   renew every minute to recover removed directory inodes. Target generations
   discard late observations. Targets without client status/mode/run activity
   expire after fifteen minutes, checked each minute; filesystem changes do not
   extend their lifetime. Active builds and maintenance holds are not evicted.
+  Mounted eager views retain a one-minute hidden-tab status heartbeat; visible
+  status polling slows with the shared unfocused-window cadence. After suspension
+  or daemon replacement, an observed return to idle revision zero re-registers
+  eager mode and resets delivered result revisions. Pane moves and presentation
+  callback changes do not revoke observation. Re-registering a live eager target
+  retains its dependencies and does not launch another initial build.
+
+  LaTeX dependency paths reported through a canonical root are mapped back to
+  the selected source tree, preserving observation through symlinked browse roots
+  while excluding managed build outputs.
 
   A compilable source chip has minimal hover controls beside close: the play triangle performs one on-demand build; when the provider supports it, the lightning mark toggles eager observation, and the active mode is accent-coloured. Clicking either first activates the source so its dirty buffer can be saved. The selected source and every mounted dirty input buffer advertised by that provider in the same rooted file tree are saved before compilation; a conflict or failed save cancels the build. `compile_mode` persists in the ordinary editor-tab snapshot (absent means on-demand) and duplicate source tabs in the live layout are rewritten together. An eager tab registers with the daemon after restore/reconnect, receives one initial build, then compiles settled on-disk changes from Puddle, agents, formatters, or other local processes. Parent-directory `fs.watch` catches direct and atomic-replacement writes, asynchronous stat signatures provide a portable Linux/macOS/WSL safety net, 350 ms debounce coalesces bursts, and a change during a build produces exactly one follow-up run. Switching to on-demand or closing the last eager source view retires its watcher; daemon shutdown closes every watcher and compiler process. Modes are not Markdown/HTML preview modes and never enter linked/locked scroll following.
 

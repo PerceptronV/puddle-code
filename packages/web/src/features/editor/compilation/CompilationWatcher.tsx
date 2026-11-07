@@ -1,3 +1,4 @@
+import { useQueryClient } from '@tanstack/react-query';
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type {
   CompilationFailure,
@@ -31,6 +32,11 @@ export function CompilationWatcher({
   onRunningChange: (sourceKey: string, running: boolean) => void;
 }) {
   const [registered, setRegistered] = useState(false);
+  const qc = useQueryClient();
+  const presentation = useRef({ leafId, onResult, onError, onRunningChange });
+  presentation.current = { leafId, onResult, onError, onRunningChange };
+  const register = useRef<(() => void) | null>(null);
+  const observedEager = useRef(false);
   const deliveredRevision = useRef(-1);
   const deliveredErrorRevision = useRef(-1);
   const stableTarget = useMemo(
@@ -56,39 +62,73 @@ export function CompilationWatcher({
 
   useEffect(() => {
     let cancelled = false;
-    setRegistered(false);
-    onRunningChange(sourceKey, true);
-    void setCompilationMode({ ...stableTarget, mode: 'eager' })
-      .then((snapshot) => {
+    let registering = false;
+    const queryKey = ['compilation-status', stableTarget];
+    const ensureRegistered = () => {
+      if (cancelled || registering) return;
+      registering = true;
+      setRegistered(false);
+      observedEager.current = false;
+      deliveredRevision.current = -1;
+      deliveredErrorRevision.current = -1;
+      presentation.current.onRunningChange(sourceKey, true);
+      // Retire an old status fetch before registration: an idle cached reply
+      // must not overwrite the newly registered target and trigger a loop.
+      void qc.cancelQueries({ queryKey, exact: true }).then(async () => {
         if (cancelled) return;
-        onRunningChange(sourceKey, snapshot.state === 'running');
-        setRegistered(true);
-        if (snapshot.result && snapshot.result.revision > deliveredRevision.current) {
-          deliveredRevision.current = snapshot.result.revision;
-          onResult(sourceKey, leafId, snapshot.result);
-        }
-      })
-      .catch((error: unknown) => {
-        if (!cancelled) {
-          onRunningChange(sourceKey, false);
-          // A provider may have installed its source watcher before the first
-          // build failed. Keep polling so fixing the file on disk can deliver
-          // the later successful eager revision without toggling the mode.
-          setRegistered(true);
-          onError(sourceKey, failureFrom(error));
+        try {
+          const snapshot = await setCompilationMode({ ...stableTarget, mode: 'eager' });
+          if (cancelled) return;
+          qc.setQueryData(queryKey, snapshot);
+          observedEager.current = snapshot.mode === 'eager';
+          presentation.current.onRunningChange(sourceKey, snapshot.state === 'running');
+          if (snapshot.result && snapshot.result.revision > deliveredRevision.current) {
+            deliveredRevision.current = snapshot.result.revision;
+            const current = presentation.current;
+            current.onResult(sourceKey, current.leafId, snapshot.result);
+          }
+        } catch (error: unknown) {
+          if (cancelled) return;
+          presentation.current.onRunningChange(sourceKey, false);
+          // An initial failed build still has active input watchers. Observe
+          // fresh status instead of using a cached idle snapshot to retry it.
+          qc.removeQueries({ queryKey, exact: true });
+          presentation.current.onError(sourceKey, failureFrom(error));
+        } finally {
+          registering = false;
+          if (!cancelled) setRegistered(true);
         }
       });
+    };
+    register.current = ensureRegistered;
+    ensureRegistered();
     return () => {
       cancelled = true;
-      onRunningChange(sourceKey, false);
+      register.current = null;
+      presentation.current.onRunningChange(sourceKey, false);
       void setCompilationMode({ ...stableTarget, mode: 'on_demand' }).catch(() => undefined);
     };
-  }, [stableTarget, sourceKey, leafId, onResult, onError, onRunningChange]);
+    // Moving the source to another pane or changing presentation callbacks
+    // does not revoke its daemon watcher.
+  }, [stableTarget, sourceKey, qc]);
 
   const status = useCompilationStatus(stableTarget, registered);
   const snapshot = status.data;
   useEffect(() => {
-    if (!snapshot) return;
+    if (!registered || !snapshot) return;
+    // The daemon expires unseen targets while this window is backgrounded;
+    // replacement daemons also start at revision zero. Restore the persisted
+    // eager choice, including its initial build and a fresh result counter.
+    if (snapshot.mode === 'eager') observedEager.current = true;
+    if (
+      observedEager.current &&
+      snapshot.mode === 'on_demand' &&
+      snapshot.state === 'idle' &&
+      snapshot.revision === 0
+    ) {
+      register.current?.();
+      return;
+    }
     onRunningChange(sourceKey, snapshot.state === 'running');
     if (snapshot.result && snapshot.result.revision > deliveredRevision.current) {
       deliveredRevision.current = snapshot.result.revision;
@@ -102,7 +142,7 @@ export function CompilationWatcher({
       deliveredErrorRevision.current = snapshot.revision;
       onError(sourceKey, snapshot.error);
     }
-  }, [snapshot, sourceKey, leafId, onResult, onError, onRunningChange]);
+  }, [registered, snapshot, sourceKey, leafId, onResult, onError, onRunningChange]);
 
   return null;
 }

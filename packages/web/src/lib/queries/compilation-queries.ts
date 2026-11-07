@@ -14,6 +14,9 @@ import type {
   UpdateCompilationSettingsRequest,
 } from '@puddle/shared';
 import { api } from '../transport/api';
+import { focusAwareInterval } from './poll-focus';
+
+const visibleCompilationInterval = focusAwareInterval(750);
 
 /** Providers available on the machine running puddled (which may be an SSH host). */
 export function useCompilationCapabilities(enabled: boolean) {
@@ -50,8 +53,14 @@ export function useCompilationStatus(request: CompilationTargetRequest, enabled:
     queryKey: ['compilation-status', request],
     queryFn: () => compilationStatus(request),
     enabled,
-    refetchInterval: 750,
-    refetchIntervalInBackground: false,
+    // Keep an open eager source alive while the user works in another app/tab.
+    // Suspended browsers can still miss this heartbeat; the watcher restores
+    // an expired target from fresh status when the browser resumes.
+    refetchInterval: () =>
+      typeof document !== 'undefined' && document.visibilityState === 'hidden'
+        ? 60_000
+        : visibleCompilationInterval(),
+    refetchIntervalInBackground: true,
     retry: 2,
   });
 }

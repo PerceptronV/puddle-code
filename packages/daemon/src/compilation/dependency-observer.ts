@@ -4,6 +4,7 @@ import { basename, dirname } from 'node:path';
 
 const CONCURRENCY = 8;
 const VERIFY_MS = 10_000;
+const SOURCE_VERIFY_MS = 1000;
 const FALLBACK_MS = 500;
 const WATCH_RETRY_MS = 5000;
 const WATCH_RENEW_MS = 60_000;
@@ -12,6 +13,7 @@ interface FileObservation {
   path: string;
   directory: DirectoryObservation;
   listeners: Set<Listener>;
+  sourceListeners: Set<Listener>;
   value?: string;
   due: number;
   reading: boolean;
@@ -40,10 +42,12 @@ export class DependencyObserver {
   subscribe(
     paths: readonly string[],
     changed: Listener,
+    sources: readonly string[] = [],
   ): { ready: Promise<void>; close: () => void } {
     if (this.disposed) return { ready: Promise.resolve(), close: () => undefined };
     // Each registration has its own identity even when the caller reuses a callback.
     const listener = () => changed();
+    const sourcePaths = new Set(sources);
     const retained = new Set<FileObservation>();
     for (const path of paths) {
       let file = this.files.get(path);
@@ -67,6 +71,7 @@ export class DependencyObserver {
           path,
           directory,
           listeners: new Set(),
+          sourceListeners: new Set(),
           due: 0,
           reading: false,
           again: false,
@@ -79,6 +84,10 @@ export class DependencyObserver {
         this.enqueue(file);
       }
       file.listeners.add(listener);
+      if (sourcePaths.has(path)) {
+        file.sourceListeners.add(listener);
+        file.due = Math.min(file.due, Date.now() + SOURCE_VERIFY_MS);
+      }
       retained.add(file);
     }
     if (this.files.size && !this.timer) {
@@ -90,6 +99,7 @@ export class DependencyObserver {
       close: () => {
         for (const file of retained) {
           file.listeners.delete(listener);
+          file.sourceListeners.delete(listener);
           if (file.listeners.size || this.files.get(file.path) !== file) continue;
           this.files.delete(file.path);
           this.queued.delete(file);
@@ -108,6 +118,15 @@ export class DependencyObserver {
         }
       },
     };
+  }
+
+  /** A successful daemon write must not depend on delivery of an OS watch event. */
+  invalidate(path: string): void {
+    const file = this.files.get(path);
+    if (!file || this.disposed) return;
+    file.eventNotified = true;
+    for (const listener of file.listeners) listener();
+    this.enqueue(file);
   }
 
   dispose(): void {
@@ -132,9 +151,7 @@ export class DependencyObserver {
           if (filename !== null && filename.toString() !== basename(file.path)) continue;
           // Watch events are authoritative invalidations even when coarse
           // timestamps cannot distinguish two writes. Stats update the baseline.
-          file.eventNotified = true;
-          for (const listener of file.listeners) listener();
-          this.enqueue(file);
+          this.invalidate(file.path);
         }
       });
       directory.watcher = watcher;
@@ -196,7 +213,13 @@ export class DependencyObserver {
     if (this.files.get(file.path) !== file || this.disposed) return;
     const changed = file.value !== undefined && file.value !== value;
     file.value = value;
-    file.due = Date.now() + (file.directory.watcher ? VERIFY_MS : FALLBACK_MS);
+    file.due =
+      Date.now() +
+      (file.directory.watcher
+        ? file.sourceListeners.size
+          ? SOURCE_VERIFY_MS
+          : VERIFY_MS
+        : FALLBACK_MS);
     if (changed && !file.eventNotified) for (const listener of file.listeners) listener();
     file.eventNotified = false;
   }

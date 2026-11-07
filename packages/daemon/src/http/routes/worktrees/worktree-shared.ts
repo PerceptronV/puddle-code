@@ -5,6 +5,7 @@ import type { Session } from '@puddle/shared';
 import type { RepoStore } from '../../../db/stores/repos.js';
 import type { SessionStore } from '../../../db/stores/sessions.js';
 import type { WorktreeManager } from '../../../worktrees/manager.js';
+import type { CompilationService } from '../../../compilation/service.js';
 import { ApiError } from '../../errors.js';
 import { expandTilde } from '../../tilde.js';
 
@@ -42,6 +43,7 @@ export interface WorktreeDeps {
   repos: RepoStore;
   /** Present in the full daemon; narrow route tests may use the service fallback. */
   worktrees?: Pick<WorktreeManager, 'runGitMutation'>;
+  compilation?: Pick<CompilationService, 'fileChanged'>;
 }
 
 /** Validate a client-supplied absolute directory (`?root=`), tilde expanded. */

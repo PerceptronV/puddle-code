@@ -6,6 +6,7 @@ import {
   readFileSync,
   realpathSync,
   readdirSync,
+  symlinkSync,
   writeFileSync,
 } from 'node:fs';
 import { tmpdir } from 'node:os';
@@ -114,6 +115,38 @@ describe('LaTeX diagnostics', () => {
 });
 
 describe('LatexProvider', () => {
+  it('retains canonical dependency reports through a symlinked browse root without watching build outputs', async () => {
+    const directory = mkdtempSync(join(tmpdir(), 'puddle-tex-alias-'));
+    const realRoot = join(realpathSync(directory), 'project');
+    const alias = join(directory, 'alias');
+    mkdirSync(realRoot);
+    symlinkSync(realRoot, alias, 'dir');
+    writeFileSync(join(realRoot, 'paper.tex'), '\\documentclass{article}\n');
+    writeFileSync(join(realRoot, 'chapter.tex'), 'chapter');
+    const provider = new LatexProvider({
+      ...emptyStores,
+      discover: () => ({ paths: { latexmk: '/fake/latexmk' }, searchPath: '/fake' }),
+      runner: async (command) => {
+        const output = command.args.find((arg) => arg.startsWith('-outdir='))!.slice(8);
+        writeFileSync(join(output, 'paper.pdf'), '%PDF-fake');
+        writeFileSync(join(output, 'generated.sty'), 'build output');
+        writeFileSync(
+          join(output, 'paper.fls'),
+          [
+            `INPUT ${join(realRoot, 'paper.tex')}`,
+            `INPUT ${join(realRoot, 'chapter.tex')}`,
+            `INPUT ${realpathSync(join(output, 'generated.sty'))}`,
+          ].join('\n'),
+        );
+        return { exitCode: 0, stdout: '', stderr: '' };
+      },
+    });
+    const built = await provider.run({ session: NO_SESSION, root: alias, path: 'paper.tex' });
+    expect(built.dependencies.sort()).toEqual(
+      [join(alias, 'paper.tex'), join(alias, 'chapter.tex')].sort(),
+    );
+  });
+
   it('describes and executes a managed custom command for a rooted source', async () => {
     const sourceRoot = mkdtempSync(join(tmpdir(), 'puddle-tex-custom-'));
     writeFileSync(join(sourceRoot, 'paper.tex'), '\\documentclass{article}\n');

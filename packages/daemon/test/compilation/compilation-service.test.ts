@@ -316,6 +316,47 @@ function emptyProvider(): CompilationProvider {
   };
 }
 
+it('retains entry points after incomplete dependency reports and keeps repeated eager registration idempotent', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'puddle-compile-entry-'));
+  const input = join(directory, 'input.demo');
+  const dependency = join(directory, 'included.demo');
+  writeFileSync(input, 'original');
+  writeFileSync(dependency, 'included');
+  const provider = emptyProvider();
+  provider.watchInputs = () => [input];
+  const contents: string[] = [];
+  provider.run = async (source) => {
+    contents.push(readFileSync(input, 'utf8'));
+    return { executor: 'examplec', source, artifacts: [], dependencies: [dependency] };
+  };
+  const service = new CompilationService([provider]);
+  const source = { session: '00000000-0000-0000-0000-000000000000', path: 'input.demo' };
+  try {
+    await service.setMode({ source, mode: 'eager' });
+    await service.setMode({ source, mode: 'eager' });
+    expect(contents).toEqual(['original']);
+    writeFileSync(input, 'external edit');
+    await waitFor(() => contents.length === 2);
+    expect(contents[1]).toBe('external edit');
+    await service.setMode({ source, mode: 'eager' });
+    // Re-registering must keep the discovered dependency too.
+    writeFileSync(dependency, 'changed included file');
+    await waitFor(() => contents.length === 3);
+    const replacement = join(directory, 'replacement');
+    writeFileSync(replacement, 'atomic edit');
+    renameSync(replacement, input);
+    await waitFor(() => contents.length === 4);
+    expect(contents[3]).toBe('atomic edit');
+    await service.setMode({ source, mode: 'on_demand' });
+    service.fileChanged(input);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(contents).toHaveLength(4);
+  } finally {
+    service.dispose();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 it('expires unobserved eager targets while retaining targets still read by a client', async () => {
   vi.useFakeTimers();
   const service = new CompilationService([emptyProvider()]);

@@ -110,6 +110,7 @@ export function worktreeFileRoutes(deps: WorktreeDeps): Hono {
         'utf8',
       );
       const st = statSync(target);
+      deps.compilation?.fileChanged(target);
       return c.json<PutFileResponse>({ path: rel, mtime_ms: st.mtimeMs, size: st.size });
     })
 

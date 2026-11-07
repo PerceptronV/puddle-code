@@ -17,6 +17,8 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
+- Keep eager compilation registered across pane moves and background tabs, and restore observation and PDF refresh after idle expiry or daemon replacement.
+
 - Keep single-tab action trays above file details and reachable from the top-right corner, including narrow LaTeX panes.
 
 - Keep the newest covered Ripple output visible at a high boundary by omitting older complete blocks first, preserving pinned prompts, fixed typography and original terminal click anchors. Restore omitted content when the reading area expands.
@@ -24,3 +26,9 @@ Past releases: see docs/changelogs/.
 
 - Keep Ripple scrolling in the underlying CLI, reserve two terminal rows for breathing room and keep its reading view top-aligned with fixed typography. Restore the full grid for CLI-only viewing; preserve anchored clicks and normal scrollback, and clip excess output without a second vertical scroller or changing styles.
 - Use primary text for non-ignored explorer names, including dotfiles, while retaining muted ignored files and Git status colours.
+
+### Daemon
+
+#### Fixed
+
+- Trigger eager compilation directly after successful saves, retain source watches across incomplete dependency reports, verify missed external source changes each second, and preserve LaTeX dependencies through symlinked roots.
