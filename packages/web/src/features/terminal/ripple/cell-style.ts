@@ -6,6 +6,9 @@ export interface RippleStyle {
   end: number;
   css: string;
   href?: string;
+  action?: number;
+  actionRole?: 'link' | 'button';
+  actionKind?: 'url' | 'file' | 'control';
 }
 const paletteKeys = [
   'black',
@@ -161,7 +164,9 @@ export function markRippleStyles(
             : undefined;
         replacements.set(
           open,
-          href ? `<a href="${href}" style="${css}">` : `<span style="${css}">`,
+          href
+            ? `<a href="${href}" style="${css}">`
+            : `<span${range.action !== undefined ? ` data-ripple-action="${range.action}" data-ripple-kind="${range.actionKind}" role="${range.actionRole}" tabindex="0"` : ''} style="${css}">`,
         );
         const close = `${prefix}${replacements.size}\uE001`;
         replacements.set(close, href ? '</a>' : '</span>');
@@ -170,11 +175,18 @@ export function markRippleStyles(
       return prompt ? line.trimEnd() : line;
     })
     .join('\n');
+  const raw = `${prefix}\\d+\uE001`;
+  const encoded = `${encodeURIComponent(prefix)}\\d+${encodeURIComponent('\uE001')}`;
+  const attributes = new RegExp(`${raw}|${encoded}`, 'gi');
   return {
     text: marked,
+    cleanLink: (href: string) => href.replace(attributes, ''),
     restore: (html: string) => {
-      for (const [marker, tag] of replacements) html = html.replaceAll(marker, tag);
-      return html;
+      // Markdown linkification URI-encodes private style markers inside hrefs.
+      // They are presentation only: never restore tags into an attribute or
+      // allow those bytes to become part of the destination.
+      html = html.replace(/<[^>]*>/g, (tag) => tag.replace(attributes, ''));
+      return html.replace(new RegExp(raw, 'g'), (marker) => replacements.get(marker) ?? marker);
     },
   };
 }

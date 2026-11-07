@@ -2,6 +2,7 @@ import type { IBufferCellPosition, IDisposable, ILink, Terminal as XTerm } from 
 import type { ResolvePathResponse } from '@puddle/shared';
 import { api } from '../../../lib/transport/api';
 import { findBufferPathCandidates } from './file-link-buffer';
+import type { PathCandidate } from './file-link-paths';
 export { findBufferPathCandidates } from './file-link-buffer';
 export { findPathCandidates, type PathCandidate } from './file-link-paths';
 
@@ -215,7 +216,7 @@ export function registerFileLinks(
   sessionId: string,
   onOpen: (target: FileLinkTarget) => void,
 ): IDisposable {
-  const cache = new ResolveCache({ fetcher: resolvePath });
+  const cache = createFileLinkCache();
 
   return xterm.registerLinkProvider({
     provideLinks(bufferLineNumber, callback) {
@@ -229,7 +230,7 @@ export function registerFileLinks(
 
       void Promise.all(
         candidates.map(async ({ candidate, start, end, text }): Promise<ILink | null> => {
-          const resolved = await cache.resolve(sessionId, candidate.path, candidate.line);
+          const resolved = await resolveFileLinkCandidate(cache, sessionId, candidate);
           if (!resolved) return null;
           return {
             // Buffer positions are 1-based and both ends are inclusive.
@@ -243,7 +244,7 @@ export function registerFileLinks(
               // SPEC §14 activation gesture is cmd/ctrl+click; a plain click
               // must keep the terminal's own text selection.
               if (!event.metaKey && !event.ctrlKey) return;
-              onOpen(fileLinkTarget(resolved, candidate.line, candidate.column));
+              onOpen(resolved);
             },
           };
         }),
@@ -253,4 +254,18 @@ export function registerFileLinks(
       });
     },
   });
+}
+
+/** Shared hover/click validation for native terminals and reading projections. */
+export function createFileLinkCache() {
+  return new ResolveCache({ fetcher: resolvePath });
+}
+
+export async function resolveFileLinkCandidate(
+  cache: ResolveCache,
+  sessionId: string,
+  candidate: PathCandidate,
+): Promise<FileLinkTarget | null> {
+  const resolved = await cache.resolve(sessionId, candidate.path, candidate.line);
+  return resolved ? fileLinkTarget(resolved, candidate.line, candidate.column) : null;
 }

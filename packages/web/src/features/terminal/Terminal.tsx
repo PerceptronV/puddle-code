@@ -236,6 +236,14 @@ function TerminalView({
   onExitRef.current = onExit;
   const onOpenFileRef = useRef(onOpenFile);
   onOpenFileRef.current = onOpenFile;
+  const openUri = useCallback(
+    (uri: string) => {
+      const sessionless = stream.startsWith('login-') || stream === HOME_STREAM;
+      const target = sessionless ? uri : rewriteTerminalUri(uri, stream, sshMode() !== null);
+      void openBrowserLink(target).catch(toastError);
+    },
+    [stream],
+  );
   // Also pause when the whole document is hidden: a backgrounded browser tab
   // otherwise keeps receiving and parsing every byte of PTY output.
   const visible = useDocumentVisible();
@@ -370,10 +378,6 @@ function TerminalView({
     // host-localhost URL is rewritten to the tier-2 proxy path so it works
     // from the client; login and home terminals have no session to proxy through.
     const sessionless = stream.startsWith('login-') || stream === HOME_STREAM;
-    const openUri = (uri: string) => {
-      const target = sessionless ? uri : rewriteTerminalUri(uri, stream, sshMode() !== null);
-      void openBrowserLink(target).catch(toastError);
-    };
 
     const xterm = new XTerm({
       // SearchAddon renders all-match decorations through xterm's proposed
@@ -647,7 +651,7 @@ function TerminalView({
     // on the same two, so listing it adds no churn.) `daemonAnswersColours`
     // settles before terminals normally mount and at worst recreates once,
     // early, against a pre-14.1 daemon.
-  }, [stream, term, refit, fontReady, daemonAnswersColours]);
+  }, [stream, term, refit, fontReady, daemonAnswersColours, openUri]);
 
   // The PTY attachment, gated on `attached`: paused/hidden terminals detach
   // (the daemon stops sending, nothing is parsed) and re-attach on return,
@@ -864,6 +868,8 @@ function TerminalView({
             terminal={richTerminal}
             stream={stream}
             active={!paused && visible}
+            onOpenUri={openUri}
+            onOpenFile={onOpenFile}
             agentType={
               sessions.data?.find((session) => session.id === stream)?.agent_type ?? undefined
             }

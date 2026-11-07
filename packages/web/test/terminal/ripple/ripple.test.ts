@@ -170,7 +170,7 @@ describe('Ripple formatting', () => {
   });
 
   it('shows Codex prompts as user turns without classifying other agents', () => {
-    const source = '› A long prompt\ncontinued here.\n\nA reply.';
+    const source = '› A long prompt\n  continued here.\n\nA reply.';
     expect(rippleHtml(source, false, false, { agentType: 'codex' })).toContain(
       '<div class="ripple-user-turn"><p>A long prompt\ncontinued here.</p>',
     );

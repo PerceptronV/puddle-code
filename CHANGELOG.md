@@ -8,3 +8,9 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Cockpit
+
+#### Fixed
+
+- Fix Ripple URLs polluted by style markers; reuse native wrapped URL/path detection, resolution and opening behavior, including Command/Ctrl-click file links. Relay Codex disclosure clicks to their current terminal cells and group indented multiline prompts, lists and paragraphs into one user bubble.

@@ -19,6 +19,7 @@ import { profileStore } from '../../src/features/profile/profile-store';
 import { applyTheme } from '../../src/lib/appearance/theme';
 import { initClientSettings } from '../../src/lib/settings/client-settings';
 import { setSessionRipple } from '../../src/features/terminal/ripple/preferences';
+import type { FileLinkTarget } from '../../src/features/terminal/links/file-links';
 
 const agent =
   ['codex', 'claude-code', 'gemini-cli', 'opencode'].find(
@@ -68,6 +69,8 @@ const alternateSample =
   ].join('\r\n') +
   '\x1b[8;3H\x1b[?2026l';
 const messages: WsClientMessage[] = [];
+const openedFiles: FileLinkTarget[] = [];
+const resolvedPaths: string[] = [];
 let socket: FixtureSocket;
 class FixtureSocket implements CockpitSocket {
   private events = new EventTarget();
@@ -112,10 +115,25 @@ class FixtureSocket implements CockpitSocket {
 
 installBrowserTransport({
   scope: 'ripple-preview',
-  request: (method, path) =>
-    new URL(path, location.href).pathname === '/api/sessions'
+  request: (method, path) => {
+    const url = new URL(path, location.href);
+    if (url.pathname.endsWith('/resolve')) {
+      const target = url.searchParams.get('path') ?? '';
+      resolvedPaths.push(target);
+      const found =
+        target === 'src/example.ts'
+          ? { kind: 'file', path: target }
+          : target === '/outside/notes.md'
+            ? { kind: 'file', path: 'notes.md', root: '/outside' }
+            : target === 'docs'
+              ? { kind: 'dir', path: '/workspace/docs', relative_path: 'docs' }
+              : null;
+      return Promise.resolve(found ? Response.json(found) : new Response('', { status: 404 }));
+    }
+    return url.pathname === '/api/sessions'
       ? Promise.resolve(Response.json([session, sessions[1]!]))
-      : previewRequest(method, path),
+      : previewRequest(method, path);
+  },
   socket: () => {
     socket = new FixtureSocket();
     return socket;
@@ -131,6 +149,8 @@ if (new URLSearchParams(location.search).has('ripple')) setSessionRipple(session
 Object.assign(window, {
   rippleFixture: {
     messages,
+    openedFiles,
+    resolvedPaths,
     alternateScreen: () =>
       socket.emit({ t: 'output', session: session.id, term: 'agent', data: alternateSample }),
     output: (data: string, replay = false) =>
@@ -168,7 +188,12 @@ function Fixture() {
         </div>
       )}
       <main className="island-outline min-h-0 flex-1 overflow-hidden rounded-[var(--ui-radius)] p-3">
-        <Terminal stream={shell ? sessions[1]!.id : session.id} paused={paused} parked={false} />
+        <Terminal
+          stream={shell ? sessions[1]!.id : session.id}
+          paused={paused}
+          parked={false}
+          onOpenFile={(target) => openedFiles.push(target)}
+        />
       </main>
     </div>
   );

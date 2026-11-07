@@ -123,7 +123,8 @@
   padding-left: 1rem;
   color: var(--text-secondary);
 }
-.ripple-prose a {
+.ripple-prose a,
+.ripple-prose [data-ripple-kind='url'] {
   color: var(--text-gold);
   text-decoration: underline;
   cursor: pointer;
@@ -176,4 +177,15 @@
 .ripple-boundary:focus-visible {
   color: var(--text-primary);
   background: var(--bg-elevated);
+}
+
+.ripple-prose [data-ripple-action][role='button'],
+.ripple-prose [data-valid-file='true'] {
+  cursor: pointer;
+}
+.ripple-prose [data-valid-file='true']:hover {
+  text-decoration: underline;
+}
+.ripple-prose [data-ripple-action][role='button']:hover {
+  opacity: 0.7;
 }

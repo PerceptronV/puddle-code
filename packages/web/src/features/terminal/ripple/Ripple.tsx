@@ -11,10 +11,13 @@ import type { Terminal } from '@xterm/xterm';
 import { ArrowDown, SquareTerminal, Waves } from 'lucide-react';
 import { Button } from '../../../components/ui/button';
 import { ControlTray } from '../../../components/ui/control-tray';
-import { openBrowserLink } from '../../ports/forward-link';
 import { toastError } from '../../../lib/transport/errors';
-import { sshMode } from '../../../lib/transport/ssh-mode';
-import { rewriteTerminalUri } from '../links/proxy-links';
+import {
+  createFileLinkCache,
+  resolveFileLinkCandidate,
+  type FileLinkTarget,
+} from '../links/file-links';
+import { relayRippleControl, type RippleAction } from './interactions';
 import { readRippleBuffer, type RippleSnapshot } from './buffer';
 import { rippleHtml } from './markdown';
 import { relayRippleWheel, rippleView } from './view';
@@ -33,12 +36,16 @@ export function Ripple({
   stream,
   active,
   agentType,
+  onOpenUri,
+  onOpenFile,
   onDisable,
 }: {
   terminal: Terminal;
   stream: string;
   active: boolean;
   agentType?: string;
+  onOpenUri(uri: string): void;
+  onOpenFile?: (target: FileLinkTarget) => void;
   onDisable(): void;
 }) {
   const [snapshot, setSnapshot] = useState<RippleSnapshot>(() =>
@@ -51,6 +58,7 @@ export function Ripple({
   const nativeRows = useRippleBoundary(stream);
   const [showNative, setShowNative] = useState(false);
   const followNative = useRef(false);
+  const fileCache = useMemo(() => createFileLinkCache(), [stream]);
   const scrollEdge = useRef<'start' | 'end' | null>(null);
   const updateView = useCallback(() => {
     const view = rippleView(terminal, agentType, nativeRows);
@@ -62,7 +70,14 @@ export function Ripple({
   const readSnapshot = useCallback(
     (view = updateView()) => {
       const palette = ripplePalette(terminal, agentType);
-      return readRippleBuffer(terminal.buffer.active, terminal.cols, view, palette.theme, palette);
+      return readRippleBuffer(
+        terminal.buffer.active,
+        terminal.cols,
+        view,
+        palette.theme,
+        palette,
+        agentType,
+      );
     },
     [terminal, agentType, updateView],
   );
@@ -100,6 +115,7 @@ export function Ripple({
         previous.alternate === next.alternate &&
         previous.foreground === next.foreground &&
         previous.background === next.background &&
+        JSON.stringify(previous.actions) === JSON.stringify(next.actions) &&
         JSON.stringify(previous.parts) === JSON.stringify(next.parts)
           ? previous
           : next,
@@ -199,6 +215,40 @@ export function Ripple({
     return () => observer.disconnect();
   }, [snapshot, active, showNative]);
 
+  const resolveFile = async (action: Extract<RippleAction, { kind: 'file' }>) => {
+    for (const candidate of action.candidates) {
+      const target = await resolveFileLinkCandidate(fileCache, stream, candidate);
+      if (target) return target;
+    }
+    return null;
+  };
+
+  const activate = (target: HTMLElement, modified: boolean, keyboard = false) => {
+    const element = target.closest<HTMLElement>('[data-ripple-action]');
+    const action = element && snapshot.actions?.[Number(element.dataset.rippleAction)];
+    if (action?.kind === 'url') onOpenUri(action.uri);
+    else if (action?.kind === 'file') {
+      if ((!modified && !keyboard) || !onOpenFile) return;
+      void resolveFile(action)
+        .then((resolved) => {
+          if (resolved) onOpenFile(resolved);
+        })
+        .catch(toastError);
+    } else if (action?.kind === 'control') {
+      if (!relayRippleControl(terminal, action)) {
+        // Unknown mouse modes and stale frames need the real screen, never a
+        // guessed shortcut or a click at a different current control.
+        setShowNative(true);
+        terminal.focus();
+      } else {
+        followNative.current = true;
+      }
+    } else {
+      const href = target.closest('a')?.getAttribute('href');
+      if (href && /^https?:\/\//i.test(href)) onOpenUri(href);
+    }
+  };
+
   return (
     <section
       className="ripple"
@@ -250,7 +300,17 @@ export function Ripple({
           if (event.buttons) scrollIntentUntil.current = Date.now() + 1000;
         }}
         onKeyDown={(event) => {
-          if ((event.target as HTMLElement).closest('a')) return;
+          const target = event.target as HTMLElement;
+          if (target.closest('a,[data-ripple-action]')) {
+            if (
+              event.key === 'Enter' ||
+              (event.key === ' ' && target.getAttribute('role') === 'button')
+            ) {
+              event.preventDefault();
+              activate(target, event.metaKey || event.ctrlKey, true);
+            }
+            return;
+          }
           const selection = window.getSelection();
           if (selection && !selection.isCollapsed) return;
           if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
@@ -294,14 +354,24 @@ export function Ripple({
           if (!wasFollowing && follow.current) setSnapshot(readSnapshot());
         }}
         onClick={(event) => {
-          const link = (event.target as HTMLElement).closest('a');
-          if (!link) return;
+          const target = event.target as HTMLElement;
+          if (!target.closest('a,[data-ripple-action]')) return;
           event.preventDefault();
-          const href = link.getAttribute('href');
-          if (href && /^https?:\/\//i.test(href))
-            void openBrowserLink(rewriteTerminalUri(href, stream, sshMode() !== null)).catch(
-              toastError,
-            );
+          if (!window.getSelection()?.isCollapsed) return;
+          activate(target, event.metaKey || event.ctrlKey);
+        }}
+        onMouseOver={(event) => {
+          const element = (event.target as HTMLElement).closest<HTMLElement>(
+            '[data-ripple-action]',
+          );
+          const action = element && snapshot.actions?.[Number(element.dataset.rippleAction)];
+          if (!element || action?.kind !== 'file' || !onOpenFile) return;
+          void resolveFile(action).then((resolved) => {
+            if (element.isConnected) {
+              element.dataset.validFile = String(!!resolved);
+              if (resolved) element.title = '⌘/Ctrl+click to open';
+            }
+          });
         }}
       >
         <div className="ripple-content">

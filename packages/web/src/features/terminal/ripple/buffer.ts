@@ -3,6 +3,7 @@ import { rippleCellStyle, type RippleStyle } from './cell-style';
 import { readRow } from '../links/link-buffer';
 import { terminalRichBlocks } from '../rich-output/rich-output-buffer';
 import type { RipplePalette } from './xterm-style';
+import { rippleActions, rippleActionStyles, type RippleAction } from './interactions';
 
 export const RIPPLE_MAX_ROWS = 600;
 // Match the shared rich-output detector's scan budget.
@@ -19,6 +20,7 @@ export interface RippleSnapshot {
   parts: RipplePart[];
   foreground?: string;
   background?: string;
+  actions?: RippleAction[];
 }
 
 /** A bounded projection of the current screen, never a second terminal parser or log. */
@@ -28,6 +30,7 @@ export function readRippleBuffer(
   view?: { first: number; last: number; firstCol?: number; lastCol?: number },
   theme: ITheme = {},
   palette?: RipplePalette,
+  agentType?: string,
 ): RippleSnapshot {
   const last = Math.min(buffer.length, view?.last ?? buffer.length);
   // Reserve the newest rows even when a single row is extremely wide.
@@ -47,7 +50,7 @@ export function readRippleBuffer(
   >();
   let size = 0;
   let offset = 0;
-  const styles: RippleStyle[] = [];
+  let styles: RippleStyle[] = [];
   for (let row = first; row < last; row++) {
     const mapped = readRow(buffer, row, cols, view);
     if (!mapped) break;
@@ -100,6 +103,26 @@ export function readRippleBuffer(
   }
   const joined = lines.join('\n');
   const text = joined.slice(0, Math.max(joined.trimEnd().length, styles.at(-1)?.end ?? 0));
+  const actions = rippleActions(
+    buffer,
+    cols,
+    first,
+    last,
+    (cell, end) => {
+      const row = rows.get(cell.row);
+      if (!row || row.concealed) return;
+      const index = end
+        ? row.cells.findLastIndex((item) => item.col <= cell.col)
+        : row.cells.findIndex((item) => item.col === cell.col);
+      if (index < 0 || index >= row.length) return;
+      const column = row.cells[index]!.col;
+      const width = buffer.getLine(cell.row)?.getCell(column)?.getWidth() ?? 1;
+      if (cell.col >= column + Math.max(1, width)) return;
+      return row.offset + index + (end ? 1 : 0);
+    },
+    agentType,
+  );
+  styles = rippleActionStyles(styles, actions);
   const parts: RipplePart[] = [];
   const addText = (from: number, to: number) => {
     const ranges = styles
@@ -143,6 +166,7 @@ export function readRippleBuffer(
     truncated: first > 0,
     alternate: buffer.type === 'alternate',
     parts,
+    ...(actions.length ? { actions } : {}),
     ...(palette && { foreground: theme.foreground, background: theme.background }),
   };
 }

@@ -43,7 +43,10 @@ function createMarkdownParser(terminal = false) {
   const parser = new MarkdownIt({
     breaks: false,
     html: !terminal,
-    linkify: true,
+    // Native terminal candidates own plain URLs (including quoting and wraps).
+    // Markdown links/autolinks still parse; private styling markers must never
+    // teach Markdown's auto-linkifier a different terminal URL boundary.
+    linkify: !terminal,
     typographer: false,
   });
 
@@ -168,7 +171,18 @@ export function markdownToHtml(text: string, docId?: string): string {
 }
 
 /** Terminal output cannot load assets or interpret raw HTML as application markup. */
-export function terminalMarkdownToHtml(text: string): string {
+export function terminalMarkdownToHtml(
+  text: string,
+  cleanLink: (href: string) => string = (href) => href,
+): string {
   terminalParser ??= createMarkdownParser(true);
-  return terminalParser.render(text, { mathMacros: {} } satisfies MarkdownEnvironment);
+  const normalize = terminalParser.normalizeLink;
+  // Rendering is synchronous. Restore the policy even if a plugin throws;
+  // editor previews and subsequent terminal renders never inherit markers.
+  terminalParser.normalizeLink = (href) => normalize(cleanLink(href));
+  try {
+    return terminalParser.render(text, { mathMacros: {} } satisfies MarkdownEnvironment);
+  } finally {
+    terminalParser.normalizeLink = normalize;
+  }
 }
