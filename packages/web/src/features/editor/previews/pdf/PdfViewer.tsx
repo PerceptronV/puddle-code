@@ -309,7 +309,7 @@ function PdfZoomControls({
     <ControlTray
       variant="overlay"
       label="PDF zoom"
-      className="absolute right-3 top-3 z-10 shadow-sm"
+      className="absolute right-1.5 top-1.5 z-10 shadow-sm"
     >
       <button
         type="button"

@@ -19,6 +19,8 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
+- Halve the PDF zoom overlay inset, keeping equal spacing from the top and right edges.
+
 - Suspend eager compilation while source-input save conflicts remain unresolved, including across reconnects, and resume after a checked editor resolution.
 
 - Keep eager compilation registered across pane moves and background tabs, and restore observation and PDF refresh after idle expiry or daemon replacement.
