@@ -10,6 +10,10 @@ Include the cockpit fixes from v0.4.12, whose release workflow failed before pub
 
 ### Cockpit
 
+#### Added
+
+- Add customisable ⌘0–⌘9 shortcuts for the first ten non-archived projects in profile order, with current bindings shown in the command palette; move desktop Reset Zoom to ⌥⌘0.
+
 #### Fixed
 
 - Use the lighter file-hover fill for accented form fields and inactive switches, preserving default controls and stronger island borders.

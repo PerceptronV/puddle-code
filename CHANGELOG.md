@@ -8,19 +8,3 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
-
-### Cockpit
-
-#### Added
-
-- Add customisable ⌘0–⌘9 shortcuts for the first ten non-archived projects in profile order, with current bindings shown in the command palette; move desktop Reset Zoom to ⌥⌘0.
-
-#### Fixed
-
-- Keep short Ripple conversations above a bottom-aligned native input without resizing the terminal. Preserve reader-originating Shift+Arrow keys, use native history shortcuts for Gemini and OpenCode, retain connected terminal diagrams, and exclude Gemini’s scrollbar and OpenCode’s sidebar from reading and shared Mermaid/LaTeX detection.
-
-- Extend Ripple prompt bubbles and native-input detection to Claude Code, Gemini CLI and OpenCode. Respect OpenCode’s painted conversation canvas and sidebar boundary, remove Gemini’s prompt backing edges, and keep following delayed CLI scroll responses.
-
-- Preserve Ripple overlines, underline styles/colours, painted spaces, bright ANSI text, live terminal palette changes and labelled HTTP(S) hyperlinks. Keep concealed text hidden and hyperlink keyboard activation in the reader.
-
-- Render Ripple over a full-size terminal with a draggable, row-anchored native-input boundary. Follow CLI scrolling, relay wheel input, reflow full-width prose, preserve ANSI styling, and show Codex prompts as user bubbles while retaining native controls and shared Markdown/Mermaid/LaTeX rendering.
