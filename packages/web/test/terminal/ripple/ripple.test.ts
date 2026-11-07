@@ -7,7 +7,6 @@ import {
   RIPPLE_MAX_ROWS,
 } from '../../../src/features/terminal/ripple/buffer';
 import { rippleHtml } from '../../../src/features/terminal/ripple/markdown';
-import { rippleOverrides } from '../../../src/features/terminal/ripple/preferences';
 import { DEFAULT_CLIENT_SETTINGS } from '../../../src/lib/settings/client-settings';
 
 describe('Ripple terminal projection', () => {
@@ -212,19 +211,6 @@ describe('Ripple formatting', () => {
   });
 });
 
-describe('Ripple preferences', () => {
-  it('defaults off and ignores corrupt or non-boolean overrides', () => {
-    expect(DEFAULT_CLIENT_SETTINGS.rippleEnabled).toBe(false);
-    for (const raw of ['broken', 'null', '[]', 'true']) expect(rippleOverrides(raw)).toEqual({});
-    expect(rippleOverrides('{"a":true,"b":false,"c":"true"}')).toEqual({ a: true, b: false });
-  });
-
-  it('bounds retained placement overrides', () => {
-    const raw = JSON.stringify(
-      Object.fromEntries(Array.from({ length: 300 }, (_, n) => [`session-${n}`, true])),
-    );
-    expect(Object.keys(rippleOverrides(raw))).toHaveLength(256);
-    expect(rippleOverrides(raw)['session-299']).toBe(true);
-    expect(rippleOverrides(raw)['session-0']).toBeUndefined();
-  });
+it('defaults to the full CLI with the divider at the top', () => {
+  expect(DEFAULT_CLIENT_SETTINGS.rippleEnabled).toBe(false);
 });

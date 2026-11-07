@@ -94,6 +94,23 @@ describe('Ripple links and source controls', () => {
       expect(reply).toContain('new code');
     },
   );
+  it('uses the themed prompt surface while retaining coloured and bold inline text', () => {
+    const source = '› [Image #1] Dark prompt';
+    const html = rippleHtml(source, false, false, {
+      agentType: 'codex',
+      styles: [
+        {
+          start: 0,
+          end: source.length,
+          css: 'color:#1234ef;background-color:#ffffff;font-weight:700',
+        },
+      ],
+    });
+    expect(html).toContain('<div class="ripple-user-turn">');
+    expect(html).not.toContain('background-color');
+    expect(html).toContain('color:#1234ef');
+    expect(html).toContain('font-weight:700');
+  });
   it('renders the first prompt bullet like subsequent bullets with source anchors and ANSI styles', () => {
     const source = '› - First point\n  - Second point';
     const html = rippleHtml(source, false, false, {

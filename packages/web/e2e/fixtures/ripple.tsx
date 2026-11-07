@@ -18,7 +18,8 @@ import { tokenStore } from '../../src/lib/transport/auth';
 import { profileStore } from '../../src/features/profile/profile-store';
 import { applyTheme } from '../../src/lib/appearance/theme';
 import { initClientSettings } from '../../src/lib/settings/client-settings';
-import { setSessionRipple } from '../../src/features/terminal/ripple/preferences';
+import { setRippleBoundary } from '../../src/features/terminal/ripple/preferences';
+import { updateClientSettings } from '../../src/lib/settings/client-settings';
 import type { FileLinkTarget } from '../../src/features/terminal/links/file-links';
 
 const agent =
@@ -141,8 +142,9 @@ installBrowserTransport({
 tokenStore.set('sample-only');
 profileStore.set(profile.id);
 initClientSettings();
-// An explicit demo URL enables only this sample session, never the global default.
-if (new URLSearchParams(location.search).has('ripple')) setSessionRipple(session.id, true);
+// The demo URL enables the reading view on this isolated preview origin.
+if (new URLSearchParams(location.search).has('ripple'))
+  updateClientSettings({ rippleEnabled: true });
 
 Object.assign(window, {
   rippleFixture: {
@@ -161,7 +163,10 @@ Object.assign(window, {
     output: (data: string, replay = false) =>
       socket.emit({ t: replay ? 'replay' : 'output', session: session.id, term: 'agent', data }),
     theme: applyTheme,
-    enable: (value: boolean | null) => setSessionRipple(session.id, value),
+    enable: (value: boolean | null) => {
+      setRippleBoundary(session.id, null);
+      if (value !== null) updateClientSettings({ rippleEnabled: value });
+    },
   },
 });
 
@@ -173,9 +178,7 @@ function Fixture() {
     <div className="flex h-screen flex-col gap-3 bg-ground p-4">
       <header className="flex items-center gap-3">
         <SessionContextMenu session={session}>
-          <button className="cursor-pointer text-sm">
-            Sample agent · right-click for renderer
-          </button>
+          <button className="cursor-pointer text-sm">Sample agent</button>
         </SessionContextMenu>
         <Button variant="ghost" size="sm" onClick={() => setSettingsOpen(!settingsOpen)}>
           Appearance

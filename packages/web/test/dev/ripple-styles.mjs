@@ -113,12 +113,40 @@ try {
     'alignment never resizes the PTY',
   );
   await page.evaluate(() => window.rippleFixture.enable(false));
-  assert.deepEqual(await screen.boundingBox(), original, 'CLI renderer restores native placement');
+  assert.deepEqual(await screen.boundingBox(), original, 'top boundary restores native placement');
   await page.evaluate(() => window.rippleFixture.enable(true));
-  await page.locator('.ripple').waitFor();
+  await page.locator('.ripple-scroll').waitFor();
   await page.waitForFunction(() => !!document.querySelector('.ripple-native').style.transform);
   await page.evaluate(() => window.rippleFixture.enable(false));
   assert.deepEqual(await screen.boundingBox(), original, 'disabling restores native placement');
+  // Reproduce Codex retaining a white prompt panel while its default text turns light.
+  await page.evaluate(() => {
+    window.rippleFixture.theme('light');
+    window.rippleFixture.output(
+      '\x1b[2J\x1b[H\x1b[48;2;255;255;255m' +
+        ' '.repeat(70) +
+        '\r\n› Theme-change prompt\r\n  - Keep this readable\r\n' +
+        ' '.repeat(70) +
+        '\r\n› \x1b[34m[Image #1] Dark prompt\x1b[39m\x1b[0m\r\n• Reply\r\n\r\n› Ask Codex to do anything\r\nFooter',
+    );
+    window.rippleFixture.enable(true);
+  });
+  await page.locator('.ripple-user-turn').filter({ hasText: 'Theme-change prompt' }).waitFor();
+  await page.evaluate(() => window.rippleFixture.theme('dark'));
+  await page.waitForFunction(
+    () =>
+      getComputedStyle(document.querySelector('.ripple-scroll')).backgroundColor !==
+      'rgb(255, 255, 255)',
+  );
+  await page.waitForFunction(
+    () => !document.querySelector('.ripple-user-turn')?.getAttribute('style')?.includes('#ffffff'),
+  );
+  assert.equal(
+    await page.locator('.ripple-prose [style*="background-color:#ffffff"]').count(),
+    0,
+    'no stale white prompt or padding',
+  );
+  await page.screenshot({ path: '/private/tmp/puddle-ripple-dark-prompt.png' });
   assert.deepEqual(errors, []);
   console.log(
     'Ripple real-xterm SGR, extended underlines, palette/reset, concealment, Unicode and OSC 8 checks pass.',

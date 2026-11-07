@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { resetRippleBoundaries } from '../../terminal/ripple/preferences';
 import {
   Select,
   SelectContent,
@@ -88,17 +89,6 @@ export function AppearanceSection() {
           onCommit={(editorFontSize) => updateClientSettings({ editorFontSize })}
         />
       </SettingRow>
-      <SettingRow
-        label="Ripple (experimental)"
-        description="Open agent sessions with a reading view and native CLI controls. Right-click a session to override this default."
-        htmlFor="ripple-enabled"
-      >
-        <Switch
-          id="ripple-enabled"
-          checked={settings.rippleEnabled === true}
-          onCheckedChange={(rippleEnabled) => updateClientSettings({ rippleEnabled })}
-        />
-      </SettingRow>
       <SettingRow label="Density">
         <Select
           value={settings.density}
@@ -135,6 +125,20 @@ export function AppearanceSection() {
           id="show-all-project-sessions"
           checked={settings.showAllProjectSessions}
           onCheckedChange={(checked) => updateClientSettings({ showAllProjectSessions: checked })}
+        />
+      </SettingRow>
+      <SettingRow
+        label="Ripple (experimental)"
+        description="Start the divider above agent inputs. When off, start with the full CLI. Drag the divider to adjust either view."
+        htmlFor="ripple-enabled"
+      >
+        <Switch
+          id="ripple-enabled"
+          checked={settings.rippleEnabled === true}
+          onCheckedChange={(rippleEnabled) => {
+            updateClientSettings({ rippleEnabled });
+            resetRippleBoundaries();
+          }}
         />
       </SettingRow>
       <SettingRow label="Reduced animation and motion" htmlFor="reduce-motion">

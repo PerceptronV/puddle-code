@@ -13,6 +13,11 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
+- Keep the live development preview running when a browser WebSocket disconnects with a broken pipe.
+
+- Keep Ripple’s divider available in every agent session, with dragging from full CLI to full reading view. Remove the Renderer menu and move Ripple’s appearance switch above reduced motion; switching it restores the corresponding starting position.
+- Use themed surfaces for Ripple prompt bubbles, retaining inline text colours and emphasis. Keep padding legible after theme changes when a CLI retains a stale neutral background, preserving explicit terminal colour pairs and coloured highlights outside prompts.
+
 - Replace inline LaTeX icon overlays with underlined, directly clickable preview/source text in Ripple and the native terminal, defaulting to preview and retaining keyboard access and source copying.
 - Remove Ripple’s heading, toolbar and floating latest-output button; mark its draggable native CLI boundary with a thin divider.
 

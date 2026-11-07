@@ -14,8 +14,6 @@ import {
   SquareTerminal,
   UserRoundCog,
   Info,
-  Waves,
-  Check,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { liveConversationTarget, toastError } from '../../../lib/transport/errors';
@@ -70,7 +68,6 @@ import { browserTransport } from '../../../lib/transport/browser-transport';
 import { RuntimeDialog } from './runtime/RuntimeDialog';
 import { useCurrentProfileId } from '../../profile/profile-store';
 import { sessionLifecycle } from './lifecycle';
-import { setSessionRipple, useSessionRipple } from '../../terminal/ripple/preferences';
 
 /**
  * The shared lifecycle-menu model for one session: which actions apply, the
@@ -452,7 +449,6 @@ export function useSessionMenu(
 function SessionMenuItems({ kit, menu }: { kit: MenuKit; menu: SessionMenu }) {
   const { Item, Separator, Sub, SubTrigger, SubContent } = kit;
   const { session } = menu;
-  const ripple = useSessionRipple(session.id);
   return (
     <>
       <Item onSelect={menu.openRename}>
@@ -477,29 +473,11 @@ function SessionMenuItems({ kit, menu }: { kit: MenuKit; menu: SessionMenu }) {
           <Archive /> Archive
         </Item>
       )}
-      {(menu.inspectRuntime || session.kind === 'agent' || !menu.archived) && <Separator />}
+      {(menu.inspectRuntime || !menu.archived) && <Separator />}
       {menu.inspectRuntime && (
         <Item onSelect={menu.inspectRuntime}>
           <Info /> Runtime
         </Item>
-      )}
-      {session.kind === 'agent' && (
-        <Sub>
-          <SubTrigger>
-            <Waves /> Renderer
-          </SubTrigger>
-          <SubContent>
-            <Item onSelect={() => setSessionRipple(session.id, null)}>
-              Use appearance default {ripple.override === null && <Check className="ml-auto" />}
-            </Item>
-            <Item onSelect={() => setSessionRipple(session.id, false)}>
-              CLI {ripple.override === false && <Check className="ml-auto" />}
-            </Item>
-            <Item onSelect={() => setSessionRipple(session.id, true)}>
-              Ripple (experimental) {ripple.override === true && <Check className="ml-auto" />}
-            </Item>
-          </SubContent>
-        </Sub>
       )}
       {!menu.archived && (
         <Item onSelect={menu.openClearEnv}>

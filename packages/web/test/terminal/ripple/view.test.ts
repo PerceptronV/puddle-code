@@ -107,8 +107,22 @@ describe('Ripple overlay boundary', () => {
   it('anchors manual placement by native rows across taller and shorter terminals', () => {
     expect(rippleView(screen(30), 'codex', 8).nativeRows).toBe(8);
     expect(rippleView(screen(40), 'codex', 8).nativeRows).toBe(8);
-    expect(rippleView(screen(10), 'codex', 8).nativeRows).toBe(7);
+    expect(rippleView(screen(10), 'codex', 8).nativeRows).toBe(8);
     expect(rippleView(screen(40), 'codex', 8).nativeRows).toBe(8);
+  });
+  it('reaches both ends and keeps full CLI anchored at the top across resize', () => {
+    for (const rows of [10, 30, 50]) {
+      const terminal = screen(rows);
+      const cli = rippleView(terminal, 'codex', 'cli');
+      expect(cli.nativeRows).toBe(rows);
+      expect(cli.last).toBe(cli.first);
+      expect(cli.nativeOffset).toBe(0);
+      const full = rippleView(terminal, 'codex', 0);
+      expect(full.nativeRows).toBe(0);
+      expect(full.bottom).toBe(0);
+      expect(full.last).toBe(rows);
+    }
+    expect(rippleBoundaries('{"a":"cli","b":0}')).toEqual({ a: 'cli', b: 0 });
   });
   it('reads the scrolled viewport rather than the end of normal scrollback', () => {
     const terminal = screen(50);
@@ -138,7 +152,7 @@ describe('Ripple overlay boundary', () => {
     expect(rippleView(terminal, 'gemini-cli', 8).nativeRows).toBe(8);
   });
   it('rejects invalid persisted boundaries and bounds the session map', () => {
-    expect(rippleBoundaries('{"a":5,"b":0,"c":1.2,"d":"3"}')).toEqual({ a: 5 });
+    expect(rippleBoundaries('{"a":5,"b":0,"c":1.2,"d":"3"}')).toEqual({ a: 5, b: 0 });
     expect(rippleBoundaries('invalid')).toEqual({});
     expect(
       rippleBoundaries(
@@ -179,6 +193,26 @@ describe('Ripple overlay boundary', () => {
   });
 });
 describe('Ripple terminal styles', () => {
+  it('drops stale neutral backing that hides the default text after a theme change', () => {
+    const cell = {
+      isBgRGB: () => true,
+      isBgPalette: () => false,
+      getBgColor: () => 0xffffff,
+    } as unknown as IBufferCell;
+    const dark = { foreground: '#e8eef9', background: '#001122' };
+    expect(rippleCellStyle(cell, dark)).not.toContain('background-color');
+    expect(rippleCellStyle(cell, { foreground: '#001122', background: '#eeeeee' })).toContain(
+      'background-color:#ffffff',
+    );
+    const explicit = {
+      ...cell,
+      isFgRGB: () => true,
+      isFgPalette: () => false,
+      getFgColor: () => 0x000000,
+    };
+    expect(rippleCellStyle(explicit, dark)).toContain('background-color:#ffffff');
+    expect(rippleCellStyle(explicit, dark)).toContain('color:#000000');
+  });
   it('retains palette/RGB foreground, background and emphasis without exposing invisible cells', () => {
     const cell = {
       isBold: () => 1,

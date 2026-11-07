@@ -17,11 +17,12 @@ try {
   const native = page.locator('.xterm');
   await native.waitFor();
   const nativeHandle = await native.elementHandle();
-  assert.equal(await page.locator('.ripple').count(), 0, 'Ripple defaults off');
+  await page.locator('.ripple-boundary').waitFor();
+  assert.equal(await page.locator('.ripple-scroll').count(), 0, 'full CLI is the default');
 
   await page.getByRole('button', { name: 'Appearance', exact: true }).click();
   await page.locator('#ripple-enabled').click();
-  await page.locator('.ripple').waitFor();
+  await page.locator('.ripple-scroll').waitFor();
   await page.getByRole('button', { name: 'Appearance', exact: true }).click();
   await page.locator('[data-ripple-rich="mermaid"] svg').waitFor();
   await page.locator('[data-ripple-rich="math"] .katex').waitFor();
@@ -153,32 +154,30 @@ try {
   );
 
   await page.evaluate(() => window.rippleFixture.enable(false));
-  await page.locator('.ripple').waitFor({ state: 'detached' });
+  await page.locator('.ripple-scroll').waitFor({ state: 'detached' });
   assert.ok(
     await nativeHandle.evaluate((element) => element === document.querySelector('.xterm')),
     'disabling keeps native terminal',
   );
-  await page
-    .getByRole('button', { name: 'Sample agent · right-click for renderer' })
-    .click({ button: 'right' });
+  await page.getByRole('button', { name: 'Sample agent' }).click({ button: 'right' });
   assert.deepEqual(
     (await page.getByRole('menuitem').allTextContents()).map((text) => text.trim()),
     [
       'Rename',
       'Kill',
       'Archive',
-      'Renderer',
       'Clear captured env',
       'Open terminal in worktree',
       'Open in VS Code',
       'Open in Cursor',
     ],
   );
-  await page.getByRole('menuitem', { name: 'Renderer', exact: true }).hover();
-  await page.getByRole('menuitem', { name: 'Use appearance default', exact: true }).click();
-  await page.locator('.ripple').waitFor();
+  assert.equal(await page.getByRole('menuitem', { name: 'Renderer', exact: true }).count(), 0);
+  await page.keyboard.press('Escape');
+  await page.evaluate(() => window.rippleFixture.enable(true));
+  await page.locator('.ripple-scroll').waitFor();
   await page.getByRole('button', { name: 'Switch shell', exact: true }).click();
-  await page.locator('.ripple').waitFor({ state: 'detached' });
+  await page.locator('.ripple-scroll').waitFor({ state: 'detached' });
   await page.getByRole('button', { name: 'Switch shell', exact: true }).click();
   await page.locator('[data-ripple-rich="mermaid"] svg').waitFor();
   await page.evaluate(() => window.rippleFixture.theme('dark'));
@@ -230,9 +229,9 @@ try {
         `${agent} native editing in ${alternate ? 'alternate' : 'normal'} mode`,
       );
       await page.evaluate(() => window.rippleFixture.enable(false));
-      await page.locator('.ripple').waitFor({ state: 'detached' });
-      await page.evaluate(() => window.rippleFixture.enable(null));
-      await page.locator('.ripple').waitFor();
+      await page.locator('.ripple-scroll').waitFor({ state: 'detached' });
+      await page.evaluate(() => window.rippleFixture.enable(true));
+      await page.locator('.ripple-scroll').waitFor();
       assert.equal(
         await page.evaluate(
           () => window.rippleFixture.messages.filter((message) => message.t === 'attach').length,
@@ -260,7 +259,7 @@ try {
   await page.locator('.ripple-prose').filter({ hasText: 'Delayed CLI scroll reply' }).waitFor();
   assert.deepEqual(errors, []);
   console.log(
-    'Ripple defaults, overrides, native keyboard/attachment, copy, selection, scroll, replay, alternate screen, rich output and themes pass.',
+    'Ripple default positioning, native keyboard/attachment, copy, selection, scroll, replay, alternate screen, rich output and themes pass.',
   );
 } finally {
   await browser.close();

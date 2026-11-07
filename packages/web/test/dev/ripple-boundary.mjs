@@ -89,6 +89,66 @@ try {
     12,
     'input anchor survives resize',
   );
+  // Both extremes remain reachable without resizing/replacing the native terminal.
+  const native = await page.locator('.xterm').elementHandle();
+  const attachCount = await page.evaluate(
+    () => window.rippleFixture.messages.filter((m) => m.t === 'attach').length,
+  );
+  const dragTo = async (edge) => {
+    const handle = await boundary.boundingBox();
+    const pane = await page.locator('.puddle-terminal').boundingBox();
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(
+      handle.x + handle.width / 2,
+      edge === 'top' ? pane.y + 1 : pane.y + pane.height - 1,
+      { steps: 12 },
+    );
+    await page.mouse.up();
+  };
+  await dragTo('top');
+  await page.locator('.ripple-scroll').waitFor({ state: 'detached' });
+  assert.equal(
+    await boundary.getAttribute('aria-valuenow'),
+    await boundary.getAttribute('aria-valuemax'),
+  );
+  await page.setViewportSize({ width: 1100, height: 950 });
+  await page.waitForTimeout(150);
+  assert.equal(
+    await boundary.getAttribute('aria-valuenow'),
+    await boundary.getAttribute('aria-valuemax'),
+  );
+  await dragTo('bottom');
+  await page.waitForFunction(
+    () => document.querySelector('.ripple-boundary')?.getAttribute('aria-valuenow') === '0',
+  );
+  assert.equal(
+    (await page.locator('.ripple').boundingBox()).height,
+    (await page.locator('.puddle-terminal').boundingBox()).height,
+  );
+  assert.ok(await native.evaluate((el) => el === document.querySelector('.xterm')));
+  assert.equal(
+    await page.evaluate(() => window.rippleFixture.messages.filter((m) => m.t === 'attach').length),
+    attachCount,
+  );
+  await page.reload();
+  await boundary.waitFor();
+  await page.waitForFunction(
+    () => document.querySelector('.ripple-boundary')?.getAttribute('aria-valuenow') === '0',
+  );
+  await page.getByRole('button', { name: 'Appearance', exact: true }).click();
+  const order = await page
+    .locator('[id="ripple-enabled"], [id="reduce-motion"]')
+    .evaluateAll((els) => els.map((el) => el.id));
+  assert.deepEqual(order, ['ripple-enabled', 'reduce-motion']);
+  await page.locator('#ripple-enabled').click();
+  await page.locator('.ripple-scroll').waitFor({ state: 'detached' });
+  await page.locator('#ripple-enabled').click();
+  await page.locator('.ripple-scroll').waitFor();
+  assert.ok(
+    Number(await boundary.getAttribute('aria-valuenow')) > 0,
+    'enabling restores automatic input placement',
+  );
   assert.deepEqual(errors, []);
   console.log(
     'Ripple working animation stays stable; nearby boundaries follow growing/shrinking drafts across reload and resize.',

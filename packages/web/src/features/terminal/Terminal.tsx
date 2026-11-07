@@ -60,7 +60,6 @@ import { SelectionActions } from '../../components/selection-actions';
 import { TerminalRichOutput } from './rich-output/TerminalRichOutput';
 import { browserScope } from '../../lib/transport/browser-transport';
 import { RetainedTerminal } from './parked/RetainedTerminal';
-import { useSessionRipple } from './ripple/preferences';
 import { parkedTerminalPool } from './parked/pool';
 import {
   captureParkedTerminal,
@@ -223,13 +222,11 @@ function TerminalView({
   // replace this PTY's saved viewport from an earlier workspace mount.
   const hasReplayRef = useRef(false);
   const settings = useClientSettings();
-  const ripplePreference = useSessionRipple(stream);
   const sessionTerminal =
     term === 'agent' && stream !== HOME_STREAM && !stream.startsWith('login-');
-  const sessions = useAllSessions(sessionTerminal && ripplePreference.enabled);
+  const sessions = useAllSessions(sessionTerminal);
   const rippleEnabled =
     sessionTerminal &&
-    ripplePreference.enabled &&
     sessions.data?.some((session) => session.id === stream && session.kind === 'agent');
   const reduceMotion = useReducedMotion();
   const onExitRef = useRef(onExit);

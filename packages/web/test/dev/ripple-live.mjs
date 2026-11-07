@@ -176,7 +176,7 @@ try {
   );
   await page.keyboard.press('Control+u');
   await page.evaluate(() => window.rippleFixture.enable(true));
-  await page.locator('.ripple').waitFor();
+  await page.locator('.ripple-scroll').waitFor();
   await boundary.focus();
   await page.keyboard.press('Home');
   await page.waitForTimeout(150);
@@ -203,7 +203,7 @@ try {
   await page.mouse.wheel(0, -700);
   await page.waitForTimeout(200);
   await page.evaluate(() => window.rippleFixture.enable(true));
-  await page.locator('.ripple').waitFor();
+  await page.locator('.ripple-scroll').waitFor();
   await page.screenshot({ path: '/private/tmp/puddle-ripple-live-resized.png' });
   assert.deepEqual(errors, []);
   console.log(

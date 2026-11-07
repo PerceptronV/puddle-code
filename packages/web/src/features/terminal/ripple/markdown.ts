@@ -24,9 +24,7 @@ export function rippleHtml(
   const summaryRow =
     options.topOfScreen && ripplePromptSummary(originalLines[0] ?? '', options.agentType);
   let offset = 0;
-  const offsets: number[] = [];
   const prefixes = originalLines.map((line) => {
-    offsets.push(offset);
     const prefix = ripplePromptPrefix(
       line,
       options.agentType,
@@ -108,17 +106,6 @@ export function rippleHtml(
     if (prefixes[index]) {
       flush();
       const summary = index === 0 && summaryRow;
-      const contentOffset = offsets[index]! + prefixes[index]!;
-      const backing = options.styles?.find(
-        (range) =>
-          range.end > contentOffset &&
-          range.start < offsets[index]! + originalLines[index]!.length &&
-          range.css.includes('background-color:'),
-      );
-      const bubbleStyle = backing?.css
-        .split(';')
-        .filter((declaration) => /^(?:background-color|color):#[\da-f]{6}$/i.test(declaration))
-        .join(';');
       const prompt = [rawLines[index]!.slice(prefixes[index])];
       if (options.agentType === 'opencode') {
         while (index + 1 < lines.length && prefixes[index + 1]) {
@@ -131,7 +118,7 @@ export function rippleHtml(
         while (index < end) prompt.push(rawLines[++index]!.slice(indent));
       }
       output.push(
-        `<div class="ripple-user-turn"${summary ? ' data-ripple-summary="true" role="button" tabindex="0"' : ''}${bubbleStyle ? ` style="${bubbleStyle}"` : ''}>${render(prompt.join('\n'))}</div>`,
+        `<div class="ripple-user-turn"${summary ? ' data-ripple-summary="true" role="button" tabindex="0"' : ''}>${render(prompt.join('\n'))}</div>`,
       );
       continue;
     }

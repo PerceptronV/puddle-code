@@ -115,6 +115,7 @@ export function cockpitGateway(): Plugin {
           if (early.length) socket.write(early);
           socket.pipe(remote).pipe(socket);
           socket.on('close', () => remote.destroy());
+          socket.on('error', () => remote.destroy());
           remote.on('error', () => socket.destroy());
         });
         upstream.on('response', () => socket.destroy());

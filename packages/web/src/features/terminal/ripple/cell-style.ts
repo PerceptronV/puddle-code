@@ -56,6 +56,14 @@ function colour(
   return `#${(value & 0xffffff).toString(16).padStart(6, '0')}`;
 }
 
+function luminance(hex: string): number {
+  const channels = [1, 3, 5].map((start) => {
+    const value = parseInt(hex.slice(start, start + 2), 16) / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return channels[0]! * 0.2126 + channels[1]! * 0.7152 + channels[2]! * 0.0722;
+}
+
 /** Only generated, validated CSS reaches the reader; terminal text never supplies CSS. */
 export function rippleCellStyle(
   cell: IBufferCell | undefined,
@@ -106,6 +114,25 @@ export function rippleCellStyle(
   if (cell.isInverse?.()) [fg, bg] = [bg ?? theme.background, fg ?? theme.foreground];
   // Painting the same colour as the reader's canvas is not a highlighted run.
   if (bg?.toLowerCase() === theme.background?.toLowerCase()) bg = undefined;
+  // Some CLIs retain a light/dark neutral panel after the terminal theme changes
+  // but use the new default foreground. Let the reader's themed surface show
+  // through when that combination is illegible. Keep explicit colour pairs,
+  // inverse styling and coloured highlights intact.
+  if (
+    !fg &&
+    bg &&
+    /^#([\da-f]{2})\1\1$/i.test(bg) &&
+    /^#[\da-f]{6}$/i.test(theme.foreground ?? '')
+  ) {
+    const foregroundLight = luminance(theme.foreground!);
+    const backgroundLight = luminance(bg);
+    if (
+      (Math.max(foregroundLight, backgroundLight) + 0.05) /
+        (Math.min(foregroundLight, backgroundLight) + 0.05) <
+      4.5
+    )
+      bg = undefined;
+  }
   if (fg && /^#[\da-f]{6}$/i.test(fg)) css.push(`color:${fg}`);
   if (bg && /^#[\da-f]{6}$/i.test(bg)) css.push(`background-color:${bg}`);
   if (bg || decoration.length) css.push('white-space:break-spaces');
@@ -190,7 +217,7 @@ export function markRippleStyles(
         }
         if (to <= from) continue;
         const open = `${prefix}${replacements.size}\uE001`;
-        // The bubble carries the prompt's backing; inline text keeps its
+        // The bubble uses the themed surface; inline text keeps its
         // foreground/emphasis without copying terminal-width padding.
         const css =
           prompt && range.css.includes('background-color:')

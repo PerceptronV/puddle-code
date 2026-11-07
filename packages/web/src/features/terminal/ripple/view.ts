@@ -11,7 +11,7 @@ export function rippleView(
   const buffer = terminal.buffer.active;
   const first = buffer.viewportY;
   let occupiedRows = terminal.rows;
-  if (buffer.type === 'normal' && first === buffer.baseY && agentType) {
+  if (nativeRows !== 'cli' && buffer.type === 'normal' && first === buffer.baseY && agentType) {
     // Ink-style CLIs leave unused rows below a short conversation. Move that
     // empty tail offscreen instead of reserving it as part of the input area.
     let end = terminal.rows;
@@ -111,16 +111,19 @@ export function rippleView(
     }
   }
   if (foundComposer && blankAbove(composer)) composer--;
-  if (nativeRows !== null) {
+  if (nativeRows === 'cli') {
+    composer = 0;
+  } else if (nativeRows !== null) {
     const rows =
       typeof nativeRows === 'number'
         ? nativeRows
         : inputRows === null
           ? nativeRows.rows
           : inputRows + nativeRows.inputOffset;
-    composer = Math.max(3, occupiedRows - rows);
+    occupiedRows = Math.min(terminal.rows, Math.max(occupiedRows, rows));
+    composer = Math.max(0, occupiedRows - rows);
   }
-  composer = Math.max(0, Math.min(occupiedRows - 1, composer));
+  composer = Math.max(0, Math.min(occupiedRows, composer));
   let last = first + composer;
   // Codex's scroll hint belongs to its controls, not the answer being read.
   if (agentType === 'codex' || agentType === 'gemini-cli') {
@@ -168,7 +171,7 @@ export function rippleView(
     nativeRows: occupiedRows - composer,
     inputRows,
     cellHeight,
-    bottom: Math.max(0, occupiedRows - composer) * cellHeight + remainder,
+    bottom: composer === occupiedRows ? 0 : (occupiedRows - composer) * cellHeight + remainder,
     nativeOffset: (terminal.rows - occupiedRows) * cellHeight,
   };
 }

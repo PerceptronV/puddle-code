@@ -189,3 +189,14 @@
 .ripple-rich-display::-webkit-scrollbar {
   display: none;
 }
+
+.ripple-boundary[data-edge='top'] {
+  bottom: -1rem;
+}
+.ripple-boundary[data-edge='bottom'] {
+  bottom: 0;
+}
+
+.ripple[data-collapsed='true']::after {
+  bottom: -1px;
+}
