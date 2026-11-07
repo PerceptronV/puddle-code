@@ -64,8 +64,11 @@ export function rippleHtml(
   // conventional two-column reply gutter while preserving code indentation.
   const rawLines = text.split('\n');
   const gutter =
-    rawLines.some((line) => /^ {2}\S/.test(line)) &&
-    rawLines.every((line) => !line.trim() || /^ {2}|^[•●⏺✦›❯]/.test(line));
+    originalLines.some((line) => /^ {2}\S/.test(line)) &&
+    originalLines.every(
+      (line) =>
+        !line.trim() || rippleWorkingLine(line, options.agentType) || /^ {2}|^[•●⏺✦›❯]/.test(line),
+    );
   const lines = rawLines.map((line) =>
     (gutter ? line.replace(/^ {2}/, '') : line)
       .replace(/^[•●⏺✦] (?=#)/, '')

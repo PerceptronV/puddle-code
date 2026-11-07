@@ -153,7 +153,9 @@ export function markRippleStyles(
       if (/^\s*(`{3,}|~{3,})/.test(line) || divider(line)) return line;
       // Leave Markdown block markers and the Codex prompt marker at the line start.
       const structural = line.trim()
-        ? /^(\s*(?:(?:[•●⏺✦›❯*-]|\d+[.)])\s+)?(?:#{1,6}\s+|>\s+)?)/.exec(line)![0].length
+        ? /^(\s*(?:(?:[•●⏺✦›❯*-]|\d+[.)])\s+)?(?:#{1,6}\s+|>\s+)?)/.exec(
+            line.slice(promptPrefix),
+          )![0].length + promptPrefix
         : 0;
       // Keep Markdown's table pipes structural; anchor only the cell contents.
       const pieces: Array<{ start: number; end: number }> = [];

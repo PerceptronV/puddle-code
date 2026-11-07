@@ -94,6 +94,16 @@ describe('Ripple links and source controls', () => {
       expect(reply).toContain('new code');
     },
   );
+  it('renders the first prompt bullet like subsequent bullets with source anchors and ANSI styles', () => {
+    const source = '› - First point\n  - Second point';
+    const html = rippleHtml(source, false, false, {
+      agentType: 'codex',
+      anchorText: true,
+      styles: [{ start: 0, end: source.length, css: 'color:#123456' }],
+    });
+    expect(html.match(/<li>/g)).toHaveLength(2);
+    expect(html).not.toContain('>- First');
+  });
   it.each(['•', '◦', '·', '...', '⠋', ''])(
     'keeps Working spinner %s in a stable literal block when exposed in the reader',
     (spinner) => {
@@ -106,6 +116,27 @@ describe('Ripple links and source controls', () => {
       expect(html).toContain('Working');
     },
   );
+  it('does not change surrounding indentation when the Working spinner changes', () => {
+    const render = (spinner: string) =>
+      rippleHtml(
+        [
+          '• Exited (status 1) python3',
+          '  └ }',
+          '',
+          '    Node.js v22.21.1',
+          '  + 127 lines (⌃t to expand)',
+          '',
+          `${spinner} Working (9m 04s • esc to interrupt)`,
+          '  └ Tip: Use /export',
+        ].join('\n'),
+        false,
+        false,
+        { agentType: 'codex', anchorText: true },
+      )
+        .replace(/<span[^>]*>|<\/span>/g, '')
+        .replace('◦', '•');
+    expect(render('◦')).toBe(render('•'));
+  });
   it('groups indented prompt lists, nested lists, code and blank paragraphs without absorbing the reply', () => {
     const source =
       '\n› - First point\n  - Second point\n    wrapped continuation\n    - Nested point\n  \n  Another paragraph\n  ```ts\n  const x = 1;\n  ```\n\n• Answer\n  continued answer';

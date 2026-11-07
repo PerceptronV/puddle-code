@@ -22,7 +22,7 @@ try {
         );
         const composer = rows - 4 - extra;
         window.rippleFixture.output(
-          '\x1b[?1049h\x1b[2J\x1b[H› Short pinned prompt\r\n  115 - old code\r\n  115 + new code' +
+          '\x1b[?1049h\x1b[2J\x1b[H› Short pinned prompt\r\n• Exited (status 1) python3\r\n  └ }\r\n\r\n    Node.js v22.21.1\r\n  + 127 lines (⌃t to expand)' +
             `\x1b[${composer - 4};1H${spinner} Working (9s • esc to interrupt)` +
             `\x1b[${composer - 3};1H  Tip: Native controls` +
             `\x1b[${composer};1H› Draft` +

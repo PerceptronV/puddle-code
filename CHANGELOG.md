@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
+- Keep surrounding Ripple code and prose in place while Codex’s Working spinner changes, and preserve the first Markdown list marker in styled user prompts.
+
 - Map Ripple text clicks to original terminal cells instead of recognising Codex disclosure labels; preserve native pinned-prompt navigation without absorbing following diffs into the prompt bubble, including short pinned prompts without an ellipsis.
 - Keep Codex’s Working indicator native, leave breathing room above CLI controls, account for partial terminal rows, preserve numbered diff line breaks and hide Ripple’s overflow scrollbars while retaining scrolling.
 - Stabilise Codex’s animated Working row and let dividers near the input follow multiline draft expansion and contraction, including after reload and resize.
