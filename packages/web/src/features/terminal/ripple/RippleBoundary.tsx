@@ -1,5 +1,5 @@
 import { useRef } from 'react';
-import { GripHorizontal } from 'lucide-react';
+import { GripVertical } from 'lucide-react';
 import type { Terminal } from '@xterm/xterm';
 import { setRippleBoundary } from './preferences';
 import { rippleView } from './view';
@@ -69,7 +69,7 @@ export function RippleBoundary({
         }
       }}
     >
-      <GripHorizontal className="size-4" />
+      <GripVertical className="size-4" />
     </div>
   );
 }

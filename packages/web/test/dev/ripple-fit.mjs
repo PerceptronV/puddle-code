@@ -104,17 +104,15 @@ try {
   const geometry = await page.locator('.ripple').evaluate((el) => {
     const section = el.getBoundingClientRect();
     const grip = el.querySelector('.ripple-boundary').getBoundingClientRect();
-    const line = getComputedStyle(el, '::after');
     return {
-      left: parseFloat(line.left),
       right: section.right - grip.right,
-      lineEnd: section.right - parseFloat(line.right),
-      gripStart: grip.left,
-      lineColour: line.backgroundColor,
+      width: grip.width,
+      height: grip.height,
+      line: getComputedStyle(el, '::after').content,
     };
   });
-  assert.equal(geometry.left, geometry.right, 'equal outer divider insets');
-  assert.ok(geometry.lineEnd < geometry.gripStart, 'line stops before the grip');
+  assert.equal(geometry.line, 'none', 'boundary has no divider line');
+  assert.ok(geometry.height > geometry.width, 'handle is vertical');
   const grip = page.locator('.ripple-boundary');
   const backing = await grip.evaluate((el) => getComputedStyle(el).backgroundColor);
   await grip.hover();
@@ -123,7 +121,7 @@ try {
     backing,
     'hover deepens grip',
   );
-  assert.equal(geometry.right, 4, 'handle sits close to the right edge');
+  assert.equal(geometry.right, 0, 'handle sits at the right edge');
   const assertWidth = async () => {
     const pane = await reader.boundingBox();
     for (const box of await reader.locator('.ripple-content, .ripple-user-turn').all()) {

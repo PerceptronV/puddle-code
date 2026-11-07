@@ -28,6 +28,7 @@ import 'katex/dist/katex.min.css';
 import './ripple.css';
 import { ripplePalette } from './xterm-style';
 import { attachRippleTouchScroll } from './touch-scroll';
+import { useRippleOverflow } from './use-overflow';
 
 export function Ripple({
   terminal,
@@ -83,6 +84,7 @@ export function Ripple({
     },
     [terminal, agentType, updateView],
   );
+  useRippleOverflow(viewport, snapshot, active && !collapsed);
   const theme = useSyncExternalStore(onThemeChange, currentTheme, currentTheme);
 
   useLayoutEffect(() => {
