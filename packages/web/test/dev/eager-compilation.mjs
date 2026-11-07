@@ -43,6 +43,24 @@ try {
   await page.evaluate(() => window.eagerFixture.remove());
   assert.deepEqual((await state()).modes, ['eager', 'eager', 'on_demand']);
 
+  await mount();
+  await page.waitForFunction(() => window.eagerFixture.state().results.length === 1);
+  await page.evaluate(() => window.eagerFixture.conflict());
+  await page.waitForFunction(() => window.eagerFixture.state().modes.length === 2);
+  assert.deepEqual((await state()).modes, ['eager', 'on_demand']);
+  await page.evaluate(() => window.eagerFixture.expire());
+  await page.waitForTimeout(1000);
+  assert.equal(
+    (await state()).modes.length,
+    2,
+    'Unresolved conflicts must not restore eager mode after a daemon reset',
+  );
+  await page.evaluate(() => window.eagerFixture.resolve());
+  await page.waitForFunction(() => window.eagerFixture.state().results.length === 2);
+  assert.deepEqual((await state()).modes, ['eager', 'on_demand', 'eager']);
+  assert.equal((await state()).results[1].revision, 1);
+  await page.evaluate(() => window.eagerFixture.remove());
+
   await mount(true);
   await page.waitForFunction(() => window.eagerFixture.state().failures.length > 0);
   await page.waitForTimeout(1000);

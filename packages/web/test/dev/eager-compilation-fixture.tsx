@@ -5,6 +5,10 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import type { CompilationStatusResponse, CompilationTargetRequest } from '@puddle/shared';
 import { CompilationWatcher } from '../../src/features/editor/compilation/CompilationWatcher';
 import {
+  registerConflict,
+  clearConflict,
+} from '../../src/features/editor/conflicts/conflict-store';
+import {
   browserTransport,
   installBrowserTransport,
 } from '../../src/lib/transport/browser-transport';
@@ -113,8 +117,11 @@ export function mountEagerCompilation(failInitial = false) {
       complete();
       await client.invalidateQueries({ queryKey });
     },
+    conflict: () => flushSync(() => registerConflict('eager-fixture', target.source)),
+    resolve: () => flushSync(() => clearConflict('eager-fixture')),
     remove: () => {
       root.unmount();
+      clearConflict('eager-fixture');
       client.clear();
       installBrowserTransport(original);
       container.remove();

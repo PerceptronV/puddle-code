@@ -23,6 +23,16 @@ const keydown = (code: string, mods: Partial<Record<'ctrl' | 'alt' | 'shift' | '
   }) as KeyboardEvent;
 
 describe('shellDefaultBinding', () => {
+  it('captures Command+Enter for the logically focused file while leaving terminals their own key', () => {
+    setHotkeyOverrides(undefined);
+    expect(actionForBinding(eventBinding(keydown('Enter', { meta: true }))!)).toBe(
+      'editor.compile',
+    );
+    const action = byId('editor.compile');
+    expect(hotkeyNeedsCapture(action, true)).toBe(true);
+    expect(hotkeyNeedsCapture(action, false)).toBe(true);
+    expect(action.deferInTerminal).toBe(true);
+  });
   it('maps Command+0 through Command+9 to the first ten project slots in both shells', () => {
     setHotkeyOverrides(undefined);
     for (const [index, action] of PROJECT_HOTKEY_ACTIONS.entries()) {

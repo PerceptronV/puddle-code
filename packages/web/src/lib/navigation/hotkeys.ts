@@ -149,6 +149,14 @@ export const HOTKEY_ACTIONS: HotkeyAction[] = [
   },
   { id: 'editor.save', label: 'Save', group: 'Editor', defaultBinding: 'meta+KeyS', editor: true },
   {
+    id: 'editor.compile',
+    label: 'Compile / run file',
+    group: 'Editor',
+    defaultBinding: 'meta+Enter',
+    editor: true,
+    deferInTerminal: true,
+  },
+  {
     id: 'editor.wordWrap',
     label: 'Toggle word wrap',
     group: 'Editor',
@@ -281,14 +289,17 @@ export const getHotkeyAction = (id: string): HotkeyAction | undefined => ACTION_
 
 /**
  * Whether the shell must intercept an action in the capture phase, before a
- * focused Monaco instance can consume it. Save is always captured because it
- * follows the logically focused pane; every other app-global action is
+ * focused Monaco instance can consume it. Save and compile are always captured
+ * because they follow the logically focused pane; every other app-global action is
  * captured only inside Monaco. Monaco-owned editor actions keep reaching the
  * editor instance itself.
  */
 export function hotkeyNeedsCapture(action: HotkeyAction, monacoFocused: boolean): boolean {
   return (
-    action.hold === true || action.id === 'editor.save' || (monacoFocused && action.editor !== true)
+    action.hold === true ||
+    action.id === 'editor.save' ||
+    action.id === 'editor.compile' ||
+    (monacoFocused && action.editor !== true)
   );
 }
 

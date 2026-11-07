@@ -363,6 +363,10 @@ export function useWorkspaceCompilation({
         sourceKey={key}
         leafId={leafId}
         target={target}
+        inputExtensions={
+          availableCompilationProviders.find((provider) => provider.id === target.provider)
+            ?.input_extensions
+        }
         onResult={onEagerCompilationResult}
         onError={onEagerCompilationError}
         onRunningChange={setEagerCompilationRunning}

@@ -2029,7 +2029,9 @@ Cancellation affects observation only and never submits/replays execution.
   stats in flight. Initial baselines complete before the initial build; unchanged
   dependencies retain their baseline across builds. Entry points remain watched
   even when a compiler’s dependency report omits them. Successful file PUTs
-  directly invalidate eager sources using the saved file, including rooted saves
+  compare content before writing; unchanged saves preserve timestamps and do not
+  invalidate compilation. Changed saves directly invalidate eager sources using
+  the saved file, including rooted saves
   and canonical-path aliases, without relying on OS events. Healthy directory
   watches trigger the existing 350 ms debounce; entry points also receive
   one-second signature verification, while other discovered dependencies retain
@@ -2047,9 +2049,23 @@ Cancellation affects observation only and never submits/replays execution.
   callback changes do not revoke observation. Re-registering a live eager target
   retains its dependencies and does not launch another initial build.
 
+  A stale-file save rejection holds queued eager runs which depend on that file.
+  Further filesystem changes remain pending until the conflict is resolved;
+  already-started compilation is not retroactively cancelled. The editor suspends
+  eager registration for conflicted provider inputs in the same source tree,
+  including after reconnect, and restores it only after resolution. Accepting a
+  merge or keeping the buffer resolves the hold through the successful save;
+  taking disk uses a checked identical PUT to acknowledge the selected version
+  without rewriting it. Failed reads and a second stale save retain the conflict.
+
   LaTeX dependency paths reported through a canonical root are mapped back to
   the selected source tree, preserving observation through symlinked browse roots
   while excluding managed build outputs.
+
+  **Command+Enter** compiles/runs the logically focused source file through the
+  same save-before-run path as the play button. The binding is configurable in
+  Settings → Hotkeys, works inside Monaco and source previews, and yields to
+  terminal input. Generated artefacts and non-file tabs do not dispatch a run.
 
   A compilable source chip has minimal hover controls beside close: the play triangle performs one on-demand build; when the provider supports it, the lightning mark toggles eager observation, and the active mode is accent-coloured. Clicking either first activates the source so its dirty buffer can be saved. The selected source and every mounted dirty input buffer advertised by that provider in the same rooted file tree are saved before compilation; a conflict or failed save cancels the build. `compile_mode` persists in the ordinary editor-tab snapshot (absent means on-demand) and duplicate source tabs in the live layout are rewritten together. An eager tab registers with the daemon after restore/reconnect, receives one initial build, then compiles settled on-disk changes from Puddle, agents, formatters, or other local processes. Parent-directory `fs.watch` catches direct and atomic-replacement writes, asynchronous stat signatures provide a portable Linux/macOS/WSL safety net, 350 ms debounce coalesces bursts, and a change during a build produces exactly one follow-up run. Switching to on-demand or closing the last eager source view retires its watcher; daemon shutdown closes every watcher and compiler process. Modes are not Markdown/HTML preview modes and never enter linked/locked scroll following.
 

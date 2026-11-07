@@ -43,7 +43,7 @@ export interface WorktreeDeps {
   repos: RepoStore;
   /** Present in the full daemon; narrow route tests may use the service fallback. */
   worktrees?: Pick<WorktreeManager, 'runGitMutation'>;
-  compilation?: Pick<CompilationService, 'fileChanged'>;
+  compilation?: Pick<CompilationService, 'fileChanged' | 'fileConflicted' | 'fileResolved'>;
 }
 
 /** Validate a client-supplied absolute directory (`?root=`), tilde expanded. */

@@ -1,5 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { realpath } from 'node:fs/promises';
+import { realpathSync } from 'node:fs';
 import {
   compilationFailureDetailsSchema,
   type CompilationFailure,
@@ -48,6 +49,7 @@ interface TargetState {
   status: CompilationStatusResponse;
   watcher: DependencyWatcher;
   inputs: string[];
+  conflicts: Set<string>;
   running: Promise<CompilationRunResponse> | null;
   dirty: boolean;
   lastTouched: number;
@@ -119,6 +121,7 @@ export class CompilationService {
     // start an extra build. A new/expired target still gets an initial build.
     if (state.status.mode === 'eager') return state.status;
     state.inputs = state.provider.watchInputs(state.source);
+    state.dirty = false;
     state.status = { ...state.status, mode: 'eager' };
     // Install the provider's entry-point watchers before compiling: a broken
     // first build must remain live and retry when an editor or agent fixes it.
@@ -237,6 +240,7 @@ export class CompilationService {
 
   /** Notify all eager sources which use this file, regardless of the saving tab. */
   fileChanged(path: string): void {
+    this.fileResolved(path);
     this.dependencies.invalidate(path);
     // Compiler dependency reports can use canonical paths while a browse root
     // (notably /tmp on macOS) uses an alias for that same file.
@@ -245,6 +249,25 @@ export class CompilationService {
         if (canonical !== path) this.dependencies.invalidate(canonical);
       })
       .catch(() => undefined);
+  }
+
+  /** A rejected save fences queued rebuilds, including changes to dependencies. */
+  fileConflicted(path: string): void {
+    for (const candidate of conflictPaths(path)) {
+      for (const state of this.targets.values()) {
+        if (state.watcher.contains(candidate)) state.conflicts.add(candidate);
+      }
+    }
+  }
+
+  /** Accepted writes or a checked no-op save acknowledge the selected disk version. */
+  fileResolved(path: string): void {
+    for (const candidate of conflictPaths(path)) {
+      for (const state of this.targets.values()) {
+        if (!state.conflicts.delete(candidate) || state.conflicts.size || !state.dirty) continue;
+        if (state.status.mode === 'eager') state.watcher.invalidate();
+      }
+    }
   }
 
   subscribe(listener: (event: CompilationEvent) => void): () => void {
@@ -285,7 +308,13 @@ export class CompilationService {
         this.paused = false;
         if (this.disposed) return;
         for (const state of this.targets.values()) {
-          if (!state.dirty || state.running || state.status.mode !== 'eager') continue;
+          if (
+            !state.dirty ||
+            state.running ||
+            state.conflicts.size ||
+            state.status.mode !== 'eager'
+          )
+            continue;
           state.dirty = false;
           void this.execute(state, 'eager').catch(() => undefined);
         }
@@ -316,10 +345,11 @@ export class CompilationService {
     const watcher = new DependencyWatcher(this.dependencies, () => {
       const current = this.targets.get(key);
       if (!current || current.status.mode !== 'eager') return;
-      if (this.paused) {
+      if (this.paused || current.conflicts.size) {
         current.dirty = true;
         return;
       }
+      current.dirty = false;
       void this.execute(current, 'eager').catch(() => undefined);
     });
     const state: TargetState = {
@@ -337,6 +367,7 @@ export class CompilationService {
       },
       watcher,
       inputs: [],
+      conflicts: new Set(),
       running: null,
       dirty: false,
       lastTouched: Date.now(),
@@ -366,6 +397,13 @@ export class CompilationService {
     if (this.disposed)
       throw ApiError.conflict('compiler_disposed', 'Compilation service is closed');
     this.admission.assertOpen();
+    if (state.conflicts.size) {
+      if (mode === 'eager') state.dirty = true;
+      throw ApiError.conflict(
+        'compilation_conflict',
+        'Resolve the input file conflict in the editor before compiling',
+      );
+    }
     if (state.running) {
       if (state.status.mode === 'eager') state.dirty = true;
       return state.running;
@@ -426,7 +464,13 @@ export class CompilationService {
         })
         .finally(() => {
           state.running = null;
-          if (!this.paused && !this.disposed && state.dirty && state.status.mode === 'eager') {
+          if (
+            !this.paused &&
+            !this.disposed &&
+            !state.conflicts.size &&
+            state.dirty &&
+            state.status.mode === 'eager'
+          ) {
             state.dirty = false;
             void this.execute(state, 'eager').catch(() => undefined);
           }
@@ -543,4 +587,12 @@ function targetKey(provider: string, request: CompilationTargetRequest): string 
     request.source.root ?? null,
     request.source.path,
   ]);
+}
+
+function conflictPaths(path: string): string[] {
+  try {
+    return [...new Set([path, realpathSync(path)])];
+  } catch {
+    return [path];
+  }
 }

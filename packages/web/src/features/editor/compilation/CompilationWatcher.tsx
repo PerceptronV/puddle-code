@@ -1,5 +1,5 @@
 import { useQueryClient } from '@tanstack/react-query';
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from 'react';
 import type {
   CompilationFailure,
   CompilationRunResponse,
@@ -7,6 +7,7 @@ import type {
 } from '@puddle/shared';
 import { setCompilationMode, useCompilationStatus } from '../../../lib/queries/compilation-queries';
 import { failureFrom } from './compilation-errors';
+import { hasCompilationConflict, subscribeAllConflicts } from '../conflicts/conflict-store';
 
 /**
  * Browser bridge for one persisted eager source. The daemon owns filesystem
@@ -23,6 +24,7 @@ export function CompilationWatcher({
   onResult,
   onError,
   onRunningChange,
+  inputExtensions = [],
 }: {
   target: CompilationTargetRequest;
   sourceKey: string;
@@ -30,6 +32,7 @@ export function CompilationWatcher({
   onResult: (sourceKey: string, leafId: string, result: CompilationRunResponse) => void;
   onError: (sourceKey: string, failure: CompilationFailure) => void;
   onRunningChange: (sourceKey: string, running: boolean) => void;
+  inputExtensions?: readonly string[];
 }) {
   const [registered, setRegistered] = useState(false);
   const qc = useQueryClient();
@@ -39,6 +42,9 @@ export function CompilationWatcher({
   const observedEager = useRef(false);
   const deliveredRevision = useRef(-1);
   const deliveredErrorRevision = useRef(-1);
+  const conflicted = useSyncExternalStore(subscribeAllConflicts, () =>
+    hasCompilationConflict(target.source, inputExtensions),
+  );
   const stableTarget = useMemo(
     () => ({
       source: {
@@ -61,6 +67,10 @@ export function CompilationWatcher({
   );
 
   useEffect(() => {
+    if (conflicted) {
+      setRegistered(false);
+      return;
+    }
     let cancelled = false;
     let registering = false;
     const queryKey = ['compilation-status', stableTarget];
@@ -110,12 +120,12 @@ export function CompilationWatcher({
     };
     // Moving the source to another pane or changing presentation callbacks
     // does not revoke its daemon watcher.
-  }, [stableTarget, sourceKey, qc]);
+  }, [stableTarget, sourceKey, qc, conflicted]);
 
   const status = useCompilationStatus(stableTarget, registered);
   const snapshot = status.data;
   useEffect(() => {
-    if (!registered || !snapshot) return;
+    if (conflicted || !registered || !snapshot) return;
     // The daemon expires unseen targets while this window is backgrounded;
     // replacement daemons also start at revision zero. Restore the persisted
     // eager choice, including its initial build and a fresh result counter.
@@ -142,7 +152,7 @@ export function CompilationWatcher({
       deliveredErrorRevision.current = snapshot.revision;
       onError(sourceKey, snapshot.error);
     }
-  }, [registered, snapshot, sourceKey, leafId, onResult, onError, onRunningChange]);
+  }, [conflicted, registered, snapshot, sourceKey, leafId, onResult, onError, onRunningChange]);
 
   return null;
 }

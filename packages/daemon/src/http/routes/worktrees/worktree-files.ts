@@ -91,24 +91,38 @@ export function worktreeFileRoutes(deps: WorktreeDeps): Hono {
       }
       if (body.expected_mtime_ms !== undefined) {
         if (!existsSync(target)) {
+          deps.compilation?.fileConflicted(target);
           throw ApiError.conflict('stale_file', `${rel} no longer exists`);
         }
         const current = statSync(target).mtimeMs;
         if (current !== body.expected_mtime_ms) {
+          deps.compilation?.fileConflicted(target);
           throw ApiError.conflict(
             'stale_file',
             `${rel} changed on disk since it was loaded (current mtime_ms ${current})`,
           );
         }
       }
+      const existing = existsSync(target) ? statSync(target) : null;
+      const content = existing ? body.content : newFileContent(target, body.content);
+      // A no-op save acknowledges this checked disk version without touching
+      // mtime or emitting an OS write event which would rebuild eager sources.
+      if (
+        existing?.isFile() &&
+        existing.size === Buffer.byteLength(content) &&
+        readFileSync(target).equals(Buffer.from(content))
+      ) {
+        deps.compilation?.fileResolved(target);
+        return c.json<PutFileResponse>({
+          path: rel,
+          mtime_ms: existing.mtimeMs,
+          size: existing.size,
+        });
+      }
       // Single daemon process for v1: the stat-then-write above is not atomic
       // with this write, so a write landing in that gap is accepted as a rare
       // race rather than engineered around with file locks.
-      writeFileSync(
-        target,
-        existsSync(target) ? body.content : newFileContent(target, body.content),
-        'utf8',
-      );
+      writeFileSync(target, content, 'utf8');
       const st = statSync(target);
       deps.compilation?.fileChanged(target);
       return c.json<PutFileResponse>({ path: rel, mtime_ms: st.mtimeMs, size: st.size });

@@ -16,6 +16,9 @@
  * Monaco-free (plain data + listeners), so transitions are independently
  * testable and every view of a shared buffer reads one source of truth.
  */
+import type { SaverTarget } from '../buffers/save-registry';
+import { browserScope } from '../../../lib/transport/browser-transport';
+
 interface ConflictBase {
   revision: number;
 }
@@ -47,10 +50,13 @@ export type DiskConflict =
 
 const conflicts = new Map<string, DiskConflict>();
 const listeners = new Map<string, Set<() => void>>();
+const targets = new Map<string, SaverTarget & { scope: string }>();
+const globalListeners = new Set<() => void>();
 let nextRevision = 1;
 
 function notify(key: string): void {
   for (const listener of listeners.get(key) ?? []) listener();
+  for (const listener of globalListeners) listener();
 }
 
 function setConflict(key: string, conflict: DiskConflict): void {
@@ -59,7 +65,8 @@ function setConflict(key: string, conflict: DiskConflict): void {
 }
 
 /** Record a newly refused save without taking the user out of their editor. */
-export function registerConflict(key: string): DiskConflict {
+export function registerConflict(key: string, target?: SaverTarget): DiskConflict {
+  if (target) targets.set(key, { ...target, scope: browserScope('conflicts') });
   const conflict: UnresolvedDiskConflict = { phase: 'unresolved', revision: nextRevision++ };
   setConflict(key, conflict);
   return conflict;
@@ -128,13 +135,38 @@ export function hasComparisonContent(conflict: DiskConflict): conflict is Compar
 /** Clear process-global state between isolated store consumers (tests). */
 export function clearAllConflicts(): void {
   conflicts.clear();
+  targets.clear();
   listeners.clear();
+  for (const listener of globalListeners) listener();
   nextRevision = 1;
 }
 
 export function clearConflict(key: string): void {
   if (!conflicts.delete(key)) return;
+  targets.delete(key);
   notify(key);
+}
+
+export function subscribeAllConflicts(listener: () => void): () => void {
+  globalListeners.add(listener);
+  return () => globalListeners.delete(listener);
+}
+
+/** A compiled source must wait for all conflicted provider inputs in its tree. */
+export function hasCompilationConflict(
+  source: SaverTarget,
+  extensions: readonly string[],
+): boolean {
+  for (const target of targets.values()) {
+    if (target.scope !== browserScope('conflicts')) continue;
+    if (target.session !== source.session || target.root !== source.root) continue;
+    if (
+      target.path === source.path ||
+      extensions.includes(target.path.split('.').pop()?.toLowerCase() ?? '')
+    )
+      return true;
+  }
+  return false;
 }
 
 export function conflictFor(key: string): DiskConflict | null {

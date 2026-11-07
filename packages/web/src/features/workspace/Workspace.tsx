@@ -540,6 +540,16 @@ function WorkspaceInner() {
     'editor.save': () => {
       requestActiveTabSave(layout.activeEditorTab);
     },
+    'editor.compile': () => {
+      const tab = layout.activeEditorTab;
+      if (
+        tab &&
+        !tab.generated_by &&
+        (tab.kind === undefined || tab.kind === 'file' || tab.kind === 'external')
+      ) {
+        void compilation.run(layout.focusedLeaf.id, tab);
+      }
+    },
     'sidebar.left': () =>
       isNarrow
         ? animateSidebar(() => setNarrowNav((v) => !v))

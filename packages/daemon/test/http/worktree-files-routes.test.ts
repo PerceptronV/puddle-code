@@ -30,6 +30,8 @@ let sessionId: string;
 let worktree: string;
 let app: Hono;
 const fileChanged = vi.fn();
+const fileConflicted = vi.fn();
+const fileResolved = vi.fn();
 
 beforeAll(async () => {
   fx = fixture();
@@ -53,7 +55,7 @@ beforeAll(async () => {
     worktreeRoutes({
       sessions: fx.stores.sessions,
       repos: fx.stores.repos,
-      compilation: { fileChanged },
+      compilation: { fileChanged, fileConflicted, fileResolved },
     }),
   );
 });
@@ -76,6 +78,7 @@ it('notifies eager compilation after each accepted save, including rooted files,
   expect(fileChanged).toHaveBeenCalledExactlyOnceWith(join(worktree, path));
   const stale = await putFile(sessionId, path, { content: 'stale', expected_mtime_ms: -1 });
   expect(stale.status).toBe(409);
+  expect(fileConflicted).toHaveBeenLastCalledWith(join(worktree, path));
   expect(fileChanged).toHaveBeenCalledTimes(1);
   const rooted = await app.request(
     `/api/worktrees/00000000-0000-0000-0000-000000000000/file?root=${encodeURIComponent(worktree)}&path=${path}`,
@@ -88,6 +91,33 @@ it('notifies eager compilation after each accepted save, including rooted files,
   expect(rooted.status).toBe(200);
   expect(fileChanged).toHaveBeenCalledTimes(2);
   expect(fileChanged).toHaveBeenLastCalledWith(join(worktree, path));
+});
+
+it('does not write or trigger a build for unchanged content and still checks the save baseline', async () => {
+  const path = 'unchanged-save.tex';
+  const target = join(worktree, path);
+  writeFileSync(target, 'unchanged content');
+  const before = statSync(target);
+  fileChanged.mockClear();
+  fileConflicted.mockClear();
+  fileResolved.mockClear();
+  const unchanged = await putFile(sessionId, path, {
+    content: 'unchanged content',
+    expected_mtime_ms: before.mtimeMs,
+  });
+  expect(unchanged.status).toBe(200);
+  expect(statSync(target).mtimeMs).toBe(before.mtimeMs);
+  expect(statSync(target).ctimeMs).toBe(before.ctimeMs);
+  expect(fileChanged).not.toHaveBeenCalled();
+  expect(fileResolved).toHaveBeenCalledExactlyOnceWith(target);
+  const stale = await putFile(sessionId, path, {
+    content: 'unchanged content',
+    expected_mtime_ms: -1,
+  });
+  expect(stale.status).toBe(409);
+  expect(fileConflicted).toHaveBeenCalledExactlyOnceWith(target);
+  expect(fileChanged).not.toHaveBeenCalled();
+  expect(fileResolved).toHaveBeenCalledTimes(1);
 });
 
 function tree(sid: string, path?: string) {

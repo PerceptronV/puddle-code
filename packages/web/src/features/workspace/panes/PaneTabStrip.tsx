@@ -15,6 +15,7 @@ import type {
 import { HoverMarquee } from '../../../components/hover-marquee';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../../components/ui/tooltip';
 import { cn } from '../../../lib/utils';
+import { useHotkeyLabel } from '../../../lib/navigation/hotkeys';
 import { useSessionTitleRenderer } from '../../profile/use-session-title';
 import { SessionGlyph } from '../../status/SessionGlyph';
 import { editorTabLabel } from '../../editor/buffers/buffer-logic';
@@ -334,6 +335,7 @@ function CompilationControls({
   onSetMode: (mode: CompilationMode) => void;
 }) {
   const eager = mode === 'eager';
+  const compileKey = useHotkeyLabel('editor.compile');
   return (
     <>
       <button
@@ -354,13 +356,13 @@ function CompilationControls({
               ? 'Run file'
               : 'Compile on demand'
         }
-        title={
+        title={`${
           provider?.terminal
             ? 'Run in terminal'
             : provider?.action === 'run'
               ? 'Run file'
               : 'Compile on demand'
-        }
+        } (${compileKey})`}
       >
         {running && !eager ? (
           <LoaderCircle className="size-3 animate-spin" />

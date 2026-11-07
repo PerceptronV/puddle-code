@@ -11,10 +11,33 @@ import {
   clearAllConflicts,
   shouldOfferComparison,
   subscribeConflict,
+  subscribeAllConflicts,
+  hasCompilationConflict,
+  clearConflict,
 } from '../../../src/features/editor/conflicts/conflict-store';
 
 describe('stale-save conflict state', () => {
   beforeEach(clearAllConflicts);
+
+  it('holds compilation for conflicted provider inputs until explicit resolution', () => {
+    const source = { session: 'one', path: 'main.tex', root: '/project' };
+    const changed = vi.fn();
+    const unsubscribe = subscribeAllConflicts(changed);
+    registerConflict('notes', { ...source, path: 'notes.md' });
+    expect(hasCompilationConflict(source, ['tex', 'bib'])).toBe(false);
+    const conflict = registerConflict('input', { ...source, path: 'references.bib' });
+    expect(hasCompilationConflict(source, ['tex', 'bib'])).toBe(true);
+    expect(hasCompilationConflict({ ...source, root: '/other' }, ['tex', 'bib'])).toBe(false);
+    expect(hasCompilationConflict({ ...source, session: 'two' }, ['tex', 'bib'])).toBe(false);
+    beginComparison('input');
+    completeComparison('input', conflict.revision, 'disk', 1);
+    finishOpeningComparison('input', conflict.revision);
+    expect(hasCompilationConflict(source, ['tex', 'bib'])).toBe(true);
+    clearConflict('input');
+    expect(hasCompilationConflict(source, ['tex', 'bib'])).toBe(false);
+    expect(changed).toHaveBeenCalledTimes(6);
+    unsubscribe();
+  });
 
   it('offers Compare only while an unresolved buffer is focused', () => {
     const conflict = registerConflict('file');

@@ -377,6 +377,54 @@ it('expires unobserved eager targets while retaining targets still read by a cli
   }
 });
 
+it('holds queued source/dependency changes through conflicts and resumes only after every conflict resolves', async () => {
+  const directory = mkdtempSync(join(tmpdir(), 'puddle-compile-conflict-'));
+  const input = join(directory, 'input.demo');
+  const dependency = join(directory, 'included.demo');
+  writeFileSync(input, 'initial');
+  writeFileSync(dependency, 'included');
+  const provider = emptyProvider();
+  provider.watchInputs = () => [input];
+  const run = vi.fn(async (source) => ({
+    executor: 'examplec',
+    source,
+    artifacts: [],
+    dependencies: [input, dependency],
+  }));
+  provider.run = run;
+  const service = new CompilationService([provider]);
+  const source = { session: '00000000-0000-0000-0000-000000000000', path: 'input.demo' };
+  try {
+    await service.setMode({ source, mode: 'eager' });
+    writeFileSync(input, 'external change');
+    // Reject a stale save before the pending 350ms debounce dispatches.
+    service.fileConflicted(input);
+    service.fileConflicted(dependency);
+    writeFileSync(dependency, 'another external change');
+    await new Promise((resolve) => setTimeout(resolve, 1200));
+    expect(run).toHaveBeenCalledTimes(1);
+    await expect(service.run({ source })).rejects.toMatchObject({ code: 'compilation_conflict' });
+    service.fileResolved(input);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(run).toHaveBeenCalledTimes(1);
+    const hold = service.pause();
+    await hold.drain();
+    hold.release();
+    expect(run).toHaveBeenCalledTimes(1);
+    service.fileResolved(dependency);
+    await waitFor(() => run.mock.calls.length === 2);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(run).toHaveBeenCalledTimes(2);
+    // An ordinary unchanged save, with no held changes, must not recompile.
+    service.fileResolved(input);
+    await new Promise((resolve) => setTimeout(resolve, 500));
+    expect(run).toHaveBeenCalledTimes(2);
+  } finally {
+    service.dispose();
+    rmSync(directory, { recursive: true, force: true });
+  }
+});
+
 it.each(['on_demand', 'dispose', 'maintenance'] as const)(
   'does not start an obsolete eager registration after %s while initial stats are pending',
   async (action) => {

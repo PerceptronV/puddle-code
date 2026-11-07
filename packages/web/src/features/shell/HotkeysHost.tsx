@@ -36,7 +36,7 @@ function monacoFocused(): boolean {
  * Installs the one global hotkey dispatcher and keeps the effective bindings in
  * sync with the profile's overrides (SPEC §11). Mounted once in the shell.
  * Editor actions (save, word wrap) are bound inside Monaco, so the bubbling
- * dispatcher skips them there. Save is additionally captured first and routed
+ * dispatcher skips them there. Save and compile are captured first and routed
  * through the workspace's logical active tab; see the capture handler below.
  */
 export function HotkeysHost() {
@@ -86,11 +86,11 @@ export function HotkeysHost() {
   );
 
   useEffect(() => {
-    // Save is resolved by the workspace's LOGICAL focused pane, not whichever
+    // Save and compile use the workspace's LOGICAL focused pane, not whichever
     // Monaco instance still owns document.activeElement. App-global actions are
     // also captured while Monaco has focus: Monaco consumes some chords (⌘K is
     // its chord prefix) before a bubbling DOM listener can see them. Editor
-    // actions other than save still belong to the Monaco instance itself.
+    // actions other than save and compile still belong to the Monaco instance itself.
     const onCaptureKey = (e: KeyboardEvent) => {
       if (e.target instanceof Element && e.target.closest('[data-hotkey-recording]')) return;
       const binding = eventBinding(e);
@@ -99,6 +99,7 @@ export function HotkeysHost() {
       if (!id) return;
       const action = getHotkeyAction(id);
       if (!action || !hotkeyNeedsCapture(action, monacoFocused())) return;
+      if (action.deferInTerminal && terminalFocused()) return;
       const handler = getHotkeyHandler(id);
       if (!handler) return;
       e.preventDefault();

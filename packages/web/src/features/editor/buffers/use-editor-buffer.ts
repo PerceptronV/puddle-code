@@ -321,15 +321,36 @@ export function useEditorBuffer(
   }, [conflict, focused, key]);
 
   const reload = useCallback(() => {
-    void file.refetch().then((res) => {
-      if (res.data && res.data.content !== null) {
-        reloadModel(res.data.content, res.data.mtime_ms);
-      }
-      void deleteDraft(session, path, root);
-      setRestoredNotice(false);
-      clearConflict(key);
-    });
-  }, [key, session, path, reloadModel]);
+    const resolving = conflictFor(key);
+    void file
+      .refetch({ throwOnError: true })
+      .then(async (res) => {
+        const data = res.data;
+        if (!data || data.content === null)
+          throw new Error('The file on disk could not be loaded as text.');
+        if (resolving && conflictFor(key)?.revision !== resolving.revision) return;
+        // Taking disk is an explicit resolution. A checked, identical PUT
+        // acknowledges it to the daemon without rewriting the file. If it has
+        // changed again, keep the conflict and the user's buffer intact.
+        const accepted = resolving
+          ? await saveMutation.mutateAsync({
+              path,
+              content: data.content,
+              expected_mtime_ms: data.mtime_ms,
+            })
+          : data;
+        if (resolving && conflictFor(key)?.revision !== resolving.revision) return;
+        reloadModel(data.content, accepted.mtime_ms);
+        void deleteDraft(session, path, root);
+        setRestoredNotice(false);
+        clearConflict(key);
+      })
+      .catch((error: unknown) => {
+        if (error instanceof ApiError && error.code === 'stale_file') {
+          registerConflict(key, { session, path, root });
+        } else toast.error(error instanceof Error ? error.message : 'Reload failed');
+      });
+  }, [key, session, path, root, file, saveMutation, reloadModel]);
 
   const overwrite = useCallback(
     (content: string, versionId: number) => {
@@ -345,7 +366,9 @@ export function useEditorBuffer(
   );
 
   const save = useCallback(async (): Promise<boolean> => {
-    if (!model || !isDirty(key)) return true;
+    const conflict = conflictFor(key);
+    if (conflict && conflict.phase !== 'comparing') return false;
+    if (!model || (!isDirty(key) && !conflict)) return true;
     const content = model.getValue();
     const versionId = model.getAlternativeVersionId();
     // A save made while a conflict stands expects the DISK version's mtime, not
@@ -370,13 +393,13 @@ export function useEditorBuffer(
         // Nothing was written. Reconciliation is opt-in: keep the buffer
         // editable and offer Compare while this tab is focused. The disk
         // read begins only after that action synchronously locks the model.
-        registerConflict(key);
+        registerConflict(key, { session, path, root });
       } else {
         toast.error(err instanceof Error ? err.message : 'Save failed');
       }
       return false;
     }
-  }, [model, key, saveMutation, path, commitSaved]);
+  }, [model, key, saveMutation, session, path, root, commitSaved]);
 
   const saveRef = useRef(save);
   saveRef.current = save;
