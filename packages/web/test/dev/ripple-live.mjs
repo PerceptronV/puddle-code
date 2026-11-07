@@ -88,6 +88,18 @@ try {
     !(await page.locator('.ripple-prose').innerText()).includes('Ask Codex to do anything'),
     'composer remains native',
   );
+  const summary = page.locator('[data-ripple-summary]');
+  await summary.waitFor();
+  const pinnedScreen = await page.locator('.xterm-rows').innerText();
+  await summary.click();
+  await page.waitForFunction(
+    (previous) => document.querySelector('.xterm-rows').innerText !== previous,
+    pinnedScreen,
+  );
+  assert.ok(
+    (await page.locator('.xterm-rows').innerText()).includes('Then write twelve numbered sections'),
+    'anchored summary click restores the original multiline prompt',
+  );
   const reader = page.locator('.ripple-scroll');
   await reader.hover();
   for (
@@ -166,7 +178,7 @@ try {
   await page.screenshot({ path: '/private/tmp/puddle-ripple-live-resized.png' });
   assert.deepEqual(errors, []);
   console.log(
-    `Real Codex overlay, ANSI styling, prompt bubble, wheel relay, native typing and row-boundary resize checks pass. Test directory: ${cwd}`,
+    `Real Codex overlay, ANSI styling, prompt bubble and anchored summary click, wheel relay, native typing and row-boundary resize checks pass. Test directory: ${cwd}`,
   );
 } finally {
   stopped = true;

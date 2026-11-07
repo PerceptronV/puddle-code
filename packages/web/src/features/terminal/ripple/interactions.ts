@@ -1,22 +1,11 @@
-import type { IBuffer, Terminal } from '@xterm/xterm';
+import type { IBuffer } from '@xterm/xterm';
 import { findBufferUrlCandidates, findUrlCandidates } from '../links/url-links';
 import { findBufferPathCandidates } from '../links/file-link-buffer';
 import { findPathCandidates, type PathCandidate } from '../links/file-link-paths';
 import type { CellPosition } from '../links/link-buffer';
 import type { RippleStyle } from './cell-style';
 
-type Action =
-  | { kind: 'url'; uri: string }
-  | { kind: 'file'; candidates: PathCandidate[] }
-  | {
-      kind: 'control';
-      row: number;
-      col: number;
-      line: string;
-      cols: number;
-      bufferType: string;
-      viewport: number;
-    };
+type Action = { kind: 'url'; uri: string } | { kind: 'file'; candidates: PathCandidate[] };
 export type RippleAction = Action & { start: number; end: number };
 
 /** Reuse the native terminal's bounded wrap-aware candidate detection. */
@@ -26,11 +15,10 @@ export function rippleActions(
   first: number,
   last: number,
   offsetAt: (cell: CellPosition, end: boolean) => number | undefined,
-  agentType?: string,
 ): RippleAction[] {
   const actions: RippleAction[] = [];
   const seen = new Set<string>();
-  const counts = { url: 0, file: 0, control: 0 };
+  const counts = { url: 0, file: 0 };
   const add = (start: CellPosition, end: CellPosition, action: Action) => {
     const from = offsetAt(start, false);
     const to = offsetAt(end, true);
@@ -50,30 +38,8 @@ export function rippleActions(
     if (counts.file < 128 && findPathCandidates(text).length)
       for (const link of findBufferPathCandidates(buffer, row, cols))
         add(link.start, link.end, { kind: 'file', candidates: [link.candidate] });
-    // These are native Codex disclosure controls, not arbitrary commands or
-    // approval labels. Bind the click to the exact current row before relaying.
-    if (
-      agentType === 'codex' &&
-      /^\s*[+−-]\s+(?:(?:Show|Hide) details|\d+ lines \((?:⌃|\^|ctrl\+)t to expand\))\s*$/i.test(
-        text,
-      )
-    ) {
-      const col = text.search(/\S/);
-      add(
-        { row, col },
-        { row, col: text.trimEnd().length - 1 },
-        {
-          kind: 'control',
-          row,
-          col,
-          line: text,
-          cols,
-          bufferType: buffer.type,
-          viewport: buffer.viewportY,
-        },
-      );
-    }
   }
+
   // Prefer full URLs over path-shaped substrings and full wrapped targets over
   // their shorter fallback. Unknown/missing paths are still resolved on demand.
   const chosen: RippleAction[] = [];
@@ -128,51 +94,10 @@ export function rippleActionStyles(styles: RippleStyle[], actions: RippleAction[
         ? ({
             action,
             actionKind: actions[action]!.kind,
-            actionRole: actions[action]!.kind === 'control' ? 'button' : 'link',
+            actionRole: 'link',
           } as const)
         : {}),
     });
   }
   return result;
-}
-
-/** Let xterm encode its negotiated mouse protocol; reject stale screen coordinates. */
-export function relayRippleControl(terminal: Terminal, action: RippleAction): boolean {
-  if (action.kind !== 'control' || terminal.modes.mouseTrackingMode === 'none') return false;
-  const buffer = terminal.buffer.active;
-  if (
-    terminal.cols !== action.cols ||
-    buffer.type !== action.bufferType ||
-    buffer.viewportY !== action.viewport ||
-    buffer.getLine(action.row)?.translateToString(true) !== action.line
-  )
-    return false;
-  const screen = terminal.element?.querySelector('.xterm-screen');
-  if (!screen) return false;
-  const bounds = screen.getBoundingClientRect();
-  const clientX = bounds.left + ((action.col + 0.5) * bounds.width) / terminal.cols;
-  const clientY =
-    bounds.top + ((action.row - buffer.viewportY + 0.5) * bounds.height) / terminal.rows;
-  if (clientY < bounds.top || clientY >= bounds.bottom) return false;
-  screen.dispatchEvent(
-    new MouseEvent('mousedown', {
-      bubbles: true,
-      cancelable: true,
-      button: 0,
-      buttons: 1,
-      clientX,
-      clientY,
-    }),
-  );
-  screen.dispatchEvent(
-    new MouseEvent('mouseup', {
-      bubbles: true,
-      cancelable: true,
-      button: 0,
-      buttons: 0,
-      clientX,
-      clientY,
-    }),
-  );
-  return true;
 }

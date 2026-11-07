@@ -1,4 +1,4 @@
-/* global window, document -- browser fixture */
+/* global window, document, getComputedStyle, NodeFilter -- browser fixture */
 import assert from 'node:assert/strict';
 import { chromium } from '@playwright/test';
 const browser = await chromium.launch();
@@ -98,18 +98,27 @@ try {
     .click({ modifiers: ['Meta'] });
   await page.waitForTimeout(100);
   assert.equal(await page.evaluate(() => window.rippleFixture.openedFiles.length), 2);
-  const details = reader.getByRole('button', { name: '+ Show details' });
+  const details = reader.getByText('+ Show details', { exact: true });
   const before = await page.evaluate(
     () => window.rippleFixture.messages.filter((m) => m.t === 'stdin').length,
   );
-  await details.click();
+  const point = await details.evaluate((element) => {
+    const node = element.firstChild;
+    const index = node.textContent.indexOf('details');
+    const range = document.createRange();
+    range.setStart(node, index);
+    range.setEnd(node, index + 1);
+    const r = range.getBoundingClientRect();
+    return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+  });
+  await page.mouse.click(point.x, point.y);
   const input = await page.evaluate(() =>
     window.rippleFixture.messages
       .filter((m) => m.t === 'stdin')
       .slice(-2)
       .map((m) => m.data),
   );
-  assert.deepEqual(input, ['\x1b[<0;3;14M', '\x1b[<0;3;14m']);
+  assert.deepEqual(input, ['\x1b[<0;10;14M', '\x1b[<0;10;14m']);
   assert.equal(
     await page.evaluate(() => window.rippleFixture.messages.filter((m) => m.t === 'stdin').length),
     before + 2,
@@ -129,9 +138,76 @@ try {
     before + 2,
     'stale click does not reach the replacement screen',
   );
+  // All text uses cell anchors, including a pinned prompt and unfamiliar controls.
+  await page.evaluate((rows) => {
+    window.getSelection().removeAllRanges();
+    window.rippleFixture.output(
+      '\x1b[2J\x1b[H› Earlier prompt…\r\n' +
+        '  115 - removed value\r\n  115 + replacement value\r\n\r\n' +
+        '界 **Arbitrary target**\r\n' +
+        `\x1b[${rows - 7};1H• Working (12s • esc to interrupt)` +
+        `\x1b[${rows - 6};1H  Tip: Native controls` +
+        `\x1b[${rows - 3};1H› Native input\x1b[${rows - 2};1HStatus`,
+    );
+  }, size.rows);
+  const summary = reader.locator('[data-ripple-summary]');
+  await summary.waitFor();
+  assert.equal((await summary.innerText()).trim(), 'Earlier prompt…');
+  assert.ok((await reader.locator('pre').innerText()).includes('115 - removed value\n'));
+  assert.ok(!(await reader.innerText()).includes('Working'));
+  assert.equal(
+    await page.locator('.ripple-scroll').evaluate((e) => getComputedStyle(e).scrollbarWidth),
+    'none',
+  );
+  const nativeGap = await page.evaluate((rows) => {
+    const screen = document.querySelector('.xterm-screen').getBoundingClientRect();
+    const overlay = document.querySelector('.ripple').getBoundingClientRect();
+    const cell = screen.height / rows;
+    return (screen.top + (rows - 8) * cell - overlay.bottom) / cell;
+  }, size.rows);
+  assert.ok(nativeGap >= 0.95, `Working has a breathing row: ${nativeGap}`);
+
+  const clickGlyph = async (locator, character) => {
+    const point = await locator.evaluate((element, character) => {
+      const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+      let node;
+      while ((node = walker.nextNode())) {
+        const index = node.textContent.indexOf(character);
+        if (index < 0) continue;
+        const range = document.createRange();
+        range.setStart(node, index);
+        range.setEnd(node, index + character.length);
+        const r = range.getBoundingClientRect();
+        return { x: r.x + r.width / 2, y: r.y + r.height / 2 };
+      }
+      throw new Error('Missing glyph');
+    }, character);
+    await page.mouse.click(point.x, point.y);
+  };
+  await clickGlyph(summary, 'E');
+  assert.deepEqual(
+    await page.evaluate(() =>
+      window.rippleFixture.messages
+        .filter((m) => m.t === 'stdin')
+        .slice(-2)
+        .map((m) => m.data),
+    ),
+    ['\x1b[<0;3;1M', '\x1b[<0;3;1m'],
+  );
+  // The wide glyph and Markdown delimiters must both count in native coordinates.
+  await clickGlyph(reader.locator('strong'), 't');
+  assert.deepEqual(
+    await page.evaluate(() =>
+      window.rippleFixture.messages
+        .filter((m) => m.t === 'stdin')
+        .slice(-2)
+        .map((m) => m.data),
+    ),
+    ['\x1b[<0;10;5M', '\x1b[<0;10;5m'],
+  );
   assert.deepEqual(errors, []);
   console.log(
-    'Ripple URL destinations, native URL/path opening, multiline prompts, disclosure mouse events and stale-click checks pass.',
+    'Ripple URL destinations, native URL/path opening, multiline prompts, generic cell anchors, pinned summaries, native spacing and stale-click checks pass.',
   );
 } finally {
   await browser.close();

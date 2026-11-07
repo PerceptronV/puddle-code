@@ -8,3 +8,10 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Cockpit
+
+#### Fixed
+
+- Map Ripple text clicks to original terminal cells instead of recognising Codex disclosure labels; preserve native pinned-prompt navigation without absorbing following diffs into the prompt bubble.
+- Keep Codex’s Working indicator native, leave breathing room above CLI controls, account for partial terminal rows, preserve numbered diff line breaks and hide Ripple’s overflow scrollbars while retaining scrolling.

@@ -40,13 +40,12 @@
   flex: 1;
   overflow: auto;
   overscroll-behavior: contain;
-  scrollbar-gutter: stable;
   overflow-anchor: none;
 }
 
 .ripple-content {
   width: 100%;
-  padding: 0.5rem 0.75rem;
+  padding: 0.5rem 0.75rem 1rem;
   overflow-wrap: anywhere;
   line-height: 1.55;
 }
@@ -179,13 +178,25 @@
   background: var(--bg-elevated);
 }
 
-.ripple-prose [data-ripple-action][role='button'],
+.ripple-prose [data-ripple-summary],
 .ripple-prose [data-valid-file='true'] {
   cursor: pointer;
 }
 .ripple-prose [data-valid-file='true']:hover {
   text-decoration: underline;
 }
-.ripple-prose [data-ripple-action][role='button']:hover {
+.ripple-prose [data-ripple-summary]:hover {
   opacity: 0.7;
+}
+
+/* Keep wheel/trackpad scrolling without visible overflow bars in the reader. */
+.ripple-scroll,
+.ripple-prose pre,
+.ripple-rich-display {
+  scrollbar-width: none;
+}
+.ripple-scroll::-webkit-scrollbar,
+.ripple-prose pre::-webkit-scrollbar,
+.ripple-rich-display::-webkit-scrollbar {
+  display: none;
 }

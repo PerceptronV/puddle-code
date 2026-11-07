@@ -7,8 +7,8 @@ export interface RippleStyle {
   css: string;
   href?: string;
   action?: number;
-  actionRole?: 'link' | 'button';
-  actionKind?: 'url' | 'file' | 'control';
+  actionRole?: 'link';
+  actionKind?: 'url' | 'file';
 }
 const paletteKeys = [
   'black',
@@ -117,24 +117,67 @@ export function markRippleStyles(
   text: string,
   styles: RippleStyle[],
   promptPrefixes: number[] = [],
+  anchorText = false,
 ) {
+  if (anchorText) {
+    const covered: RippleStyle[] = [];
+    let at = 0;
+    for (const style of styles) {
+      if (style.start > at) covered.push({ start: at, end: style.start, css: '' });
+      covered.push(style);
+      at = style.end;
+    }
+    if (at < text.length) covered.push({ start: at, end: text.length, css: '' });
+    styles = covered;
+  }
   let prefix = '\uE000ripple';
   while (text.includes(prefix)) prefix += '_';
   const replacements = new Map<string, string>();
+  const sourceLines = text.split('\n');
+  const tableRows = new Set<number>();
+  const divider = (line: string) =>
+    line.includes('|') && /^[\s|:-]+$/.test(line) && line.includes('-');
+  sourceLines.forEach((line, index) => {
+    if (!divider(line) || !sourceLines[index - 1]?.includes('|')) return;
+    tableRows.add(index - 1);
+    for (let row = index + 1; row < sourceLines.length && sourceLines[row]!.includes('|'); row++)
+      tableRows.add(row);
+  });
   let offset = 0;
-  const marked = text
-    .split('\n')
+  const marked = sourceLines
     .map((line, index) => {
       const promptPrefix = promptPrefixes[index] ?? 0;
       const prompt = promptPrefix > 0;
       const start = offset;
       offset += line.length + 1;
-      if (/^\s*(`{3,}|~{3,})/.test(line)) return line;
+      if (/^\s*(`{3,}|~{3,})/.test(line) || divider(line)) return line;
       // Leave Markdown block markers and the Codex prompt marker at the line start.
       const structural = line.trim()
         ? /^(\s*(?:(?:[•●⏺✦›❯*-]|\d+[.)])\s+)?(?:#{1,6}\s+|>\s+)?)/.exec(line)![0].length
         : 0;
-      for (const range of styles.toReversed()) {
+      // Keep Markdown's table pipes structural; anchor only the cell contents.
+      const pieces: Array<{ start: number; end: number }> = [];
+      if (tableRows.has(index)) {
+        let from = 0;
+        for (let col = 0; col < line.length; col++) {
+          if (line[col] !== '|' || line[col - 1] === '\\') continue;
+          pieces.push({ start: start + from, end: start + col });
+          from = col + 1;
+        }
+        pieces.push({ start: start + from, end: start + line.length });
+      }
+      const ranges = pieces.length
+        ? styles.flatMap((style) =>
+            pieces
+              .filter((piece) => style.start < piece.end && style.end > piece.start)
+              .map((piece) => ({
+                ...style,
+                start: Math.max(style.start, piece.start),
+                end: Math.min(style.end, piece.end),
+              })),
+          )
+        : styles;
+      for (const range of ranges.toReversed()) {
         let from = Math.max(structural, promptPrefix, range.start - start);
         let to = Math.min(line.length, range.end - start);
         if (to <= from) continue;
@@ -162,11 +205,15 @@ export function markRippleStyles(
                 .replace(/</g, '&lt;')
                 .replace(/>/g, '&gt;')
             : undefined;
+        const source = anchorText
+          ? ` data-ripple-start="${start + from}" data-ripple-end="${start + to}"`
+          : '';
+        const style = css ? ` style="${css}"` : '';
         replacements.set(
           open,
           href
-            ? `<a href="${href}" style="${css}">`
-            : `<span${range.action !== undefined ? ` data-ripple-action="${range.action}" data-ripple-kind="${range.actionKind}" role="${range.actionRole}" tabindex="0"` : ''} style="${css}">`,
+            ? `<a href="${href}"${source}${style}>`
+            : `<span${source}${range.action !== undefined ? ` data-ripple-action="${range.action}" data-ripple-kind="${range.actionKind}" role="${range.actionRole}" tabindex="0"` : ''}${style}>`,
         );
         const close = `${prefix}${replacements.size}\uE001`;
         replacements.set(close, href ? '</a>' : '</span>');

@@ -60,26 +60,36 @@ describe('Ripple links and source controls', () => {
       expect.objectContaining({ path: 'packages/web/src' }),
     );
   });
-  it('binds Codex details controls to original rows, without treating ordinary text as controls', () => {
-    const buffer = bufferWithLines(
-      [{ text: '  + Show details' }, { text: 'Click Show details to read more.' }],
-      50,
-    );
+  it('anchors arbitrary output without registering label-specific controls', () => {
+    const buffer = bufferWithLines([{ text: '  + Show details' }, { text: 'Open panel' }], 50);
     Object.assign(buffer, { type: 'alternate', viewportY: 0 });
-    const snapshot = readRippleBuffer(buffer, 50, undefined, {}, undefined, 'codex');
-    expect(snapshot.actions).toHaveLength(1);
-    expect(snapshot.actions?.[0]).toMatchObject({
-      kind: 'control',
+    const snapshot = readRippleBuffer(buffer, 50, { first: 0, last: 2 });
+    expect(snapshot.actions).toBeUndefined();
+    expect(snapshot.sourceMap?.rows[0]).toMatchObject({
       row: 0,
-      col: 2,
-      line: '  + Show details',
+      start: 0,
+      text: '  + Show details',
     });
     const part = snapshot.parts[0]!;
     if (part.kind !== 'text') throw new Error('Expected text');
-    expect(rippleHtml(part.source, false, false, { styles: part.styles })).toContain(
-      'role="button"',
+    const html = rippleHtml(part.source, false, false, { styles: part.styles, anchorText: true });
+    expect(html).toContain('data-ripple-start="2"');
+    expect(html).not.toContain('role="button"');
+  });
+  it('keeps a pinned truncated prompt separate from following diff rows', () => {
+    const html = rippleHtml(
+      '› Earlier prompt …\n  115 - old code\n  115 + new code\n  + Show details',
+      false,
+      false,
+      { agentType: 'codex', anchorText: true },
     );
-    expect(readRippleBuffer(buffer, 50).actions).toBeUndefined();
+    const [prompt, reply] = html.split('</div>');
+    expect(prompt).toContain('Earlier prompt');
+    expect(prompt).not.toContain('old code');
+    expect(prompt).toContain('data-ripple-summary="true"');
+    expect(reply).toContain('<pre>');
+    expect(reply).toContain('old code');
+    expect(reply).toContain('new code');
   });
   it('groups indented prompt lists, nested lists, code and blank paragraphs without absorbing the reply', () => {
     const source =

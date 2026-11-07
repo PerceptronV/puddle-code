@@ -4,13 +4,14 @@ import { readRow } from '../links/link-buffer';
 import { terminalRichBlocks } from '../rich-output/rich-output-buffer';
 import type { RipplePalette } from './xterm-style';
 import { rippleActions, rippleActionStyles, type RippleAction } from './interactions';
+import type { RippleSourceMap } from './source-map';
 
 export const RIPPLE_MAX_ROWS = 600;
 // Match the shared rich-output detector's scan budget.
 export const RIPPLE_MAX_CHARACTERS = 32_768;
 
 export type RipplePart =
-  | { kind: 'text'; source: string; styles?: RippleStyle[] }
+  | { kind: 'text'; source: string; styles?: RippleStyle[]; offset?: number }
   | { kind: 'mermaid' | 'math'; source: string; display: boolean };
 
 export interface RippleSnapshot {
@@ -21,6 +22,7 @@ export interface RippleSnapshot {
   foreground?: string;
   background?: string;
   actions?: RippleAction[];
+  sourceMap?: RippleSourceMap;
 }
 
 /** A bounded projection of the current screen, never a second terminal parser or log. */
@@ -30,7 +32,6 @@ export function readRippleBuffer(
   view?: { first: number; last: number; firstCol?: number; lastCol?: number },
   theme: ITheme = {},
   palette?: RipplePalette,
-  agentType?: string,
 ): RippleSnapshot {
   const last = Math.min(buffer.length, view?.last ?? buffer.length);
   // Reserve the newest rows even when a single row is extremely wide.
@@ -103,25 +104,18 @@ export function readRippleBuffer(
   }
   const joined = lines.join('\n');
   const text = joined.slice(0, Math.max(joined.trimEnd().length, styles.at(-1)?.end ?? 0));
-  const actions = rippleActions(
-    buffer,
-    cols,
-    first,
-    last,
-    (cell, end) => {
-      const row = rows.get(cell.row);
-      if (!row || row.concealed) return;
-      const index = end
-        ? row.cells.findLastIndex((item) => item.col <= cell.col)
-        : row.cells.findIndex((item) => item.col === cell.col);
-      if (index < 0 || index >= row.length) return;
-      const column = row.cells[index]!.col;
-      const width = buffer.getLine(cell.row)?.getCell(column)?.getWidth() ?? 1;
-      if (cell.col >= column + Math.max(1, width)) return;
-      return row.offset + index + (end ? 1 : 0);
-    },
-    agentType,
-  );
+  const actions = rippleActions(buffer, cols, first, last, (cell, end) => {
+    const row = rows.get(cell.row);
+    if (!row || row.concealed) return;
+    const index = end
+      ? row.cells.findLastIndex((item) => item.col <= cell.col)
+      : row.cells.findIndex((item) => item.col === cell.col);
+    if (index < 0 || index >= row.length) return;
+    const column = row.cells[index]!.col;
+    const width = buffer.getLine(cell.row)?.getCell(column)?.getWidth() ?? 1;
+    if (cell.col >= column + Math.max(1, width)) return;
+    return row.offset + index + (end ? 1 : 0);
+  });
   styles = rippleActionStyles(styles, actions);
   const parts: RipplePart[] = [];
   const addText = (from: number, to: number) => {
@@ -135,6 +129,7 @@ export function readRippleBuffer(
     parts.push({
       kind: 'text',
       source: text.slice(from, to),
+      ...(view && { offset: from }),
       ...(ranges.length ? { styles: ranges } : {}),
     });
   };
@@ -167,6 +162,21 @@ export function readRippleBuffer(
     alternate: buffer.type === 'alternate',
     parts,
     ...(actions.length ? { actions } : {}),
+    ...(view && {
+      sourceMap: {
+        cols,
+        viewport: buffer.viewportY,
+        bufferType: buffer.type,
+        rows: [...rows.entries()]
+          .filter(([, row]) => !row.concealed)
+          .map(([number, row]) => ({
+            row: number,
+            start: row.offset,
+            columns: row.cells.slice(0, row.length).map((cell) => cell.col),
+            text: buffer.getLine(number)?.translateToString(true) ?? '',
+          })),
+      },
+    }),
     ...(palette && { foreground: theme.foreground, background: theme.background }),
   };
 }

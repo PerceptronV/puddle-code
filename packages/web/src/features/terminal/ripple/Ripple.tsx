@@ -17,7 +17,8 @@ import {
   resolveFileLinkCandidate,
   type FileLinkTarget,
 } from '../links/file-links';
-import { relayRippleControl, type RippleAction } from './interactions';
+import type { RippleAction } from './interactions';
+import { rippleCellAtOffset, rippleOffsetAtPoint, relayRippleCell } from './source-map';
 import { readRippleBuffer, type RippleSnapshot } from './buffer';
 import { rippleHtml } from './markdown';
 import { relayRippleWheel, rippleView } from './view';
@@ -70,14 +71,7 @@ export function Ripple({
   const readSnapshot = useCallback(
     (view = updateView()) => {
       const palette = ripplePalette(terminal, agentType);
-      return readRippleBuffer(
-        terminal.buffer.active,
-        terminal.cols,
-        view,
-        palette.theme,
-        palette,
-        agentType,
-      );
+      return readRippleBuffer(terminal.buffer.active, terminal.cols, view, palette.theme, palette);
     },
     [terminal, agentType, updateView],
   );
@@ -116,6 +110,7 @@ export function Ripple({
         previous.foreground === next.foreground &&
         previous.background === next.background &&
         JSON.stringify(previous.actions) === JSON.stringify(next.actions) &&
+        JSON.stringify(previous.sourceMap) === JSON.stringify(next.sourceMap) &&
         JSON.stringify(previous.parts) === JSON.stringify(next.parts)
           ? previous
           : next,
@@ -191,7 +186,12 @@ export function Ripple({
                   part.source,
                   previous?.kind === 'math' && !previous.display,
                   next?.kind === 'math' && !next.display,
-                  { styles: part.styles, agentType, background: snapshot.background },
+                  {
+                    styles: part.styles,
+                    agentType,
+                    background: snapshot.background,
+                    anchorText: true,
+                  },
                 ),
               ),
             }
@@ -223,6 +223,20 @@ export function Ripple({
     return null;
   };
 
+  const pointer = useRef<{ x: number; y: number; dragged: boolean } | null>(null);
+  const nativeClick = (target: HTMLElement, point?: MouseEvent) => {
+    if (!active || !snapshot.sourceMap) return;
+    const root = target.closest<HTMLElement>('[data-ripple-part]');
+    const part = root && snapshot.parts[Number(root.dataset.ripplePart)];
+    if (!root || part?.kind !== 'text') return;
+    const offset = point
+      ? rippleOffsetAtPoint(root, part.source, point.clientX, point.clientY)
+      : Number(target.querySelector<HTMLElement>('[data-ripple-start]')?.dataset.rippleStart);
+    if (offset === null || !Number.isInteger(offset)) return;
+    const cell = rippleCellAtOffset(snapshot.sourceMap, (part.offset ?? 0) + offset);
+    if (cell && relayRippleCell(terminal, cell, point)) followNative.current = true;
+  };
+
   const activate = (target: HTMLElement, modified: boolean, keyboard = false) => {
     const element = target.closest<HTMLElement>('[data-ripple-action]');
     const action = element && snapshot.actions?.[Number(element.dataset.rippleAction)];
@@ -234,15 +248,6 @@ export function Ripple({
           if (resolved) onOpenFile(resolved);
         })
         .catch(toastError);
-    } else if (action?.kind === 'control') {
-      if (!relayRippleControl(terminal, action)) {
-        // Unknown mouse modes and stale frames need the real screen, never a
-        // guessed shortcut or a click at a different current control.
-        setShowNative(true);
-        terminal.focus();
-      } else {
-        followNative.current = true;
-      }
     } else {
       const href = target.closest('a')?.getAttribute('href');
       if (href && /^https?:\/\//i.test(href)) onOpenUri(href);
@@ -292,15 +297,28 @@ export function Ripple({
         onWheel={() => {
           scrollIntentUntil.current = Date.now() + 1000;
         }}
-        onPointerDown={() => {
+        onPointerDown={(event) => {
+          pointer.current = { x: event.clientX, y: event.clientY, dragged: false };
           followNative.current = false;
           scrollIntentUntil.current = Date.now() + 1000;
         }}
         onPointerMove={(event) => {
+          if (
+            event.buttons &&
+            pointer.current &&
+            Math.hypot(event.clientX - pointer.current.x, event.clientY - pointer.current.y) > 4
+          )
+            pointer.current.dragged = true;
           if (event.buttons) scrollIntentUntil.current = Date.now() + 1000;
         }}
         onKeyDown={(event) => {
           const target = event.target as HTMLElement;
+          const summary = target.closest<HTMLElement>('[data-ripple-summary]');
+          if (summary && (event.key === 'Enter' || event.key === ' ')) {
+            event.preventDefault();
+            nativeClick(summary);
+            return;
+          }
           if (target.closest('a,[data-ripple-action]')) {
             if (
               event.key === 'Enter' ||
@@ -355,10 +373,11 @@ export function Ripple({
         }}
         onClick={(event) => {
           const target = event.target as HTMLElement;
-          if (!target.closest('a,[data-ripple-action]')) return;
-          event.preventDefault();
-          if (!window.getSelection()?.isCollapsed) return;
-          activate(target, event.metaKey || event.ctrlKey);
+          if (!window.getSelection()?.isCollapsed || pointer.current?.dragged) return;
+          if (target.closest('a,[data-ripple-action]')) {
+            event.preventDefault();
+            activate(target, event.metaKey || event.ctrlKey);
+          } else nativeClick(target, event.nativeEvent);
         }}
         onMouseOver={(event) => {
           const element = (event.target as HTMLElement).closest<HTMLElement>(
@@ -385,6 +404,7 @@ export function Ripple({
                   <div
                     key={index}
                     className="ripple-text"
+                    data-ripple-part={index}
                     dangerouslySetInnerHTML={renderedParts[index]!}
                   />
                 ) : (

@@ -1,15 +1,21 @@
 import { terminalMarkdownToHtml } from '../../editor/previews/markdown/markdown';
 import { markRippleStyles, type RippleStyle } from './cell-style';
-import { rippleInputBorder, ripplePromptPrefix } from './agent-layout';
+import { rippleInputBorder, ripplePromptPrefix, ripplePromptSummary } from './agent-layout';
 
 /** Keep aligned output literal even when it resembles Markdown. */
 export function rippleHtml(
   text: string,
   startInline = false,
   endInline = false,
-  options: { styles?: RippleStyle[]; agentType?: string; background?: string } = {},
+  options: {
+    styles?: RippleStyle[];
+    agentType?: string;
+    background?: string;
+    anchorText?: boolean;
+  } = {},
 ): string {
   const originalLines = text.split('\n');
+  const firstContent = originalLines.findIndex((line) => line.trim());
   let offset = 0;
   const offsets: number[] = [];
   const prefixes = originalLines.map((line) => {
@@ -25,7 +31,12 @@ export function rippleHtml(
     return prefix;
   });
   const promptEnds = prefixes.map((prefix, row) => {
-    if (!prefix || options.agentType === 'opencode') return row;
+    if (
+      !prefix ||
+      options.agentType === 'opencode' ||
+      (row === firstContent && ripplePromptSummary(originalLines[row]!, options.agentType))
+    )
+      return row;
     let end = row;
     for (let next = row + 1; next < originalLines.length; next++) {
       const line = originalLines[next]!;
@@ -44,7 +55,7 @@ export function rippleHtml(
   promptEnds.forEach((end, row) => {
     for (let next = row + 1; next <= end; next++) promptIndents[next] = prefixes[row]!;
   });
-  const marked = markRippleStyles(text, options.styles ?? [], promptIndents);
+  const marked = markRippleStyles(text, options.styles ?? [], promptIndents, options.anchorText);
   text = marked.text;
   const render = (source: string) => terminalMarkdownToHtml(source, marked.cleanLink);
   // CLIs hard-wrap prose themselves, so those newlines must reflow. Strip the
@@ -86,6 +97,8 @@ export function rippleHtml(
     }
     if (prefixes[index]) {
       flush();
+      const summary =
+        index === firstContent && ripplePromptSummary(originalLines[index]!, options.agentType);
       const contentOffset = offsets[index]! + prefixes[index]!;
       const backing = options.styles?.find(
         (range) =>
@@ -109,7 +122,7 @@ export function rippleHtml(
         while (index < end) prompt.push(rawLines[++index]!.slice(indent));
       }
       output.push(
-        `<div class="ripple-user-turn"${bubbleStyle ? ` style="${bubbleStyle}"` : ''}>${render(prompt.join('\n'))}</div>`,
+        `<div class="ripple-user-turn"${summary ? ' data-ripple-summary="true" role="button" tabindex="0"' : ''}${bubbleStyle ? ` style="${bubbleStyle}"` : ''}>${render(prompt.join('\n'))}</div>`,
       );
       continue;
     }
@@ -129,7 +142,7 @@ export function rippleHtml(
       }
       output.push(complete ? render(block.join('\n')) : literal(block.join('\n')));
     } else if (
-      /^(?: {4}|\t)|[\u2500-\u259f]|\S {2,}\S/.test(
+      /^(?: {4}|\t|\s*\d+\s*[+-])|[\u2500-\u259f]|\S {2,}\S/.test(
         gutter ? originalLines[index]!.replace(/^ {2}/, '') : originalLines[index]!,
       ) ||
       /^(?:const|let|var)\s+\w+\s*[:=]|^console\.\w+\(/.test(originalLines[index]!.trimStart())
@@ -140,7 +153,7 @@ export function rippleHtml(
         index + 1 < lines.length &&
         !prefixes[index + 1] &&
         !promptBorders.has(index + 1) &&
-        (/^(?: {4}|\t)|[\u2500-\u259f]|\S {2,}\S/.test(
+        (/^(?: {4}|\t|\s*\d+\s*[+-])|[\u2500-\u259f]|\S {2,}\S/.test(
           gutter ? originalLines[index + 1]!.replace(/^ {2}/, '') : originalLines[index + 1]!,
         ) ||
           /^(?:const|let|var)\s+\w+\s*[:=]|^console\.\w+\(/.test(

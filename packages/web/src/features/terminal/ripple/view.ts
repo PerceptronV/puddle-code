@@ -88,6 +88,27 @@ export function rippleView(
     occupiedRows = terminal.rows;
     composer = Math.max(0, terminal.rows - 5);
   }
+  if (agentType === 'codex' && foundComposer) {
+    // The live working indicator and its tip belong to native controls. Only
+    // inspect the footer neighbourhood, not prose mentioning work elsewhere.
+    for (let row = first + composer - 1; row >= Math.max(first, first + composer - 10); row--) {
+      const text = buffer.getLine(row)?.translateToString(true) ?? '';
+      if (/^\s*(?:[^\p{L}\p{N}\s]\s*)?Working\s*\([^)]*(?:esc|interrupt)[^)]*\)/iu.test(text)) {
+        composer = row - first;
+        break;
+      }
+    }
+  }
+  if (
+    foundComposer &&
+    nativeRows === null &&
+    composer > 0 &&
+    !buffer
+      .getLine(first + composer - 1)
+      ?.translateToString(true)
+      .trim()
+  )
+    composer--;
   if (nativeRows !== null) composer = Math.max(3, occupiedRows - nativeRows);
   composer = Math.max(0, Math.min(occupiedRows - 1, composer));
   let last = first + composer;
@@ -124,6 +145,11 @@ export function rippleView(
   }
   const screen = terminal.element?.querySelector('.xterm-screen');
   const cellHeight = (screen?.getBoundingClientRect().height || terminal.rows * 16) / terminal.rows;
+  const native = terminal.element?.closest('.ripple-native');
+  const remainder =
+    screen && native
+      ? Math.max(0, native.getBoundingClientRect().bottom - screen.getBoundingClientRect().bottom)
+      : 0;
   return {
     first,
     last,
@@ -131,7 +157,7 @@ export function rippleView(
     lastCol,
     nativeRows: occupiedRows - composer,
     cellHeight,
-    bottom: Math.max(0, occupiedRows - composer) * cellHeight,
+    bottom: Math.max(0, occupiedRows - composer) * cellHeight + remainder,
     nativeOffset: (terminal.rows - occupiedRows) * cellHeight,
   };
 }

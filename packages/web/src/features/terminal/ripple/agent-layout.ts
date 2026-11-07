@@ -1,5 +1,10 @@
 import type { RippleStyle } from './cell-style';
 
+/** Codex pins a truncated past prompt above the scrolled conversation. */
+export function ripplePromptSummary(line: string, agentType?: string): boolean {
+  return agentType === 'codex' && /^\s*[›❯] .*(?:…|\.{3})\s*$/.test(line);
+}
+
 /** Native layouts, not inferred conversation roles. Unknown layouts stay literal. */
 export function ripplePromptPrefix(
   line: string,

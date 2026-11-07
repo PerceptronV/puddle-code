@@ -50,6 +50,31 @@ describe('Ripple overlay boundary', () => {
     expect(view.nativeRows).toBe(5);
     expect(readRippleBuffer(terminal.buffer.active, 80, view).text).not.toContain('Ask Codex');
   });
+  it('keeps Working, tips and a blank row native while preserving a manual boundary', () => {
+    const terminal = screen();
+    const old = terminal.buffer.active.getLine.bind(terminal.buffer.active);
+    terminal.buffer.active.getLine = (row) => {
+      if (row === 20)
+        return bufferWithLines([{ text: '• Working (12s • esc to interrupt)' }], 80).getLine(0);
+      if (row === 19) return bufferWithLines([{ text: '' }], 80).getLine(0);
+      return old(row);
+    };
+    expect(rippleView(terminal, 'codex').nativeRows).toBe(11);
+    expect(rippleView(terminal, 'codex', 5).nativeRows).toBe(5);
+    const view = rippleView(terminal, 'codex');
+    expect(readRippleBuffer(terminal.buffer.active, 80, view).text).not.toContain('Working');
+  });
+  it('includes the fractional fit remainder so the overlay cannot clip a native row', () => {
+    const terminal = screen();
+    Object.assign(terminal, {
+      element: {
+        querySelector: () => ({ getBoundingClientRect: () => ({ height: 480, bottom: 600 }) }),
+        closest: () => ({ getBoundingClientRect: () => ({ bottom: 607 }) }),
+      },
+    });
+    expect(rippleView(terminal, 'codex').bottom).toBe(5 * 16 + 7);
+    expect(rippleView(terminal, 'codex', 8).bottom).toBe(8 * 16 + 7);
+  });
   it('anchors manual placement by native rows across taller and shorter terminals', () => {
     expect(rippleView(screen(30), 'codex', 8).nativeRows).toBe(8);
     expect(rippleView(screen(40), 'codex', 8).nativeRows).toBe(8);
