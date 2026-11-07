@@ -57,9 +57,7 @@ export function Ripple({
   const [inputRows, setInputRows] = useState<number | null>(null);
   const nativeRows = useRippleBoundary(stream);
   const collapsed = nativeRows === 'cli';
-  const followNative = useRef(false);
   const fileCache = useMemo(() => createFileLinkCache(), [stream]);
-  const scrollEdge = useRef<'start' | 'end' | null>(null);
   const updateView = useCallback(() => {
     const view = rippleView(terminal, agentType, nativeRows);
     setBottom(view.bottom);
@@ -85,8 +83,6 @@ export function Ripple({
     },
     [terminal, agentType, updateView],
   );
-  const follow = useRef(true);
-  const scrollIntentUntil = useRef(0);
   const theme = useSyncExternalStore(onThemeChange, currentTheme, currentTheme);
 
   useLayoutEffect(() => {
@@ -107,7 +103,6 @@ export function Ripple({
       return () => resize.dispose();
     }
     let timer: ReturnType<typeof setTimeout> | undefined;
-    let wasAtBottom = terminal.buffer.active.viewportY === terminal.buffer.active.baseY;
     const refresh = (force = false) => {
       clearTimeout(timer);
       timer = undefined;
@@ -115,7 +110,7 @@ export function Ripple({
       const selection = window.getSelection();
       const selecting =
         selection && !selection.isCollapsed && viewport.current?.contains(selection.anchorNode);
-      if (!force && (selecting || (!follow.current && !followNative.current))) return;
+      if (!force && selecting) return;
       const next = readSnapshot(view);
       setSnapshot((previous) =>
         previous.text === next.text &&
@@ -138,23 +133,13 @@ export function Ripple({
       terminal.onWriteParsed(schedule),
       terminal.onResize(schedule),
       { dispose: onThemeChange(schedule) },
-      terminal.onScroll(() => {
-        const atBottom = terminal.buffer.active.viewportY === terminal.buffer.active.baseY;
-        if (!atBottom || !wasAtBottom) followNative.current = true;
-        wasAtBottom = atBottom;
-        schedule();
-      }),
+      terminal.onScroll(schedule),
       terminal.buffer.onBufferChange(() => {
-        follow.current = true;
         // Never retain the other buffer's content, even during selection.
         refresh(true);
       }),
     ];
-    const nativeWheel = (event: WheelEvent) => {
-      followNative.current = true;
-      scrollEdge.current = event.deltaY < 0 ? 'start' : 'end';
-      schedule();
-    };
+    const nativeWheel = () => schedule();
     terminal.element?.addEventListener('wheel', nativeWheel, { capture: true, passive: true });
     document.addEventListener('selectionchange', schedule);
     refresh(true);
@@ -171,24 +156,12 @@ export function Ripple({
     if (!element || !active || collapsed) return;
     const wheel = (event: WheelEvent) => {
       if (event.ctrlKey || event.metaKey || event.deltaY === 0) return;
-      followNative.current = false;
-      const atEdge =
-        event.deltaY < 0
-          ? element.scrollTop <= 1
-          : element.scrollTop + element.clientHeight >= element.scrollHeight - 1;
-      // Read the entire proportional projection first, then ask the CLI for
-      // the preceding/next screen through its existing input path.
-      if (atEdge) {
-        event.preventDefault();
-        relayRippleWheel(terminal, event);
-      }
+      // The CLI owns vertical scrolling; Ripple has no independent scroll range.
+      event.preventDefault();
+      relayRippleWheel(terminal, event);
     };
     element.addEventListener('wheel', wheel, { passive: false });
-    const detachTouch = attachRippleTouchScroll(element, terminal, () => {
-      scrollEdge.current = null;
-      followNative.current = false;
-      scrollIntentUntil.current = Date.now() + 1000;
-    });
+    const detachTouch = attachRippleTouchScroll(element, terminal);
     return () => {
       element.removeEventListener('wheel', wheel);
       detachTouch();
@@ -226,21 +199,6 @@ export function Ripple({
       }),
     [snapshot.parts, snapshot.background, snapshot.sourceMap, agentType],
   );
-  useLayoutEffect(() => {
-    const element = viewport.current;
-    const content = element?.firstElementChild;
-    if (!element || !content || !active || collapsed) return;
-    const settle = () => {
-      if (scrollEdge.current) {
-        element.scrollTop = scrollEdge.current === 'start' ? 0 : element.scrollHeight;
-        scrollEdge.current = null;
-      } else if (follow.current) element.scrollTop = element.scrollHeight;
-    };
-    const observer = new ResizeObserver(settle);
-    observer.observe(content);
-    settle();
-    return () => observer.disconnect();
-  }, [snapshot, active, collapsed]);
 
   const resolveFile = async (action: Extract<RippleAction, { kind: 'file' }>) => {
     for (const candidate of action.candidates) {
@@ -261,7 +219,7 @@ export function Ripple({
       : Number(target.querySelector<HTMLElement>('[data-ripple-start]')?.dataset.rippleStart);
     if (offset === null || !Number.isInteger(offset)) return;
     const cell = rippleCellAtOffset(snapshot.sourceMap, (part.offset ?? 0) + offset);
-    if (cell && relayRippleCell(terminal, cell, point)) followNative.current = true;
+    if (cell) relayRippleCell(terminal, cell, point);
   };
 
   const activate = (target: HTMLElement, modified: boolean, keyboard = false) => {
@@ -298,13 +256,8 @@ export function Ripple({
           style={{ color: snapshot.foreground, backgroundColor: snapshot.background }}
           tabIndex={0}
           aria-label="Readable terminal output"
-          onWheel={() => {
-            scrollIntentUntil.current = Date.now() + 1000;
-          }}
           onPointerDown={(event) => {
             pointer.current = { x: event.clientX, y: event.clientY, dragged: false };
-            followNative.current = false;
-            scrollIntentUntil.current = Date.now() + 1000;
           }}
           onPointerMove={(event) => {
             if (
@@ -313,7 +266,6 @@ export function Ripple({
               Math.hypot(event.clientX - pointer.current.x, event.clientY - pointer.current.y) > 4
             )
               pointer.current.dragged = true;
-            if (event.buttons) scrollIntentUntil.current = Date.now() + 1000;
           }}
           onKeyDown={(event) => {
             const target = event.target as HTMLElement;
@@ -340,9 +292,20 @@ export function Ripple({
               terminal.focus();
               terminal.input(event.key, true);
             } else if (
-              ['Enter', 'Escape', 'Backspace', 'Delete', 'ArrowLeft', 'ArrowRight'].includes(
-                event.key,
-              )
+              [
+                'Enter',
+                'Escape',
+                'Backspace',
+                'Delete',
+                'ArrowLeft',
+                'ArrowRight',
+                'ArrowUp',
+                'ArrowDown',
+                'PageUp',
+                'PageDown',
+                'Home',
+                'End',
+              ].includes(event.key)
             ) {
               event.preventDefault();
               terminal.focus();
@@ -360,19 +323,6 @@ export function Ripple({
                 }),
               );
             }
-            if (
-              ['ArrowUp', 'ArrowDown', 'PageUp', 'PageDown', 'Home', 'End', ' '].includes(event.key)
-            )
-              scrollIntentUntil.current = Date.now() + 1000;
-          }}
-          onScroll={(event) => {
-            const element = event.currentTarget;
-            const wasFollowing = follow.current;
-            const atBottom = element.scrollHeight - element.scrollTop - element.clientHeight < 32;
-            // Async diagram sizing and browser clamping also emit scroll events;
-            // only a reader gesture can turn automatic following off.
-            if (atBottom || Date.now() < scrollIntentUntil.current) follow.current = atBottom;
-            if (!wasFollowing && follow.current) setSnapshot(readSnapshot());
           }}
           onClick={(event) => {
             const target = event.target as HTMLElement;
@@ -397,9 +347,6 @@ export function Ripple({
           }}
         >
           <div className="ripple-content">
-            {snapshot.truncated && !snapshot.alternate && (
-              <p className="ripple-note">Recent output · Full history is available in the CLI.</p>
-            )}
             {snapshot.text ? (
               <div className="ripple-prose">
                 {snapshot.parts.map((part, index) =>

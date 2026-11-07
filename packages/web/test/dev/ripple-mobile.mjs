@@ -1,4 +1,4 @@
-/* global window, document -- browser fixture */
+/* global window, document, getComputedStyle -- browser fixture */
 import assert from 'node:assert/strict';
 import { chromium } from '@playwright/test';
 
@@ -65,13 +65,10 @@ try {
           '\x1b[1m• Mobile reply\x1b[0m',
           'Math: $E=mc^2$.',
           '',
-          'flowchart TB',
-          'A --> B --> C --> D --> E --> F',
+          'flowchart LR',
+          'A --> B',
           '',
-          ...Array.from(
-            { length: Math.max(1, rows - 15) },
-            (_, i) => `Paragraph ${i} for reading.`,
-          ),
+          ...Array.from({ length: 1 }, (_, i) => `Paragraph ${i} for reading.`),
         ].join('\r\n') +
         `\x1b[${rows - 3};1H› Ask Codex to do anything\x1b[${rows - 1};1HFooter\x1b[${rows - 3};3H`,
     );
@@ -107,28 +104,30 @@ try {
       { x: box.x + box.width / 2, y: box.y + box.height * (direction === 'down' ? 0.7 : 0.3) },
     );
   };
-  // A swipe inside the reader scrolls browser content without becoming a CLI click.
-  await reader.evaluate((el) => {
-    el.scrollTop = el.scrollHeight;
+  // Dense output must fit, and the very first swipe must reach the CLI.
+  await page.evaluate(() => {
+    const { rows } = window.rippleFixture.messages.findLast(
+      (m) => m.t === 'resize' || m.t === 'attach',
+    );
+    window.rippleFixture.output(
+      '\x1b[2J\x1b[H' +
+        Array.from({ length: rows - 4 }, (_, i) => `• Reply ${i}\r\n`).join('') +
+        `\x1b[${rows - 2};1H› Ask Codex to do anything`,
+    );
   });
-  const start = await reader.evaluate((el) => el.scrollTop);
-  assert.ok(start > 0, 'fixture overflows the phone reading viewport');
+  await page.waitForTimeout(200);
+  assert.ok(
+    await reader.evaluate((el) => getComputedStyle(el).overflowY === 'clip'),
+    'reader has no independent vertical scroll',
+  );
   const before = (await input()).length;
   await swipe('down');
-  assert.ok(await reader.evaluate((el, start) => el.scrollTop < start, start));
-  // At the edge, both directions reuse xterm's negotiated wheel encoding.
-  await reader.evaluate((el) => {
-    el.scrollTop = 0;
-  });
-  await swipe('down');
   assert.ok((await input()).slice(before).some((data) => data.startsWith('\x1b[<64;')));
-  await page.evaluate(() => window.rippleFixture.output('\x1b[3;1H• Earlier mobile reply\x1b[0K'));
+  await page.evaluate(() => window.rippleFixture.output('\x1b[2J\x1b[H• Earlier mobile reply'));
   await reader.getByText('Earlier mobile reply', { exact: true }).waitFor();
-  await reader.evaluate((el) => {
-    el.scrollTop = el.scrollHeight;
-  });
   await swipe('up');
   assert.ok((await input()).slice(before).some((data) => data.startsWith('\x1b[<65;')));
+  assert.equal(await reader.evaluate((el) => el.scrollTop), 0);
   assert.ok(
     (await input())
       .slice(before)
@@ -166,7 +165,7 @@ try {
   assert.deepEqual(errors, []);
   await touch.detach();
   console.log(
-    'Mobile Ripple touch divider, rich rendering, DOM scrolling, native history relay, phone keys and resized/reloaded boundaries pass.',
+    'Mobile Ripple touch divider, rich rendering, fitted rows, immediate native history relay, phone keys and resized/reloaded boundaries pass.',
   );
 } finally {
   await browser.close();

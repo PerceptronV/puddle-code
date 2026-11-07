@@ -29,7 +29,12 @@ export interface RippleSnapshot {
 export function readRippleBuffer(
   buffer: IBuffer,
   cols: number,
-  view?: { first: number; last: number; firstCol?: number; lastCol?: number },
+  view?: {
+    first: number;
+    last: number;
+    firstCol?: number;
+    lastCol?: number;
+  },
   theme: ITheme = {},
   palette?: RipplePalette,
 ): RippleSnapshot {
@@ -37,8 +42,9 @@ export function readRippleBuffer(
   // Reserve the newest rows even when a single row is extremely wide.
   const count = Math.min(RIPPLE_MAX_ROWS, Math.floor(RIPPLE_MAX_CHARACTERS / (cols + 1)));
   let first = Math.max(0, view?.first ?? 0, last - count);
-  // A partial logical line could begin midway through code or a URL. Omit it.
-  while (first < last && buffer.getLine(first)?.isWrapped) first++;
+  // A bounded history read omits an incomplete first logical line. A viewport
+  // projection must retain every visible row, including a wrapped continuation.
+  while (!view && first < last && buffer.getLine(first)?.isWrapped) first++;
   const lines: string[] = [];
   const rows = new Map<
     number,

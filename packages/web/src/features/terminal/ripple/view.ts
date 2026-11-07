@@ -2,6 +2,8 @@ import type { Terminal } from '@xterm/xterm';
 import type { RippleBoundaryPreference } from './preferences';
 import { rippleInputBorder, rippleInputMarker, rippleWorkingLine } from './agent-layout';
 
+export const RIPPLE_RESERVED_ROWS = 2;
+
 /** Keep the real composer visible without resizing or moving the underlying PTY. */
 export function rippleView(
   terminal: Terminal,
@@ -163,6 +165,10 @@ export function rippleView(
     screen && native
       ? Math.max(0, native.getBoundingClientRect().bottom - screen.getBoundingClientRect().bottom)
       : 0;
+  const breathing =
+    nativeRows === 'cli'
+      ? 0
+      : Math.min(RIPPLE_RESERVED_ROWS, Math.floor(remainder / cellHeight)) * cellHeight;
   return {
     first,
     last,
@@ -171,8 +177,11 @@ export function rippleView(
     nativeRows: occupiedRows - composer,
     inputRows,
     cellHeight,
-    bottom: composer === occupiedRows ? 0 : (occupiedRows - composer) * cellHeight + remainder,
-    nativeOffset: (terminal.rows - occupiedRows) * cellHeight,
+    bottom:
+      composer === occupiedRows
+        ? 0
+        : (occupiedRows - composer) * cellHeight + remainder - breathing,
+    nativeOffset: (terminal.rows - occupiedRows) * cellHeight + breathing,
   };
 }
 
@@ -181,18 +190,25 @@ export function relayRippleWheel(terminal: Terminal, event: WheelEvent) {
   const screen = terminal.element?.querySelector('.xterm-screen');
   if (!screen) return;
   const bounds = screen.getBoundingClientRect();
-  screen.dispatchEvent(
-    new WheelEvent('wheel', {
-      bubbles: true,
-      cancelable: true,
-      deltaX: event.deltaX,
-      deltaY: event.deltaY,
-      deltaMode: event.deltaMode,
-      ctrlKey: event.ctrlKey,
-      altKey: event.altKey,
-      metaKey: event.metaKey,
-      clientX: Math.max(bounds.left, Math.min(bounds.right - 1, event.clientX)),
-      clientY: Math.max(bounds.top, Math.min(bounds.bottom - 1, event.clientY)),
-    }),
-  );
+  const forwarded = new WheelEvent('wheel', {
+    bubbles: true,
+    cancelable: true,
+    deltaX: event.deltaX,
+    deltaY: event.deltaY,
+    deltaMode: event.deltaMode,
+    ctrlKey: event.ctrlKey,
+    altKey: event.altKey,
+    metaKey: event.metaKey,
+    clientX: Math.max(bounds.left, Math.min(bounds.right - 1, event.clientX)),
+    clientY: Math.max(bounds.top, Math.min(bounds.bottom - 1, event.clientY)),
+  });
+  // Chromium synthesises legacy wheelDelta values with the opposite convention
+  // from trusted wheel events. Let xterm's viewport use the standard deltas;
+  // its negotiated TUI mouse encoder already reads those same fields.
+  Object.defineProperties(forwarded, {
+    wheelDelta: { value: undefined },
+    wheelDeltaX: { value: undefined },
+    wheelDeltaY: { value: undefined },
+  });
+  screen.dispatchEvent(forwarded);
 }

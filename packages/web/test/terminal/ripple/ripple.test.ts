@@ -94,6 +94,21 @@ describe('Ripple terminal projection', () => {
     expect(snapshot.text).toMatch(/^row 3\n/);
   });
 
+  it('retains the first wrapped continuation and last covered row in a viewport', () => {
+    const buffer = bufferWithLines(
+      [
+        { text: 'Before the viewport' },
+        { text: 'Visible continuation', isWrapped: true },
+        { text: 'Last covered row' },
+        { text: 'Native controls' },
+      ],
+      40,
+    );
+    const snapshot = readRippleBuffer(buffer, 40, { first: 1, last: 3 });
+    expect(snapshot.text).toBe('Visible continuation\nLast covered row');
+    expect(snapshot.sourceMap?.rows.map((row) => row.row)).toEqual([1, 2]);
+  });
+
   it('does not expose concealed ANSI text', () => {
     const buffer = bufferWithLines([{ text: 'secret' }], 10);
     const getLine = buffer.getLine.bind(buffer);

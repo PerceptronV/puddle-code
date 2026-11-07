@@ -52,6 +52,8 @@ import {
   pasteTerminalClipboard,
   registerTerminalInput,
 } from './input/input';
+import { useRippleBoundary } from './ripple/preferences';
+import { RIPPLE_RESERVED_ROWS } from './ripple/view';
 import { preserveXtermScrollUp } from './scroll/xterm-scrollback';
 import { preserveXtermSynchronisedDirtyRows } from './xterm-synchronised-output';
 import { attachTerminalTouchScroll } from './scroll/touch-scroll';
@@ -228,6 +230,10 @@ function TerminalView({
   const rippleEnabled =
     sessionTerminal &&
     sessions.data?.some((session) => session.id === stream && session.kind === 'agent');
+  const rippleBoundary = useRippleBoundary(stream);
+  const rippleReservedRows = rippleEnabled && rippleBoundary !== 'cli' ? RIPPLE_RESERVED_ROWS : 0;
+  const rippleReservedRowsRef = useRef(rippleReservedRows);
+  rippleReservedRowsRef.current = rippleReservedRows;
   const reduceMotion = useReducedMotion();
   const onExitRef = useRef(onExit);
   onExitRef.current = onExit;
@@ -324,7 +330,9 @@ function TerminalView({
     guard.capture(xterm);
     guard.beginManagedScroll();
     try {
-      fitRef.current?.fit();
+      const dimensions = fitRef.current?.proposeDimensions();
+      if (dimensions)
+        xterm.resize(dimensions.cols, Math.max(2, dimensions.rows - rippleReservedRowsRef.current));
       // Repaint every row after a geometry change: the renderer surface clears
       // on resize but only rows it considers dirty repaint, which could blank
       // the static part of a TUI until a selection forced a full pass (fixed
@@ -345,6 +353,10 @@ function TerminalView({
     if (!xterm) return;
     wsManager.resize(stream, term, xterm.cols, xterm.rows);
   }, [fitPreservingScroll, stream, term]);
+
+  useEffect(() => {
+    refit();
+  }, [rippleReservedRows, refit]);
 
   // Repaint after the browser brings this document back to the foreground.
   // The pause linger normally detaches a hidden viewer and the later replay

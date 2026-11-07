@@ -101,7 +101,11 @@ try {
       '\x1b[2J\x1b[HReply\r\n\r\n\r\n› Native composer\r\n\r\nFooter\r\n',
     ),
   );
-  await page.waitForFunction(() => !!document.querySelector('.ripple-native').style.transform);
+  await reader.getByText('Reply', { exact: true }).waitFor();
+  await page.waitForFunction(
+    (y) => document.querySelector('.xterm-screen').getBoundingClientRect().y > y,
+    original.y,
+  );
   const aligned = await screen.boundingBox();
   assert.equal(aligned.height, original.height, 'bottom alignment keeps the full virtual screen');
   assert.ok(aligned.y > original.y, 'unused normal-buffer tail moves offscreen');
@@ -113,12 +117,26 @@ try {
     'alignment never resizes the PTY',
   );
   await page.evaluate(() => window.rippleFixture.enable(false));
-  assert.deepEqual(await screen.boundingBox(), original, 'top boundary restores native placement');
+  await page.locator('.ripple-scroll').waitFor({ state: 'detached' });
+  await page.waitForFunction(
+    (h) => document.querySelector('.xterm-screen').getBoundingClientRect().height > h,
+    original.height,
+  );
+  const full = await screen.boundingBox();
+  assert.ok(
+    full.height > original.height && full.y < original.y,
+    'top boundary restores the reserved rows and native placement',
+  );
   await page.evaluate(() => window.rippleFixture.enable(true));
   await page.locator('.ripple-scroll').waitFor();
   await page.waitForFunction(() => !!document.querySelector('.ripple-native').style.transform);
   await page.evaluate(() => window.rippleFixture.enable(false));
-  assert.deepEqual(await screen.boundingBox(), original, 'disabling restores native placement');
+  await page.locator('.ripple-scroll').waitFor({ state: 'detached' });
+  await page.waitForFunction(
+    (h) => document.querySelector('.xterm-screen').getBoundingClientRect().height === h,
+    full.height,
+  );
+  assert.deepEqual(await screen.boundingBox(), full, 'disabling restores native placement');
   // Reproduce Codex retaining a white prompt panel while its default text turns light.
   await page.evaluate(() => {
     window.rippleFixture.theme('light');

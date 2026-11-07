@@ -1,12 +1,8 @@
 import type { Terminal } from '@xterm/xterm';
 import { relayRippleWheel, rippleView } from './view';
 
-/** Native DOM scrolling/selection in the reader; another swipe at its edge scrolls the CLI. */
-export function attachRippleTouchScroll(
-  element: HTMLElement,
-  terminal: Terminal,
-  onIntent: () => void,
-): () => void {
+/** Vertical swipes use the same native scroll path as wheel input. */
+export function attachRippleTouchScroll(element: HTMLElement, terminal: Terminal): () => void {
   let gesture: {
     id: number;
     x: number;
@@ -29,7 +25,6 @@ export function attachRippleTouchScroll(
       cellHeight: rippleView(terminal).cellHeight,
       relayed: false,
     };
-    onIntent();
   };
   const move = (event: TouchEvent) => {
     const touch = event.touches[0];
@@ -44,12 +39,7 @@ export function attachRippleTouchScroll(
     if (vertical < 8 || vertical <= Math.abs(touch.clientX - gesture.x)) return;
     const selection = window.getSelection();
     if (selection && !selection.isCollapsed) return;
-    onIntent();
-    const atEdge =
-      delta < 0
-        ? element.scrollTop <= 1
-        : element.scrollTop + element.clientHeight >= element.scrollHeight - 1;
-    if (!delta || !atEdge || !event.cancelable) return;
+    if (!delta || !event.cancelable) return;
     event.preventDefault();
     gesture.relayed = true;
     gesture.remainder += delta;

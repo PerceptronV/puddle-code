@@ -146,11 +146,7 @@ export function TreeNode({
   const status = ex.statusMap.get(path);
   const folderTint = isDir ? folderStatus(ex.statusMap, path) : null;
   const decoration = status ? gitDecoration(status) : folderTint ? gitDecoration(folderTint) : null;
-  const nameColour = decoration
-    ? decoration.colourClass
-    : entry.name.startsWith('.')
-      ? 'text-fg-muted'
-      : 'text-explorer-fg';
+  const nameColour = decoration ? decoration.colourClass : 'text-fg';
 
   // The paste target and the entries a menu action operates on (respect a
   // multi-selection that includes this row; otherwise just this row).

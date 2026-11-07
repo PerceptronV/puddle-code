@@ -88,15 +88,14 @@ try {
   await page.locator('.ripple-prose').filter({ hasText: 'Paragraph 89' }).waitFor();
   await reader.hover();
   await page.mouse.wheel(0, -5000);
+  await page.waitForTimeout(200);
   assert.equal(await page.getByRole('button', { name: 'Latest output' }).count(), 0);
   assert.equal(await page.locator('.ripple-toolbar').count(), 0);
-  const before = await page.locator('.ripple-prose').innerText();
   await page.evaluate(() => window.rippleFixture.output('\r\nLatest marker' + '\r\n'.repeat(6)));
   await page.waitForTimeout(250);
-  assert.equal(
-    await page.locator('.ripple-prose').innerText(),
-    before,
-    'scrolled reading position stays frozen',
+  assert.ok(
+    !(await page.locator('.ripple-prose').innerText()).includes('Latest marker'),
+    'native history remains visible until the CLI scrolls back down',
   );
   await reader.hover();
   await page.mouse.wheel(0, 10000);

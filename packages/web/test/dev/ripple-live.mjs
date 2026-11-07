@@ -79,10 +79,14 @@ try {
   const before = await page.locator('.xterm-screen').boundingBox();
   await page.evaluate(() => window.rippleFixture.enable(true));
   await page.locator('.ripple-prose').filter({ hasText: 'RIPPLE LIVE END' }).waitFor();
-  assert.deepEqual(
-    await page.locator('.xterm-screen').boundingBox(),
-    before,
-    'overlay keeps the real PTY geometry',
+  const reduced = await page.evaluate(() =>
+    window.rippleFixture.messages.findLast((m) => m.t === 'resize' || m.t === 'attach'),
+  );
+  assert.equal(reduced.rows, size.rows - 2, 'Ripple reserves two native rows for breathing room');
+  assert.equal(
+    (await page.locator('.xterm-screen').boundingBox()).width,
+    before.width,
+    'terminal columns stay unchanged',
   );
   assert.ok(
     !(await page.locator('.ripple-prose').innerText()).includes('Ask Codex to do anything'),
@@ -90,15 +94,13 @@ try {
   );
   const summary = page.locator('[data-ripple-summary]');
   await summary.waitFor();
-  const pinnedScreen = await page.locator('.xterm-rows').innerText();
+  // Enabling Ripple requests a real SIGWINCH redraw before anchored input.
+  await page.waitForTimeout(300);
   await summary.click();
-  await page.waitForFunction(
-    (previous) => document.querySelector('.xterm-rows').innerText !== previous,
-    pinnedScreen,
-  );
-  assert.ok(
-    (await page.locator('.xterm-rows').innerText()).includes('Then write twelve numbered sections'),
-    'anchored summary click restores the original multiline prompt',
+  await page.waitForFunction(() =>
+    document
+      .querySelector('.xterm-rows')
+      .textContent.includes('Then write twelve numbered sections'),
   );
   const reader = page.locator('.ripple-scroll');
   await reader.hover();
