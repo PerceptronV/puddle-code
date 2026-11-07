@@ -2,6 +2,7 @@ import type { IBuffer, ITheme } from '@xterm/xterm';
 import { rippleCellStyle, type RippleStyle } from './cell-style';
 import { readRow } from '../links/link-buffer';
 import { terminalRichBlocks } from '../rich-output/rich-output-buffer';
+import type { RipplePalette } from './xterm-style';
 
 export const RIPPLE_MAX_ROWS = 600;
 // Match the shared rich-output detector's scan budget.
@@ -16,6 +17,8 @@ export interface RippleSnapshot {
   truncated: boolean;
   alternate: boolean;
   parts: RipplePart[];
+  foreground?: string;
+  background?: string;
 }
 
 /** A bounded projection of the current screen, never a second terminal parser or log. */
@@ -24,6 +27,7 @@ export function readRippleBuffer(
   cols: number,
   view?: { first: number; last: number },
   theme: ITheme = {},
+  palette?: RipplePalette,
 ): RippleSnapshot {
   const last = Math.min(buffer.length, view?.last ?? buffer.length);
   // Reserve the newest rows even when a single row is extremely wide.
@@ -60,25 +64,47 @@ export function readRippleBuffer(
         return char;
       })
       .join('');
-    const text = buffer.getLine(row + 1)?.isWrapped ? visible : visible.trimEnd();
+    let end = buffer.getLine(row + 1)?.isWrapped ? visible.length : visible.trimEnd().length;
+    // Backgrounds and decorations on spaces carry meaning (diffs, swatches,
+    // underlined fields). Discard only unpainted terminal padding.
+    for (let index = visible.length - 1; index >= end; index--) {
+      const cell = buffer.getLine(row)?.getCell(mapped.cells[index]!.col);
+      if (
+        cell &&
+        !cell.isInvisible?.() &&
+        (cell.isBgPalette?.() ||
+          cell.isBgRGB?.() ||
+          cell.isInverse?.() ||
+          cell.isUnderline?.() ||
+          cell.isOverline?.() ||
+          cell.isStrikethrough?.())
+      ) {
+        end = index + 1;
+        break;
+      }
+    }
+    const text = visible.slice(0, end);
     if (size + text.length + 1 > RIPPLE_MAX_CHARACTERS) break;
     size += text.length + 1;
     if (!mapped.isWrapped && lines.length) offset++;
     for (let index = 0; index < text.length; index++) {
       const cell = buffer.getLine(row)?.getCell(mapped.cells[index]!.col);
-      const css = rippleCellStyle(cell, theme);
-      if (!css) continue;
+      const css = rippleCellStyle(cell, theme, palette);
+      const href = cell && palette?.link?.(cell);
+      if (!css && !href) continue;
       const previous = styles.at(-1);
       const start = offset + index;
-      if (previous && previous.end === start && previous.css === css) previous.end++;
-      else styles.push({ start, end: start + 1, css });
+      if (previous && previous.end === start && previous.css === css && previous.href === href)
+        previous.end++;
+      else styles.push({ start, end: start + 1, css, ...(href && { href }) });
     }
     rows.set(row, { offset, cells: mapped.cells, length: text.length, concealed });
     offset += text.length;
     if (mapped.isWrapped && lines.length) lines[lines.length - 1] += text;
     else lines.push(text);
   }
-  const text = lines.join('\n').trimEnd();
+  const joined = lines.join('\n');
+  const text = joined.slice(0, Math.max(joined.trimEnd().length, styles.at(-1)?.end ?? 0));
   const parts: RipplePart[] = [];
   const addText = (from: number, to: number) => {
     const ranges = styles
@@ -117,5 +143,11 @@ export function readRippleBuffer(
     at = to;
   }
   if (at < text.length) addText(at, text.length);
-  return { text, truncated: first > 0, alternate: buffer.type === 'alternate', parts };
+  return {
+    text,
+    truncated: first > 0,
+    alternate: buffer.type === 'alternate',
+    parts,
+    ...(palette && { foreground: theme.foreground, background: theme.background }),
+  };
 }

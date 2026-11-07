@@ -17,4 +17,6 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
+- Preserve Ripple overlines, underline styles/colours, painted spaces, bright ANSI text, live terminal palette changes and labelled HTTP(S) hyperlinks. Keep concealed text hidden and hyperlink keyboard activation in the reader.
+
 - Render Ripple over a full-size terminal with a draggable, row-anchored native-input boundary. Follow CLI scrolling, relay wheel input, reflow full-width prose, preserve ANSI styling, and show Codex prompts as user bubbles while retaining native controls and shared Markdown/Mermaid/LaTeX rendering.

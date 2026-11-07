@@ -1,9 +1,11 @@
 import type { IBufferCell, ITheme } from '@xterm/xterm';
+import type { ExtendedCell, RipplePalette } from './xterm-style';
 
 export interface RippleStyle {
   start: number;
   end: number;
   css: string;
+  href?: string;
 }
 const paletteKeys = [
   'black',
@@ -24,8 +26,14 @@ const paletteKeys = [
   'brightWhite',
 ] as const;
 
-function colour(value: number, palette: boolean, theme: ITheme): string | undefined {
+function colour(
+  value: number,
+  palette: boolean,
+  theme: ITheme,
+  ansi?: string[],
+): string | undefined {
   if (palette) {
+    if (ansi?.[value]) return ansi[value];
     if (value < 16) {
       const result = theme[paletteKeys[value]!];
       return result && /^#[\da-f]{6}$/i.test(result) ? result : undefined;
@@ -46,7 +54,11 @@ function colour(value: number, palette: boolean, theme: ITheme): string | undefi
 }
 
 /** Only generated, validated CSS reaches the reader; terminal text never supplies CSS. */
-export function rippleCellStyle(cell: IBufferCell | undefined, theme: ITheme): string {
+export function rippleCellStyle(
+  cell: IBufferCell | undefined,
+  theme: ITheme,
+  palette?: RipplePalette,
+): string {
   if (!cell || cell.isInvisible?.()) return '';
   const css: string[] = [];
   if (cell.isBold?.()) css.push('font-weight:700');
@@ -54,20 +66,44 @@ export function rippleCellStyle(cell: IBufferCell | undefined, theme: ITheme): s
   const decoration = [
     cell.isUnderline?.() ? 'underline' : '',
     cell.isStrikethrough?.() ? 'line-through' : '',
+    cell.isOverline?.() ? 'overline' : '',
   ].filter(Boolean);
   if (decoration.length) css.push(`text-decoration:${decoration.join(' ')}`);
-  if (cell.isDim?.()) css.push('opacity:0.65');
+  const extended = cell as ExtendedCell;
+  if (cell.isUnderline?.()) {
+    const style = ['solid', 'solid', 'double', 'wavy', 'dotted', 'dashed'][
+      extended.getUnderlineStyle?.() ?? 1
+    ];
+    if (style) css.push(`text-decoration-style:${style}`);
+    if (extended.isUnderlineColorPalette?.() || extended.isUnderlineColorRGB?.()) {
+      let value = extended.getUnderlineColor!();
+      if (
+        palette?.boldBright &&
+        cell.isBold?.() &&
+        extended.isUnderlineColorPalette?.() &&
+        value < 8
+      )
+        value += 8;
+      const underline = colour(value, !!extended.isUnderlineColorPalette?.(), theme, palette?.ansi);
+      if (underline) css.push(`text-decoration-color:${underline}`);
+    }
+  }
+  if (cell.isDim?.()) css.push('opacity:0.5');
+  let foreground = cell.getFgColor?.();
+  if (palette?.boldBright && cell.isBold?.() && cell.isFgPalette?.() && foreground < 8)
+    foreground += 8;
   let fg =
     cell.isFgDefault?.() === false || cell.isFgPalette?.() || cell.isFgRGB?.()
-      ? colour(cell.getFgColor(), !!cell.isFgPalette(), theme)
+      ? colour(foreground, !!cell.isFgPalette(), theme, palette?.ansi)
       : undefined;
   let bg =
     cell.isBgDefault?.() === false || cell.isBgPalette?.() || cell.isBgRGB?.()
-      ? colour(cell.getBgColor(), !!cell.isBgPalette(), theme)
+      ? colour(cell.getBgColor(), !!cell.isBgPalette(), theme, palette?.ansi)
       : undefined;
   if (cell.isInverse?.()) [fg, bg] = [bg ?? theme.background, fg ?? theme.foreground];
   if (fg && /^#[\da-f]{6}$/i.test(fg)) css.push(`color:${fg}`);
   if (bg && /^#[\da-f]{6}$/i.test(bg)) css.push(`background-color:${bg}`);
+  if (bg || decoration.length) css.push('white-space:break-spaces');
   return css.join(';');
 }
 
@@ -85,15 +121,18 @@ export function markRippleStyles(text: string, styles: RippleStyle[], codex = fa
       offset += line.length + 1;
       if (/^\s*(`{3,}|~{3,})/.test(line)) return line;
       // Leave Markdown block markers and the Codex prompt marker at the line start.
-      const structural = /^(\s*(?:(?:[•●›❯*-]|\d+[.)])\s+)?(?:#{1,6}\s+|>\s+)?)/.exec(line)![0]
-        .length;
+      const structural = line.trim()
+        ? /^(\s*(?:(?:[•●›❯*-]|\d+[.)])\s+)?(?:#{1,6}\s+|>\s+)?)/.exec(line)![0].length
+        : 0;
       for (const range of styles.toReversed()) {
         let from = Math.max(structural, range.start - start);
         let to = Math.min(line.length, range.end - start);
         if (to <= from) continue;
         const content = line.slice(from, to);
-        from += content.length - content.trimStart().length;
-        to -= content.length - content.trimEnd().length;
+        if (!range.css.includes('white-space:')) {
+          from += content.length - content.trimStart().length;
+          to -= content.length - content.trimEnd().length;
+        }
         if (to <= from) continue;
         const open = `${prefix}${replacements.size}\uE001`;
         // A sticky Codex prompt's inverse backing is CLI chrome. Its bubble
@@ -105,9 +144,20 @@ export function markRippleStyles(text: string, styles: RippleStyle[], codex = fa
                 .filter((declaration) => !/^(?:background-color|color):/.test(declaration))
                 .join(';')
             : range.css;
-        replacements.set(open, `<span style="${css}">`);
+        const href =
+          range.href && /^https?:\/\//i.test(range.href)
+            ? range.href
+                .replace(/&/g, '&amp;')
+                .replace(/"/g, '&quot;')
+                .replace(/</g, '&lt;')
+                .replace(/>/g, '&gt;')
+            : undefined;
+        replacements.set(
+          open,
+          href ? `<a href="${href}" style="${css}">` : `<span style="${css}">`,
+        );
         const close = `${prefix}${replacements.size}\uE001`;
-        replacements.set(close, '</span>');
+        replacements.set(close, href ? '</a>' : '</span>');
         line = line.slice(0, from) + open + line.slice(from, to) + close + line.slice(to);
       }
       return line;

@@ -25,6 +25,7 @@ import { currentTheme, onThemeChange } from '../../../lib/appearance/theme';
 import DOMPurify from 'dompurify';
 import 'katex/dist/katex.min.css';
 import './ripple.css';
+import { ripplePalette } from './xterm-style';
 
 export function Ripple({
   terminal,
@@ -53,7 +54,8 @@ export function Ripple({
     const view = rippleView(terminal, agentType, nativeRows);
     setBottom(view.bottom);
     setVisibleRows(view.nativeRows);
-    return readRippleBuffer(terminal.buffer.active, terminal.cols, view, terminal.options.theme);
+    const palette = ripplePalette(terminal);
+    return readRippleBuffer(terminal.buffer.active, terminal.cols, view, palette.theme, palette);
   }, [terminal, agentType, nativeRows]);
   const follow = useRef(true);
   const scrollIntentUntil = useRef(0);
@@ -77,6 +79,8 @@ export function Ripple({
         previous.text === next.text &&
         previous.truncated === next.truncated &&
         previous.alternate === next.alternate &&
+        previous.foreground === next.foreground &&
+        previous.background === next.background &&
         JSON.stringify(previous.parts) === JSON.stringify(next.parts)
           ? previous
           : next,
@@ -179,7 +183,11 @@ export function Ripple({
     <section
       className="ripple"
       data-native={showNative}
-      style={{ bottom: showNative ? 'auto' : bottom }}
+      style={{
+        bottom: showNative ? 'auto' : bottom,
+        color: snapshot.foreground,
+        backgroundColor: snapshot.background,
+      }}
       data-alternate={snapshot.alternate}
       aria-label="Ripple reading view"
     >
@@ -222,6 +230,7 @@ export function Ripple({
           if (event.buttons) scrollIntentUntil.current = Date.now() + 1000;
         }}
         onKeyDown={(event) => {
+          if ((event.target as HTMLElement).closest('a')) return;
           const selection = window.getSelection();
           if (selection && !selection.isCollapsed) return;
           if (event.key.length === 1 && !event.ctrlKey && !event.metaKey && !event.altKey) {
