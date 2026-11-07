@@ -1,8 +1,8 @@
 name: ci
 on:
   push:
-    branches: [main]
-  pull_request:
+    # Release tags and explicit opt-in checks only; ordinary pushes/PRs stay quiet.
+    tags: ['v*', 'ci', 'ci/**']
 
 jobs:
   ci:

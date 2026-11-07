@@ -509,6 +509,11 @@ This file is living documentation and part of the definition of done for every c
 
 ## Changelog discipline
 
+CI runs only on pushed release tags (`v*`) or explicit check tags (`ci` or
+`ci/**`), not ordinary branch pushes or pull requests. To check a commit without
+releasing, use a unique tag such as `git tag ci/check-name <commit>` followed by
+`git push origin ci/check-name`. CI tags never invoke release publishing.
+
 CI and release jobs install dependencies through `scripts/install-ci.mjs`, which
 uses the running Node installation's bundled headers for native source builds.
 Keep that header override scoped to installation so Electron packaging can use

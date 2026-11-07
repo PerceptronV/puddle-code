@@ -19,6 +19,8 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
+- Run CI only for release tags and explicit `ci` / `ci/**` tags, instead of every main-branch push and pull request.
+
 - Halve the PDF zoom overlay inset, keeping equal spacing from the top and right edges.
 
 - Suspend eager compilation while source-input save conflicts remain unresolved, including across reconnects, and resume after a checked editor resolution.
