@@ -112,11 +112,12 @@ try {
     resizes,
     'alignment never resizes the PTY',
   );
-  await page.getByRole('button', { name: 'Show CLI', exact: true }).click();
-  assert.deepEqual(await screen.boundingBox(), original, 'Show CLI restores native placement');
-  await page.getByRole('button', { name: 'Reading view', exact: true }).click();
+  await page.evaluate(() => window.rippleFixture.enable(false));
+  assert.deepEqual(await screen.boundingBox(), original, 'CLI renderer restores native placement');
+  await page.evaluate(() => window.rippleFixture.enable(true));
+  await page.locator('.ripple').waitFor();
   await page.waitForFunction(() => !!document.querySelector('.ripple-native').style.transform);
-  await page.getByRole('button', { name: 'CLI only', exact: true }).click();
+  await page.evaluate(() => window.rippleFixture.enable(false));
   assert.deepEqual(await screen.boundingBox(), original, 'disabling restores native placement');
   assert.deepEqual(errors, []);
   console.log(

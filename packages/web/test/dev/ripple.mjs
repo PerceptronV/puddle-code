@@ -38,7 +38,7 @@ try {
   );
 
   // Real keyboard events still travel through xterm's input channel unchanged.
-  await page.getByRole('button', { name: 'Type in CLI', exact: true }).click();
+  await page.locator('.xterm-helper-textarea').focus();
   await page.keyboard.press('Shift+ArrowLeft');
   await page.keyboard.press('Shift+ArrowRight');
   const input = await page.evaluate(() =>
@@ -87,7 +87,8 @@ try {
   await page.locator('.ripple-prose').filter({ hasText: 'Paragraph 89' }).waitFor();
   await reader.hover();
   await page.mouse.wheel(0, -5000);
-  await page.getByRole('button', { name: 'Latest output' }).waitFor();
+  assert.equal(await page.getByRole('button', { name: 'Latest output' }).count(), 0);
+  assert.equal(await page.locator('.ripple-toolbar').count(), 0);
   const before = await page.locator('.ripple-prose').innerText();
   await page.evaluate(() => window.rippleFixture.output('\r\nLatest marker' + '\r\n'.repeat(6)));
   await page.waitForTimeout(250);
@@ -96,7 +97,8 @@ try {
     before,
     'scrolled reading position stays frozen',
   );
-  await page.getByRole('button', { name: 'Latest output' }).click();
+  await reader.hover();
+  await page.mouse.wheel(0, 10000);
   await page.locator('.ripple-prose').filter({ hasText: 'Latest marker' }).waitFor();
 
   await page.evaluate(() => window.rippleFixture.alternateScreen());
@@ -132,7 +134,7 @@ try {
     'alternate redraw replaces old frame and diagrams',
   );
   assert.equal(await page.locator('[data-ripple-rich]').count(), 0);
-  await page.getByRole('button', { name: 'Type in CLI', exact: true }).click();
+  await page.locator('.xterm-helper-textarea').focus();
   await page.keyboard.press('Shift+ArrowLeft');
   assert.equal(
     await page.evaluate(
@@ -150,7 +152,7 @@ try {
     'replay replaces rather than duplicates output',
   );
 
-  await page.getByRole('button', { name: 'CLI only', exact: true }).click();
+  await page.evaluate(() => window.rippleFixture.enable(false));
   await page.locator('.ripple').waitFor({ state: 'detached' });
   assert.ok(
     await nativeHandle.evaluate((element) => element === document.querySelector('.xterm')),
@@ -214,7 +216,7 @@ try {
         .waitFor();
       await page.locator('[data-ripple-rich="mermaid"] svg').waitFor();
       await page.locator('[data-ripple-rich="math"] .katex').waitFor();
-      await page.getByRole('button', { name: 'Type in CLI', exact: true }).click();
+      await page.locator('.xterm-helper-textarea').focus();
       await page.keyboard.press('Shift+ArrowLeft');
       await page.keyboard.press('Shift+ArrowRight');
       const keys = await page.evaluate(() =>
@@ -227,7 +229,7 @@ try {
         ['\x1b[1;2D', '\x1b[1;2C'],
         `${agent} native editing in ${alternate ? 'alternate' : 'normal'} mode`,
       );
-      await page.getByRole('button', { name: 'CLI only', exact: true }).click();
+      await page.evaluate(() => window.rippleFixture.enable(false));
       await page.locator('.ripple').waitFor({ state: 'detached' });
       await page.evaluate(() => window.rippleFixture.enable(null));
       await page.locator('.ripple').waitFor();

@@ -8,9 +8,6 @@ import {
   useSyncExternalStore,
 } from 'react';
 import type { Terminal } from '@xterm/xterm';
-import { ArrowDown, SquareTerminal, Waves } from 'lucide-react';
-import { Button } from '../../../components/ui/button';
-import { ControlTray } from '../../../components/ui/control-tray';
 import { toastError } from '../../../lib/transport/errors';
 import {
   createFileLinkCache,
@@ -30,7 +27,6 @@ import DOMPurify from 'dompurify';
 import 'katex/dist/katex.min.css';
 import './ripple.css';
 import { ripplePalette } from './xterm-style';
-import { rippleLatestKey } from './agent-layout';
 
 export function Ripple({
   terminal,
@@ -39,7 +35,6 @@ export function Ripple({
   agentType,
   onOpenUri,
   onOpenFile,
-  onDisable,
 }: {
   terminal: Terminal;
   stream: string;
@@ -47,7 +42,6 @@ export function Ripple({
   agentType?: string;
   onOpenUri(uri: string): void;
   onOpenFile?: (target: FileLinkTarget) => void;
-  onDisable(): void;
 }) {
   const [snapshot, setSnapshot] = useState<RippleSnapshot>(() =>
     readRippleBuffer(terminal.buffer.active, terminal.cols),
@@ -58,7 +52,6 @@ export function Ripple({
   const [visibleRows, setVisibleRows] = useState(5);
   const [inputRows, setInputRows] = useState<number | null>(null);
   const nativeRows = useRippleBoundary(stream);
-  const [showNative, setShowNative] = useState(false);
   const followNative = useRef(false);
   const fileCache = useMemo(() => createFileLinkCache(), [stream]);
   const scrollEdge = useRef<'start' | 'end' | null>(null);
@@ -88,21 +81,20 @@ export function Ripple({
   );
   const follow = useRef(true);
   const scrollIntentUntil = useRef(0);
-  const [following, setFollowing] = useState(true);
   const theme = useSyncExternalStore(onThemeChange, currentTheme, currentTheme);
 
   useLayoutEffect(() => {
     const native = terminal.element?.closest<HTMLElement>('.ripple-native');
     if (!native) return;
     const previous = native.style.transform;
-    native.style.transform = showNative || !nativeOffset ? '' : `translateY(${nativeOffset}px)`;
+    native.style.transform = !nativeOffset ? '' : `translateY(${nativeOffset}px)`;
     return () => {
       native.style.transform = previous;
     };
-  }, [terminal, nativeOffset, showNative]);
+  }, [terminal, nativeOffset]);
 
   useEffect(() => {
-    if (!active || showNative) return;
+    if (!active) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
     let wasAtBottom = terminal.buffer.active.viewportY === terminal.buffer.active.baseY;
     const refresh = (force = false) => {
@@ -143,7 +135,6 @@ export function Ripple({
       }),
       terminal.buffer.onBufferChange(() => {
         follow.current = true;
-        setFollowing(true);
         // Never retain the other buffer's content, even during selection.
         refresh(true);
       }),
@@ -162,11 +153,11 @@ export function Ripple({
       terminal.element?.removeEventListener('wheel', nativeWheel, true);
       subscriptions.forEach((subscription) => subscription.dispose());
     };
-  }, [terminal, active, readSnapshot, updateView, showNative]);
+  }, [terminal, active, readSnapshot, updateView]);
 
   useEffect(() => {
     const element = viewport.current;
-    if (!element || !active || showNative) return;
+    if (!element || !active) return;
     const wheel = (event: WheelEvent) => {
       if (event.ctrlKey || event.metaKey || event.deltaY === 0) return;
       followNative.current = false;
@@ -183,7 +174,7 @@ export function Ripple({
     };
     element.addEventListener('wheel', wheel, { passive: false });
     return () => element.removeEventListener('wheel', wheel);
-  }, [terminal, active, showNative]);
+  }, [terminal, active]);
 
   const renderedParts = useMemo(
     () =>
@@ -219,7 +210,7 @@ export function Ripple({
   useLayoutEffect(() => {
     const element = viewport.current;
     const content = element?.firstElementChild;
-    if (!element || !content || !active || showNative) return;
+    if (!element || !content || !active) return;
     const settle = () => {
       if (scrollEdge.current) {
         element.scrollTop = scrollEdge.current === 'start' ? 0 : element.scrollHeight;
@@ -230,7 +221,7 @@ export function Ripple({
     observer.observe(content);
     settle();
     return () => observer.disconnect();
-  }, [snapshot, active, showNative]);
+  }, [snapshot, active]);
 
   const resolveFile = async (action: Extract<RippleAction, { kind: 'file' }>) => {
     for (const candidate of action.candidates) {
@@ -274,37 +265,12 @@ export function Ripple({
   return (
     <section
       className="ripple"
-      data-native={showNative}
       style={{
-        bottom: showNative ? 'auto' : bottom,
+        bottom,
       }}
       data-alternate={snapshot.alternate}
       aria-label="Ripple reading view"
     >
-      <div className="ripple-toolbar">
-        <span className="flex items-center gap-2 text-sm">
-          <Waves className="size-4" /> Ripple{' '}
-          <span className="text-xs text-fg-muted">Experimental</span>
-        </span>
-        <ControlTray label="Ripple controls">
-          <Button
-            variant="ghost"
-            size="sm"
-            onClick={() => {
-              setShowNative(!showNative);
-              terminal.focus();
-            }}
-          >
-            {showNative ? 'Reading view' : 'Show CLI'}
-          </Button>
-          <Button variant="ghost" size="sm" onClick={() => terminal.focus()}>
-            Type in CLI
-          </Button>
-          <Button variant="ghost" size="sm" onClick={onDisable}>
-            <SquareTerminal /> CLI only
-          </Button>
-        </ControlTray>
-      </div>
       <div
         ref={viewport}
         className="ripple-scroll"
@@ -385,7 +351,6 @@ export function Ripple({
           // Async diagram sizing and browser clamping also emit scroll events;
           // only a reader gesture can turn automatic following off.
           if (atBottom || Date.now() < scrollIntentUntil.current) follow.current = atBottom;
-          setFollowing(follow.current);
           if (!wasFollowing && follow.current) setSnapshot(readSnapshot());
         }}
         onClick={(event) => {
@@ -431,47 +396,11 @@ export function Ripple({
             </div>
           ) : (
             <p className="ripple-note">
-              Agent output will appear here. Type in the native input below; use Show CLI for menus
-              and approvals.
+              Agent output will appear here. Type in the native input below.
             </p>
           )}
         </div>
       </div>
-      {!following && (
-        <Button
-          className="ripple-latest"
-          variant="secondary"
-          size="sm"
-          onClick={() => {
-            follow.current = true;
-            setFollowing(true);
-            if (snapshot.alternate) {
-              const buffer = terminal.buffer.active;
-              const controls = Array.from(
-                { length: visibleRows + 1 },
-                (_, index) =>
-                  buffer
-                    .getLine(buffer.viewportY + terminal.rows - index - 1)
-                    ?.translateToString(true) ?? '',
-              ).join('\n');
-              const key = rippleLatestKey(agentType, true, controls);
-              if (key?.input) terminal.input(key.input, true);
-              else if (key)
-                terminal.textarea?.dispatchEvent(
-                  new KeyboardEvent('keydown', { ...key, bubbles: true, cancelable: true }),
-                );
-            }
-            terminal.scrollToBottom();
-            setSnapshot(readSnapshot());
-            if (viewport.current) viewport.current.scrollTop = viewport.current.scrollHeight;
-          }}
-        >
-          <ArrowDown />{' '}
-          {snapshot.alternate && !['codex', 'gemini-cli', 'opencode'].includes(agentType ?? '')
-            ? 'Bottom of view'
-            : 'Latest output'}
-        </Button>
-      )}
       <RippleBoundary
         terminal={terminal}
         stream={stream}

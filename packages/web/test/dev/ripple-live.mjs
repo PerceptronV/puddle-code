@@ -161,13 +161,13 @@ try {
     rows + 3,
     'boundary anchored by rows through resize',
   );
-  await page.getByRole('button', { name: 'Show CLI', exact: true }).click();
-  await page.getByRole('button', { name: 'Type in CLI', exact: true }).click();
+  await page.evaluate(() => window.rippleFixture.enable(false));
+  await page.locator('.xterm-helper-textarea').focus();
   await page.keyboard.press('Escape');
   await page.waitForFunction(
     () => !document.querySelector('.xterm-rows').textContent.includes('Back to bottom'),
   );
-  await page.getByRole('button', { name: 'Type in CLI', exact: true }).click();
+  await page.locator('.xterm-helper-textarea').focus();
   await page.keyboard.type('ripple-draft');
   await page.keyboard.press('Shift+ArrowLeft');
   await page.keyboard.press('Shift+ArrowRight');
@@ -175,7 +175,8 @@ try {
     document.querySelector('.xterm-rows').textContent.includes('ripple-draft'),
   );
   await page.keyboard.press('Control+u');
-  await page.getByRole('button', { name: 'Reading view', exact: true }).click();
+  await page.evaluate(() => window.rippleFixture.enable(true));
+  await page.locator('.ripple').waitFor();
   await boundary.focus();
   await page.keyboard.press('Home');
   await page.waitForTimeout(150);
@@ -183,7 +184,7 @@ try {
   await page.keyboard.press('ArrowUp');
   await page.waitForTimeout(150);
   const compactRows = Number(await boundary.getAttribute('aria-valuenow'));
-  await page.getByRole('button', { name: 'Type in CLI', exact: true }).click();
+  await page.locator('.xterm-helper-textarea').focus();
   await page.keyboard.type('ripple-long-draft '.repeat(40));
   await page.waitForFunction(
     (rows) =>
@@ -197,11 +198,12 @@ try {
       Number(document.querySelector('.ripple-boundary').getAttribute('aria-valuenow')) === rows,
     compactRows,
   );
-  await page.getByRole('button', { name: 'Show CLI', exact: true }).click();
+  await page.evaluate(() => window.rippleFixture.enable(false));
   await page.locator('.xterm').hover();
   await page.mouse.wheel(0, -700);
   await page.waitForTimeout(200);
-  await page.getByRole('button', { name: 'Reading view', exact: true }).click();
+  await page.evaluate(() => window.rippleFixture.enable(true));
+  await page.locator('.ripple').waitFor();
   await page.screenshot({ path: '/private/tmp/puddle-ripple-live-resized.png' });
   assert.deepEqual(errors, []);
   console.log(

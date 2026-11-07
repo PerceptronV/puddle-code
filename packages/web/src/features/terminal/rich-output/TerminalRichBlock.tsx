@@ -3,6 +3,7 @@ import { Code, Eye } from 'lucide-react';
 import type { ThemeName } from '../../../lib/appearance/theme';
 import { cn } from '../../../lib/utils';
 import type { TerminalRichBlock as RichBlock } from './rich-output-buffer';
+import { useInlineMathToggle } from './inline-math-toggle';
 import { renderRichContent } from './render-rich-content';
 
 export interface RichBlockBox {
@@ -28,8 +29,11 @@ export function TerminalRichBlock({
   const frameRef = useRef<HTMLDivElement>(null);
   const [ready, setReady] = useState(false);
   const [error, setError] = useState('');
-  const [sourceVisible, setSourceVisible] = useState(false);
+  const [blockSourceVisible, setSourceVisible] = useState(false);
   const { source, kind, display } = block;
+  const inline = kind === 'math' && !display;
+  const inlineToggle = useInlineMathToggle(source, ready);
+  const sourceVisible = inline ? inlineToggle.sourceVisible : blockSourceVisible;
 
   useEffect(() => {
     const body = bodyRef.current;
@@ -86,34 +90,46 @@ export function TerminalRichBlock({
   return (
     <div
       ref={frameRef}
-      className={cn('absolute overflow-hidden', rendered && 'bg-ground')}
+      className={cn(
+        'absolute overflow-hidden',
+        (rendered || (inline && sourceVisible)) && 'bg-ground',
+        inline && ready && 'inline-math-toggle pointer-events-auto',
+      )}
       style={{ ...box, fontSize }}
       data-terminal-rich-block={kind}
       data-rendered={rendered}
+      {...(inline && ready ? inlineToggle.props : {})}
     >
       <div
         ref={bodyRef}
         className={cn('absolute w-max origin-top-left text-fg', !rendered && 'invisible')}
         aria-hidden={!rendered}
       />
-      <button
-        type="button"
-        aria-label={label}
-        title={error || label}
-        style={{ top: Math.max(0, -box.top) }}
-        disabled={!ready}
-        onPointerDown={(event) => event.stopPropagation()}
-        onMouseDown={(event) => event.stopPropagation()}
-        onKeyDown={(event) => event.stopPropagation()}
-        onKeyUp={(event) => event.stopPropagation()}
-        onClick={(event) => {
-          event.stopPropagation();
-          setSourceVisible((value) => !value);
-        }}
-        className="pointer-events-auto absolute right-0 top-0 rounded-sm bg-ground p-0.5 text-fg-muted opacity-0 transition-opacity hover:text-fg focus:opacity-100 group-hover/terminal:opacity-100 pointer-coarse:opacity-100"
-      >
-        {rendered ? <Code className="size-3" /> : <Eye className="size-3" />}
-      </button>
+      {inline && sourceVisible && (
+        <span className="absolute inset-0 flex items-center whitespace-pre font-mono text-fg">
+          {source}
+        </span>
+      )}
+      {!inline && (
+        <button
+          type="button"
+          aria-label={label}
+          title={error || label}
+          style={{ top: Math.max(0, -box.top) }}
+          disabled={!ready}
+          onPointerDown={(event) => event.stopPropagation()}
+          onMouseDown={(event) => event.stopPropagation()}
+          onKeyDown={(event) => event.stopPropagation()}
+          onKeyUp={(event) => event.stopPropagation()}
+          onClick={(event) => {
+            event.stopPropagation();
+            setSourceVisible((value) => !value);
+          }}
+          className="pointer-events-auto absolute right-0 top-0 rounded-sm bg-ground p-0.5 text-fg-muted opacity-0 transition-opacity hover:text-fg focus:opacity-100 group-hover/terminal:opacity-100 pointer-coarse:opacity-100"
+        >
+          {rendered ? <Code className="size-3" /> : <Eye className="size-3" />}
+        </button>
+      )}
     </div>
   );
 }

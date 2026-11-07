@@ -77,20 +77,3 @@ export function rippleInputBorder(line: string, agentType?: string): boolean {
     (agentType === 'gemini-cli' && /^\s*[▄▀]{3,}\s*$/.test(line))
   );
 }
-
-/** Documented native history shortcuts; keep encoding in xterm, including modes. */
-export function rippleLatestKey(
-  agentType: string | undefined,
-  alternate: boolean,
-  controls: string,
-): (KeyboardEventInit & { input?: string }) | null {
-  if (!alternate) return null;
-  if (agentType === 'codex' && /Back to bottom|Earlier messages available/.test(controls))
-    return { key: 'Escape', code: 'Escape', keyCode: 27 };
-  if (agentType === 'gemini-cli') return { key: 'End', code: 'End', keyCode: 35, ctrlKey: true };
-  // Meta+Ctrl-G has a fixed VT encoding. macOS xterm otherwise leaves Option
-  // available for text composition and ignores a synthetic Alt key here.
-  if (agentType === 'opencode')
-    return { key: 'g', code: 'KeyG', keyCode: 71, ctrlKey: true, altKey: true, input: '\x1b\x07' };
-  return null;
-}

@@ -13,6 +13,9 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
+- Replace inline LaTeX icon overlays with underlined, directly clickable preview/source text in Ripple and the native terminal, defaulting to preview and retaining keyboard access and source copying.
+- Remove Ripple’s heading, toolbar and floating latest-output button; mark its draggable native CLI boundary with a thin divider.
+
 - Keep surrounding Ripple code and prose in place while Codex’s Working spinner changes, and preserve the first Markdown list marker in styled user prompts.
 
 - Map Ripple text clicks to original terminal cells instead of recognising Codex disclosure labels; preserve native pinned-prompt navigation without absorbing following diffs into the prompt bubble, including short pinned prompts without an ellipsis.

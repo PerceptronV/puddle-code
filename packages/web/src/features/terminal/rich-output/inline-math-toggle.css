@@ -1,0 +1,9 @@
+.inline-math-toggle {
+  /* Keep selectable source in its own inline layout inside the scrolling reader. */
+  display: inline-flex;
+  max-width: 100%;
+  cursor: pointer;
+  user-select: text;
+  -webkit-user-select: text;
+  border-bottom: 1px dotted currentColor;
+}

@@ -74,7 +74,7 @@ try {
     assert.ok(await reader.locator('[style*="font-style:italic"]').count());
     if (agent === 'opencode')
       assert.ok((await reader.innerText()).includes('Tool output stays literal'));
-    await page.getByRole('button', { name: 'Type in CLI', exact: true }).click();
+    await page.locator('.xterm-helper-textarea').focus();
     await page.keyboard.press('Shift+ArrowLeft');
     await page.keyboard.press('Shift+ArrowRight');
     const keys = await page.evaluate(() =>

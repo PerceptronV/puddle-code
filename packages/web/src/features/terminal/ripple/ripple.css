@@ -22,17 +22,13 @@
   font-family: var(--font-sans);
 }
 
-.ripple[data-native='true'] > :not(.ripple-toolbar) {
-  display: none;
-}
-
-.ripple-toolbar {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  flex-wrap: wrap;
-  gap: 0.25rem;
-  padding: 0.25rem 0.75rem;
+.ripple::after {
+  content: '';
+  position: absolute;
+  inset: auto 0 0;
+  height: 1px;
+  background: var(--border);
+  pointer-events: none;
 }
 
 .ripple-scroll {
@@ -148,13 +144,6 @@
 .ripple-prose hr {
   border: 0;
   margin-block: 1.5rem;
-}
-
-.ripple-latest {
-  position: absolute;
-  bottom: 0.5rem;
-  left: 50%;
-  transform: translateX(-50%);
 }
 
 .ripple-boundary {

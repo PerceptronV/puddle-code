@@ -60,7 +60,7 @@ import { SelectionActions } from '../../components/selection-actions';
 import { TerminalRichOutput } from './rich-output/TerminalRichOutput';
 import { browserScope } from '../../lib/transport/browser-transport';
 import { RetainedTerminal } from './parked/RetainedTerminal';
-import { setSessionRipple, useSessionRipple } from './ripple/preferences';
+import { useSessionRipple } from './ripple/preferences';
 import { parkedTerminalPool } from './parked/pool';
 import {
   captureParkedTerminal,
@@ -475,7 +475,13 @@ function TerminalView({
         }),
     });
     clipboardRef.current = clipboard;
-    const onCopy = (event: ClipboardEvent) => clipboard.copy(event);
+    const onCopy = (event: ClipboardEvent) => {
+      // Rich inline source uses browser selection; do not turn its copy into
+      // a native OSC 52 request or replace it with an older terminal selection.
+      const selection = window.getSelection();
+      if (selection && !selection.isCollapsed && container.contains(selection.anchorNode)) return;
+      clipboard.copy(event);
+    };
     const onBlur = () => clipboard.reset();
     container.addEventListener('copy', onCopy, true);
     container.addEventListener('focusout', onBlur);
@@ -873,7 +879,6 @@ function TerminalView({
             agentType={
               sessions.data?.find((session) => session.id === stream)?.agent_type ?? undefined
             }
-            onDisable={() => setSessionRipple(stream, false)}
           />
         </Suspense>
       )}
