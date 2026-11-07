@@ -25,6 +25,9 @@ Past releases: see docs/changelogs/.
 
 - Keep eager compilation registered across pane moves and background tabs, and restore observation and PDF refresh after idle expiry or daemon replacement.
 
+- Move the Ripple handle into the right pane gutter on desktop and mobile without changing the terminal grid or reading width, retaining the mobile touch target.
+- Remove the mobile session sidebar and move project switching, session creation and archived sessions into the title dropdown.
+
 - Keep single-tab action trays above file details and reachable from the top-right corner, including narrow LaTeX panes.
 
 - Keep the newest covered Ripple output visible at a high boundary by omitting older complete blocks first, preserving pinned prompts, fixed typography and original terminal click anchors. Restore omitted content when the reading area expands.

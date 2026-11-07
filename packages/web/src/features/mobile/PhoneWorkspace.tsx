@@ -20,7 +20,6 @@ import { profileStore } from '../profile/profile-store';
 import { NewSessionDialog } from '../workspace/sessions/NewSessionDialog';
 import { MobileTerminal } from './MobileTerminal';
 import { PhoneFiles } from './PhoneFiles';
-import { PhoneSessionRail } from './PhoneSessionRail';
 import { useAgentNotifications } from '../shell/use-waiting-notifications';
 import { SessionActions } from './SessionActions';
 
@@ -180,19 +179,6 @@ export function PhoneWorkspace({
         </p>
       )}
       <div className="phone-workspace-body">
-        {!showProjects && (
-          <PhoneSessionRail
-            projects={projectRows}
-            projectId={projectId}
-            sessions={sessionRows}
-            selected={session?.id}
-            connected={connected}
-            chooseProject={chooseProject}
-            choose={choose}
-            create={setCreating}
-            inspect={setInspected}
-          />
-        )}
         <div className="phone-centre">
           {showProjects && (
             <div className="overflow-auto p-4">
@@ -229,7 +215,12 @@ export function PhoneWorkspace({
           {!showProjects && view === 'terminals' && (
             <PhoneTerminalBar
               session={session}
-              sessions={activeSessions}
+              sessions={sessionRows}
+              projects={projectRows}
+              projectId={projectId}
+              connected={connected}
+              chooseProject={chooseProject}
+              create={setCreating}
               choose={choose}
               inspect={setInspected}
               files={() => setView('files')}

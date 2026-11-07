@@ -9,7 +9,7 @@ const projectB = '1000000002';
 const sessionA = '20000000-0000-4000-8000-000000000001';
 const sessionB = '20000000-0000-4000-8000-000000000002';
 const stamp = '2026-01-01T00:00:00Z';
-const projects = [projectA, projectB].map((id, i) =>
+const projects = [projectA, projectB, '1000000003'].map((id, i) =>
   projectSchema.parse({
     id,
     profile_id: '0123456789',
@@ -75,9 +75,12 @@ async function prepare(page: Page) {
       close() { this.state = 'closed'; }
       async request(method, path) {
         let data = {};
-        if (path === '/api/projects') data = projects;
+        if (path === '/api/projects' || path.startsWith('/api/projects?')) data = projects;
         else if (path === '/api/sessions') data = sessions;
-        else if (path === '/api/repos' || path === '/api/accounts' || path === '/api/profiles') data = [];
+        else if (path === '/api/repos' || path.startsWith('/api/accounts') || path === '/api/profiles') data = [];
+        else if (path.endsWith('/branches')) data = { branches: [] };
+        else if (path.endsWith('/worktrees')) data = { worktrees: [] };
+        else if (path.includes('/tree?')) data = { entries: [] };
         else if (path.endsWith('/state')) data = { ui_state: {} };
         else if (path === '/api/host') data = { hostname: 'Test host' };
         else if (path === '/api/version') data = { version: 'test', protocol: ${JSON.stringify(PROTOCOL_VERSION)} };
@@ -172,4 +175,40 @@ test('keeps a cold notification destination through the sign-in redirect', async
   await page.goto(destination);
   await page.getByRole('button', { name: 'Continue with GitHub' }).tap();
   await expect.poll(() => callback).toBe(destination);
+});
+
+test('mobile dropdown replaces the sidebar across projects including empty projects', async ({
+  page,
+}) => {
+  await prepare(page);
+  await page.goto(
+    `${fixture.origin}/?notificationHost=${host}&notificationProject=${projectA}&notificationSession=${sessionA}`,
+  );
+  const selector = page.getByRole('button', { name: 'Switch session', exact: true });
+  const menu = page.getByRole('menu', { name: 'Switch session' });
+  await expect(selector).toHaveText('Conversation 1');
+  await expect(page.getByRole('complementary', { name: 'Sessions' })).toHaveCount(0);
+  await selector.tap();
+  await menu.getByRole('menuitem', { name: 'Switch to Project 2', exact: true }).tap();
+  await expect(selector).toHaveText('Conversation 2');
+  await selector.tap();
+  await menu.getByRole('menuitem', { name: 'Switch to Project 3', exact: true }).tap();
+  await expect(selector).toHaveText('No sessions');
+  await expect(selector).toBeEnabled();
+  await selector.tap();
+  await menu.getByRole('menuitem', { name: 'New terminal', exact: true }).tap();
+  await expect(page.getByRole('dialog', { name: 'New terminal', exact: true })).toBeVisible();
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await selector.tap();
+  await menu.getByRole('menuitem', { name: 'Archived sessions', exact: true }).tap();
+  await expect(page.getByRole('dialog', { name: 'Archived sessions' })).toContainText(
+    'No archived sessions',
+  );
+  await page.getByRole('button', { name: 'Close', exact: true }).click();
+  await selector.tap();
+  await menu.getByRole('menuitem', { name: 'Switch to Project 1', exact: true }).tap();
+  await expect(selector).toHaveText('Conversation 1');
+  await page.getByRole('button', { name: 'Files', exact: true }).tap();
+  await expect(page.getByRole('button', { name: 'Open file or directory' })).toBeVisible();
+  expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
 });

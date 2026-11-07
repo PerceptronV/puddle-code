@@ -184,12 +184,8 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     await expect(page.getByRole('button', { name: 'Open fixture', exact: true })).toBeVisible();
     await expect(page.getByText('Private other project', { exact: true })).toHaveCount(0);
     await page.getByRole('button', { name: 'Open fixture', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Expand sessions' })).toBeVisible();
+    await expect(page.getByRole('complementary', { name: 'Sessions' })).toHaveCount(0);
     await expect(page.getByRole('combobox', { name: 'Session', exact: true })).toHaveCount(0);
-    await expect(page.getByRole('button', { name: /^Open session / })).toHaveCount(2);
-    await expect(
-      page.getByRole('button', { name: 'Open session Other project terminal', exact: true }),
-    ).toHaveCount(0);
     await checkMobileHeader(page, testInfo);
     await page.getByRole('button', { name: 'Paired browsers', exact: true }).click();
     const browserCard = page.getByRole('article', { name: 'Test phone', exact: true });
@@ -244,13 +240,14 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     );
     await page.getByRole('textbox', { name: 'Prompt', exact: true }).fill('Unsent draft');
     const terminal = await page.locator('.phone-terminal:not([hidden]) .xterm').elementHandle();
-    await page.getByRole('button', { name: 'Switch to Second project', exact: true }).click();
-    await expect(
-      page.getByRole('button', { name: 'Open session Other project terminal', exact: true }),
-    ).toBeVisible();
-    await expect(page.getByRole('button', { name: /^Open session / })).toHaveCount(1);
+    await page.getByRole('button', { name: 'Switch session', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Switch to Second project', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Switch session', exact: true })).toContainText(
+      'Other project terminal',
+    );
     expect(await terminal!.evaluate((element) => element.isConnected)).toBe(true);
-    await page.getByRole('button', { name: 'Switch to fixture', exact: true }).click();
+    await page.getByRole('button', { name: 'Switch session', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Switch to fixture', exact: true }).click();
     await expect(page.getByRole('textbox', { name: 'Prompt', exact: true })).toHaveValue(
       'Unsent draft',
     );
@@ -324,34 +321,27 @@ test('pairs a real browser, sends Unicode exactly once, preserves drafts and rev
     ])
       expect(wire.includes(Buffer.from(plaintext))).toBe(false);
     await page.getByRole('button', { name: 'Terminals', exact: true }).click();
-    await page.getByRole('button', { name: 'Expand sessions' }).click();
-    await expect(page.getByRole('button', { name: 'Collapse sessions' })).toBeVisible();
-    await page.screenshot({ path: testInfo.outputPath('phone-expanded-sessions.png') });
-    await page.getByRole('button', { name: 'Collapse sessions' }).click();
-    const railSession = page.getByRole('button', { name: /^Open session / }).first();
-    await railSession.dispatchEvent('pointerdown', { button: 0, clientX: 20, clientY: 20 });
-    await expect(page.getByRole('dialog')).toBeVisible();
-    await page.locator('.phone-session-button').first().dispatchEvent('pointerup');
+    await page.getByRole('button', { name: 'Session details' }).click();
     await expect(page.getByRole('button', { name: 'Archive session', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Close', exact: true }).click();
-    await page.getByRole('button', { name: 'New terminal', exact: true }).click();
+    await page.getByRole('button', { name: 'Switch session', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'New terminal', exact: true }).click();
     await expect(page.getByRole('dialog', { name: 'New terminal', exact: true })).toBeVisible();
     await page.getByRole('button', { name: 'Open terminal', exact: true }).click();
     await expect(page.getByRole('dialog')).toHaveCount(0);
-    await expect(page.getByRole('button', { name: /^Open session / })).toHaveCount(2);
     await expect(
-      page.getByRole('button', { name: 'Open session Active agent', exact: true }),
-    ).not.toHaveAttribute('aria-current', 'page');
+      page.getByRole('button', { name: 'Switch session', exact: true }),
+    ).not.toContainText('Active agent');
     await page.getByRole('button', { name: 'Session details' }).click();
     await page.getByRole('button', { name: 'Archive session', exact: true }).click();
-    await expect(page.getByRole('button', { name: /^Open session / })).toHaveCount(1);
     await expect(page.getByRole('button', { name: 'Switch session', exact: true })).toContainText(
       'Active agent',
     );
-    await page.getByRole('button', { name: 'Archived sessions', exact: true }).click();
+    await page.getByRole('button', { name: 'Switch session', exact: true }).click();
+    await page.getByRole('menuitem', { name: 'Archived sessions', exact: true }).click();
     await expect(page.getByRole('dialog', { name: 'Archived sessions' })).toBeVisible();
     await page.getByRole('button', { name: 'Close', exact: true }).click();
-    await page.screenshot({ path: testInfo.outputPath('phone-session-rail.png') });
+    await page.screenshot({ path: testInfo.outputPath('phone-session-menu.png') });
     await page.getByRole('button', { name: 'Settings', exact: true }).click();
     await page
       .getByRole('region', { name: 'Host connections' })

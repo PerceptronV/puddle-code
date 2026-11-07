@@ -6,7 +6,7 @@ import { createRoot } from 'react-dom/client';
 import { flushSync } from 'react-dom';
 import { ControlTray } from '../../src/components/ui/control-tray';
 import { TrayMotionProvider } from '../../src/components/ui/tray-motion';
-import { PhoneSessionRail } from '../../src/features/mobile/PhoneSessionRail';
+import { PhoneTerminalBar } from '../../src/features/mobile/PhoneTerminalBar';
 import { project, sessions } from '../../src/dev/preview/data';
 import '../../src/features/remote/remote.css';
 
@@ -70,16 +70,17 @@ export function mountPhone() {
       <TooltipProvider>
         <div
           className="phone-workspace-body"
-          style={{ height: '100%', display: 'flex', minWidth: 0 }}
+          style={{ height: '100%', display: 'flex', flexDirection: 'column', minWidth: 0 }}
         >
-          <PhoneSessionRail
+          <PhoneTerminalBar
             projects={[project]}
             projectId={project.id}
             sessions={[
               ...sessions,
               { ...sessions[0]!, id: '00000000-0000-4000-8000-000000000099', status: 'archived' },
             ]}
-            selected={selected}
+            session={sessions.find((session) => session.id === selected)}
+            files={() => {}}
             connected
             chooseProject={() => {}}
             choose={(session) => setSelected(session.id)}

@@ -1,4 +1,7 @@
 .puddle-terminal-ripple {
+  --ripple-gutter: 0rem;
+  width: calc(100% + var(--ripple-gutter));
+  padding-right: var(--ripple-gutter);
   isolation: isolate;
   overflow: hidden;
 }
@@ -11,7 +14,7 @@
 
 .ripple {
   position: absolute;
-  inset: 0 0 auto;
+  inset: 0 var(--ripple-gutter) auto;
   z-index: 2;
   --ripple-grip-width: 1rem;
   background: var(--bg-base);
@@ -142,7 +145,7 @@
 .ripple-boundary {
   position: absolute;
   bottom: -0.875rem;
-  right: 0;
+  right: calc(-1 * var(--ripple-gutter));
   display: grid;
   place-items: center;
   width: var(--ripple-grip-width);
@@ -188,6 +191,16 @@
 }
 .ripple-boundary[data-edge='bottom'] {
   bottom: 0;
+}
+
+/* Use each pane's existing gutter without changing the CLI grid. */
+@media (pointer: fine) {
+  .puddle-terminal-ripple {
+    --ripple-gutter: 0.5rem;
+  }
+}
+.phone-terminal .puddle-terminal-ripple {
+  --ripple-gutter: 0.25rem;
 }
 
 @media (pointer: coarse) {

@@ -121,7 +121,7 @@ try {
     backing,
     'hover deepens grip',
   );
-  assert.equal(geometry.right, 0, 'handle sits at the right edge');
+  assert.equal(geometry.right, -8, 'handle sits in the right pane gutter');
   const assertWidth = async () => {
     const pane = await reader.boundingBox();
     for (const box of await reader.locator('.ripple-content, .ripple-user-turn').all()) {

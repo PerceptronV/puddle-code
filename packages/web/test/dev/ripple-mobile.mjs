@@ -23,6 +23,13 @@ try {
   const native = await page.locator('.xterm').elementHandle();
   const handle = await boundary.boundingBox();
   assert.ok(handle.width >= 44 && handle.height >= 44, 'touch-sized divider');
+  const phonePane = await page.locator('.phone-terminal').boundingBox();
+  assert.equal(
+    handle.x + handle.width,
+    phonePane.x + phonePane.width,
+    'handle reaches the phone pane edge',
+  );
+  assert.equal(await boundary.evaluate((el) => getComputedStyle(el).right), '-4px');
   assert.equal(await page.locator('.ripple-scroll').count(), 0, 'full CLI remains the default');
   const touch = await page.context().newCDPSession(page);
   const drag = async (from, to) => {

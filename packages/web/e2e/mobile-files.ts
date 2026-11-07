@@ -43,7 +43,7 @@ export async function checkMobilePaths(
   );
   await holdAndDrag(page, source, { x: 18, y: lineHeight / 2 }, { x: 155, y: lineHeight * 1.5 });
   await expect.poll(() => page.evaluate(() => window.getSelection()?.toString())).toContain('file');
-  await expect(page.getByRole('button', { name: 'Expand sessions', exact: true })).toBeInViewport();
+  await expect(page.getByRole('complementary', { name: 'Sessions' })).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.screenshot({ path: testInfo.outputPath('phone-file-selection.png') });
   await page

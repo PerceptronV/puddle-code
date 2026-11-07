@@ -44,72 +44,7 @@ export async function checkMobileHeader(page: Page, testInfo: TestInfo) {
   await expect(breadcrumb).toHaveText('Fixture host/fixture');
   await expect(page.getByRole('button', { name: 'Switch project', exact: true })).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Terminals', exact: true })).toHaveCount(0);
-  const rail = page.getByRole('complementary', { name: 'Sessions' });
-  const projectLabels = rail.getByRole('button', { name: /^Switch to / });
-  await expect(projectLabels).toHaveText(['FIXTU', 'WWWWW']);
-  await page.evaluate(() => document.fonts.ready);
-  for (const label of await projectLabels.all()) {
-    expect(await label.evaluate((element) => element.scrollWidth <= element.clientWidth)).toBe(
-      true,
-    );
-  }
-  await expectToolbarAlignment(page);
-  await expect
-    .poll(() =>
-      rail
-        .getByRole('button', { name: /^Open session / })
-        .evaluateAll((buttons) => buttons.map((button) => button.getAttribute('aria-label'))),
-    )
-    .toEqual(['Open session Active agent', 'Open session Project terminal']);
-  const controls = await Promise.all(
-    ['Expand sessions', 'New agent', 'New terminal'].map(
-      async (name) => (await rail.getByRole('button', { name, exact: true }).boundingBox())!,
-    ),
-  );
-  const spacing = await rail
-    .getByRole('group', { name: 'Session actions', exact: true })
-    .evaluate((element) => {
-      const buttons = [...element.querySelectorAll('button')];
-      return {
-        gap: parseFloat(getComputedStyle(element).rowGap),
-        margins: buttons.map((button) => {
-          const style = getComputedStyle(button);
-          return { before: parseFloat(style.marginTop), after: parseFloat(style.marginBottom) };
-        }),
-      };
-    });
-  expect(spacing.gap).toBeLessThanOrEqual(8);
-  for (let index = 1; index < controls.length; index++) {
-    const previous = controls[index - 1]!;
-    const current = controls[index]!;
-    expect(current.x).toBe(previous.x);
-    expect(current.width).toBe(previous.width);
-    // The toggle's separation is additional to the shared tray gap. Check both
-    // independently so adopting the shared tray does not look like misalignment.
-    const margin = spacing.margins[index - 1]!.after + spacing.margins[index]!.before;
-    expect(margin).toBeGreaterThanOrEqual(0);
-    expect(margin).toBeLessThanOrEqual(index === 1 ? 8 : 0);
-    expect(current.y - (previous.y + previous.height)).toBeCloseTo(spacing.gap + margin, 0);
-  }
-  await expect(
-    rail.getByRole('button', { name: 'New agent', exact: true }).locator('svg'),
-  ).toHaveClass(/lucide-bot/);
-  const ink = await rail.evaluate((element) => {
-    const probe = document.createElement('span');
-    probe.style.color = 'var(--text-primary)';
-    element.append(probe);
-    const colour = getComputedStyle(probe).color;
-    probe.remove();
-    return colour;
-  });
-  // Actions use neutral ink; gold remains reserved for navigator selections.
-  for (const name of ['Expand sessions', 'New agent', 'New terminal', 'Archived sessions']) {
-    await expect(rail.getByRole('button', { name, exact: true }).locator('svg')).toHaveCSS(
-      'color',
-      ink,
-    );
-  }
-
+  await expect(page.getByRole('complementary', { name: 'Sessions' })).toHaveCount(0);
   const selector = page.getByRole('button', { name: 'Switch session', exact: true });
   await expect(selector).toContainText('Active agent');
   await expect(
@@ -118,16 +53,23 @@ export async function checkMobileHeader(page: Page, testInfo: TestInfo) {
   await selector.tap();
   const menu = page.getByRole('menu', { name: 'Switch session' });
   await expect(menu.getByRole('menuitemcheckbox')).toHaveText(['Active agent', 'Project terminal']);
-  await expect(menu.getByRole('menuitemcheckbox', { name: 'Active agent' })).toHaveAttribute(
+  await expect(menu.getByRole('menuitem', { name: /^Switch to / })).toHaveText([
+    'fixture',
+    'Second project',
+  ]);
+  for (const name of ['New agent', 'New terminal', 'Archived sessions']) {
+    const item = menu.getByRole('menuitem', { name, exact: true });
+    await expect(item).toBeVisible();
+    expect((await item.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  }
+  await expect(menu.getByRole('menuitemcheckbox', { name: /Active agent$/ })).toHaveAttribute(
     'aria-checked',
     'true',
   );
   await page.screenshot({ path: testInfo.outputPath('phone-session-switcher.png') });
   await menu.getByRole('menuitemcheckbox', { name: /Project terminal$/ }).tap();
   await expect(selector).toContainText('Project terminal');
-  await expect(
-    rail.getByRole('button', { name: 'Open session Project terminal', exact: true }),
-  ).toHaveAttribute('aria-current', 'page');
+
   await page.getByRole('button', { name: 'Session details' }).click();
   await expect(page.getByRole('button', { name: 'Add shell', exact: true })).toHaveCount(0);
   await page.getByRole('button', { name: 'Archive session', exact: true }).click();
@@ -173,7 +115,6 @@ export async function checkFileToolbar(page: Page, testInfo: TestInfo) {
     ),
   );
   expect(Math.max(...rows) - Math.min(...rows)).toBeLessThanOrEqual(1);
-  await expectToolbarAlignment(page);
   await expect(
     toolbar.getByRole('button', { name: 'Terminals', exact: true }).locator('svg'),
   ).toHaveClass(/lucide-monitor/);
@@ -185,12 +126,4 @@ export async function checkFileToolbar(page: Page, testInfo: TestInfo) {
     page.getByText('Choose a PNG, JPEG, GIF or WebP image.', { exact: true }),
   ).toBeHidden();
   await page.screenshot({ path: testInfo.outputPath('phone-file-toolbar.png') });
-}
-
-async function expectToolbarAlignment(page: Page) {
-  const bar = (await page.getByRole('navigation', { name: 'Workspace view' }).boundingBox())!;
-  const toggle = (await page
-    .getByRole('button', { name: 'Expand sessions', exact: true })
-    .boundingBox())!;
-  expect(Math.abs(bar.y + bar.height / 2 - (toggle.y + toggle.height / 2))).toBeLessThanOrEqual(1);
 }

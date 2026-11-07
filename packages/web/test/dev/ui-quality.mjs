@@ -224,7 +224,9 @@ try {
     const { mountPhone } = await import('/test/dev/ui-quality-fixture.tsx');
     window.removePhoneCheck = mountPhone();
   });
-  const rail = phone.locator('#phone-check aside');
+  assert.equal(await phone.locator('#phone-check aside').count(), 0);
+  const selector = phone.getByRole('button', { name: 'Switch session', exact: true });
+  const menu = phone.getByRole('menu', { name: 'Switch session' });
   const promptDraft = phone.getByRole('textbox', { name: 'Prompt', exact: true });
   await promptDraft.fill('Retain my draft');
   assert.equal(await promptDraft.inputValue(), 'Retain my draft');
@@ -233,19 +235,25 @@ try {
     'rgba(0, 0, 0, 0)',
   );
   assert.ok(+(await promptDraft.evaluate((el) => parseFloat(getComputedStyle(el).fontSize))) >= 16);
+  await selector.tap();
+  await menu.evaluate((el) =>
+    Promise.all(el.getAnimations().map((animation) => animation.finished)),
+  );
   assert.ok(
-    (await rail.getByRole('button', { name: 'New agent', exact: true }).boundingBox()).height >= 44,
+    (await menu.getByRole('menuitem', { name: 'New agent', exact: true }).boundingBox()).height >=
+      44,
   );
-  await rail.getByRole('button', { name: 'Expand sessions', exact: true }).click();
-  assert.ok((await rail.boundingBox()).width <= 390);
-  await rail.getByRole('button', { name: 'Open session Review the layout', exact: true }).click();
+  assert.ok((await menu.boundingBox()).width <= 390);
+  await menu.getByRole('menuitemcheckbox', { name: /Review the layout$/ }).tap();
+  assert.equal(await selector.textContent(), 'Review the layout');
+  await selector.tap();
   assert.equal(
-    await rail
-      .getByRole('button', { name: 'Open session Review the layout', exact: true })
-      .getAttribute('aria-current'),
-    'page',
+    await menu
+      .getByRole('menuitemcheckbox', { name: /Review the layout$/ })
+      .getAttribute('aria-checked'),
+    'true',
   );
-  await rail.getByRole('button', { name: 'Archived sessions', exact: true }).click();
+  await menu.getByRole('menuitem', { name: 'Archived sessions', exact: true }).tap();
   await phone.getByRole('dialog', { name: 'Archived sessions' }).waitFor();
   await phone
     .getByRole('dialog', { name: 'Archived sessions' })
