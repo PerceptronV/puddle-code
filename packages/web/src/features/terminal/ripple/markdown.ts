@@ -1,6 +1,11 @@
 import { terminalMarkdownToHtml } from '../../editor/previews/markdown/markdown';
 import { markRippleStyles, type RippleStyle } from './cell-style';
-import { rippleInputBorder, ripplePromptPrefix, ripplePromptSummary } from './agent-layout';
+import {
+  rippleInputBorder,
+  ripplePromptPrefix,
+  ripplePromptSummary,
+  rippleWorkingLine,
+} from './agent-layout';
 
 /** Keep aligned output literal even when it resembles Markdown. */
 export function rippleHtml(
@@ -12,10 +17,12 @@ export function rippleHtml(
     agentType?: string;
     background?: string;
     anchorText?: boolean;
+    topOfScreen?: boolean;
   } = {},
 ): string {
   const originalLines = text.split('\n');
-  const firstContent = originalLines.findIndex((line) => line.trim());
+  const summaryRow =
+    options.topOfScreen && ripplePromptSummary(originalLines[0] ?? '', options.agentType);
   let offset = 0;
   const offsets: number[] = [];
   const prefixes = originalLines.map((line) => {
@@ -31,12 +38,7 @@ export function rippleHtml(
     return prefix;
   });
   const promptEnds = prefixes.map((prefix, row) => {
-    if (
-      !prefix ||
-      options.agentType === 'opencode' ||
-      (row === firstContent && ripplePromptSummary(originalLines[row]!, options.agentType))
-    )
-      return row;
+    if (!prefix || options.agentType === 'opencode' || (row === 0 && summaryRow)) return row;
     let end = row;
     for (let next = row + 1; next < originalLines.length; next++) {
       const line = originalLines[next]!;
@@ -95,10 +97,14 @@ export function rippleHtml(
       flush();
       continue;
     }
+    if (rippleWorkingLine(originalLines[index]!, options.agentType)) {
+      flush();
+      output.push(literal(rawLines[index]!));
+      continue;
+    }
     if (prefixes[index]) {
       flush();
-      const summary =
-        index === firstContent && ripplePromptSummary(originalLines[index]!, options.agentType);
+      const summary = index === 0 && summaryRow;
       const contentOffset = offsets[index]! + prefixes[index]!;
       const backing = options.styles?.find(
         (range) =>

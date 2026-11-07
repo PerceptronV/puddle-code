@@ -25,6 +25,7 @@ try {
   );
   const url = 'http://localhost:5174/e2e/fixtures/ripple.html?ripple';
   const lines = [
+    '',
     '› - First point',
     '  - Second point',
     '    wrapped continuation',
@@ -118,19 +119,19 @@ try {
       .slice(-2)
       .map((m) => m.data),
   );
-  assert.deepEqual(input, ['\x1b[<0;10;14M', '\x1b[<0;10;14m']);
+  assert.deepEqual(input, ['\x1b[<0;10;15M', '\x1b[<0;10;15m']);
   assert.equal(
     await page.evaluate(() => window.rippleFixture.messages.filter((m) => m.t === 'stdin').length),
     before + 2,
   );
   // Keep a selected reading snapshot while its native control is replaced.
-  await page.evaluate(() => {
+  await page.evaluate((rows) => {
     const range = document.createRange();
     range.selectNodeContents(document.querySelector('.ripple-user-turn'));
     window.getSelection().removeAllRanges();
     window.getSelection().addRange(range);
-    window.rippleFixture.output('\x1b[14;1H\x1b[2K  A different screen');
-  });
+    window.rippleFixture.output(`\x1b[15;1H\x1b[2K  A different screen\x1b[${rows - 2};7H`);
+  }, size.rows);
   await page.waitForTimeout(100);
   await details.click();
   assert.equal(
@@ -142,7 +143,7 @@ try {
   await page.evaluate((rows) => {
     window.getSelection().removeAllRanges();
     window.rippleFixture.output(
-      '\x1b[2J\x1b[H› Earlier prompt…\r\n' +
+      '\x1b[2J\x1b[H› Earlier prompt\r\n' +
         '  115 - removed value\r\n  115 + replacement value\r\n\r\n' +
         '界 **Arbitrary target**\r\n' +
         `\x1b[${rows - 7};1H• Working (12s • esc to interrupt)` +
@@ -152,7 +153,7 @@ try {
   }, size.rows);
   const summary = reader.locator('[data-ripple-summary]');
   await summary.waitFor();
-  assert.equal((await summary.innerText()).trim(), 'Earlier prompt…');
+  assert.equal((await summary.innerText()).trim(), 'Earlier prompt');
   assert.ok((await reader.locator('pre').innerText()).includes('115 - removed value\n'));
   assert.ok(!(await reader.innerText()).includes('Working'));
   assert.equal(

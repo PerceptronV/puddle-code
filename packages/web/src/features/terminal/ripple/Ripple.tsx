@@ -24,7 +24,7 @@ import { rippleHtml } from './markdown';
 import { relayRippleWheel, rippleView } from './view';
 import { RippleRichPart } from './RippleRichPart';
 import { RippleBoundary } from './RippleBoundary';
-import { useRippleBoundary } from './preferences';
+import { useRippleBoundary, setRippleBoundary } from './preferences';
 import { currentTheme, onThemeChange } from '../../../lib/appearance/theme';
 import DOMPurify from 'dompurify';
 import 'katex/dist/katex.min.css';
@@ -56,6 +56,7 @@ export function Ripple({
   const [bottom, setBottom] = useState(80);
   const [nativeOffset, setNativeOffset] = useState(0);
   const [visibleRows, setVisibleRows] = useState(5);
+  const [inputRows, setInputRows] = useState<number | null>(null);
   const nativeRows = useRippleBoundary(stream);
   const [showNative, setShowNative] = useState(false);
   const followNative = useRef(false);
@@ -66,8 +67,18 @@ export function Ripple({
     setBottom(view.bottom);
     setNativeOffset(view.nativeOffset);
     setVisibleRows(view.nativeRows);
+    setInputRows(view.inputRows);
     return view;
   }, [terminal, agentType, nativeRows]);
+  useEffect(() => {
+    // Upgrade a saved bottom anchor near the composer; distant manual divisions stay fixed.
+    if (
+      typeof nativeRows === 'number' &&
+      inputRows !== null &&
+      Math.abs(nativeRows - inputRows) <= 3
+    )
+      setRippleBoundary(stream, nativeRows, inputRows);
+  }, [stream, nativeRows, inputRows]);
   const readSnapshot = useCallback(
     (view = updateView()) => {
       const palette = ripplePalette(terminal, agentType);
@@ -191,13 +202,19 @@ export function Ripple({
                     agentType,
                     background: snapshot.background,
                     anchorText: true,
+                    topOfScreen:
+                      part.offset !== undefined &&
+                      snapshot.sourceMap?.rows.some(
+                        (row) =>
+                          row.row === snapshot.sourceMap?.viewport && row.start === part.offset,
+                      ),
                   },
                 ),
               ),
             }
           : null;
       }),
-    [snapshot.parts, snapshot.background, agentType],
+    [snapshot.parts, snapshot.background, snapshot.sourceMap, agentType],
   );
   useLayoutEffect(() => {
     const element = viewport.current;
@@ -455,7 +472,12 @@ export function Ripple({
             : 'Latest output'}
         </Button>
       )}
-      <RippleBoundary terminal={terminal} stream={stream} rows={visibleRows} />
+      <RippleBoundary
+        terminal={terminal}
+        stream={stream}
+        rows={visibleRows}
+        inputRows={inputRows}
+      />
     </section>
   );
 }

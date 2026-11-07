@@ -54,7 +54,7 @@ const sample = [
 ].join('\r\n');
 // A full-screen agent writes frames into the alternate buffer, enables mouse
 // reporting, and keeps its input/status rows in the same screen as the reply.
-const alternateSample =
+const alternateSample = (rows: number) =>
   '\x1b[?1049h\x1b[?1000h\x1b[?1006h\x1b[?2026h\x1b[2J\x1b[H' +
   [
     '\x1b[1m• Agent reply\x1b[0m',
@@ -64,10 +64,8 @@ const alternateSample =
     'flowchart LR',
     '  A[CLI] --> B[Ripple]',
     '',
-    '› Ask Codex to do anything',
-    '  Shift+Left still edits in the native CLI.',
   ].join('\r\n') +
-  '\x1b[8;3H\x1b[?2026l';
+  `\x1b[${rows - 3};1H› Ask Codex to do anything\r\n  Shift+Left still edits in the native CLI.\x1b[${rows - 3};3H\x1b[?2026l`;
 const messages: WsClientMessage[] = [];
 const openedFiles: FileLinkTarget[] = [];
 const resolvedPaths: string[] = [];
@@ -103,7 +101,7 @@ class FixtureSocket implements CockpitSocket {
           data: new URLSearchParams(location.search).has('live')
             ? ''
             : new URLSearchParams(location.search).has('alternate')
-              ? alternateSample
+              ? alternateSample(message.rows)
               : sample,
         }),
       );
@@ -151,8 +149,15 @@ Object.assign(window, {
     messages,
     openedFiles,
     resolvedPaths,
-    alternateScreen: () =>
-      socket.emit({ t: 'output', session: session.id, term: 'agent', data: alternateSample }),
+    alternateScreen: () => {
+      const size = messages.findLast((message) => message.t === 'attach' || message.t === 'resize');
+      socket.emit({
+        t: 'output',
+        session: session.id,
+        term: 'agent',
+        data: alternateSample(size && 'rows' in size ? size.rows : 24),
+      });
+    },
     output: (data: string, replay = false) =>
       socket.emit({ t: replay ? 'replay' : 'output', session: session.id, term: 'agent', data }),
     theme: applyTheme,

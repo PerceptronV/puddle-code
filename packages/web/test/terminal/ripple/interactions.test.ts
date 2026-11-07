@@ -76,25 +76,40 @@ describe('Ripple links and source controls', () => {
     expect(html).toContain('data-ripple-start="2"');
     expect(html).not.toContain('role="button"');
   });
-  it('keeps a pinned truncated prompt separate from following diff rows', () => {
-    const html = rippleHtml(
-      '› Earlier prompt …\n  115 - old code\n  115 + new code\n  + Show details',
-      false,
-      false,
-      { agentType: 'codex', anchorText: true },
-    );
-    const [prompt, reply] = html.split('</div>');
-    expect(prompt).toContain('Earlier prompt');
-    expect(prompt).not.toContain('old code');
-    expect(prompt).toContain('data-ripple-summary="true"');
-    expect(reply).toContain('<pre>');
-    expect(reply).toContain('old code');
-    expect(reply).toContain('new code');
-  });
+  it.each(['Earlier prompt', 'Earlier prompt …', 'Earlier prompt...'])(
+    'keeps pinned prompt %s separate from following diff rows',
+    (label) => {
+      const html = rippleHtml(
+        `› ${label}\n  115 - old code\n  115 + new code\n  + Show details`,
+        false,
+        false,
+        { agentType: 'codex', anchorText: true, topOfScreen: true },
+      );
+      const [prompt, reply] = html.split('</div>');
+      expect(prompt).toContain('Earlier prompt');
+      expect(prompt).not.toContain('old code');
+      expect(prompt).toContain('data-ripple-summary="true"');
+      expect(reply).toContain('<pre>');
+      expect(reply).toContain('old code');
+      expect(reply).toContain('new code');
+    },
+  );
+  it.each(['•', '◦', '·', '...', '⠋', ''])(
+    'keeps Working spinner %s in a stable literal block when exposed in the reader',
+    (spinner) => {
+      const html = rippleHtml(`${spinner} Working (9s • esc to interrupt)`, false, false, {
+        agentType: 'codex',
+        anchorText: true,
+      });
+      expect(html).toContain('<pre>');
+      expect(html).not.toContain('<ul>');
+      expect(html).toContain('Working');
+    },
+  );
   it('groups indented prompt lists, nested lists, code and blank paragraphs without absorbing the reply', () => {
     const source =
-      '› - First point\n  - Second point\n    wrapped continuation\n    - Nested point\n  \n  Another paragraph\n  ```ts\n  const x = 1;\n  ```\n\n• Answer\n  continued answer';
-    const html = rippleHtml(source, false, false, { agentType: 'codex' });
+      '\n› - First point\n  - Second point\n    wrapped continuation\n    - Nested point\n  \n  Another paragraph\n  ```ts\n  const x = 1;\n  ```\n\n• Answer\n  continued answer';
+    const html = rippleHtml(source, false, false, { agentType: 'codex', topOfScreen: true });
     const [prompt, answer] = html.split('</div>');
     expect(prompt).toContain('Second point');
     expect(prompt).toContain('Nested point');

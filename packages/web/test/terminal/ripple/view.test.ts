@@ -64,6 +64,35 @@ describe('Ripple overlay boundary', () => {
     const view = rippleView(terminal, 'codex');
     expect(readRippleBuffer(terminal.buffer.active, 80, view).text).not.toContain('Working');
   });
+  it('tracks the input top for nearby anchors as drafts expand and shrink', () => {
+    const terminal = screen();
+    const original = terminal.buffer.active.getLine.bind(terminal.buffer.active);
+    const preference = { rows: 6, inputOffset: 1 };
+    for (const extra of [0, 4, 16, 0]) {
+      terminal.buffer.active.getLine = (row) => {
+        if (row === 26 - extra) return { ...original(row)!, translateToString: () => '› Draft' };
+        if (row >= 24 - extra && row < 26 - extra)
+          return { ...original(row)!, translateToString: () => '' };
+        if (row >= 26 - extra && row <= 26)
+          return { ...original(row)!, translateToString: () => '  continued input' };
+        return original(row);
+      };
+      expect(rippleView(terminal, 'codex', preference).nativeRows).toBe(7 + extra);
+      expect(rippleView(terminal, 'codex', 12).nativeRows).toBe(12);
+    }
+  });
+  it.each(['•', '◦', '·', '...', '⠋', ''])(
+    'keeps the same boundary for Working spinner %s',
+    (spinner) => {
+      const terminal = screen();
+      const original = terminal.buffer.active.getLine.bind(terminal.buffer.active);
+      terminal.buffer.active.getLine = (row) =>
+        row === 20
+          ? bufferWithLines([{ text: `${spinner} Working (9s • esc to interrupt)` }], 80).getLine(0)
+          : original(row);
+      expect(rippleView(terminal, 'codex').nativeRows).toBe(10);
+    },
+  );
   it('includes the fractional fit remainder so the overlay cannot clip a native row', () => {
     const terminal = screen();
     Object.assign(terminal, {
@@ -111,6 +140,11 @@ describe('Ripple overlay boundary', () => {
   it('rejects invalid persisted boundaries and bounds the session map', () => {
     expect(rippleBoundaries('{"a":5,"b":0,"c":1.2,"d":"3"}')).toEqual({ a: 5 });
     expect(rippleBoundaries('invalid')).toEqual({});
+    expect(
+      rippleBoundaries(
+        JSON.stringify({ a: { rows: 6, inputOffset: 1 }, b: { rows: 6, inputOffset: 99 } }),
+      ),
+    ).toEqual({ a: { rows: 6, inputOffset: 1 } });
     expect(
       Object.keys(
         rippleBoundaries(

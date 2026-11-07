@@ -44,18 +44,22 @@ try {
             '╹',
           ].join('\r\n')
         : `────────────────────\r\n${marker} NATIVE DRAFT\r\n────────────────────`;
-    const inputRow = rows - 5;
-    await page.evaluate(
-      (data) => window.rippleFixture.output(data),
-      '\x1b[?1049h\x1b[2J\x1b[H\x1b]11;rgb:ff/ff/ff\x07' +
-        user +
-        '\r\n\r\n' +
-        reply +
-        tool +
-        `\x1b[${inputRow};1H` +
-        composer +
-        `\x1b[${inputRow + 1};7H`,
-    );
+    const draw = async (height) => {
+      const inputRow = height - 5;
+      await page.evaluate(
+        (data) => window.rippleFixture.output(data),
+        '\x1b[?1049h\x1b[2J\x1b[H\x1b]11;rgb:ff/ff/ff\x07' +
+          (agent === 'codex' ? '\r\n' : '') +
+          user +
+          '\r\n\r\n' +
+          reply +
+          tool +
+          `\x1b[${inputRow};1H` +
+          composer +
+          `\x1b[${inputRow + 1};7H`,
+      );
+    };
+    await draw(rows);
     await page.evaluate(() => window.rippleFixture.enable(true));
     const bubble = page.locator('.ripple-user-turn');
     await bubble.filter({ hasText: 'Explain terminal rendering' }).waitFor();
@@ -102,6 +106,16 @@ try {
     const saved = await boundary.getAttribute('aria-valuenow');
     await page.setViewportSize({ width: 1000, height: 800 });
     await page.waitForTimeout(100);
+    // A real full-screen agent redraws its footer at the new PTY height.
+    const resized = await page.evaluate(() =>
+      window.rippleFixture.messages.findLast((m) => m.t === 'resize' || m.t === 'attach'),
+    );
+    await draw(resized.rows);
+    await page.waitForFunction(
+      (value) =>
+        document.querySelector('.ripple-boundary')?.getAttribute('aria-valuenow') === value,
+      saved,
+    );
     assert.equal(await boundary.getAttribute('aria-valuenow'), saved);
     await page.screenshot({ path: `/private/tmp/puddle-ripple-${agent}-layout.png` });
     await page.setViewportSize({ width: 1200, height: 900 });

@@ -1,11 +1,12 @@
 import type { Terminal } from '@xterm/xterm';
-import { rippleInputBorder, rippleInputMarker } from './agent-layout';
+import type { RippleBoundaryPreference } from './preferences';
+import { rippleInputBorder, rippleInputMarker, rippleWorkingLine } from './agent-layout';
 
 /** Keep the real composer visible without resizing or moving the underlying PTY. */
 export function rippleView(
   terminal: Terminal,
   agentType?: string,
-  nativeRows: number | null = null,
+  nativeRows: RippleBoundaryPreference | null = null,
 ) {
   const buffer = terminal.buffer.active;
   const first = buffer.viewportY;
@@ -51,9 +52,11 @@ export function rippleView(
     // CLIs can place a short conversation's input high in an otherwise empty pane.
     const cursor = Math.min(first + terminal.rows - 1, buffer.baseY + buffer.cursorY);
     const earliest =
-      buffer.type === 'alternate'
-        ? first + Math.floor(terminal.rows / 2)
-        : Math.max(first, cursor - Math.max(12, Math.floor(terminal.rows / 2)));
+      agentType === 'codex'
+        ? first + (buffer.type === 'alternate' ? 1 : 0)
+        : buffer.type === 'alternate'
+          ? first + Math.floor(terminal.rows / 2)
+          : Math.max(first, cursor - Math.max(12, Math.floor(terminal.rows / 2)));
     for (let row = cursor; row >= earliest; row--) {
       const line = buffer.getLine(row);
       if (!rippleInputMarker(line?.translateToString(true) ?? '', agentType)) continue;
@@ -88,28 +91,35 @@ export function rippleView(
     occupiedRows = terminal.rows;
     composer = Math.max(0, terminal.rows - 5);
   }
+  const blankAbove = (row: number) =>
+    row > 0 &&
+    !buffer
+      .getLine(first + row - 1)
+      ?.translateToString(true)
+      .trim();
+  // Input geometry is independent of a transient Working/footer status.
+  const inputRows = foundComposer ? occupiedRows - composer + (blankAbove(composer) ? 1 : 0) : null;
   if (agentType === 'codex' && foundComposer) {
     // The live working indicator and its tip belong to native controls. Only
     // inspect the footer neighbourhood, not prose mentioning work elsewhere.
     for (let row = first + composer - 1; row >= Math.max(first, first + composer - 10); row--) {
       const text = buffer.getLine(row)?.translateToString(true) ?? '';
-      if (/^\s*(?:[^\p{L}\p{N}\s]\s*)?Working\s*\([^)]*(?:esc|interrupt)[^)]*\)/iu.test(text)) {
+      if (rippleWorkingLine(text, agentType)) {
         composer = row - first;
         break;
       }
     }
   }
-  if (
-    foundComposer &&
-    nativeRows === null &&
-    composer > 0 &&
-    !buffer
-      .getLine(first + composer - 1)
-      ?.translateToString(true)
-      .trim()
-  )
-    composer--;
-  if (nativeRows !== null) composer = Math.max(3, occupiedRows - nativeRows);
+  if (foundComposer && blankAbove(composer)) composer--;
+  if (nativeRows !== null) {
+    const rows =
+      typeof nativeRows === 'number'
+        ? nativeRows
+        : inputRows === null
+          ? nativeRows.rows
+          : inputRows + nativeRows.inputOffset;
+    composer = Math.max(3, occupiedRows - rows);
+  }
   composer = Math.max(0, Math.min(occupiedRows - 1, composer));
   let last = first + composer;
   // Codex's scroll hint belongs to its controls, not the answer being read.
@@ -156,6 +166,7 @@ export function rippleView(
     firstCol,
     lastCol,
     nativeRows: occupiedRows - composer,
+    inputRows,
     cellHeight,
     bottom: Math.max(0, occupiedRows - composer) * cellHeight + remainder,
     nativeOffset: (terminal.rows - occupiedRows) * cellHeight,

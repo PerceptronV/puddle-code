@@ -1,8 +1,16 @@
 import type { RippleStyle } from './cell-style';
 
-/** Codex pins a truncated past prompt above the scrolled conversation. */
+/** Codex pins a single-row past prompt above the scrolled conversation. */
 export function ripplePromptSummary(line: string, agentType?: string): boolean {
-  return agentType === 'codex' && /^\s*[›❯] .*(?:…|\.{3})\s*$/.test(line);
+  return agentType === 'codex' && /^[ \t]*[›❯] /.test(line);
+}
+
+/** Spinner glyphs change; the footer's text identifies the stable status row. */
+export function rippleWorkingLine(line: string, agentType?: string): boolean {
+  return (
+    agentType === 'codex' &&
+    /^[^\p{L}\p{N}\n]*Working\s*\([^)]*(?:esc|interrupt)[^)]*\)\s*$/iu.test(line)
+  );
 }
 
 /** Native layouts, not inferred conversation roles. Unknown layouts stay literal. */
@@ -50,7 +58,7 @@ export function ripplePromptPrefix(
 export function rippleInputMarker(line: string, agentType?: string): boolean {
   switch (agentType) {
     case 'codex':
-      return /^\s*[›❯>]\s/.test(line);
+      return /^\s*[›❯>](?:\s|$)/.test(line);
     case 'claude-code':
       return /^\s*[❯>]\s/.test(line);
     case 'gemini-cli':

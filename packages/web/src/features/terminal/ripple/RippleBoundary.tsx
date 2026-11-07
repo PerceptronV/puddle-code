@@ -9,14 +9,16 @@ export function RippleBoundary({
   terminal,
   stream,
   rows,
+  inputRows,
 }: {
   terminal: Terminal;
   stream: string;
   rows: number;
+  inputRows: number | null;
 }) {
   const drag = useRef<{ y: number; rows: number; cellHeight: number } | null>(null);
   const move = (value: number) =>
-    setRippleBoundary(stream, Math.max(1, Math.min(terminal.rows - 3, value)));
+    setRippleBoundary(stream, Math.max(1, Math.min(terminal.rows - 3, value)), inputRows);
   return (
     <div
       role="separator"

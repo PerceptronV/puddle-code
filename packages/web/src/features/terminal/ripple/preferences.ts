@@ -1,4 +1,4 @@
-import { useSyncExternalStore } from 'react';
+import { useMemo, useSyncExternalStore } from 'react';
 import { localValue } from '../../../lib/persistence/local-store';
 import { useClientSettings } from '../../../lib/settings/client-settings';
 
@@ -44,19 +44,31 @@ export function useSessionRipple(session: string) {
   return { enabled: override ?? settings.rippleEnabled === true, override };
 }
 
-export function rippleBoundaries(raw: string | null): Record<string, number> {
+export type RippleBoundaryPreference = number | { rows: number; inputOffset: number };
+
+function validRows(value: unknown): value is number {
+  return typeof value === 'number' && Number.isInteger(value) && value >= 1 && value <= 500;
+}
+function validBoundary(value: unknown): value is RippleBoundaryPreference {
+  if (validRows(value)) return true;
+  if (!value || typeof value !== 'object') return false;
+  const { rows, inputOffset } = value as Record<string, unknown>;
+  return (
+    validRows(rows) &&
+    typeof inputOffset === 'number' &&
+    Number.isInteger(inputOffset) &&
+    inputOffset >= 0 &&
+    inputOffset <= 3
+  );
+}
+
+export function rippleBoundaries(raw: string | null): Record<string, RippleBoundaryPreference> {
   try {
     const value: unknown = JSON.parse(raw ?? '{}');
     if (!value || typeof value !== 'object' || Array.isArray(value)) return {};
     return Object.fromEntries(
       Object.entries(value)
-        .filter(
-          (entry): entry is [string, number] =>
-            typeof entry[1] === 'number' &&
-            Number.isInteger(entry[1]) &&
-            entry[1] >= 1 &&
-            entry[1] <= 500,
-        )
+        .filter((entry): entry is [string, RippleBoundaryPreference] => validBoundary(entry[1]))
         .slice(-MAX_OVERRIDES),
     );
   } catch {
@@ -64,15 +76,26 @@ export function rippleBoundaries(raw: string | null): Record<string, number> {
   }
 }
 
-export function setRippleBoundary(session: string, rows: number | null) {
+export function setRippleBoundary(
+  session: string,
+  rows: number | null,
+  inputRows: number | null = null,
+) {
   const entries = Object.entries(rippleBoundaries(boundaries.get())).filter(
     ([id]) => id !== session,
   );
-  if (rows !== null) entries.push([session, Math.max(1, Math.min(500, Math.round(rows)))]);
+  if (rows !== null) {
+    rows = Math.max(1, Math.min(500, Math.round(rows)));
+    const preference =
+      inputRows !== null && Math.abs(rows - inputRows) <= 3
+        ? { rows, inputOffset: Math.max(0, rows - inputRows) }
+        : rows;
+    entries.push([session, preference]);
+  }
   boundaries.set(JSON.stringify(Object.fromEntries(entries.slice(-MAX_OVERRIDES))));
 }
 
 export function useRippleBoundary(session: string) {
   const raw = useSyncExternalStore(boundaries.subscribe, boundaries.get);
-  return rippleBoundaries(raw)[session] ?? null;
+  return useMemo(() => rippleBoundaries(raw)[session] ?? null, [raw, session]);
 }
