@@ -5,6 +5,8 @@ import { MemoryRouter } from 'react-router';
 import type { Session, WsClientMessage, WsServerMessage } from '@puddle/shared';
 import '../../src/styles/app.css';
 import { Terminal } from '../../src/features/terminal/Terminal';
+import { MobileTerminal } from '../../src/features/mobile/MobileTerminal';
+import '../../src/features/remote/remote.css';
 import { SessionContextMenu } from '../../src/features/workspace/sessions/SessionActions';
 import { AppearanceSection } from '../../src/features/settings/sections/appearance';
 import { Button } from '../../src/components/ui/button';
@@ -22,6 +24,7 @@ import { setRippleBoundary } from '../../src/features/terminal/ripple/preference
 import { updateClientSettings } from '../../src/lib/settings/client-settings';
 import type { FileLinkTarget } from '../../src/features/terminal/links/file-links';
 
+const mobile = new URLSearchParams(location.search).has('mobile');
 const agent =
   ['codex', 'claude-code', 'gemini-cli', 'opencode'].find(
     (name) => name === new URLSearchParams(location.search).get('agent'),
@@ -137,7 +140,9 @@ installBrowserTransport({
     socket = new FixtureSocket();
     return socket;
   },
-  input: async () => {},
+  input: async (session, term, data) => {
+    messages.push({ t: 'stdin', session, term, data });
+  },
 });
 tokenStore.set('sample-only');
 profileStore.set(profile.id);
@@ -176,7 +181,7 @@ function Fixture() {
   const [shell, setShell] = useState(false);
   return (
     <div className="flex h-screen flex-col gap-3 bg-ground p-4">
-      <header className="flex items-center gap-3">
+      <header className={`flex items-center gap-3${mobile ? ' flex-wrap' : ''}`}>
         <SessionContextMenu session={session}>
           <button className="cursor-pointer text-sm">Sample agent</button>
         </SessionContextMenu>
@@ -195,13 +200,23 @@ function Fixture() {
           <AppearanceSection />
         </div>
       )}
-      <main className="island-outline min-h-0 flex-1 overflow-hidden rounded-[var(--ui-radius)] p-3">
-        <Terminal
-          stream={shell ? sessions[1]!.id : session.id}
-          paused={paused}
-          parked={false}
-          onOpenFile={(target) => openedFiles.push(target)}
-        />
+      <main className="island-outline relative min-h-0 flex-1 overflow-hidden rounded-[var(--ui-radius)] p-3">
+        {mobile ? (
+          <MobileTerminal
+            session={shell ? sessions[1]!.id : session.id}
+            term="agent"
+            active={!paused}
+            connected
+            attached
+          />
+        ) : (
+          <Terminal
+            stream={shell ? sessions[1]!.id : session.id}
+            paused={paused}
+            parked={false}
+            onOpenFile={(target) => openedFiles.push(target)}
+          />
+        )}
       </main>
     </div>
   );

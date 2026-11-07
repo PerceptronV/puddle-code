@@ -11,6 +11,10 @@ Past releases: see docs/changelogs/.
 
 ### Cockpit
 
+#### Added
+
+- Bring Ripple to mobile with a shared Settings switch, a larger touch divider and swipe-through CLI history, retaining the phone composer and terminal keys.
+
 #### Fixed
 
 - Keep the live development preview running when a browser WebSocket disconnects with a broken pipe.

@@ -80,6 +80,18 @@ test.beforeEach(async ({ page }) => {
   await page.getByRole('button', { name: 'Settings', exact: true }).tap();
 });
 
+test('Ripple is available in mobile settings and persists its shared appearance default', async ({
+  page,
+}) => {
+  const setting = page.getByRole('switch', { name: /Ripple/ });
+  await expect(setting).not.toBeChecked();
+  await setting.tap();
+  await expect(setting).toBeChecked();
+  await page.reload();
+  await page.getByRole('button', { name: 'Settings', exact: true }).tap();
+  await expect(page.getByRole('switch', { name: /Ripple/ })).toBeChecked();
+});
+
 async function attachHost(page: Page, outcome: 'shown' | 'failed' | 'stalled') {
   await page.evaluate(
     async ({ account, outcome, protocol }) => {

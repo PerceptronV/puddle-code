@@ -200,3 +200,24 @@
 .ripple[data-collapsed='true']::after {
   bottom: -1px;
 }
+
+@media (pointer: coarse) {
+  .ripple-boundary {
+    width: 2.75rem;
+    height: 2.75rem;
+    bottom: -1.375rem;
+    right: 0;
+    background: transparent;
+    -webkit-touch-callout: none;
+  }
+  .ripple-boundary > svg {
+    border-radius: var(--ui-radius);
+    background: var(--bg-base);
+  }
+  .ripple-boundary[data-edge='top'] {
+    bottom: -2.75rem;
+  }
+  .ripple-boundary[data-edge='bottom'] {
+    bottom: 0;
+  }
+}

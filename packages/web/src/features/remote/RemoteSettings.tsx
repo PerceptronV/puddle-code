@@ -1,5 +1,6 @@
 import { pushEnabled, setPushEnabled, testPushNotifications } from './push-notifications';
 import { Switch } from '../../components/ui/switch';
+import { RippleSetting } from '../settings/sections/ripple-setting';
 import { useState } from 'react';
 import { LogOut, Laptop, Trash2, Unplug, ScanLine } from 'lucide-react';
 import type { RemoteHost } from '@puddle/shared';
@@ -97,6 +98,7 @@ export function RemoteSettings({
             </SelectContent>
           </Select>
         </div>
+        <RippleSetting />
         <section className="grid grid-cols-1 gap-3" aria-label="Notifications">
           <div className="flex items-center justify-between gap-3">
             <Label htmlFor="remote-notifications">Background notifications on this device</Label>

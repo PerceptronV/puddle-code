@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { resetRippleBoundaries } from '../../terminal/ripple/preferences';
+import { RippleSetting } from './ripple-setting';
 import {
   Select,
   SelectContent,
@@ -127,20 +127,7 @@ export function AppearanceSection() {
           onCheckedChange={(checked) => updateClientSettings({ showAllProjectSessions: checked })}
         />
       </SettingRow>
-      <SettingRow
-        label="Ripple (experimental)"
-        description="Start the divider above agent inputs. When off, start with the full CLI. Drag the divider to adjust either view."
-        htmlFor="ripple-enabled"
-      >
-        <Switch
-          id="ripple-enabled"
-          checked={settings.rippleEnabled === true}
-          onCheckedChange={(rippleEnabled) => {
-            updateClientSettings({ rippleEnabled });
-            resetRippleBoundaries();
-          }}
-        />
-      </SettingRow>
+      <RippleSetting />
       <SettingRow label="Reduced animation and motion" htmlFor="reduce-motion">
         <Switch
           id="reduce-motion"

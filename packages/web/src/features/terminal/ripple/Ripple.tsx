@@ -27,6 +27,7 @@ import DOMPurify from 'dompurify';
 import 'katex/dist/katex.min.css';
 import './ripple.css';
 import { ripplePalette } from './xterm-style';
+import { attachRippleTouchScroll } from './touch-scroll';
 
 export function Ripple({
   terminal,
@@ -183,7 +184,15 @@ export function Ripple({
       }
     };
     element.addEventListener('wheel', wheel, { passive: false });
-    return () => element.removeEventListener('wheel', wheel);
+    const detachTouch = attachRippleTouchScroll(element, terminal, () => {
+      scrollEdge.current = null;
+      followNative.current = false;
+      scrollIntentUntil.current = Date.now() + 1000;
+    });
+    return () => {
+      element.removeEventListener('wheel', wheel);
+      detachTouch();
+    };
   }, [terminal, active, collapsed]);
 
   const renderedParts = useMemo(
