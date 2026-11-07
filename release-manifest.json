@@ -1,9 +1,9 @@
 {
   "format": 1,
-  "version": "0.4.16",
+  "version": "0.4.17",
   "components": {
-    "cockpit": "0.4.16",
-    "daemon": "0.4.13",
+    "cockpit": "0.4.17",
+    "daemon": "0.4.17",
     "runtime": "0.4.11"
   }
 }
