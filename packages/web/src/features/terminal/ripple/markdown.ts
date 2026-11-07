@@ -1,28 +1,57 @@
 import { terminalMarkdownToHtml } from '../../editor/previews/markdown/markdown';
 import { markRippleStyles, type RippleStyle } from './cell-style';
+import { rippleInputBorder, ripplePromptPrefix } from './agent-layout';
 
 /** Keep aligned output literal even when it resembles Markdown. */
 export function rippleHtml(
   text: string,
   startInline = false,
   endInline = false,
-  options: { styles?: RippleStyle[]; codex?: boolean } = {},
+  options: { styles?: RippleStyle[]; agentType?: string; background?: string } = {},
 ): string {
   const originalLines = text.split('\n');
-  const marked = markRippleStyles(text, options.styles ?? [], options.codex);
+  let offset = 0;
+  const offsets: number[] = [];
+  const prefixes = originalLines.map((line) => {
+    offsets.push(offset);
+    const prefix = ripplePromptPrefix(
+      line,
+      options.agentType,
+      options.styles,
+      offset,
+      options.background,
+    );
+    offset += line.length + 1;
+    return prefix;
+  });
+  const marked = markRippleStyles(text, options.styles ?? [], prefixes);
   text = marked.text;
   // CLIs hard-wrap prose themselves, so those newlines must reflow. Strip the
   // conventional two-column reply gutter while preserving code indentation.
   const rawLines = text.split('\n');
   const gutter =
     rawLines.some((line) => /^ {2}\S/.test(line)) &&
-    rawLines.every((line) => !line.trim() || /^ {2}|^[•●›❯]/.test(line));
+    rawLines.every((line) => !line.trim() || /^ {2}|^[•●⏺✦›❯]/.test(line));
   const lines = rawLines.map((line) =>
     (gutter ? line.replace(/^ {2}/, '') : line)
-      .replace(/^[•●] (?=#)/, '')
-      .replace(/^(\s*)[•●] /, '$1- '),
+      .replace(/^[•●⏺✦] (?=#)/, '')
+      .replace(/^(\s*)[•●⏺✦] /, '$1- '),
   );
   const output: string[] = [];
+  const promptBorders = new Set<number>();
+  for (let row = 0; row < prefixes.length; row++) {
+    if (!prefixes[row]) continue;
+    if (rippleInputBorder(originalLines[row - 1] ?? '', options.agentType))
+      promptBorders.add(row - 1);
+    for (let next = row + 1; next < originalLines.length; next++) {
+      if (rippleInputBorder(originalLines[next]!, options.agentType)) {
+        promptBorders.add(next);
+        break;
+      }
+      if (!originalLines[next]!.trim() || prefixes[next] || /^[•●⏺✦]/.test(originalLines[next]!))
+        break;
+    }
+  }
   let prose: string[] = [];
   const flush = () => {
     if (prose.length) output.push(terminalMarkdownToHtml(prose.join('\n')));
@@ -30,18 +59,41 @@ export function rippleHtml(
   };
   for (let index = 0; index < lines.length; index++) {
     const line = lines[index]!;
-    if (options.codex && /^\s*[›❯]\s/.test(line)) {
+    if (promptBorders.has(index)) {
       flush();
-      const prompt = [line.replace(/^\s*[›❯]\s?/, '')];
-      while (
-        index + 1 < lines.length &&
-        lines[index + 1]!.trim() &&
-        !/[\u2500-\u257f]/.test(originalLines[index + 1]!) &&
-        !/^\s*(?:[•●›❯*-] |#{1,6} )/.test(lines[index + 1]!)
-      )
-        prompt.push(lines[++index]!);
+      continue;
+    }
+    if (prefixes[index]) {
+      flush();
+      const contentOffset = offsets[index]! + prefixes[index]!;
+      const backing = options.styles?.find(
+        (range) =>
+          range.end > contentOffset &&
+          range.start < offsets[index]! + originalLines[index]!.length &&
+          range.css.includes('background-color:'),
+      );
+      const bubbleStyle = backing?.css
+        .split(';')
+        .filter((declaration) => /^(?:background-color|color):#[\da-f]{6}$/i.test(declaration))
+        .join(';');
+      const prompt = [rawLines[index]!.slice(prefixes[index])];
+      if (options.agentType === 'opencode') {
+        while (index + 1 < lines.length && prefixes[index + 1]) {
+          index++;
+          prompt.push(rawLines[index]!.slice(prefixes[index]));
+        }
+      } else
+        while (
+          index + 1 < lines.length &&
+          lines[index + 1]!.trim() &&
+          !promptBorders.has(index + 1) &&
+          !/[\u2500-\u257f]/.test(originalLines[index + 1]!) &&
+          !prefixes[index + 1] &&
+          !/^\s*(?:[•●⏺✦›❯*-] |#{1,6} )/.test(originalLines[index + 1]!)
+        )
+          prompt.push(lines[++index]!);
       output.push(
-        `<div class="ripple-user-turn">${terminalMarkdownToHtml(prompt.join('\n'))}</div>`,
+        `<div class="ripple-user-turn"${bubbleStyle ? ` style="${bubbleStyle}"` : ''}>${terminalMarkdownToHtml(prompt.join('\n'))}</div>`,
       );
       continue;
     }
@@ -61,14 +113,20 @@ export function rippleHtml(
       }
       output.push(complete ? terminalMarkdownToHtml(block.join('\n')) : literal(block.join('\n')));
     } else if (
-      /^(?: {4}|\t)|[\u2500-\u257f]|\S {2,}\S/.test(line) ||
+      /^(?: {4}|\t)|[\u2500-\u259f]|\S {2,}\S/.test(
+        gutter ? originalLines[index]!.replace(/^ {2}/, '') : originalLines[index]!,
+      ) ||
       /^(?:const|let|var)\s+\w+\s*[:=]|^console\.\w+\(/.test(originalLines[index]!.trimStart())
     ) {
       flush();
       const block = [line];
       while (
         index + 1 < lines.length &&
-        (/^(?: {4}|\t)|[\u2500-\u257f]|\S {2,}\S/.test(lines[index + 1]!) ||
+        !prefixes[index + 1] &&
+        !promptBorders.has(index + 1) &&
+        (/^(?: {4}|\t)|[\u2500-\u259f]|\S {2,}\S/.test(
+          gutter ? originalLines[index + 1]!.replace(/^ {2}/, '') : originalLines[index + 1]!,
+        ) ||
           /^(?:const|let|var)\s+\w+\s*[:=]|^console\.\w+\(/.test(
             originalLines[index + 1]!.trimStart(),
           ))

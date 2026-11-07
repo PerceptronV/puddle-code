@@ -76,7 +76,8 @@ try {
   );
   await page.waitForFunction(
     () =>
-      getComputedStyle(document.querySelector('.ripple')).backgroundColor === 'rgb(239, 237, 235)',
+      getComputedStyle(document.querySelector('.ripple-scroll')).backgroundColor ===
+      'rgb(239, 237, 235)',
   );
   assert.equal(await style('Palette', 'color'), 'rgb(18, 52, 86)');
   assert.equal(await style('Indexed', 'color'), 'rgb(101, 67, 33)');
@@ -85,7 +86,8 @@ try {
   await page.evaluate(() => window.rippleFixture.output('\x1b]104\x07\x1b]110\x07\x1b]111\x07'));
   await page.waitForFunction(
     () =>
-      getComputedStyle(document.querySelector('.ripple')).backgroundColor !== 'rgb(239, 237, 235)',
+      getComputedStyle(document.querySelector('.ripple-scroll')).backgroundColor !==
+      'rgb(239, 237, 235)',
   );
   assert.equal(await style('Palette', 'color'), oldPalette);
   await page.screenshot({ path: '/private/tmp/puddle-ripple-styles.png' });

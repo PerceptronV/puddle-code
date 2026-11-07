@@ -54,6 +54,18 @@ describe('Ripple overlay boundary', () => {
     const snapshot = readRippleBuffer(terminal.buffer.active, 80, { first: 5, last: 10 });
     expect(snapshot.text).toBe('Row 5\nRow 6\nRow 7\nRow 8\nRow 9');
   });
+  it('finds the composer in a short normal-buffer conversation', () => {
+    const terminal = screen(60);
+    const buffer = bufferWithLines(
+      Array.from({ length: 60 }, (_, row) => ({
+        text: row === 12 ? '> Type your message' : row === 11 ? '▄▄▄▄▄▄▄▄▄▄▄▄' : '',
+      })),
+      80,
+    );
+    Object.assign(buffer, { viewportY: 0, baseY: 0, cursorY: 15 });
+    Object.assign(terminal, { buffer: { active: buffer } });
+    expect(rippleView(terminal, 'gemini-cli').last).toBe(11);
+  });
   it('rejects invalid persisted boundaries and bounds the session map', () => {
     expect(rippleBoundaries('{"a":5,"b":0,"c":1.2,"d":"3"}')).toEqual({ a: 5 });
     expect(rippleBoundaries('invalid')).toEqual({});

@@ -25,7 +25,7 @@ export interface RippleSnapshot {
 export function readRippleBuffer(
   buffer: IBuffer,
   cols: number,
-  view?: { first: number; last: number },
+  view?: { first: number; last: number; firstCol?: number; lastCol?: number },
   theme: ITheme = {},
   palette?: RipplePalette,
 ): RippleSnapshot {
@@ -51,6 +51,12 @@ export function readRippleBuffer(
   for (let row = first; row < last; row++) {
     const mapped = readRow(buffer, row, cols);
     if (!mapped) break;
+    if (view?.firstCol !== undefined || view?.lastCol !== undefined) {
+      const from = mapped.cells.findIndex((cell) => cell.col >= (view.firstCol ?? 0));
+      const to = mapped.cells.findIndex((cell) => cell.col >= (view.lastCol ?? cols));
+      mapped.text = mapped.text.slice(Math.max(0, from), to < 0 ? undefined : to);
+      mapped.cells = mapped.cells.slice(Math.max(0, from), to < 0 ? undefined : to);
+    }
     // Concealed ANSI cells must remain concealed in the proportional view too.
     let concealed = false;
     const visible = mapped.text
@@ -72,12 +78,7 @@ export function readRippleBuffer(
       if (
         cell &&
         !cell.isInvisible?.() &&
-        (cell.isBgPalette?.() ||
-          cell.isBgRGB?.() ||
-          cell.isInverse?.() ||
-          cell.isUnderline?.() ||
-          cell.isOverline?.() ||
-          cell.isStrikethrough?.())
+        rippleCellStyle(cell, theme, palette).includes('white-space:')
       ) {
         end = index + 1;
         break;

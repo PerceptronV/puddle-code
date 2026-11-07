@@ -18,7 +18,7 @@ export type ExtendedCell = IBufferCell & {
   extended?: { urlId?: number };
 };
 
-export function ripplePalette(terminal: Terminal): RipplePalette {
+export function ripplePalette(terminal: Terminal, agentType?: string): RipplePalette {
   const core = (
     terminal as unknown as {
       _core?: {
@@ -35,11 +35,23 @@ export function ripplePalette(terminal: Terminal): RipplePalette {
   )._core;
   const colours = core?._themeService?.colors;
   const hex = (colour: { rgba: number }) => `#${(colour.rgba >>> 8).toString(16).padStart(6, '0')}`;
+  const theme = {
+    ...terminal.options.theme,
+    ...(colours && { foreground: hex(colours.foreground), background: hex(colours.background) }),
+  };
+  // OpenCode paints its own canvas, independently of the terminal's defaults.
+  // Its outside margin gives the canvas colours, not a message/highlight colour.
+  if (agentType === 'opencode' && terminal.buffer.active.type === 'alternate') {
+    const cell = terminal.buffer.active.getLine(terminal.buffer.active.viewportY)?.getCell(0);
+    if (cell?.isBgRGB()) theme.background = `#${cell.getBgColor().toString(16).padStart(6, '0')}`;
+    else if (cell?.isBgPalette() && colours)
+      theme.background = hex(colours.ansi[cell.getBgColor()]!);
+    if (cell?.isFgRGB()) theme.foreground = `#${cell.getFgColor().toString(16).padStart(6, '0')}`;
+    else if (cell?.isFgPalette() && colours)
+      theme.foreground = hex(colours.ansi[cell.getFgColor()]!);
+  }
   return {
-    theme: {
-      ...terminal.options.theme,
-      ...(colours && { foreground: hex(colours.foreground), background: hex(colours.background) }),
-    },
+    theme,
     ansi: colours?.ansi.map(hex),
     boldBright: terminal.options.drawBoldTextInBrightColors,
     link: (cell) => {

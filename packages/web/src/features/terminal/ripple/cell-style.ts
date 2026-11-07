@@ -101,6 +101,8 @@ export function rippleCellStyle(
       ? colour(cell.getBgColor(), !!cell.isBgPalette(), theme, palette?.ansi)
       : undefined;
   if (cell.isInverse?.()) [fg, bg] = [bg ?? theme.background, fg ?? theme.foreground];
+  // Painting the same colour as the reader's canvas is not a highlighted run.
+  if (bg?.toLowerCase() === theme.background?.toLowerCase()) bg = undefined;
   if (fg && /^#[\da-f]{6}$/i.test(fg)) css.push(`color:${fg}`);
   if (bg && /^#[\da-f]{6}$/i.test(bg)) css.push(`background-color:${bg}`);
   if (bg || decoration.length) css.push('white-space:break-spaces');
@@ -108,40 +110,45 @@ export function rippleCellStyle(
 }
 
 /** Markers survive escaped HTML and code fences without permitting terminal-supplied HTML. */
-export function markRippleStyles(text: string, styles: RippleStyle[], codex = false) {
+export function markRippleStyles(
+  text: string,
+  styles: RippleStyle[],
+  promptPrefixes: number[] = [],
+) {
   let prefix = '\uE000ripple';
   while (text.includes(prefix)) prefix += '_';
   const replacements = new Map<string, string>();
   let offset = 0;
   const marked = text
     .split('\n')
-    .map((line) => {
-      const prompt = codex && /^\s*[›❯]\s/.test(line);
+    .map((line, index) => {
+      const promptPrefix = promptPrefixes[index] ?? 0;
+      const prompt = promptPrefix > 0;
       const start = offset;
       offset += line.length + 1;
       if (/^\s*(`{3,}|~{3,})/.test(line)) return line;
       // Leave Markdown block markers and the Codex prompt marker at the line start.
       const structural = line.trim()
-        ? /^(\s*(?:(?:[•●›❯*-]|\d+[.)])\s+)?(?:#{1,6}\s+|>\s+)?)/.exec(line)![0].length
+        ? /^(\s*(?:(?:[•●⏺✦›❯*-]|\d+[.)])\s+)?(?:#{1,6}\s+|>\s+)?)/.exec(line)![0].length
         : 0;
       for (const range of styles.toReversed()) {
-        let from = Math.max(structural, range.start - start);
+        let from = Math.max(structural, promptPrefix, range.start - start);
         let to = Math.min(line.length, range.end - start);
         if (to <= from) continue;
         const content = line.slice(from, to);
-        if (!range.css.includes('white-space:')) {
+        if (prompt || !range.css.includes('white-space:')) {
           from += content.length - content.trimStart().length;
           to -= content.length - content.trimEnd().length;
         }
         if (to <= from) continue;
         const open = `${prefix}${replacements.size}\uE001`;
-        // A sticky Codex prompt's inverse backing is CLI chrome. Its bubble
-        // supplies the backing instead; keep semantic emphasis and other colours.
+        // The bubble carries the prompt's backing; inline text keeps its
+        // foreground/emphasis without copying terminal-width padding.
         const css =
           prompt && range.css.includes('background-color:')
             ? range.css
                 .split(';')
-                .filter((declaration) => !/^(?:background-color|color):/.test(declaration))
+                .filter((declaration) => !/^(?:background-color|white-space):/.test(declaration))
                 .join(';')
             : range.css;
         const href =
@@ -160,7 +167,7 @@ export function markRippleStyles(text: string, styles: RippleStyle[], codex = fa
         replacements.set(close, href ? '</a>' : '</span>');
         line = line.slice(0, from) + open + line.slice(from, to) + close + line.slice(to);
       }
-      return line;
+      return prompt ? line.trimEnd() : line;
     })
     .join('\n');
   return {

@@ -240,6 +240,22 @@ try {
       );
     }
   }
+  // A remote/busy CLI may take longer than 500 ms to answer a native scroll.
+  // Keep that explicit intent until the reader itself is scrolled again.
+  await page.evaluate(() =>
+    window.rippleFixture.output(
+      '\x1b[?1049h\x1b[2J\x1b[H' +
+        Array.from({ length: 35 }, (_, index) => `Paragraph ${index}\r\n\r\n`).join(''),
+    ),
+  );
+  await page.waitForTimeout(100);
+  await reader.hover();
+  await page.mouse.wheel(0, -100);
+  await page.waitForTimeout(100);
+  await page.locator('.xterm-screen').dispatchEvent('wheel', { deltaY: -100 });
+  await page.waitForTimeout(750);
+  await page.evaluate(() => window.rippleFixture.output('\x1b[2J\x1b[HDelayed CLI scroll reply'));
+  await page.locator('.ripple-prose').filter({ hasText: 'Delayed CLI scroll reply' }).waitFor();
   assert.deepEqual(errors, []);
   console.log(
     'Ripple defaults, overrides, native keyboard/attachment, copy, selection, scroll, replay, alternate screen, rich output and themes pass.',

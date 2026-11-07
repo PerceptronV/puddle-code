@@ -48,13 +48,13 @@ export function Ripple({
   const [visibleRows, setVisibleRows] = useState(5);
   const nativeRows = useRippleBoundary(stream);
   const [showNative, setShowNative] = useState(false);
-  const nativeScrollUntil = useRef(0);
+  const followNative = useRef(false);
   const scrollEdge = useRef<'start' | 'end' | null>(null);
   const readSnapshot = useCallback(() => {
     const view = rippleView(terminal, agentType, nativeRows);
     setBottom(view.bottom);
     setVisibleRows(view.nativeRows);
-    const palette = ripplePalette(terminal);
+    const palette = ripplePalette(terminal, agentType);
     return readRippleBuffer(terminal.buffer.active, terminal.cols, view, palette.theme, palette);
   }, [terminal, agentType, nativeRows]);
   const follow = useRef(true);
@@ -72,8 +72,7 @@ export function Ripple({
       const selection = window.getSelection();
       const selecting =
         selection && !selection.isCollapsed && viewport.current?.contains(selection.anchorNode);
-      if (!force && (selecting || (!follow.current && Date.now() > nativeScrollUntil.current)))
-        return;
+      if (!force && (selecting || (!follow.current && !followNative.current))) return;
       const next = readSnapshot();
       setSnapshot((previous) =>
         previous.text === next.text &&
@@ -96,7 +95,7 @@ export function Ripple({
       { dispose: onThemeChange(schedule) },
       terminal.onScroll(() => {
         const atBottom = terminal.buffer.active.viewportY === terminal.buffer.active.baseY;
-        if (!atBottom || !wasAtBottom) nativeScrollUntil.current = Date.now() + 500;
+        if (!atBottom || !wasAtBottom) followNative.current = true;
         wasAtBottom = atBottom;
         schedule();
       }),
@@ -108,7 +107,7 @@ export function Ripple({
       }),
     ];
     const nativeWheel = (event: WheelEvent) => {
-      nativeScrollUntil.current = Date.now() + 500;
+      followNative.current = true;
       scrollEdge.current = event.deltaY < 0 ? 'start' : 'end';
       schedule();
     };
@@ -128,6 +127,7 @@ export function Ripple({
     if (!element || !active || showNative) return;
     const wheel = (event: WheelEvent) => {
       if (event.ctrlKey || event.metaKey || event.deltaY === 0) return;
+      followNative.current = false;
       const atEdge =
         event.deltaY < 0
           ? element.scrollTop <= 1
@@ -155,13 +155,13 @@ export function Ripple({
                   part.source,
                   previous?.kind === 'math' && !previous.display,
                   next?.kind === 'math' && !next.display,
-                  { styles: part.styles, codex: agentType === 'codex' },
+                  { styles: part.styles, agentType, background: snapshot.background },
                 ),
               ),
             }
           : null;
       }),
-    [snapshot.parts, agentType],
+    [snapshot.parts, snapshot.background, agentType],
   );
   useLayoutEffect(() => {
     const element = viewport.current;
@@ -185,8 +185,6 @@ export function Ripple({
       data-native={showNative}
       style={{
         bottom: showNative ? 'auto' : bottom,
-        color: snapshot.foreground,
-        backgroundColor: snapshot.background,
       }}
       data-alternate={snapshot.alternate}
       aria-label="Ripple reading view"
@@ -218,12 +216,14 @@ export function Ripple({
       <div
         ref={viewport}
         className="ripple-scroll"
+        style={{ color: snapshot.foreground, backgroundColor: snapshot.background }}
         tabIndex={0}
         aria-label="Readable terminal output"
         onWheel={() => {
           scrollIntentUntil.current = Date.now() + 1000;
         }}
         onPointerDown={() => {
+          followNative.current = false;
           scrollIntentUntil.current = Date.now() + 1000;
         }}
         onPointerMove={(event) => {
