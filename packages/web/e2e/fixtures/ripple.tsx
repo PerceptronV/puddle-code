@@ -125,6 +125,8 @@ installBrowserTransport({
 tokenStore.set('sample-only');
 profileStore.set(profile.id);
 initClientSettings();
+// An explicit demo URL enables only this sample session, never the global default.
+if (new URLSearchParams(location.search).has('ripple')) setSessionRipple(session.id, true);
 
 Object.assign(window, {
   rippleFixture: {

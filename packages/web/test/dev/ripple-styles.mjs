@@ -91,6 +91,33 @@ try {
   );
   assert.equal(await style('Palette', 'color'), oldPalette);
   await page.screenshot({ path: '/private/tmp/puddle-ripple-styles.png' });
+  const screen = page.locator('.xterm-screen');
+  const original = await screen.boundingBox();
+  const resizes = await page.evaluate(
+    () => window.rippleFixture.messages.filter((message) => message.t === 'resize').length,
+  );
+  await page.evaluate(() =>
+    window.rippleFixture.output(
+      '\x1b[2J\x1b[HReply\r\n\r\n\r\n› Native composer\r\n\r\nFooter\r\n',
+    ),
+  );
+  await page.waitForFunction(() => !!document.querySelector('.ripple-native').style.transform);
+  const aligned = await screen.boundingBox();
+  assert.equal(aligned.height, original.height, 'bottom alignment keeps the full virtual screen');
+  assert.ok(aligned.y > original.y, 'unused normal-buffer tail moves offscreen');
+  assert.equal(
+    await page.evaluate(
+      () => window.rippleFixture.messages.filter((message) => message.t === 'resize').length,
+    ),
+    resizes,
+    'alignment never resizes the PTY',
+  );
+  await page.getByRole('button', { name: 'Show CLI', exact: true }).click();
+  assert.deepEqual(await screen.boundingBox(), original, 'Show CLI restores native placement');
+  await page.getByRole('button', { name: 'Reading view', exact: true }).click();
+  await page.waitForFunction(() => !!document.querySelector('.ripple-native').style.transform);
+  await page.getByRole('button', { name: 'CLI only', exact: true }).click();
+  assert.deepEqual(await screen.boundingBox(), original, 'disabling restores native placement');
   assert.deepEqual(errors, []);
   console.log(
     'Ripple real-xterm SGR, extended underlines, palette/reset, concealment, Unicode and OSC 8 checks pass.',

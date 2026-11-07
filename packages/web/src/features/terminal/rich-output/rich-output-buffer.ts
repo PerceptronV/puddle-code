@@ -46,6 +46,7 @@ export function terminalRichBlocks(
   cols: number,
   viewportY: number,
   visibleRows: number,
+  columns?: { firstCol?: number; lastCol?: number },
 ): TerminalRichBlock[] {
   if (cols < 1 || visibleRows < 1) return [];
   // Reserve the viewport's share first: dense history on a very wide terminal
@@ -59,7 +60,7 @@ export function terminalRichBlocks(
   const lines: Line[] = [];
   let characters = 0;
   for (let row = first; row < last; row++) {
-    const mapped = readRow(buffer, row, cols);
+    const mapped = readRow(buffer, row, cols, columns);
     if (!mapped) break;
     const end = buffer.getLine(row + 1)?.isWrapped
       ? mapped.text.length

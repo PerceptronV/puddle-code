@@ -11,6 +11,24 @@ import { rippleOverrides } from '../../../src/features/terminal/ripple/preferenc
 import { DEFAULT_CLIENT_SETTINGS } from '../../../src/lib/settings/client-settings';
 
 describe('Ripple terminal projection', () => {
+  it('uses the same clipped conversation columns for prose, Mermaid and LaTeX', () => {
+    const lines = ['flowchart LR', 'A --> B', '', 'Math: $x^2$'].map((line) => ({
+      text: `  ${line.padEnd(20)}Sidebar`,
+    }));
+    const snapshot = readRippleBuffer(bufferWithLines(lines, 32), 32, {
+      first: 0,
+      last: 4,
+      firstCol: 2,
+      lastCol: 22,
+    });
+    expect(snapshot.text).not.toContain('Sidebar');
+    expect(snapshot.parts).toContainEqual({
+      kind: 'mermaid',
+      source: 'flowchart LR\nA --> B',
+      display: true,
+    });
+    expect(snapshot.parts).toContainEqual({ kind: 'math', source: 'x^2', display: false });
+  });
   it('joins soft wraps without joining hard lines or trimming word boundaries', () => {
     const buffer = bufferWithLines(
       [{ text: 'some text ' }, { text: 'continues', isWrapped: true }, { text: 'next line' }],

@@ -1,5 +1,6 @@
 .puddle-terminal-ripple {
   isolation: isolate;
+  overflow: hidden;
 }
 
 .puddle-terminal-ripple > .ripple-native {
@@ -135,6 +136,9 @@
   white-space: pre;
   overflow: auto;
   line-height: 1.5;
+}
+.ripple-prose pre.ripple-terminal-art {
+  line-height: 1;
 }
 .ripple-prose th,
 .ripple-prose td {

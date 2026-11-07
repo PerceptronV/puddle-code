@@ -147,5 +147,6 @@ export function rippleHtml(
 }
 
 function literal(text: string): string {
-  return `<pre><code>${text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')}</code></pre>`;
+  const art = /[\u2500-\u259f]/.test(text) ? ' class="ripple-terminal-art"' : '';
+  return `<pre${art}><code>${text.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')}</code></pre>`;
 }

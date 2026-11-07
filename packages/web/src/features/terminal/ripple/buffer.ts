@@ -49,14 +49,8 @@ export function readRippleBuffer(
   let offset = 0;
   const styles: RippleStyle[] = [];
   for (let row = first; row < last; row++) {
-    const mapped = readRow(buffer, row, cols);
+    const mapped = readRow(buffer, row, cols, view);
     if (!mapped) break;
-    if (view?.firstCol !== undefined || view?.lastCol !== undefined) {
-      const from = mapped.cells.findIndex((cell) => cell.col >= (view.firstCol ?? 0));
-      const to = mapped.cells.findIndex((cell) => cell.col >= (view.lastCol ?? cols));
-      mapped.text = mapped.text.slice(Math.max(0, from), to < 0 ? undefined : to);
-      mapped.cells = mapped.cells.slice(Math.max(0, from), to < 0 ? undefined : to);
-    }
     // Concealed ANSI cells must remain concealed in the proportional view too.
     let concealed = false;
     const visible = mapped.text
@@ -122,7 +116,7 @@ export function readRippleBuffer(
     });
   };
   let at = 0;
-  for (const block of terminalRichBlocks(buffer, cols, first, last - first)) {
+  for (const block of terminalRichBlocks(buffer, cols, first, last - first, view)) {
     const start = rows.get(block.start.row);
     const end = rows.get(block.end.row);
     if (!start || !end) continue;

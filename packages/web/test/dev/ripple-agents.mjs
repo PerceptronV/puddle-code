@@ -77,6 +77,17 @@ try {
       window.rippleFixture.messages.filter((m) => m.t === 'stdin').map((m) => m.data),
     );
     assert.deepEqual(keys.slice(-2), ['\x1b[1;2D', '\x1b[1;2C']);
+    // Reader-originating editing keys must use the same xterm encoder, including
+    // legacy keyCode and modifiers. Each forwarded key focuses the native input.
+    await page.locator('.ripple-scroll').focus();
+    await page.keyboard.press('Shift+ArrowLeft');
+    await page.locator('.ripple-scroll').focus();
+    await page.keyboard.press('Shift+ArrowRight');
+    const forwarded = await page.evaluate(() =>
+      window.rippleFixture.messages.filter((m) => m.t === 'stdin').map((m) => m.data),
+    );
+    assert.equal(forwarded.length, keys.length + 2);
+    assert.deepEqual(forwarded.slice(-2), ['\x1b[1;2D', '\x1b[1;2C']);
     const boundary = page.getByRole('separator', { name: 'Native CLI boundary' });
     await boundary.focus();
     const previous = await boundary.getAttribute('aria-valuenow');

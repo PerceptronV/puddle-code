@@ -9,6 +9,24 @@ export function rippleView(
 ) {
   const buffer = terminal.buffer.active;
   const first = buffer.viewportY;
+  let occupiedRows = terminal.rows;
+  if (buffer.type === 'normal' && first === buffer.baseY && agentType) {
+    // Ink-style CLIs leave unused rows below a short conversation. Move that
+    // empty tail offscreen instead of reserving it as part of the input area.
+    let end = terminal.rows;
+    while (
+      end > 0 &&
+      !buffer
+        .getLine(first + end - 1)
+        ?.translateToString(true)
+        .trim()
+    )
+      end--;
+    // Keep one breathing row after the footer, whether the CLI parks its cursor
+    // there or moves it back into the composer while editing.
+    end = Math.max(buffer.cursorY + 1, Math.min(terminal.rows, end + 1));
+    if (end >= 6) occupiedRows = end;
+  }
   let firstCol = 0;
   let lastCol = terminal.cols;
   if (agentType === 'opencode') {
@@ -22,9 +40,9 @@ export function rippleView(
       break;
     }
   }
-  let composer = Math.max(0, terminal.rows - 5);
-  if (nativeRows !== null) composer = Math.max(3, terminal.rows - nativeRows);
-  else if (
+  let composer = Math.max(0, occupiedRows - 5);
+  let foundComposer = false;
+  if (
     agentType &&
     buffer.baseY + buffer.cursorY >= first &&
     buffer.baseY + buffer.cursorY < first + terminal.rows
@@ -39,6 +57,7 @@ export function rippleView(
     for (let row = cursor; row >= earliest; row--) {
       const line = buffer.getLine(row);
       if (!rippleInputMarker(line?.translateToString(true) ?? '', agentType)) continue;
+      foundComposer = true;
       composer = row - first;
       if (agentType === 'opencode') {
         // OpenCode has a left border through the whole input panel rather than
@@ -65,19 +84,43 @@ export function rippleView(
       break;
     }
   }
-  composer = Math.max(0, Math.min(terminal.rows - 1, composer));
+  if (!foundComposer) {
+    occupiedRows = terminal.rows;
+    composer = Math.max(0, terminal.rows - 5);
+  }
+  if (nativeRows !== null) composer = Math.max(3, occupiedRows - nativeRows);
+  composer = Math.max(0, Math.min(occupiedRows - 1, composer));
   let last = first + composer;
   // Codex's scroll hint belongs to its controls, not the answer being read.
-  if (agentType === 'codex') {
+  if (agentType === 'codex' || agentType === 'gemini-cli') {
     while (last > first) {
       const text =
         buffer
           .getLine(last - 1)
           ?.translateToString(true)
           .trim() ?? '';
-      if (text && !/^(?:New activity\s*·\s*)?↓\s*Back to bottom\b/.test(text)) break;
+      const hint =
+        agentType === 'codex'
+          ? /^(?:New activity\s*·\s*)?↓\s*Back to bottom\b/.test(text)
+          : /^(?:Shift\+Tab to |\? for shortcuts$)/i.test(text) ||
+            rippleInputBorder(text, agentType);
+      if (text && !hint) break;
       last--;
     }
+  }
+  if (agentType === 'gemini-cli' && buffer.type === 'alternate') {
+    // Gemini paints its own scrollbar in the last column. Treat it as UI only
+    // when that entire conversation gutter consists of blanks and thumb cells.
+    const gutter = Array.from(
+      { length: last - first },
+      (_, row) =>
+        buffer
+          .getLine(first + row)
+          ?.getCell(terminal.cols - 1)
+          ?.getChars() ?? '',
+    );
+    if (gutter.some((text) => /[▄█▀]/.test(text)) && gutter.every((text) => /^[ ▄█▀]*$/.test(text)))
+      lastCol--;
   }
   const screen = terminal.element?.querySelector('.xterm-screen');
   const cellHeight = (screen?.getBoundingClientRect().height || terminal.rows * 16) / terminal.rows;
@@ -86,9 +129,10 @@ export function rippleView(
     last,
     firstCol,
     lastCol,
-    nativeRows: terminal.rows - composer,
+    nativeRows: occupiedRows - composer,
     cellHeight,
-    bottom: Math.max(0, terminal.rows - composer) * cellHeight,
+    bottom: Math.max(0, occupiedRows - composer) * cellHeight,
+    nativeOffset: (terminal.rows - occupiedRows) * cellHeight,
   };
 }
 

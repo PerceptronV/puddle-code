@@ -26,6 +26,7 @@ import DOMPurify from 'dompurify';
 import 'katex/dist/katex.min.css';
 import './ripple.css';
 import { ripplePalette } from './xterm-style';
+import { rippleLatestKey } from './agent-layout';
 
 export function Ripple({
   terminal,
@@ -45,22 +46,40 @@ export function Ripple({
   );
   const viewport = useRef<HTMLDivElement>(null);
   const [bottom, setBottom] = useState(80);
+  const [nativeOffset, setNativeOffset] = useState(0);
   const [visibleRows, setVisibleRows] = useState(5);
   const nativeRows = useRippleBoundary(stream);
   const [showNative, setShowNative] = useState(false);
   const followNative = useRef(false);
   const scrollEdge = useRef<'start' | 'end' | null>(null);
-  const readSnapshot = useCallback(() => {
+  const updateView = useCallback(() => {
     const view = rippleView(terminal, agentType, nativeRows);
     setBottom(view.bottom);
+    setNativeOffset(view.nativeOffset);
     setVisibleRows(view.nativeRows);
-    const palette = ripplePalette(terminal, agentType);
-    return readRippleBuffer(terminal.buffer.active, terminal.cols, view, palette.theme, palette);
+    return view;
   }, [terminal, agentType, nativeRows]);
+  const readSnapshot = useCallback(
+    (view = updateView()) => {
+      const palette = ripplePalette(terminal, agentType);
+      return readRippleBuffer(terminal.buffer.active, terminal.cols, view, palette.theme, palette);
+    },
+    [terminal, agentType, updateView],
+  );
   const follow = useRef(true);
   const scrollIntentUntil = useRef(0);
   const [following, setFollowing] = useState(true);
   const theme = useSyncExternalStore(onThemeChange, currentTheme, currentTheme);
+
+  useLayoutEffect(() => {
+    const native = terminal.element?.closest<HTMLElement>('.ripple-native');
+    if (!native) return;
+    const previous = native.style.transform;
+    native.style.transform = showNative || !nativeOffset ? '' : `translateY(${nativeOffset}px)`;
+    return () => {
+      native.style.transform = previous;
+    };
+  }, [terminal, nativeOffset, showNative]);
 
   useEffect(() => {
     if (!active || showNative) return;
@@ -69,11 +88,12 @@ export function Ripple({
     const refresh = (force = false) => {
       clearTimeout(timer);
       timer = undefined;
+      const view = updateView();
       const selection = window.getSelection();
       const selecting =
         selection && !selection.isCollapsed && viewport.current?.contains(selection.anchorNode);
       if (!force && (selecting || (!follow.current && !followNative.current))) return;
-      const next = readSnapshot();
+      const next = readSnapshot(view);
       setSnapshot((previous) =>
         previous.text === next.text &&
         previous.truncated === next.truncated &&
@@ -120,7 +140,7 @@ export function Ripple({
       terminal.element?.removeEventListener('wheel', nativeWheel, true);
       subscriptions.forEach((subscription) => subscription.dispose());
     };
-  }, [terminal, active, readSnapshot, showNative]);
+  }, [terminal, active, readSnapshot, updateView, showNative]);
 
   useEffect(() => {
     const element = viewport.current;
@@ -248,6 +268,7 @@ export function Ripple({
               new KeyboardEvent('keydown', {
                 key: event.key,
                 code: event.code,
+                keyCode: event.keyCode,
                 shiftKey: event.shiftKey,
                 ctrlKey: event.ctrlKey,
                 altKey: event.altKey,
@@ -317,7 +338,7 @@ export function Ripple({
           onClick={() => {
             follow.current = true;
             setFollowing(true);
-            if (snapshot.alternate && agentType === 'codex') {
+            if (snapshot.alternate) {
               const buffer = terminal.buffer.active;
               const controls = Array.from(
                 { length: visibleRows + 1 },
@@ -326,8 +347,12 @@ export function Ripple({
                     .getLine(buffer.viewportY + terminal.rows - index - 1)
                     ?.translateToString(true) ?? '',
               ).join('\n');
-              if (/Back to bottom|Earlier messages available/.test(controls))
-                terminal.input('\x1b', true);
+              const key = rippleLatestKey(agentType, true, controls);
+              if (key?.input) terminal.input(key.input, true);
+              else if (key)
+                terminal.textarea?.dispatchEvent(
+                  new KeyboardEvent('keydown', { ...key, bubbles: true, cancelable: true }),
+                );
             }
             terminal.scrollToBottom();
             setSnapshot(readSnapshot());
@@ -335,7 +360,9 @@ export function Ripple({
           }}
         >
           <ArrowDown />{' '}
-          {snapshot.alternate && agentType !== 'codex' ? 'Bottom of view' : 'Latest output'}
+          {snapshot.alternate && !['codex', 'gemini-cli', 'opencode'].includes(agentType ?? '')
+            ? 'Bottom of view'
+            : 'Latest output'}
         </Button>
       )}
       <RippleBoundary terminal={terminal} stream={stream} rows={visibleRows} />

@@ -1,8 +1,23 @@
 import { describe, expect, it } from 'vitest';
 import { rippleHtml } from '../../../src/features/terminal/ripple/markdown';
-import { ripplePromptPrefix } from '../../../src/features/terminal/ripple/agent-layout';
+import {
+  ripplePromptPrefix,
+  rippleLatestKey,
+} from '../../../src/features/terminal/ripple/agent-layout';
 
 describe('Ripple provider layouts', () => {
+  it('uses native history shortcuts only for recognised alternate-screen agents', () => {
+    expect(rippleLatestKey('codex', true, '↓ Back to bottom')).toMatchObject({ key: 'Escape' });
+    expect(rippleLatestKey('codex', true, 'Working')).toBeNull();
+    expect(rippleLatestKey('gemini-cli', true, '')).toMatchObject({ key: 'End', ctrlKey: true });
+    expect(rippleLatestKey('opencode', true, '')).toMatchObject({
+      key: 'g',
+      ctrlKey: true,
+      altKey: true,
+    });
+    expect(rippleLatestKey('unknown', true, '')).toBeNull();
+    expect(rippleLatestKey('claude-code', false, '')).toBeNull();
+  });
   it('removes Gemini prompt backing edges without swallowing the answer', () => {
     const html = rippleHtml('▄▄▄▄▄▄▄▄▄▄\n > User prompt\n▀▀▀▀▀▀▀▀▀▀\n✦ Answer', false, false, {
       agentType: 'gemini-cli',

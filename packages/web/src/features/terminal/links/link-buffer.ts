@@ -23,13 +23,22 @@ const MAX_ROWS = 32;
 const MAX_LENGTH = 2048;
 
 /** Map UTF-16 offsets as we read, before removing any TUI indentation. */
-export function readRow(buffer: IBuffer, row: number, cols: number): MappedRow | null {
+export function readRow(
+  buffer: IBuffer,
+  row: number,
+  cols: number,
+  columns?: { firstCol?: number; lastCol?: number },
+): MappedRow | null {
   const line = buffer.getLine(row);
   if (!line) return null;
   const cell = buffer.getNullCell();
   let text = '';
   const cells: CellPosition[] = [];
-  for (let col = 0; col < Math.min(cols, line.length); col++) {
+  for (
+    let col = Math.max(0, columns?.firstCol ?? 0);
+    col < Math.min(cols, line.length, columns?.lastCol ?? cols);
+    col++
+  ) {
     if (!line.getCell(col, cell) || cell.getWidth() === 0) continue;
     // xterm leaves an empty last cell when a wide glyph wraps to the next row.
     if (col === cols - 1 && cell.getChars() === '') {
