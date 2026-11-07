@@ -27,6 +27,7 @@ import {
   DialogTitle,
 } from '../../../components/ui/dialog';
 import { Button } from '../../../components/ui/button';
+import { desktopContentState } from '../../windows/content-state';
 
 /** Own draft creation, save destination and discard confirmation independently of the shell. */
 export function useWorkspaceDrafts({
@@ -108,6 +109,10 @@ export function useWorkspaceDrafts({
     if (!pending || pending.profileId === null) return;
     try {
       await deleteUntitled(pending.profileId, pending.name);
+      desktopContentState(pending.profileId).discardBuffer({
+        session: UNTITLED_SESSION,
+        path: pending.name,
+      });
       forgetUntitledContent(pending.name);
       if (mounted.current && profileRef.current === pending.profileId)
         updateWorkspaceTrees(baseUiState, (tree) => discardUntitled(tree, pending.name));

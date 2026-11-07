@@ -46,6 +46,9 @@ import { monaco } from '../monaco/monaco-setup';
 import { registerSaver, saverKey } from './save-registry';
 import type { RevealTarget } from '../../workspace/editor-context';
 import { consumeEditorReveal } from '../monaco/editor-reveal';
+import { useCurrentProfileId } from '../../profile/profile-store';
+import { desktopContentState } from '../../windows/content-state';
+import { desktopWindowContext } from '../../windows/window-context';
 
 /** What the CodeEditor view renders for a (session, path) tab. */
 export type BufferStatus = 'loading' | 'binary' | 'too-large' | 'error' | 'ready';
@@ -119,6 +122,7 @@ export function useEditorBuffer(
   opts?: BufferOptions,
 ): EditorBuffer {
   const passive = opts?.passive === true;
+  const profileId = useCurrentProfileId();
   const focused = opts?.focused ?? true;
   const { fileSettingsKey } = useFileEditorSettings();
   const key = bufferKey(session, path, root);
@@ -174,13 +178,27 @@ export function useEditorBuffer(
     if (!data || data.binary || data.content === null || createdRef.current) return;
     createdRef.current = true;
     const existedBefore = savedMtime(key) !== undefined;
-    const created = getOrCreateModel(session, path, data.content, data.mtime_ms, root);
+    const transferred =
+      profileId && desktopWindowContext()
+        ? desktopContentState(profileId).buffer({ session, path, root })
+        : undefined;
+    const created = getOrCreateModel(
+      session,
+      path,
+      data.content,
+      transferred?.baseMtimeMs ?? data.mtime_ms,
+      root,
+    );
     // Capture Monaco's normalised disk baseline before the async IndexedDB
     // read. Reading the live model inside that callback could instead compare
     // the draft with keystrokes entered while the draft was loading.
     const baselineContent = created.getValue();
     setModel(created);
     if (existedBefore) return;
+    if (transferred) {
+      if (applyDraft(created, transferred.content)) setRestoredNotice(true);
+      return;
+    }
     void loadDraft(session, path, root).then((draft) => {
       if (!draft) return;
       const disposition = draftDisposition(draft, baselineContent, data.mtime_ms);
@@ -205,7 +223,25 @@ export function useEditorBuffer(
         });
       }
     });
-  }, [file.data, key, session, path, root]);
+  }, [file.data, key, session, path, root, profileId]);
+
+  useEffect(() => {
+    if (!profileId || !model || !desktopWindowContext()) return;
+    const state = desktopContentState(profileId);
+    const identity = { session, path, root };
+    const unregister = state.registerBuffer(identity, () => {
+      if (model.isDisposed()) return state.buffer(identity) ?? null;
+      return isDirty(key)
+        ? { ...identity, content: model.getValue(), baseMtimeMs: savedMtime(key) ?? 0 }
+        : null;
+    });
+    const off = subscribe(key, () => state.bufferChanged(identity));
+    state.bufferChanged(identity);
+    return () => {
+      unregister();
+      off();
+    };
+  }, [profileId, model, key, session, path, root]);
 
   // Persist edits to a browser draft (debounced) and tell peer windows. A
   // passive holder skips it entirely: it cannot be typed into, and a second

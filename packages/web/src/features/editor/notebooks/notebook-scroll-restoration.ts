@@ -7,7 +7,7 @@ interface NotebookPosition {
   left: number;
 }
 
-const positions = new ViewStateStore<NotebookPosition>();
+const positions = new ViewStateStore<NotebookPosition>(500, 'notebook-scroll');
 
 /** Restore the reading cell on reopen, then let native scroll anchoring own live layout. */
 export function bindNotebookScrollRestoration(

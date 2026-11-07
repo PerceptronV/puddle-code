@@ -64,6 +64,7 @@ import { TilingDnd } from './layout/TilingDnd';
 import { useWorkspaceLayout } from './layout/use-workspace-layout';
 import { useUiState } from './use-ui-state';
 import { workspaceTitle } from './workspace-title';
+import { desktopWindowContext } from '../windows/window-context';
 
 /**
  * Project workspace (SPEC §8): the left navigator, the centre free-form tiling
@@ -87,6 +88,9 @@ export function Workspace() {
 }
 
 function WorkspaceInner() {
+  const windowIdentity = desktopWindowContext()?.identity;
+  const paneWindow = windowIdentity?.kind === 'pane';
+  const detachedWindow = windowIdentity !== undefined && windowIdentity.kind !== 'host';
   const params = useParams();
   const navigate = useNavigate();
   const createSession = useCreateSession();
@@ -128,7 +132,7 @@ function WorkspaceInner() {
   // keys. Everything downstream uses the scoped handle; only the transition
   // and slice-prune effects reach for the base one.
   const clientSettingsNow = useClientSettings();
-  const projectMode = clientSettingsNow.projectBasedLayout;
+  const projectMode = !detachedWindow && clientSettingsNow.projectBasedLayout;
   // Independent of the layout mode since 2026-08-03 (they were one setting
   // through v0.0.24): this one only decides whether the right sidebar lists
   // every project's sessions or just this project's.
@@ -258,7 +262,8 @@ function WorkspaceInner() {
   // open as overlays from their rails. Overlay visibility is LOCAL state, not
   // ui_state — the persisted collapse flags belong to the desktop layout, and
   // a phone visit must not clobber them (ui_state is shared per profile).
-  const isNarrow = useMediaQuery(NARROW_VIEWPORT);
+  const narrowViewport = useMediaQuery(NARROW_VIEWPORT);
+  const isNarrow = !paneWindow && narrowViewport;
   const isNarrowRef = useRef(isNarrow);
   isNarrowRef.current = isNarrow;
   const [narrowNav, setNarrowNav] = useState(false);
@@ -825,7 +830,9 @@ function WorkspaceInner() {
         }}
       >
         <div className="relative flex h-full min-h-0 gap-[var(--ui-surface-gap)] overflow-hidden p-[var(--ui-surface-gap)]">
-          {isNarrow ? (
+          {paneWindow ? (
+            <div className="min-w-0 flex-1">{mainArea}</div>
+          ) : isNarrow ? (
             /* Narrow (SPEC §12): both rails stay put; expanding opens the sidebar
              as an overlay above the tiling area — a translucent ground dims
              what stays behind (HUMANS.md transparency, no borders). */

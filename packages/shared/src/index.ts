@@ -59,6 +59,7 @@ export * from './installation/collection.js';
 export * from './installation/update.js';
 export * from './installation/worker.js';
 export * from './installation/actions.js';
+export * from './desktop-windows.js';
 export * from './installation/recovery.js';
 export * from './installation/supervision.js';
 export * from './installation/connector.js';

@@ -104,7 +104,7 @@ export class PreviewScrollStore {
 
 export const previewScrollStore = new PreviewScrollStore();
 /** Each rendered tab remembers its own position, independent of scroll ownership. */
-export const previewViewPositions = new ViewStateStore<PreviewScrollPosition>();
+export const previewViewPositions = new ViewStateStore<PreviewScrollPosition>(500, 'preview-view');
 
 export interface AnimationFramePublisher {
   schedule(): void;

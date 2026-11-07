@@ -13,6 +13,8 @@ import { deleteDraft } from '../../../lib/persistence/drafts';
 import { bufferKey, isDirty, subscribe } from '../buffers/buffer-store';
 import { announceDraftDiscarded } from '../buffers/editor-sync';
 import type { EditorTabKind } from './editor-tabs';
+import { useCurrentProfileId } from '../../profile/profile-store';
+import { desktopContentState } from '../../windows/content-state';
 
 /** Reactive dirty flag for one (session, path[, root]) buffer. */
 function useDirty(session: string, path: string, root?: string): boolean {
@@ -76,11 +78,13 @@ export function EditorTabClose({
   label: string;
   onClose: () => void;
 }) {
+  const profileId = useCurrentProfileId();
   const dirty = useDirty(session, path, root) && kind !== 'commit';
   const [confirm, setConfirm] = useState(false);
 
   const requestClose = () => (dirty ? setConfirm(true) : onClose());
   const discard = () => {
+    if (profileId) desktopContentState(profileId).discardBuffer({ session, path, root });
     void deleteDraft(session, path, root);
     announceDraftDiscarded(session, path, root);
     setConfirm(false);

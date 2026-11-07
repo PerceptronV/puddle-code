@@ -11,6 +11,12 @@ import { contextBridge, ipcRenderer } from 'electron';
  * the restart).
  */
 contextBridge.exposeInMainWorld('puddleDesktop', {
+  windows: {
+    version: 1,
+    context: () => ipcRenderer.invoke('puddle:window-context'),
+    read: (profileId: string) => ipcRenderer.invoke('puddle:window-read', { profileId }),
+    write: (request: unknown) => ipcRenderer.invoke('puddle:window-write', request),
+  },
   notificationStatus: () => ipcRenderer.invoke('puddle:notification-status'),
   showNotification: (request: unknown) => ipcRenderer.invoke('puddle:notification-show', request),
   notificationTargets: true,

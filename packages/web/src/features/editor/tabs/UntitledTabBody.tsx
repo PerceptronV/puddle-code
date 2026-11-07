@@ -17,6 +17,9 @@ import { THEME_NAME, monaco } from '../monaco/monaco-setup';
 import { editorIndentationOptions } from '../monaco/monaco-options';
 import { publishUntitledContent, requestUntitledSave } from '../buffers/untitled-save-store';
 import { useCodeViewState } from '../monaco/monaco-view-state';
+import { UNTITLED_SESSION } from '@puddle/shared';
+import { desktopWindowContext } from '../../windows/window-context';
+import { desktopContentState } from '../../windows/content-state';
 
 /** How long after the last keystroke the draft persists to the profile store. */
 const PERSIST_DEBOUNCE_MS = 800;
@@ -61,6 +64,8 @@ export function UntitledTabBody({ name }: { name: string }) {
   }, [profileId, name]);
 
   if (profileId === null) return null;
+  const identity = { session: UNTITLED_SESSION, path: name };
+  const windowContent = desktopWindowContext() ? desktopContentState(profileId) : null;
   if (file.error) {
     return (
       <div className="flex h-full items-center justify-center bg-ground text-sm text-fg-muted">
@@ -88,7 +93,7 @@ export function UntitledTabBody({ name }: { name: string }) {
         <Editor
           path={`puddle-untitled://${profileId}/${name}`}
           language={settings.editorLanguage ?? languageForPath(name)}
-          defaultValue={file.data.content}
+          defaultValue={windowContent?.buffer(identity)?.content ?? file.data.content}
           theme={THEME_NAME}
           keepCurrentModel={false}
           saveViewState={false}
@@ -96,6 +101,13 @@ export function UntitledTabBody({ name }: { name: string }) {
           onMount={(editor) => {
             restoreView(editor);
             editorRef.current = editor;
+            const unregister = windowContent?.registerBuffer(identity, () => {
+              const model = editor.getModel();
+              if (!model || model.isDisposed()) return windowContent.buffer(identity) ?? null;
+              return { ...identity, content: model.getValue(), baseMtimeMs: 0 };
+            });
+            editor.onDidDispose(() => unregister?.());
+            windowContent?.bufferChanged(identity);
             publishUntitledContent(name, editor.getValue());
             registerEditorKeybindings(editor, {
               onSave: saveAs,
@@ -105,6 +117,7 @@ export function UntitledTabBody({ name }: { name: string }) {
           onChange={(value) => {
             const content = value ?? '';
             publishUntitledContent(name, content);
+            windowContent?.bufferChanged(identity);
             updateCachedUntitled(queryClient, profileId, name, content);
             writerRef.current?.(content);
           }}

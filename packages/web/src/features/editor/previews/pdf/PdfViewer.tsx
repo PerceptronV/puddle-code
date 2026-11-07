@@ -54,7 +54,7 @@ interface TouchPinch {
 }
 
 let pdfJsPromise: Promise<typeof import('pdfjs-dist')> | null = null;
-const zoomPositions = new ViewStateStore<number>();
+const zoomPositions = new ViewStateStore<number>(500, 'pdf-zoom');
 
 /**
  * Owned PDF.js view with restorable scroll/zoom. The library and worker load

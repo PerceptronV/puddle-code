@@ -1,5 +1,12 @@
 # The puddle communication protocol
 
+Application **26.7** adds shared private desktop window identities, revisioned
+working-set snapshots and acknowledged transfer records. The desktop shell owns
+host association and durable state; renderer identities do not select transports
+or grant authority. These records add no daemon REST/WS operation and do not
+change the remote or runtime protocol. Renderer window capabilities must be
+detected through the preload bridge; older shells retain their existing UI.
+
 Runtime **1.1** advertises exact Claude-owned background job attachment. The
 application and remote protocols, IPC shapes and retained-state formats are
 unchanged; major-1 owners remain adoptable. Before dispatching a resume that

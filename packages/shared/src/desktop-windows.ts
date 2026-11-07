@@ -1,0 +1,128 @@
+import { z } from 'zod';
+import { profileId, projectId } from './api/common.js';
+import { uiStateSnapshotSchema } from './api/workspace/ui-state.js';
+
+/** Private desktop IPC/persistence identity; never selects a host transport. */
+export const desktopWindowIdSchema = z
+  .string()
+  .min(1)
+  .max(96)
+  .regex(/^[a-z0-9][a-z0-9_-]*$/)
+  .refine((id) => id !== 'constructor' && id !== 'prototype', 'Invalid window identity');
+
+export const desktopWindowIdentitySchema = z.discriminatedUnion('kind', [
+  z.object({ id: desktopWindowIdSchema, kind: z.literal('host') }),
+  z.object({
+    id: desktopWindowIdSchema,
+    kind: z.literal('project'),
+    profileId,
+    projectId,
+  }),
+  z.object({
+    id: desktopWindowIdSchema,
+    kind: z.literal('pane'),
+    profileId,
+    projectId,
+  }),
+]);
+export type DesktopWindowIdentity = z.infer<typeof desktopWindowIdentitySchema>;
+
+/** Only application routes are durable; invitations and query parameters are not. */
+export const desktopWindowRouteSchema = z
+  .string()
+  .max(256)
+  .regex(/^\/(?:project\/[0-9a-f]{10}(?:\/session\/[0-9a-f-]{36})?|settings(?:\/[a-z-]+)?)?$/);
+
+/** A recoverable editor draft; host files are never written by a window move. */
+export const desktopBufferSnapshotSchema = z.object({
+  session: z.string().max(128),
+  path: z.string().max(32_768),
+  root: z.string().max(32_768).optional(),
+  content: z.string().max(8 * 1024 * 1024),
+  baseMtimeMs: z.number().finite(),
+});
+export type DesktopBufferSnapshot = z.infer<typeof desktopBufferSnapshotSchema>;
+
+export const desktopWorkspaceContentSchema = z.object({
+  snapshot: uiStateSnapshotSchema,
+  buffers: z.array(desktopBufferSnapshotSchema).max(512).default([]),
+  /** Opaque renderer view state, bounded with the complete IPC/persistence envelope. */
+  views: z.record(z.string().max(1024), z.unknown()).default({}),
+});
+export type DesktopWorkspaceContent = z.infer<typeof desktopWorkspaceContentSchema>;
+
+export const desktopWorkspaceVersionSchema = z.object({
+  revision: z
+    .number()
+    .int()
+    .nonnegative()
+    .max(Number.MAX_SAFE_INTEGER - 1),
+  content: desktopWorkspaceContentSchema,
+});
+export type DesktopWorkspaceVersion = z.infer<typeof desktopWorkspaceVersionSchema>;
+
+export const desktopWindowTransferSchema = z.object({
+  id: desktopWindowIdSchema,
+  sourceId: desktopWindowIdSchema,
+  destinationId: desktopWindowIdSchema,
+  profileId,
+  sourceRevision: z.number().int().nonnegative(),
+  destinationRevision: z.number().int().nonnegative(),
+  sourceContent: desktopWorkspaceContentSchema,
+  destinationContent: desktopWorkspaceContentSchema,
+  closeSource: z.boolean(),
+});
+export type DesktopWindowTransfer = z.infer<typeof desktopWindowTransferSchema>;
+
+/** Native geometry is parsed by the shell using its existing placement migration. */
+export const desktopWindowStateSchema = z.object({
+  version: z.literal(2),
+  entries: z.record(
+    desktopWindowIdSchema,
+    z.object({
+      record: z.unknown(),
+      open: z.boolean(),
+      workspaces: z.record(profileId, desktopWorkspaceVersionSchema),
+    }),
+  ),
+  pending: z.record(desktopWindowIdSchema, desktopWindowTransferSchema),
+  outcomes: z.record(
+    desktopWindowIdSchema,
+    z.object({
+      status: z.enum(['committed', 'cancelled']),
+      sourceId: desktopWindowIdSchema,
+      destinationId: desktopWindowIdSchema,
+    }),
+  ),
+});
+
+export const desktopWindowReadSchema = z.object({ profileId });
+export const desktopWindowWriteSchema = z.object({
+  profileId,
+  revision: z.number().int().nonnegative(),
+  content: desktopWorkspaceContentSchema,
+});
+export type DesktopWindowWrite = z.infer<typeof desktopWindowWriteSchema>;
+
+export interface DesktopProfileSeed {
+  base: z.infer<typeof uiStateSnapshotSchema>;
+  detached: Array<{
+    identity: DesktopWindowIdentity;
+    snapshot: z.infer<typeof uiStateSnapshotSchema>;
+  }>;
+}
+export type DesktopWindowWriteResult = DesktopWorkspaceVersion & { seed?: DesktopProfileSeed };
+
+export interface DesktopWindowContext {
+  identity: DesktopWindowIdentity;
+  /** Opaque, shell-selected host association for compatible drag destinations. */
+  hostId: string;
+}
+
+/** Capability-detected private bridge, independent of daemon feature availability. */
+export interface DesktopWindowsBridge {
+  version: 1;
+  context(): Promise<DesktopWindowContext>;
+  read(profileId: string): Promise<DesktopWorkspaceVersion | null>;
+  write(request: DesktopWindowWrite): Promise<DesktopWindowWriteResult>;
+}

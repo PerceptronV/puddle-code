@@ -52,6 +52,7 @@ import { useLocalSyncEngine } from './use-local-sync-engine';
 import { useWaitingNotifications } from './use-waiting-notifications';
 import { ScratchpadPopover } from '../scratchpad/ScratchpadPopover';
 import { LayoutsPopover } from '../layouts/LayoutsPopover';
+import { desktopWindowContext } from '../windows/window-context';
 import { desktopBridge, useDesktopFullScreen } from '../../lib/desktop';
 import { cn } from '../../lib/utils';
 import {
@@ -387,7 +388,7 @@ function ShellBody() {
       <HostAppearanceTheme />
       <DesktopHostIdentity />
       <HostPeekOverlay />
-      <TopBar />
+      {(!desktopWindowContext() || desktopWindowContext()?.identity.kind === 'host') && <TopBar />}
       <main className="min-h-0 flex-1">
         {/* The routed view gets its OWN boundary so a crash in it leaves the top
             bar alive — the shell still navigates, and walking away from the

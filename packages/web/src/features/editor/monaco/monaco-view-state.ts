@@ -3,8 +3,8 @@ import type { editor } from 'monaco-editor';
 import { useViewStateKey } from '../tabs/view-state-context';
 import { ViewStateStore } from '../tabs/view-state-store';
 
-const codeStates = new ViewStateStore<editor.ICodeEditorViewState>();
-const diffStates = new ViewStateStore<editor.IDiffEditorViewState>();
+const codeStates = new ViewStateStore<editor.ICodeEditorViewState>(500, 'code');
+const diffStates = new ViewStateStore<editor.IDiffEditorViewState>(500, 'diff');
 
 function durableCodeState(state: editor.ICodeEditorViewState): editor.ICodeEditorViewState {
   const contributionsState = { ...state.contributionsState };

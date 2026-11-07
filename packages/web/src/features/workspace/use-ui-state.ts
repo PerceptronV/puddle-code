@@ -3,6 +3,7 @@ import { uiStateSnapshotSchema, type UiStateSnapshot } from '@puddle/shared';
 import { debounce } from '../../lib/debounce';
 import { fetchProfileState, putProfileState } from '../../lib/queries/queries';
 import { useCurrentProfileId } from '../profile/profile-store';
+import { useDesktopUiState } from '../windows/use-desktop-state';
 
 const WRITE_DEBOUNCE_MS = 2000;
 
@@ -69,6 +70,8 @@ export function parseWorkingSet(raw: string | null): StoredWorkingSet {
  */
 export function useUiState(): UiStateHandle {
   const profileId = useCurrentProfileId();
+  const desktop = useDesktopUiState(profileId);
+  const desktopOwned = desktop !== null;
   const [loaded, setLoaded] = useState(false);
   const [snapshot, setSnapshot] = useState<UiStateSnapshot>(EMPTY);
   const snapshotRef = useRef(snapshot);
@@ -88,6 +91,7 @@ export function useUiState(): UiStateHandle {
   );
 
   useEffect(() => {
+    if (desktopOwned) return;
     if (profileId === null) {
       keyRef.current = null;
       return;
@@ -132,8 +136,9 @@ export function useUiState(): UiStateHandle {
       cancelled = true;
       writer.flush(); // leaving the workspace — persist the last change now
     };
-  }, [profileId, writer]);
+  }, [profileId, writer, desktopOwned]);
 
+  if (desktop) return desktop;
   return {
     loaded,
     snapshot,

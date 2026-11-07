@@ -1,16 +1,25 @@
 import { useSyncExternalStore } from 'react';
 import { localValue } from '../../lib/persistence/local-store';
+import { desktopWindowContext } from '../windows/window-context';
 
 /** The selected profile — identity, not auth (SPEC §11); remembered per browser. */
 export const profileStore = localValue('puddle.profile-id');
 
 export function useCurrentProfileId(): string | null {
-  const raw = useSyncExternalStore(profileStore.subscribe, profileStore.get);
+  return useSyncExternalStore(profileStore.subscribe, currentProfileId);
+}
+
+export function currentProfileId(): string | null {
+  const identity = desktopWindowContext()?.identity;
+  if (identity && identity.kind !== 'host') return identity.profileId;
+  const raw = profileStore.get();
   // Pre-hex ids (integers) fail this and fall back to the picker.
   return raw !== null && /^[0-9a-f]{10}$/.test(raw) ? raw : null;
 }
 
 export function selectProfile(id: string): void {
+  const identity = desktopWindowContext()?.identity;
+  if (identity && identity.kind !== 'host') return;
   // Selecting a profile lands on ITS dashboard (fixed 2026-08-06). The picker
   // renders INSTEAD of the router (App.tsx), so the previous profile's URL —
   // typically /project/<its project> — was still the address when the router

@@ -3,7 +3,11 @@ import { isShellTheme, loadShellTheme, saveShellTheme } from './appearance.js';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
-import { PROTOCOL_VERSION } from '@puddle/shared';
+import {
+  PROTOCOL_VERSION,
+  desktopWindowRouteSchema,
+  type DesktopWindowIdentity,
+} from '@puddle/shared';
 import {
   BrowserWindow,
   Menu,
@@ -29,12 +33,7 @@ import {
   type StagedDesktopUpdate,
 } from '@puddle-code/cli/lib';
 import { addRecentHost, loadRecentHosts, migrateRecentHosts } from './recent-hosts.js';
-import {
-  loadReopenWindows,
-  saveReopenWindows,
-  type ReopenWindow,
-  type WindowPlacement,
-} from './reopen.js';
+import { reopenWindowId, type ReopenWindow, type WindowPlacement } from './reopen.js';
 import { createSshAuthPrompter } from './ssh-auth-prompt.js';
 import { startSshAskpass, type RunningSshAskpass } from './ssh-askpass.js';
 import { restoredCockpitBounds, type DisplayGeometry } from './window-bounds.js';
@@ -42,15 +41,17 @@ import { readX11Workspace, restoreX11Workspace } from './x11-workspace.js';
 import { refreshNavigation } from './refresh-navigation.js';
 import { hostUpdateApprovals } from './host-updates/approval.js';
 import { DesktopNotifications } from './notifications.js';
+import { HostConnections, type HostConnection } from './windows/connections.js';
+import { DesktopWindowState } from './windows/state.js';
+import { registerWindowStateIpc } from './windows/ipc.js';
 
 /**
  * The desktop shell (SPEC §10): an Electron main process that drives the SAME
  * cockpit engine as the `puddle` bin — `startLocal`/`connectRemote` ensure the
  * daemon, serve the built web UI over localhost with /api + /ws + /proxy
  * attached, and this file merely points BrowserWindows at the results. One
- * window per target ('local' or user@host), mirroring the CLI's
- * one-cockpit-per-target model and the web app's one-daemon-per-origin
- * assumption. Everything the cockpit does lives in `@puddle-code/cli/lib`;
+ * connection per target serves its independently owned native windows.
+ * Everything the cockpit does lives in `@puddle-code/cli/lib`;
  * anything added here should be shell concerns only (windows, menus, OS
  * integration), or it belongs on the other side of the seam where both
  * shells inherit it.
@@ -76,16 +77,19 @@ const logger: Logger = {
   warn: (message) => console.warn(`[Puddle] ${message}`),
 };
 
-interface Shell {
-  target: string; // 'local' or the ssh destination (user@host / ssh alias)
-  cockpit: RunningCockpit;
+interface ShellWindow {
+  identity: DesktopWindowIdentity;
   win: BrowserWindow;
-  refreshing: boolean;
+  trackingPlacement?: boolean;
 }
 
-const shells = new Map<string, Shell>();
+type Shell = HostConnection<RunningCockpit, ShellWindow>;
+const connections = new HostConnections<RunningCockpit, ShellWindow>(
+  (target, previous, refreshId) =>
+    openCockpit(target, previous ? Number(new URL(previous.origin).port) : undefined, refreshId),
+);
+const shells = connections.hosts;
 const notifications = new Map<number, DesktopNotifications>();
-const connecting = new Set<string>();
 // Include saved targets whose reconnect is still pending or failed. An empty
 // live-shell map during startup must not erase the previous window set.
 const rememberedWindows = new Map<string, ReopenWindow>();
@@ -95,15 +99,20 @@ let stopped = false;
 let quitting = false;
 let restoringWindows = true;
 let windowStateLoaded = false;
+let windowState: DesktopWindowState | null = null;
+
+function persistWindows(): void {
+  windowState?.syncOpenWindows([...rememberedWindows.values()]);
+}
 
 const sshAuthPrompter = createSshAuthPrompter({
   htmlPath: join(here, 'ssh-auth-prompt.html'),
   theme: () => promptTheme,
   preloadPath: join(here, 'auth-preload.cjs'),
-  isHostOpen: (target) => shells.has(target) || connecting.has(target),
+  isHostOpen: (target) => connections.has(target),
   // Focus may belong to another app or macOS Space during a reconnect; the
   // host still owns its prompt, which must remain attached to its cockpit.
-  parent: (target) => shells.get(target)?.win ?? promptWin ?? pickerWin,
+  parent: (target) => preferredWindow(shells.get(target)) ?? promptWin ?? pickerWin,
 });
 let sshAskpassPromise: Promise<RunningSshAskpass> | null = null;
 
@@ -150,7 +159,7 @@ async function openCockpit(
     logger,
     ...hostUpdateApprovals({
       host: target,
-      parent: () => shells.get(target)?.win ?? promptWin ?? pickerWin ?? undefined,
+      parent: () => preferredWindow(shells.get(target)) ?? promptWin ?? pickerWin ?? undefined,
       active: () => !stopped,
     }),
     // The UI's connection banner and ⌘K "Refresh connection" POST
@@ -168,23 +177,37 @@ async function openCockpit(
 }
 
 async function refreshShell(shell: Shell, refreshId?: string): Promise<void> {
-  if (shell.refreshing) return;
-  shell.refreshing = true;
   try {
-    const oldOrigin = shell.cockpit.origin;
-    const previousUrl = shell.win.webContents.getURL();
-    const preferPort = Number(new URL(oldOrigin).port);
-    await shell.cockpit.stop();
-    shell.cockpit = await openCockpit(shell.target, preferPort, refreshId);
-    // UI requests poll correlated status. Menu requests need an explicit reload;
-    // a moved origin also needs a new invitation and its previous route.
-    const navigation = refreshNavigation(previousUrl, oldOrigin, shell.cockpit, refreshId);
-    if (navigation && !shell.win.isDestroyed()) void shell.win.loadURL(navigation);
+    await connections.refresh(shell, refreshId, (previous) => {
+      for (const { win } of shell.windows.values()) {
+        if (win.isDestroyed()) continue;
+        const navigation = refreshNavigation(
+          win.webContents.getURL(),
+          previous.origin,
+          shell.cockpit,
+          refreshId,
+        );
+        if (navigation) void win.loadURL(navigation);
+      }
+    });
   } catch (e) {
     logger.warn(`refresh of ${shell.target} failed: ${errorText(e)}`);
-  } finally {
-    shell.refreshing = false;
   }
+}
+
+function preferredWindow(host: Shell | undefined): BrowserWindow | undefined {
+  const windows = [...(host?.windows.values() ?? [])].filter(({ win }) => !win.isDestroyed());
+  return (
+    windows.find(({ win }) => win.isFocused?.()) ??
+    windows.find(({ identity }) => identity.kind === 'host') ??
+    windows[0]
+  )?.win;
+}
+
+function hostForWindow(win: { id: number } | undefined | null): Shell | undefined {
+  return [...shells.values()].find((host) =>
+    [...host.windows.values()].some((window) => window.win === win),
+  );
 }
 
 function errorText(e: unknown): string {
@@ -212,7 +235,9 @@ function displayGeometries(): DisplayGeometry[] {
 function createWindow(
   target: string,
   cockpit: RunningCockpit,
+  identity: DesktopWindowIdentity,
   placement?: WindowPlacement,
+  route?: string,
 ): BrowserWindow {
   const initialBounds = restoredCockpitBounds(process.platform, displayGeometries(), placement);
   // An EWMH hint must exist before the X11 window is mapped. Create restored
@@ -230,7 +255,7 @@ function createWindow(
     //
     // Centre the native 14px buttons in the 36px header: (36 - 14) / 2 = 11.
     // Keep this aligned with ShellLayout's header height.
-    ...(process.platform === 'darwin'
+    ...(process.platform === 'darwin' && identity.kind === 'host'
       ? {
           titleBarStyle: 'hidden' as const,
           trafficLightPosition: { x: 12, y: 11 },
@@ -289,65 +314,101 @@ function createWindow(
   // is read through the shells map so a refresh that moved ports stays right.
   win.webContents.on('will-navigate', (event, url) => {
     const origin = shells.get(target)?.cockpit.origin ?? cockpit.origin;
-    if (url.startsWith(origin)) return;
+    if (new URL(url).origin === new URL(origin).origin) return;
     event.preventDefault();
     if (/^(vscode|cursor|https?):/.test(url)) void osShell.openExternal(url);
   });
 
   win.on('closed', () => {
-    const shell = shells.get(target);
-    shells.delete(target);
     if (!quitting) {
-      rememberedWindows.delete(target);
-      saveReopenWindows(reopenFile(), [...rememberedWindows.values()]);
+      rememberedWindows.delete(identity.id);
+      try {
+        persistWindows();
+      } catch (error) {
+        logger.warn(`could not remember closed window: ${errorText(error)}`);
+      }
     }
-    sshAuthPrompter.cancel(target);
-    // Stops this cockpit's UI server (and tunnel, remotely) only — the
-    // daemon and its agents run on.
-    if (shell) void shell.cockpit.stop();
+    void connections.close(target, identity.id).catch((error) => logger.warn(errorText(error)));
+    if (!connections.has(target)) sshAuthPrompter.cancel(target);
   });
 
-  void win.loadURL(cockpit.createInvitation());
+  const invitation = new URL(cockpit.createInvitation());
+  invitation.pathname =
+    route ?? (identity.kind === 'host' ? '/' : `/project/${identity.projectId}`);
+  void win.loadURL(invitation.href);
   return win;
 }
 
 /** Open (or raise) the window for a target; errors surface with the caller. */
-async function openShell(target: string, placement?: WindowPlacement): Promise<void> {
+async function openShell(
+  target: string,
+  placement?: WindowPlacement,
+  restored?: ReopenWindow,
+): Promise<void> {
   if (quitting) return;
-  const existing = shells.get(target);
-  if (existing) {
+  const identity = restored?.window ?? { kind: 'host' as const, id: reopenWindowId({ target }) };
+  const existing = restored
+    ? shells.get(target)?.windows.get(identity.id)
+    : [...(shells.get(target)?.windows.values() ?? [])].find(
+        ({ identity }) => identity.kind === 'host',
+      );
+  if (existing && !existing.win.isDestroyed()) {
     raise(existing.win);
     return;
   }
-  if (connecting.has(target)) return;
-  connecting.add(target);
   try {
-    const cockpit = await openCockpit(target);
-    if (quitting) {
-      await cockpit.stop();
+    const window = await connections.open(target, identity.id, (host) => ({
+      identity,
+      win: createWindow(target, host.cockpit, identity, placement, restored?.route),
+    }));
+    if (!window || quitting) return;
+    if (window.trackingPlacement) {
+      raise(window.win);
       return;
     }
-    const win = createWindow(target, cockpit, placement);
-    const shell = { target, cockpit, win, refreshing: false };
-    shells.set(target, shell);
-    rememberedWindows.set(target, reopenWindow(shell));
-    saveReopenWindows(reopenFile(), [...rememberedWindows.values()]);
+    window.trackingPlacement = true;
+    rememberedWindows.set(identity.id, reopenWindow(target, window));
+    persistWindows();
+    // Save normal bounds and SPA destinations during use, not just orderly quit.
+    let saveTimer: ReturnType<typeof setTimeout> | undefined;
+    const capture = () => {
+      if (quitting || window.win.isDestroyed()) return;
+      rememberedWindows.set(identity.id, reopenWindow(target, window));
+      try {
+        persistWindows();
+      } catch (error) {
+        logger.warn(`could not remember window: ${errorText(error)}`);
+      }
+    };
+    const schedule = () => {
+      clearTimeout(saveTimer);
+      saveTimer = setTimeout(capture, 200);
+    };
+    window.win.on('move', schedule);
+    window.win.on('resize', schedule);
+    window.win.webContents.on('did-navigate-in-page', schedule);
+    window.win.on('closed', () => clearTimeout(saveTimer));
   } finally {
-    connecting.delete(target);
-    if (!shells.has(target)) sshAuthPrompter.cancel(target);
+    if (!connections.has(target)) sshAuthPrompter.cancel(target);
   }
 }
 
 /** Capture shell chrome while every quitting window still exists. */
-function reopenWindow(shell: Shell): ReopenWindow {
-  if (shell.win.isDestroyed()) return { target: shell.target };
+function reopenWindow(target: string, window: ShellWindow): ReopenWindow {
+  const record: ReopenWindow = { target, window: window.identity };
+  if (window.win.isDestroyed()) return record;
   try {
-    const bounds = shell.win.getNormalBounds();
+    const currentUrl = window.win.webContents.getURL?.();
+    const route = currentUrl
+      ? desktopWindowRouteSchema.safeParse(new URL(currentUrl).pathname)
+      : null;
+    if (route?.success) record.route = route.data;
+    const bounds = window.win.getNormalBounds();
     const display = screen.getDisplayMatching(bounds);
     const workspace =
-      process.platform === 'linux' ? readX11Workspace(shell.win.getMediaSourceId()) : null;
+      process.platform === 'linux' ? readX11Workspace(window.win.getMediaSourceId()) : null;
     return {
-      target: shell.target,
+      ...record,
       placement: {
         bounds,
         displayId: display.id,
@@ -358,7 +419,7 @@ function reopenWindow(shell: Shell): ReopenWindow {
     };
   } catch {
     // A window racing destruction still deserves target-only restoration.
-    return { target: shell.target };
+    return record;
   }
 }
 
@@ -395,11 +456,6 @@ function promptStatus(state: 'connecting' | 'error', message?: string): void {
 async function connectFromPrompt(rawHost: string): Promise<void> {
   const host = rawHost.trim();
   if (host === '' || host === LOCAL) return;
-  if (shells.has(host)) {
-    promptWin?.close();
-    raise(shells.get(host)!.win);
-    return;
-  }
   promptStatus('connecting');
   try {
     await openShell(host);
@@ -449,11 +505,6 @@ function pickerStatus(state: 'connecting' | 'error', message?: string): void {
 }
 
 async function openFromPicker(target: string): Promise<void> {
-  if (shells.has(target)) {
-    pickerWin?.close();
-    raise(shells.get(target)!.win);
-    return;
-  }
   pickerStatus('connecting', target === LOCAL ? 'Starting…' : `Connecting to ${target}…`);
   try {
     await openShell(target);
@@ -498,6 +549,26 @@ ipcMain.on('puddle:raise', (event) => {
 });
 
 // Only a cockpit's main frame can use its own notification channel.
+registerWindowStateIpc({
+  ipc: ipcMain,
+  context: (event) => {
+    if (event.senderFrame !== event.sender.mainFrame) throw new Error('Invalid window sender');
+    for (const host of shells.values()) {
+      const window = [...host.windows.values()].find(
+        ({ win }) => !win.isDestroyed() && win.webContents === event.sender,
+      );
+      if (!window) continue;
+      if (new URL(event.senderFrame.url).origin !== new URL(host.cockpit.origin).origin) break;
+      return { identity: window.identity, hostId: reopenWindowId({ target: host.target }) };
+    }
+    throw new Error('Window is unavailable');
+  },
+  state: () => {
+    if (!windowState || quitting) throw new Error('Window state is unavailable');
+    return windowState;
+  },
+});
+
 ipcMain.handle('puddle:notification-status', (event) => {
   if (event.senderFrame !== event.sender.mainFrame) throw new Error('Invalid notification sender');
   const delivery = notifications.get(event.sender.id);
@@ -564,7 +635,9 @@ async function pollForUpdate(): Promise<void> {
     await pruneDesktopUpdateCache([staged.version]);
     logger.info(`update ${staged.version} staged — offering the restart toast`);
     for (const shell of shells.values()) {
-      shell.win.webContents.send('puddle:update-ready', staged.version);
+      for (const { win } of shell.windows.values()) {
+        if (!win.isDestroyed()) win.webContents.send('puddle:update-ready', staged.version);
+      }
     }
   } catch (e) {
     logger.warn(`update check failed: ${errorText(e)}`); // offline is normal; retry next poll
@@ -621,7 +694,7 @@ function buildMenu(): void {
           label: 'Refresh Connection',
           accelerator: 'CmdOrCtrl+Alt+R',
           click: (_item, win) => {
-            const shell = [...shells.values()].find((s) => s.win === win);
+            const shell = hostForWindow(win);
             if (shell) void refreshShell(shell);
           },
         },
@@ -694,8 +767,8 @@ if (!app.requestSingleInstanceLock()) {
   app.quit();
 } else {
   app.on('second-instance', () => {
-    const first = shells.get(LOCAL) ?? [...shells.values()][0];
-    if (first) raise(first.win);
+    const first = preferredWindow(shells.get(LOCAL) ?? [...shells.values()][0]);
+    if (first) raise(first);
     else if (!restoringWindows) openHostPicker();
   });
 
@@ -730,8 +803,17 @@ if (!app.requestSingleInstanceLock()) {
     // Every launch reopens the remembered cockpit windows;
     // remote authentication can surface through the same askpass modal as a
     // manual connect. If nothing comes back the picker takes over as usual.
-    const reopen = loadReopenWindows(reopenFile());
-    for (const window of reopen) rememberedWindows.set(window.target, window);
+    try {
+      windowState = new DesktopWindowState(reopenFile());
+      windowState.recoverPending();
+    } catch (error) {
+      // Never replace unreadable working sets/drafts with an empty arrangement.
+      dialog.showErrorBox('Could not restore desktop windows', errorText(error));
+      app.quit();
+      return;
+    }
+    const reopen = windowState.openWindows();
+    for (const window of reopen) rememberedWindows.set(reopenWindowId(window), window);
     windowStateLoaded = true;
     if (reopen.length === 0) {
       restoringWindows = false;
@@ -740,7 +822,7 @@ if (!app.requestSingleInstanceLock()) {
     }
     void Promise.allSettled(
       reopen.map((window) =>
-        openShell(window.target, window.placement).catch((e) => {
+        openShell(window.target, window.placement, window).catch((e) => {
           logger.warn(`could not reopen ${window.target}: ${errorText(e)}`);
           throw e;
         }),
@@ -776,11 +858,21 @@ if (!app.requestSingleInstanceLock()) {
     if (quitting) return;
     quitting = true;
     // A quit before ready must leave the unread standing state intact.
-    if (!windowStateLoaded) return;
-    for (const shell of shells.values()) {
-      rememberedWindows.set(shell.target, reopenWindow(shell));
+    if (!windowStateLoaded) {
+      void connections.dispose();
+      return;
     }
-    saveReopenWindows(reopenFile(), [...rememberedWindows.values()]);
+    for (const shell of shells.values()) {
+      for (const window of shell.windows.values()) {
+        rememberedWindows.set(window.identity.id, reopenWindow(shell.target, window));
+      }
+    }
+    try {
+      persistWindows();
+    } catch (error) {
+      logger.warn(`could not remember quitting windows: ${errorText(error)}`);
+    }
+    void connections.dispose();
   });
 
   // Belt and braces: window 'closed' handlers stop their own cockpits; this
@@ -791,20 +883,18 @@ if (!app.requestSingleInstanceLock()) {
       (askpass) => askpass.close(),
       () => undefined,
     );
-    if (stopped || shells.size === 0) return;
+    if (stopped) return;
     event.preventDefault();
     stopped = true;
-    const all = [...shells.values()];
-    shells.clear();
-    void Promise.allSettled(all.map((s) => s.cockpit.stop())).finally(() => app.exit(0));
+    void connections.dispose().finally(() => app.exit(0));
   });
 }
 
 // Accept only a bounded preference from a registered cockpit's main frame.
 ipcMain.on('puddle:appearance', (event, value: unknown) => {
   if (!isShellTheme(value) || event.senderFrame !== event.sender.mainFrame) return;
-  const owner = [...shells.values()].find(
-    ({ win }) => !win.isDestroyed() && win.webContents === event.sender,
+  const owner = [...shells.values()].find(({ windows }) =>
+    [...windows.values()].some(({ win }) => !win.isDestroyed() && win.webContents === event.sender),
   );
   if (!owner || new URL(event.senderFrame.url).origin !== new URL(owner.cockpit.origin).origin)
     return;
@@ -818,8 +908,8 @@ ipcMain.on('puddle:host-identity', (event, value: unknown) => {
   if (event.senderFrame !== event.sender.mainFrame) return;
   const identity = parseHostIdentity(value);
   if (!identity) return;
-  const owner = [...shells.values()].find(
-    ({ win }) => !win.isDestroyed() && win.webContents === event.sender,
+  const owner = [...shells.values()].find(({ windows }) =>
+    [...windows.values()].some(({ win }) => !win.isDestroyed() && win.webContents === event.sender),
   );
   if (!owner || new URL(event.senderFrame.url).origin !== new URL(owner.cockpit.origin).origin)
     return;

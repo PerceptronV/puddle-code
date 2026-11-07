@@ -2275,6 +2275,31 @@ On macOS the native app role is explicitly named **Puddle**, not its scoped npm 
 
 **Desktop self-update** (decision 2026-07-28). No Squirrel and no electron-updater — Squirrel.Mac requires a trusted signing identity, while releases without certificates use ad-hoc signing (above) — so updates take the CLI's own path: `lib/desktop-update.ts` checks the GitHub releases API, downloads the platform asset into `~/.puddle/cache/desktop/<version>/`, verifies it against the release's `SHA256SUMS`, unpacks (`ditto` for the mac zip; the AppImage is the artefact itself), and swaps via a detached `/bin/sh` helper that waits for the app to exit, moves an existing install aside when present, moves the new one in (copy fallback across volumes, restore on upgrade failure), strips `com.apple.quarantine` recursively from the installed bundle (a no-op in the normal path — belt and braces against a bundle that acquired the attribute some other way), and relaunches. On Linux the swap targets `$APPIMAGE` — the running file's own absolute path — so a user-relocated AppImage updates in place, keeping the path launchers point at (the version-in-filename going stale is accepted). Fetches carry no Gatekeeper quarantine (only opted-in apps like browsers attach it — the same reason the curl-piped install.sh works unsigned), and the trust model is exactly the daemon bootstrap's: the GitHub release is the root of trust, the checksum guards transport integrity; signing can later replace the swap mechanism without touching the UX. The shell polls half-hourly when running from a real install (never in dev; six-hourly through v0.0.34), stages silently, and offers a **dismissable toast** ("Restart to update") through three preload-bridge members; the renderer never sees URLs or paths. The toast replaced a permanent bottom bar in v0.0.29 (decision 2026-08-05): dismissing it parks the offer until the next staged version or app launch, since an update demands nothing immediate. An update relaunch inherits the ordinary durable window restore above, so it lands on the same targets without a separate one-shot path. Because the check asks `releases/latest`, an app several versions behind stages **only the newest release** — and the staging cache self-cleans: each successful stage prunes every other version under `~/.puddle/cache/desktop/`, and boot prunes the lot (`pruneDesktopUpdateCache` in `lib/desktop-update.ts`; a leftover stage is re-downloaded fresh by the next poll anyway), so successive releases cannot accumulate one download per version. `puddle upgrade desktop` drives the same pipeline from a terminal while the app is closed (a running app must use its toast — an external swap would wait on a process that isn't exiting). On macOS it is also the first-install path: when neither `/Applications/Puddle.app` nor `~/Applications/Puddle.app` exists, it downloads the latest release and installs into system `/Applications` when writable, otherwise creates and uses `~/Applications`; the helper does not require an old bundle to move aside. On Linux, `puddle install desktop` supplies the otherwise-missing conventional path and the running AppImage continues to update itself in place. The release workflow still publishes no electron-updater metadata (`latest-*.yml`/blockmaps) — nothing consumes it. The app icon is the puddle mark in dark-theme gold on navy, from two committed sources rendered by `scripts/render-icon.sh`: `packages/desktop/build/icon-mac.svg` (full-bleed → icns; macOS 26+ masks icons into its own squircle and plates self-rounded artwork on white) and `icon.svg` (self-rounded squircle → png, for Linux, which applies no mask).
 
+### Desktop window ownership (implementation in progress)
+
+The native shell now separates one host cockpit connection from its native
+window records (`desktop/src/windows/`). Connection establishment and refresh
+are shared per target; only closing the final associated window retires that
+connection. Reopen state retains stable host/project/pane identities and native
+placement. Legacy target-only entries migrate to host windows.
+
+Application 26.7 defines private desktop working-set and transfer schemas. Main
+binds IPC to the registered window's exact-origin main frame. Desktop working
+sets and dirty-buffer snapshots have durable revisions outside the renderer;
+browser windows retain the sessionStorage/profile-seed semantics below. Desktop
+seed writes combine the host and its detached workspaces before updating the
+existing last-writer-wins profile seed. Transfer preparation retains the source;
+acknowledgement commits source/destination revisions atomically. Restart cancels
+unaccepted preparations, without reversing a committed transfer.
+
+The shared workspace can render full host, headerless project, and pane-only
+presentations; detached windows use native title bars. Context-menu detachment,
+live transfer orchestration, docking, project redirects, coordinated quit, and
+named window arrangements remain in progress. See
+`docs/roadmap/windows.md` for the full contract and `docs/acceptance/windows.md`
+for implemented behaviour and verified scope. These foundations do not yet
+constitute the complete detached-window feature.
+
 ## 11. Profiles and projects
 
 The collapsed right rail's session island grows only to the available space between

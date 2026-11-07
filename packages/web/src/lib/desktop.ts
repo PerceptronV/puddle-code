@@ -3,6 +3,7 @@ import type {
   DesktopNotificationRequest,
   NotificationDelivery,
   NotificationTarget,
+  DesktopWindowsBridge,
 } from '@puddle/shared';
 
 /**
@@ -13,6 +14,7 @@ import type {
  * genuinely cannot provide for itself, or it doesn't belong here.
  */
 interface PuddleDesktopBridge {
+  windows?: DesktopWindowsBridge;
   notificationStatus?(): Promise<NotificationDelivery>;
   showNotification?(request: DesktopNotificationRequest): Promise<NotificationDelivery>;
   notificationTargets?: boolean;

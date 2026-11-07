@@ -334,7 +334,8 @@
 // 26.4: exact per-file Git restore with explicit untracked deletion consent.
 // 26.5: optional six-digit hex host accents alongside the existing preset keys.
 // 26.6: optional six-digit hex project colours alongside the existing preset keys.
-export const PROTOCOL_VERSION = { major: 26, minor: 6 } as const;
+// 26.7: private desktop window identities, revisioned working sets and transfer records.
+export const PROTOCOL_VERSION = { major: 26, minor: 7 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

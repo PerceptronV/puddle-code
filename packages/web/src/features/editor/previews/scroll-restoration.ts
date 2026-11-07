@@ -7,7 +7,7 @@ export interface ScrollPosition {
   width: number;
 }
 
-export const scrollPositions = new ViewStateStore<ScrollPosition>();
+export const scrollPositions = new ViewStateStore<ScrollPosition>(500, 'preview-scroll');
 
 export interface ScrollRestoration {
   capture(): void;

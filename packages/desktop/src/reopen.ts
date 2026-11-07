@@ -1,5 +1,11 @@
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
+import { createHash } from 'node:crypto';
+import {
+  desktopWindowIdentitySchema,
+  desktopWindowRouteSchema,
+  type DesktopWindowIdentity,
+} from '@puddle/shared';
 
 /** Geometry saved independently of Electron so persistence stays testable. */
 export interface PersistedBounds {
@@ -25,6 +31,14 @@ export interface WindowPlacement {
 export interface ReopenWindow {
   target: string;
   placement?: WindowPlacement;
+  /** Missing only in legacy one-window-per-host records. */
+  window?: DesktopWindowIdentity;
+  route?: string;
+}
+
+/** Stable migration identity; never encode an SSH destination in renderer URLs. */
+export function reopenWindowId(window: ReopenWindow): string {
+  return window.window?.id ?? `host-${createHash('sha256').update(window.target).digest('hex')}`;
 }
 
 /**
@@ -96,16 +110,42 @@ function parsePlacement(value: unknown): WindowPlacement | undefined {
   };
 }
 
-function parseWindows(values: unknown[]): ReopenWindow[] {
+export function parseReopenWindows(values: unknown[]): ReopenWindow[] {
   const windows: ReopenWindow[] = [];
   const seen = new Set<string>();
+  const owners = new Set<string>();
   for (const value of values) {
     if (typeof value !== 'object' || value === null) continue;
     const candidate = value as Record<string, unknown>;
-    if (typeof candidate['target'] !== 'string' || seen.has(candidate['target'])) continue;
-    seen.add(candidate['target']);
+    if (typeof candidate['target'] !== 'string' || candidate['target'].length > 4096) continue;
+    const identity =
+      candidate['window'] === undefined
+        ? undefined
+        : desktopWindowIdentitySchema.safeParse(candidate['window']);
+    // An unknown/invalid detached identity must not turn into a host window.
+    if (identity && !identity.success) continue;
+    const window = identity?.success ? identity.data : undefined;
+    const record: ReopenWindow = { target: candidate['target'], ...(window ? { window } : {}) };
+    const id = reopenWindowId(record);
+    const owner =
+      window?.kind === 'pane'
+        ? null
+        : JSON.stringify([
+            record.target,
+            window?.kind ?? 'host',
+            window?.kind === 'project' ? window.profileId : null,
+            window?.kind === 'project' ? window.projectId : null,
+          ]);
+    if (seen.has(id) || (owner !== null && owners.has(owner))) continue;
+    seen.add(id);
+    if (owner !== null) owners.add(owner);
     const placement = parsePlacement(candidate['placement']);
-    windows.push({ target: candidate['target'], ...(placement ? { placement } : {}) });
+    const route = desktopWindowRouteSchema.safeParse(candidate['route']);
+    windows.push({
+      ...record,
+      ...(placement ? { placement } : {}),
+      ...(route.success ? { route: route.data } : {}),
+    });
   }
   return windows;
 }
@@ -114,7 +154,7 @@ export function saveReopenWindows(file: string, windows: ReopenWindow[]): void {
   const temporary = `${file}.${process.pid}.tmp`;
   try {
     mkdirSync(dirname(file), { recursive: true });
-    const state: WindowState = { windows: parseWindows(windows) };
+    const state: WindowState = { windows: parseReopenWindows(windows) };
     writeFileSync(temporary, `${JSON.stringify(state, null, 2)}\n`, { mode: 0o600 });
     // A crash during a write must leave the previous complete snapshot intact.
     renameSync(temporary, file);
@@ -141,7 +181,7 @@ export function loadReopenWindows(file: string, now = Date.now()): ReopenWindow[
       const writtenAt = Date.parse(parsed.writtenAt);
       if (!Number.isFinite(writtenAt) || now - writtenAt >= LEGACY_TTL_MS) return [];
     }
-    if (Array.isArray(parsed.windows)) return parseWindows(parsed.windows);
+    if (Array.isArray(parsed.windows)) return parseReopenWindows(parsed.windows);
     if (!Array.isArray(parsed.targets)) return [];
     return [
       ...new Set(parsed.targets.filter((target): target is string => typeof target === 'string')),

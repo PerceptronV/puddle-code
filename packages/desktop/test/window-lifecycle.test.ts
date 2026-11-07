@@ -154,6 +154,64 @@ afterEach(() => {
 });
 
 describe('desktop quit and reopen lifecycle', () => {
+  it('restores multiple windows with one connection and keeps it after the host window closes', async () => {
+    saveReopenWindows(file(), [
+      { target: 'local', window: { kind: 'host', id: 'host' } },
+      {
+        target: 'local',
+        window: {
+          kind: 'project',
+          id: 'project',
+          profileId: '1234567890',
+          projectId: 'abcdef1234',
+        },
+      },
+      {
+        target: 'local',
+        window: { kind: 'pane', id: 'pane', profileId: '1234567890', projectId: 'abcdef1234' },
+      },
+    ]);
+    await boot();
+    expect(BrowserWindow.getAllWindows()).toHaveLength(3);
+    expect(mocks.startLocal).toHaveBeenCalledOnce();
+    const connection = await mocks.startLocal.mock.results[0]!.value;
+    BrowserWindow.getAllWindows()[0].close();
+    await flush();
+    expect(connection.stop).not.toHaveBeenCalled();
+    expect(loadReopenWindows(file()).map((window) => window.window?.kind)).toEqual([
+      'project',
+      'pane',
+    ]);
+    quit();
+    await flush();
+    expect(connection.stop).toHaveBeenCalledOnce();
+    expect(loadReopenWindows(file()).map((window) => window.window?.kind)).toEqual([
+      'project',
+      'pane',
+    ]);
+  });
+
+  it('restores a pane-only host directly to its project route', async () => {
+    saveReopenWindows(file(), [
+      {
+        target: 'user@host',
+        window: {
+          kind: 'pane',
+          id: 'remote-pane',
+          profileId: '1234567890',
+          projectId: 'abcdef1234',
+        },
+      },
+    ]);
+    await boot();
+    expect(BrowserWindow.getAllWindows()).toHaveLength(1);
+    expect(BrowserWindow.getAllWindows()[0].loadURL).toHaveBeenCalledWith(
+      'http://localhost:7434/project/abcdef1234#invite=fresh',
+    );
+    expect(mocks.startLocal).not.toHaveBeenCalled();
+    expect(mocks.connectRemote).toHaveBeenCalledOnce();
+  });
+
   it('reopens local and SSH windows after Command-Q and keeps their bounds', async () => {
     saveReopenWindows(file(), [{ target: 'local' }, { target: 'user@host' }]);
     await boot();
@@ -298,4 +356,23 @@ it('binds host appearance reports to a registered cockpit main frame and target'
     { ...identity, target: 'user@other' },
   );
   expect([...loadHostIdentities(path)]).toEqual([['local', identity]]);
+});
+
+it('admits window context only from the registered exact-origin main frame', async () => {
+  saveReopenWindows(file(), [{ target: 'local' }]);
+  await boot();
+  const win = BrowserWindow.getAllWindows()[0]!;
+  const frame = { url: 'http://localhost:7433/project/abcdef1234' };
+  Object.assign(win.webContents, { mainFrame: frame });
+  const context = vi
+    .mocked(ipcMain.handle)
+    .mock.calls.find(([name]) => name === 'puddle:window-context')![1];
+  // Minimal Electron event fixture: only these members are consumed by admission.
+  const event = { sender: win.webContents, senderFrame: frame } as Electron.IpcMainInvokeEvent;
+  expect(context(event).identity.kind).toBe('host');
+  expect(() =>
+    context({ ...event, senderFrame: { ...frame } } as Electron.IpcMainInvokeEvent),
+  ).toThrow('Invalid window sender');
+  frame.url = 'http://localhost:7433@evil.example/';
+  expect(() => context(event)).toThrow('unavailable');
 });

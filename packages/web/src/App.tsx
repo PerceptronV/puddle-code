@@ -14,6 +14,7 @@ import { ShellLayout } from './features/shell/ShellLayout';
 import { tokenStore } from './lib/transport/auth';
 import { toastError } from './lib/transport/errors';
 import { useProfiles } from './lib/queries/queries';
+import { DesktopWindowGate } from './features/windows/window-context';
 
 // Route-level chunks: each page loads on first visit, not up front.
 const Dashboard = lazy(() =>
@@ -90,7 +91,9 @@ export function App() {
             window.location.pathname.startsWith('/forward/') ? (
               <ForwardLanding />
             ) : (
-              <Gated />
+              <DesktopWindowGate>
+                <Gated />
+              </DesktopWindowGate>
             )
           ) : (
             <TokenGate />
