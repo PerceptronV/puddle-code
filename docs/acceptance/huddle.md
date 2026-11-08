@@ -145,15 +145,13 @@ The count covers feedback boundaries along that causal path, so multiple differe
 boundaries do not reset it. Distinct feedback edges create distinct activations.
 A false continuation condition exits that edge. A still-true condition at the
 limit raises `HuddleFeedbackLimitError`, leaves the emission unacknowledged and
-admits no next invocation; the owner scheduler must record/stop the execution as
-a limit outcome. An incomplete join or failed invocation cannot be reported as
+admits no next invocation; the scheduler records failure and cancels dependent
+work. An incomplete join or failed invocation cannot be reported as
 successful execution completion. Interrupt/recovery also cancels waiting joins.
 
-These are internal routing primitives, not a running worker scheduler. They do
-not launch agents or scripts, subscribe triggers, publish/activate captured
-revisions, automatically settle failures, or create an owner service. The eventual
-owner must supply the pinned revision and handle routing errors visibly before
-this feature can be enabled.
+Routing composes with the scheduler below. The independent owner service,
+non-manual trigger subscriptions and live-agent dispatch remain unimplemented;
+these internal helpers alone do not expose huddles in the application.
 
 ## Implemented: captured-source node workers
 
@@ -200,9 +198,71 @@ remain unfinished.
 Archive builds include `daemon/huddle/runner.js` and `sdk.js` with their shared
 chunks, using `scripts/lib/puddlang-build.mjs`. The archive smoke check loads a
 captured helper, HuddleNode and zod under the archive's pinned Node without
-starting a daemon or agent. Fixture builds use the same entry layout. Persistent
-revision publication, scheduling, the owner service and live provider dispatch
-are still needed to expose this functionality in the application.
+starting a daemon or agent. Fixture builds use the same entry layout. The
+independent owner service and live provider dispatch are still needed to expose
+this functionality in the application.
+
+## Implemented: retained revisions and activation
+
+`state/revisions.ts` publishes immutable, content-addressed source documents under
+each runtime's private `huddle-revisions/`. Publication validates the full graph
+closure, component contracts and digest without loading code, serialises publishers
+with a permanent claim and syncs the atomic file publication. Repeated publication
+observes the existing document; corruption is rejected, never repaired in place.
+Restoration derives graph/layout metadata from retained files and verifies scope,
+dependencies and types again. Source quotas are 32 documents, 32 MiB per encoded
+document and 128 MiB retained bytes, independently of the execution ledger.
+Interrupted staging files count towards limits; collection is not implemented.
+
+`state/activation.ts` and `control/revisions.ts` separate publication from Apply.
+Activation records pin source revision, canonical source worktree, variable values
+and per-node resource bindings. Apply validates settings and requires explicit
+resolved resource bindings; the application host resolver must still authorise
+those resources. A compare-and-swap generation prevents stale Apply/control writes.
+Repeated activation ids return the original record and current pointer without
+rewinding it; changed payloads conflict. A failed ledger transaction leaves the
+published bundle inactive. Saving or publishing never arms a huddle.
+
+Managed trigger admission commits its activation id alongside the event/cursor
+and execution. It refuses a stale or unarmed activation. Queued/running work keeps
+its original source and binding values through later Apply operations. Retained
+armed/stopped/interrupted intent and auto-start preference do not themselves
+create subscriptions or implement machine-reboot recovery. Subscription fencing
+and cursor hand-off remain the future owner's responsibility.
+
+## Implemented: scheduler core and manual execution
+
+The internal `HuddleScheduler` drives durable executions, routing and isolated
+workers without renderer participation. `control/manual.ts` admits idempotent
+manual events; `huddle/components/core.ts` provides the initial Run trigger and
+result readout contracts. The scheduler runs local script components and stores
+result-readout input in the retained invocation. It refuses unsupported built-in
+contracts and local trigger/readout adapters. Coalescing/drop admission is refused
+until those policies are implemented. None of these helpers is yet connected to
+a huddle runtime entry point or public creation/Run command.
+
+Scheduling honours root/node concurrency and shared execution limits, with four
+worker slots by default (configurable from one to sixteen). Event outputs wake
+downstream scheduling before their source worker finishes; result readouts need
+no worker slot. Ready work, output acknowledgements and the nearest deadline
+drive the loop; idle graphs have no scheduler polling timer. Active executions
+share a captured graph per revision, with caches released after completion.
+Script failures, missing required join values, deadline expiry and feedback
+exhaustion fail the root and cancel remaining work. Stop/interruption fences new
+admission first, cancels queued roots and waits for actual child termination;
+re-arming never replays those cancelled roots. Unknown child termination blocks
+further scheduling and remains distinct from confirmed shutdown.
+
+Failure recording also reserves 32 KiB for root and queued-node outcomes and small
+state-transition reservations for armed control, joins and emissions, so saturated queues can still
+record bounded, JSON-escaped cancellation reasons. These are logical capacity
+reservations; physical ENOSPC still requires storage recovery.
+
+The scheduler can call an injected host operation bridge, but a production bridge
+with account/session/worktree authorisation and exact dispatch is not installed.
+Existing-agent cleanup, external adapter shutdown, independent supervision,
+daemon adoption and host memory admission remain owner integration work. The
+stored auto-start setting is not proof of restart/reboot continuity.
 
 ## Bounds and defaults
 
@@ -218,8 +278,8 @@ Execution settings already have validated defaults: one concurrent execution,
 executions, 32 daily spawns and 512 invocations per execution. Queuing defaults to
 `queue`, cleanup to `stop-owned`. The ledger enforces admission, deadline,
 concurrency and cumulative turn/spawn/invocation bounds. The router enforces
-feedback rounds. Coalescing/drop policies, actual dispatch and lifecycle cleanup still need the
-scheduler/control layer. Blank graphs can be saved as documents but fail
+feedback rounds. Coalescing/drop policies, provider dispatch and full lifecycle
+cleanup still need owner/control integration. Blank graphs can be saved as documents but fail
 activation validation until a trigger exists.
 
 ## Automated evidence
@@ -294,15 +354,28 @@ tests also cover the shared client extraction. A stale schema-39 migration fixtu
 was corrected to remove the later window-arrangement column before replaying
 migrations.
 
+The retained-revision and scheduler increment passed **298 tests in 41 files**
+across shared, huddle, puddlang and runtime framing/encoding/decoding suites, plus
+shared/daemon TypeScript and scoped ESLint. Revision tests cover immutable
+publication, corruption/symlink refusal, closure validation, quotas, stale Apply,
+duplicate activation and failed activation without pointer changes. Real worker
+tests cover manual execution through a result readout, queued source retained
+across Apply, feedback exit and exhaustion, script failure, event readouts while
+the source worker remains active, and busy-worker interruption with queued-root
+cancellation. A saturated-ledger check proves control interruption and root/node
+cancellation can still record a maximally JSON-escaped bounded reason. These
+checks run the scheduler in an isolated test owner; they do not establish an
+independent installed service or daemon-replacement continuity.
+
 ## Remaining implementation and acceptance
 
 Phase 0 remains open for the full component contract catalogue and lifecycle
-admission. Phase 1 has the private ledger and graph routing; next wire them into
-the independent huddle owner, worker scheduler and exact-operation bridge,
-including host resource accounting and lifecycle fencing. Runtime capability
-admission; third
-session kind and application protocol transition; IDE and normal windows; actual
-trigger/readout adapters; wrapped puddlang execution and lifecycle nodes; authoring
+admission. Phase 1 has retained revisions/activation, the ledger, routing, workers
+and a manual scheduler core; next wire them into the independent huddle owner
+and exact-operation bridge, including host resource accounting and lifecycle
+fencing. Runtime capability admission; third session kind and application protocol
+transition; IDE and normal windows; actual trigger/readout adapters; provider-backed
+lifecycle nodes; authoring
 tools, docs/skill and packaged integration.
 
 All live provider, SSH, native window, supervisor, complete owner crash/reboot, trigger cadence,

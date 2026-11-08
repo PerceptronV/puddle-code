@@ -6,6 +6,8 @@ import {
   huddleExecutionRecordSchema,
   huddleInboxRecordSchema,
   huddleJsonSchema,
+  huddleControlStateSchema,
+  huddleRevisionActivationSchema,
   type HuddleDefinition,
   type HuddleEvent,
   type HuddleExecutionRecord,
@@ -38,6 +40,7 @@ export class HuddleExecutions {
     next: HuddleJson,
     limitsInput: HuddleDefinition['execution'],
     now = Date.now(),
+    activationId?: string,
   ) {
     const event = huddleEventSchema.parse(eventInput);
     huddleJsonSchema.parse(previous);
@@ -74,6 +77,20 @@ export class HuddleExecutions {
       }
       if (canonicalHuddleJson(this.cursor(source)) !== canonicalHuddleJson(previous))
         throw new Error('Trigger cursor changed before admission');
+      if (activationId !== undefined) {
+        const current = huddleControlStateSchema.parse(
+          JSON.parse(this.db.get('control', 'current')?.body ?? 'null'),
+        );
+        const activation = huddleRevisionActivationSchema.parse(
+          JSON.parse(this.db.get('revision-activations', activationId)?.body ?? 'null'),
+        );
+        if (
+          current.state !== 'armed' ||
+          current.activationId !== activationId ||
+          activation.revision !== event.revision
+        )
+          throw new Error('Huddle activation changed or is not armed');
+      }
       if (this.db.get('executions', event.executionId))
         throw new Error('Execution id is already in use');
       if (this.db.count('executions', { state: 'pending' }) >= limits.maxQueuedEvents)
@@ -87,6 +104,7 @@ export class HuddleExecutions {
         id: event.executionId,
         eventKey: key,
         revision: event.revision,
+        ...(activationId === undefined ? {} : { activationId }),
         state: 'pending',
         limits,
         acceptedAt: now,
@@ -113,6 +131,12 @@ export class HuddleExecutions {
     return this.db.atomic(() => {
       const execution = this.get(id);
       if (execution.state !== 'pending') throw new Error('Execution cannot be started again');
+      if (execution.activationId) {
+        const current = huddleControlStateSchema.parse(
+          JSON.parse(this.db.get('control', 'current')?.body ?? 'null'),
+        );
+        if (current.state !== 'armed') throw new Error('Huddle is not armed for dispatch');
+      }
       if (now >= execution.deadline) throw new Error('Huddle execution deadline exceeded');
       if (this.db.count('executions', { state: 'running' }) >= execution.limits.concurrency)
         throw new Error('Huddle execution concurrency limit reached');
@@ -192,6 +216,7 @@ export class HuddleExecutions {
         )
       )
         throw new Error('Huddle execution still has unresolved operations');
+      const completed = this.save({ ...record, state, ...(error === undefined ? {} : { error }) });
       const inboxRow = this.db.get('inbox', record.eventKey)!;
       const inbox = huddleInboxRecordSchema.parse(JSON.parse(inboxRow.body));
       if (inbox.state === 'pending' && state !== 'completed')
@@ -199,7 +224,7 @@ export class HuddleExecutions {
           ...inbox,
           state: 'cancelled',
         });
-      return this.save({ ...record, state, ...(error === undefined ? {} : { error }) });
+      return completed;
     });
   }
 
@@ -210,7 +235,9 @@ export class HuddleExecutions {
 
   private save(record: HuddleExecutionRecord): HuddleExecutionRecord {
     const parsed = huddleExecutionRecordSchema.parse(record);
-    this.db.put('executions', record.id, record.revision, record.state, parsed);
+    this.db.put('executions', record.id, record.revision, record.state, parsed, {
+      bytes: ['pending', 'running'].includes(record.state) ? 32 * 1024 : 0,
+    });
     return parsed;
   }
 }

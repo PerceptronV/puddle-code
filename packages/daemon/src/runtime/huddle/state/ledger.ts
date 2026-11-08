@@ -13,12 +13,14 @@ import { HuddleExecutions } from './executions.js';
 import { HuddleInvocations } from './invocations.js';
 import { HuddleOperations } from './operations.js';
 import { HuddleGraphRouting } from '../execution/graph.js';
+import { HuddleActivations } from './activation.js';
 
 /** Owner-local durable execution authority; application SQLite remains daemon-owned. */
 export class HuddleLedger {
   readonly executions: HuddleExecutions;
   readonly invocations: HuddleInvocations;
   readonly operations: HuddleOperations;
+  readonly activations: HuddleActivations;
   private readonly database: HuddleStateDatabase;
 
   constructor(
@@ -30,6 +32,7 @@ export class HuddleLedger {
     this.executions = new HuddleExecutions(this.database);
     this.invocations = new HuddleInvocations(this.database, this.executions);
     this.operations = new HuddleOperations(this.database, this.executions, this.invocations);
+    this.activations = new HuddleActivations(this.database);
   }
 
   page(
@@ -41,6 +44,9 @@ export class HuddleLedger {
 
   usage() {
     return this.database.usage();
+  }
+  get identity(): HuddleLedgerIdentity {
+    return { ...this.database.identity };
   }
   graph(
     revision: string,
@@ -76,13 +82,20 @@ export class HuddleLedger {
   }
 
   /** Records cancellation intent; actual child/agent termination belongs to the owner controls. */
-  interrupt(executionId: string, state: 'cancelled' | 'interrupted', reason: string): void {
+  interrupt(
+    executionId: string,
+    state: 'cancelled' | 'interrupted' | 'failed',
+    reason: string,
+  ): void {
     this.database.atomic(() => {
       const execution = this.executions.get(executionId);
       if (!['pending', 'running'].includes(execution.state)) {
         if (execution.state === state && execution.error === reason) return;
         throw new Error('Execution already has a different terminal outcome');
       }
+      // Release the root's terminal-outcome reservation within the same transaction.
+      // Subsequent cancellation writes cannot expose a partially stopped graph.
+      this.executions.finish(executionId, state, reason);
       this.scan('operations', { parent: executionId }, (row) => {
         const operation = huddleOperationRecordSchema.parse(JSON.parse(row.body));
         if (operation.state === 'prepared') this.operations.cancelUnsent(operation.id);
@@ -111,7 +124,6 @@ export class HuddleLedger {
           state: 'cancelled',
         });
       });
-      this.executions.finish(executionId, state, reason);
     });
   }
 

@@ -81,6 +81,8 @@ export class HuddleJoins {
       join.invocationId = admitted.record.id;
     }
     const record = huddleJoinRecordSchema.parse(join);
-    this.db.put('joins', key, record.executionId, record.state, record);
+    this.db.put('joins', key, record.executionId, record.state, record, {
+      bytes: record.state === 'waiting' ? 32 : 0,
+    });
   }
 }

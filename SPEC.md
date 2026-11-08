@@ -1362,17 +1362,24 @@ and isolated crash evidence are tracked in acceptance. Internal graph routing in
 atomically. Joins correlate execution and activation; each explicit event emission
 and feedback iteration creates a separate activation. Feedback checks actual
 boolean exit conditions and finite round limits. Waiting joins and failed nodes
-prevent successful completion. Worker scheduling and owner integration remain
-unfinished; routing primitives do not launch scripts or agents.
+prevent successful completion. The internal scheduler drives local scripts,
+manual events and result readouts, including cancellation and explicit feedback
+limit failure; independent owner integration remains unfinished.
 `runtime/huddle/workers/` supplies isolated captured-source script execution with
 bounded framed transport, acknowledged owner calls, cancellation and exit
 observation. Source preparation rechecks the revision digest; imports use the
 declared component closure and the pinned HuddleNode/puddlang/zod helpers.
 The existing single-file runner shares its provider-neutral agent client with
 these workers. Archive builds bundle and smoke-test the new helper entries.
-Persistent revision publication, owner scheduling, host operation authority and
-service-scope worker recovery remain integration work; no huddle is launched by
-these internal primitives automatically.
+Private immutable revision documents and compare-and-swap activation records
+separate source publication from Apply/arming. Managed executions retain their
+accepted revision, variable values and resource bindings across later Apply.
+The scheduler starts isolated workers under root/node concurrency limits, wakes
+on events/deadlines and releases idle graph caches. Interruption fences admission,
+cancels queued roots and observes child exit; unknown termination blocks dispatch.
+The independent owner service, host operation authority, resource admission and
+service-scope recovery remain integration work. The runtime entry point does not
+launch a huddle owner yet; retained auto-start intent alone provides no reboot promise.
 There is no huddle API, runtime capability or UI yet; existing sessions and
 protocols remain unchanged. Contracts, bounds, verification and unfinished
 work are recorded in [huddle acceptance](docs/acceptance/huddle.md); the complete

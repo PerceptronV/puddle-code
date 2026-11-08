@@ -167,4 +167,40 @@ describe('huddle external operation consumption', () => {
     expect(() => f.ledger.invocations.complete(invocation.id, {})).toThrow('not running');
     expect(() => f.ledger.operations.dispatch(first.id)).toThrow('not running');
   });
+
+  it('reserves cancellation outcomes even when emissions fill the remaining byte capacity', () => {
+    const f = setup({ bytes: 1024 * 1024, records: 2000 });
+    f.ledger.activations.apply(
+      { id: randomUUID(), revision: 'a'.repeat(64), worktree: f.home, variables: {}, bindings: {} },
+      0,
+    );
+    f.ledger.activations.setIntent(1, 'armed', false);
+    const { invocation, execution } = runningHuddleInvocation(f);
+    const pending = f.ledger.invocations.queue({
+      id: randomUUID(),
+      executionId: execution.id,
+      revision: invocation.revision,
+      node: 'waiting',
+      activation: 'waiting',
+      iteration: 0,
+      inputs: {},
+    }).record;
+    let sequence = 1;
+    for (; sequence < 2000; sequence++) {
+      try {
+        f.ledger.invocations.emit(invocation.id, sequence, 'turn', 'x'.repeat(1024));
+      } catch (error) {
+        expect(String(error)).toContain('capacity');
+        break;
+      }
+    }
+    expect(sequence).toBeGreaterThan(1);
+    expect(sequence).toBeLessThan(2000);
+    const reason = '\u0000'.repeat(4096); // JSON escaping expands this to 24 KiB per outcome.
+    expect(() => f.ledger.activations.setIntent(2, 'interrupted', false)).not.toThrow();
+    expect(() => f.ledger.interrupt(execution.id, 'failed', reason)).not.toThrow();
+    expect(f.ledger.executions.get(execution.id)).toMatchObject({ state: 'failed', error: reason });
+    expect(f.ledger.invocations.get(pending.id).state).toBe('cancelled');
+    expect(f.ledger.page('emissions', { state: 'pending' })).toHaveLength(0);
+  });
 });

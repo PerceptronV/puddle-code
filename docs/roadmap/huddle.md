@@ -5,8 +5,8 @@ to implement this roadmap. Phase 0 has shared document contracts, graph/binding
 validation, data-only source discovery/capture, event/delivery contracts and an
 internal node execution boundary. Phase 1 has the private execution ledger and
 durable graph routing with correlated joins and bounded feedback, plus isolated
-captured-source script workers;
-independent owner/service, worker scheduling and UI integration remain unimplemented.
+captured-source script workers, retained revisions/activation and a manual scheduler.
+Independent owner/service, provider dispatch and UI integration remain unimplemented.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals, not available commands/imports.
 
@@ -670,8 +670,8 @@ enable nested delegation, cross-profile access or unlimited agent budgets.
 
 Phases 0 and 1 are **in progress**; phases 2–6 are **not started**. Phase 1 currently
 has the private inbox/outbox, node-attempt and exact-operation ledger plus durable
-graph routing and isolated script workers, without the independent owner service
-or worker scheduler. Each phase must update
+graph routing, isolated script workers, retained revisions/activation and a manual
+scheduler, without the independent owner service or provider bridge. Each phase must update
 `docs/acceptance/huddle.md` with implemented details and evidence, rather than
 leaving the only accurate description in code or marking future phases complete.
 

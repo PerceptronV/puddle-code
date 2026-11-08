@@ -18,6 +18,7 @@ export const huddleExecutionRecordSchema = z.strictObject({
   id: z.uuid(),
   eventKey: huddleRevisionSchema,
   revision: huddleRevisionSchema,
+  activationId: z.uuid().optional(),
   state: z.enum(['pending', 'running', 'completed', 'failed', 'cancelled', 'interrupted']),
   limits: huddleDefinitionSchema.shape.execution,
   acceptedAt: z.number().int().nonnegative().safe(),

@@ -45,6 +45,8 @@ export type HuddleCollection =
   | 'activations'
   | 'joins'
   | 'graph-starts'
+  | 'revision-activations'
+  | 'control'
   | 'operations'
   | 'emissions';
 

@@ -138,7 +138,7 @@ export class HuddleInvocations {
       // Require contiguous sequences; a lost acknowledgement is observation-only.
       if (sequence !== invocation.lastEmission + 1)
         throw new Error('Node emission sequence is not next');
-      this.db.put('emissions', key, record.executionId, record.state, record);
+      this.db.put('emissions', key, record.executionId, record.state, record, { bytes: 32 });
       this.save(
         { ...invocation, lastEmission: sequence },
         this.db.get('invocations', id)!.reserved,
@@ -185,7 +185,9 @@ export class HuddleInvocations {
           kind: 'completion',
           state: 'pending',
         });
-        this.db.put('emissions', `${id}:${sequence}`, record.executionId, 'pending', emission);
+        this.db.put('emissions', `${id}:${sequence}`, record.executionId, 'pending', emission, {
+          bytes: 32,
+        });
       }
       return completed;
     });
@@ -232,11 +234,14 @@ export class HuddleInvocations {
     });
   }
 
-  private save(record: HuddleInvocationRecord, reserved = 0): HuddleInvocationRecord {
+  private save(
+    record: HuddleInvocationRecord,
+    reserved = record.state === 'pending' ? 32 * 1024 : 0,
+  ): HuddleInvocationRecord {
     const value = huddleInvocationRecordSchema.parse(record);
     this.db.put('invocations', value.id, value.executionId, value.state, value, {
       bytes: reserved,
-      records: reserved ? HUDDLE_LIMITS.ports : 0,
+      records: record.state === 'running' ? HUDDLE_LIMITS.ports : 0,
       subject: `${value.revision}:${value.node}`,
     });
     return value;
