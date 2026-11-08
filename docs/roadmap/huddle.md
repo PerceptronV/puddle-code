@@ -2,8 +2,9 @@
 
 Status: implementation in progress, 2026-11-08, following the user's instruction
 to implement this roadmap. Phase 0 has shared document contracts, graph/binding
-validation and data-only source discovery/capture; runtime and UI phases remain
-unimplemented. See [implementation evidence](../acceptance/huddle.md). Unshipped
+validation, data-only source discovery/capture, event/delivery contracts and an
+internal node execution boundary; owner and UI phases remain unimplemented.
+See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals, not available commands/imports.
 
 The user explicitly permits breaking puddlang changes during this work; its

@@ -1346,6 +1346,11 @@ bounded two-agent cycles; removing those edges must leave an acyclic graph.
 Daemon `huddle/definitions/` performs data-only discovery and bounded source
 capture with revision hashes, rejecting symlink/traversal escapes and detected
 concurrent edits. It does not execute scripts or create runtime/session records.
+Shared event/delivery contracts retain exact turn identity and separate unknown
+delivery from success. The internal `puddlang/huddle/` node boundary validates
+inputs, settings, outputs and acknowledged event emissions, with immutable values
+and cancellation checks. Its trigger/readout interfaces await durable owner
+integration; `pudl run` does not expose the huddle import yet.
 There is no huddle API, runtime capability or UI yet; existing sessions and
 protocols remain unchanged. Contracts, bounds, verification and unfinished
 work are recorded in [huddle acceptance](docs/acceptance/huddle.md); the complete

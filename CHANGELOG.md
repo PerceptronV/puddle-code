@@ -26,3 +26,9 @@ Past releases: see docs/changelogs/.
 #### Added
 
 - Add preparatory huddle document validation and bounded source discovery for independent project definitions, including typed settings and bounded feedback graphs; runtime and UI enablement remain pending.
+
+### Runtime
+
+#### Added
+
+- Define huddle event/readout contracts and an internal node execution boundary with validated ports, immutable inputs and acknowledged emissions, ahead of independent owner integration.

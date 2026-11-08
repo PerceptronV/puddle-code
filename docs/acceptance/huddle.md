@@ -48,6 +48,31 @@ or UI is advertised by this increment.
   source bundles. These helpers take a worktree supplied by their caller; the
   future authorised service must validate profile/project/worktree ownership.
 
+## Implemented: node and extension boundary
+
+Shared `api/huddle/events.ts` defines version-1 scoped source events, extension
+emissions/cursors, readout deliveries/results and trigger health. A turn-completion
+resource requires its worktree, placement, runtime, segment, native conversation
+and exact turn number. Extensions can supply source event ids/data/cursors but
+cannot select host scope or execution identity. Delivery carries its immutable
+revision, invocation and idempotency key; `unknown` remains distinct from success.
+These contracts are not yet sent over application/runtime transports.
+
+Daemon `puddlang/huddle/` now contains the inert `HuddleNode` declaration, typed
+trigger/readout adapter interfaces and the node execution boundary. It supplies
+immutable input/setting snapshots, validates required/unknown ports and values,
+checks cancellation before work and before completion, and admits only declared
+event ports through the injected emission callback. A pending unacknowledged
+emission prevents node completion; late emissions after the invocation closes fail.
+The callback contract requires durable acknowledgement, but the durable owner
+implementation is still pending. There is no automatic repair or retry.
+
+The executor is intended for an isolated worker. It is not wired into `pudl run`
+or registered as the `puddlang/huddle` import yet; no code executes on discovery,
+and no capability is advertised based on these internal helpers. The worker must
+also match the module's contract path to the exact captured manifest and bind
+operations to the authorised owner before invoking it.
+
 ## Bounds and defaults
 
 Document limits: 256 nodes, 1,024 edges, 64 ports/parameters per component,
@@ -78,20 +103,24 @@ Run from the repository root with the installed dependencies:
 ```sh
 node node_modules/vitest/vitest.mjs run packages/shared/test/huddle packages/daemon/test/huddle
 node node_modules/typescript/bin/tsc -b packages/shared packages/daemon
-node node_modules/eslint/bin/eslint.js packages/shared/src/api/huddle packages/shared/src/huddle packages/shared/test/huddle packages/shared/test/helpers/huddle.ts packages/daemon/src/huddle packages/daemon/test/huddle
+node node_modules/eslint/bin/eslint.js packages/shared/src/api/huddle packages/shared/src/huddle packages/shared/test/huddle packages/shared/test/helpers/huddle.ts packages/daemon/src/huddle packages/daemon/src/puddlang/huddle packages/daemon/test/huddle
 ```
 
 Verified 2026-11-08: the expanded shared-package plus huddle-definition run passed
 171 tests in 21 files. Shared/daemon TypeScript builds and the scoped ESLint check
 passed. The roadmap's JSON example parses with the implemented definition schema.
-The huddle suite currently contains 23 tests across four files. Test fixtures
+The subsequent node/event increment passed 32 huddle tests across six files,
+shared/daemon TypeScript builds and its scoped ESLint check. Tests include exact
+turn identity, forged extension scope rejection, unknown delivery, invalid node
+ports/settings/approval, immutable inputs, unacknowledged/late emissions and
+cancellation. Test fixtures
 live in `shared/test/helpers/huddle.ts` and are not installed components.
 There are no database migrations or operational commands in this increment.
 
 ## Remaining implementation and acceptance
 
-Phase 0 remains open for execution/trigger/readout envelopes and the full component
-contract catalogue. Then implement the independent huddle owner, durable
+Phase 0 remains open for the full component contract catalogue and lifecycle
+admission. Then implement the independent huddle owner, durable
 inbox/outbox and exact-operation bridge; runtime capability admission; third
 session kind and application protocol transition; IDE and normal windows; actual
 trigger/readout adapters; wrapped puddlang execution and lifecycle nodes; authoring

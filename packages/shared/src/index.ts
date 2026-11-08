@@ -20,6 +20,7 @@ export * from './api/huddle/values.js';
 export * from './api/huddle/contracts.js';
 export * from './api/huddle/components.js';
 export * from './api/huddle/definitions.js';
+export * from './api/huddle/events.js';
 export * from './huddle/validation/values.js';
 export * from './huddle/validation/graph.js';
 export * from './huddle/validation/bindings.js';
