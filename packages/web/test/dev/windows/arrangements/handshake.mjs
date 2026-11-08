@@ -1,5 +1,6 @@
 // Existing preview pages exercise the real Workspace/dashboard readiness hooks.
-// This is a handshaking fixture, not the still-pending named-layout apply planner.
+// Stage/verify/finish are exercised directly here; the apply and catalogue
+// fixtures cover the complete coordinator and named-layout controls.
 import assert from 'node:assert/strict';
 import { expect } from '@playwright/test';
 

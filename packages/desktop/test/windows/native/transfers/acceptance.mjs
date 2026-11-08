@@ -7,6 +7,7 @@ import { createRequire } from 'node:module';
 import { buildNativePreview } from '../build.mjs';
 import { checkDocking } from './docking.mjs';
 import { checkProjectReturns } from './projects.mjs';
+import { checkAppInterruptions } from './restart.mjs';
 
 const require = createRequire(import.meta.url);
 const { _electron: electron, expect } = createRequire(
@@ -67,6 +68,16 @@ const kill = async () => {
   application.process().kill('SIGKILL');
   await closed;
   application = undefined;
+};
+const quit = async () => {
+  const closed = application.waitForEvent('close');
+  await application.evaluate(({ app }) => app.quit());
+  await closed;
+  application = undefined;
+  assert.deepEqual(
+    JSON.parse(await readFile(join(directory, 'home/native-preview-connections.json'))),
+    { starts: 1, closes: 1 },
+  );
 };
 try {
   await buildNativePreview(directory, { transferFaults: true });
@@ -180,6 +191,23 @@ try {
     reached,
     expect,
   });
+  await checkAppInterruptions({
+    getApplication: () => application,
+    host: source,
+    state,
+    draft,
+    text,
+    arm,
+    reached,
+    detach,
+    restart: async () => {
+      await kill();
+      return launch();
+    },
+    quit,
+    launch,
+    expect,
+  });
   assert.deepEqual(errors, []);
   console.log(
     JSON.stringify({
@@ -194,6 +222,9 @@ try {
         'dock-destination-before-accept',
         'project-return-cancel',
         'project-return-lost-accept-reply',
+        'quit-during-transfer',
+        'app-interruption-before-commit',
+        'app-interruption-after-commit',
       ],
     }),
   );

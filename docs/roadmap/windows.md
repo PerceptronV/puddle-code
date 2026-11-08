@@ -1,10 +1,17 @@
 # Detached desktop windows
 
-Status: implementation in progress, 2026-11-07. This document describes the full
+Status: implementation and macOS headless verification complete, 2026-11-08.
+This document describes the full
 design intent; actual delivery and verification are tracked in the acceptance
 document below. This concerns multiple
 native app windows, independently of the Windows operating-system work in
 [windows-cockpit.md](windows-cockpit.md).
+
+Completion scope updated by the user on 2026-11-08: finish the implementation and
+headless testing on macOS. Interactive native tests must not disrupt the user's
+desktop. The OS/platform exercises below remain documented manual acceptance,
+not blockers for this implementation goal; report their actual evidence and gaps
+separately in the acceptance document.
 
 **Instruction to the implementing agent:** document the implemented version in
 [`docs/acceptance/windows.md`](../acceptance/windows.md). Create that document

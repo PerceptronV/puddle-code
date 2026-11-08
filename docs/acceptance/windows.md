@@ -1,8 +1,61 @@
 # Detached desktop windows
 
-Implementation in progress, 2026-11-08. Design intent is in
+Implementation and macOS headless verification complete, 2026-11-08. Design intent is in
 [the roadmap](../roadmap/windows.md). This document records delivered code and
 verification; pending items are not support claims.
+
+The user set completion to implemented behaviour plus headless testing on macOS
+on 2026-11-08. Interactive OS/platform checks remain a separate manual acceptance
+list. Do not launch visible native tests while the user is working on the laptop.
+
+## Completion audit and headless verification
+
+The requested implementation is complete under that scope. Existing workspace,
+pane, editor, terminal, sidebar and layout components are reused; window lifetime,
+ownership and recovery are coordinated by the desktop shell. The audit found no
+remaining feature implementation stub or missing requested action.
+
+| Requirement | Implemented and verified evidence |
+| --- | --- |
+| File/session/pane windows and stripped chrome | Shared Workspace/Shell presentation, existing context menus and transfer projections; headless file-menu, pane-return and session-effects cases. |
+| Add files/sessions and dock panes | Native drag references and the shared transfer coordinator; headless file/tab/session drops, pane drag and menu return preserve drafts, selections and reload state. |
+| Dedicated projects and return/navigation | Unique project ownership and shared route interception; project-layouts/catalogue checks exercise extraction, drag return, atomic source closure and host reload; desktop project/navigation tests cover retained returns and profile isolation. |
+| Host-independent lifetime and recovery | One connection per host, window-specific working sets and startup recovery; desktop lifecycle/host/persistence tests cover host closure, refresh, changed origins, interrupted commits and independent detached windows. |
+| Safe ownership/draft handoff | Revisioned prepare/accept/commit, observed lost replies and final retirement checks; transfer/state tests cover cancellation, renderer loss, conflicts, late edits, scope rejection and durable failures. |
+| Save/load window configurations from host only | Shared versioned arrangement storage, host-only capture/apply and Layouts UI; headless handshake, catalogue and project-layout tests plus migration/HTTP tests cover repeated loads, legacy layouts, dirty preservation, scope and rollback. |
+| Names, shared effects and ordinary browser behaviour | Project/file/session-only workspace titles, coordinated notifications/update ownership; title/effect tests, session-effects and ordinary browser layout/drag/workspace/component checks. |
+| Hierarchical code and implementation record | Desktop `windows/`, web `features/windows/`, shared `desktop/windows/` and matching test groups; this document, SPEC and changelog describe delivered behaviour and limits. |
+
+Final checks on macOS arm64:
+
+- **1,271 tests in 173 files**: complete desktop and web Vitest projects.
+- **150 tests in 19 files**: shared contracts plus isolated named-layout HTTP and
+  SQLite migration tests. No daemon service was launched.
+- **13 headless Chromium cases**, completed in batches: pane return, pane drag
+  with layout handshake/rollback, file menu, file/tab/session drops, session
+  effects and detached ownership handover, project layout application/repeated
+  loading, Layouts catalogue, ordinary browser layouts, pane dragging, workspace
+  transitions and responsive editor/notebook/PDF components.
+- Desktop/web TypeScript and production builds passed. Web build reports the
+  existing large-chunk advisory. Repository ESLint, formatting and colour-token
+  checks passed.
+
+Reproduce the browser coverage against a separately running UI-only preview:
+
+```sh
+PREVIEW_URL=http://127.0.0.1:5188/ pnpm --filter @puddle/web test:windows:headless
+```
+
+The runner is `web/test/windows/headless/acceptance.mjs`; optional case-name
+arguments run a subset. It uses strictly headless Chromium, real renderer
+components and desktop coordinators, and synthetic native bridges. It opens no
+Electron windows, moves no OS pointer, and launches no daemon. The preview port
+is configurable. The first batch passed pane cases; a fixture-option mismatch
+for file drops was corrected in the runner, then every remaining case passed.
+
+Interactive/platform evidence remains separate below. Undo history and live DOM
+identity do not cross renderers; dirty text and supported view state do. These
+existing documented limits do not imply missing requested window functionality.
 
 ## Implemented foundation
 
@@ -252,9 +305,9 @@ verification; pending items are not support claims.
   original window. Click routing resolves the target project's profile, prefers
   an existing detached session pane, then uses shared project-window routing.
 
-Native macOS UI-only lifecycle acceptance has now run, as recorded below. Packaged
-and Linux acceptance, native drag gestures, live host/process continuity and the
-remaining full-roadmap audits are still pending. Undo-stack transfer is not
+Native macOS UI-only lifecycle acceptance has run, as recorded below. Packaged
+and Linux acceptance, OS drag gestures and live host/process continuity remain
+deferred platform exercises under the updated scope. Undo-stack transfer is not
 implemented; restored editors use new Monaco models with recovered text.
 
 ## Verification record
@@ -1026,7 +1079,56 @@ The runner still uses an isolated preview host, synthetic menu gestures and
 test-only reply interception. This does not establish OS drag, real Command-Q,
 machine/host recovery or every arrangement interruption; those gates remain below.
 
-## Required acceptance before completion
+### App interruption at the transfer commit boundary — 2026-11-08
+
+The native transfer runner now includes app-wide interruption before and after
+the durable commit. All ten cases passed on macOS arm64 with
+`PREVIEW_URL=http://127.0.0.1:5188/ pnpm --filter @puddle-code/desktop
+test:native-window-transfers`. These checks use the same isolated temporary state
+and real Electron/main/preload/renderer code as the earlier transfer cases.
+
+- Hold source commit after the destination has mounted its dirty editor. Calling
+  `app.quit()` reaches the real quit/checkpoint flow and refuses closure because
+  a transfer remains pending. Both windows remain open and inert, and the
+  prepared record remains durable. The fixture records `showErrorBox` arguments
+  instead of showing a blocking OS dialogue; it does not replace the quit decision.
+- SIGKILL that fixture app while the transfer is still prepared. Relaunch cancels
+  the pending record, restores only the original source identity and retains its
+  exact dirty text. No staged destination is reopened.
+- Start a new move and hold the source reply after the actual commit. Confirm the
+  source still has its old live model, then SIGKILL the fixture app. Relaunch
+  restores the host and destination identities, with the dirty file only in the
+  destination. The source's durable buffers are empty and its file tab is absent.
+  The committed outcome remains recorded and no pending transfer remains.
+- Quit that recovered app cleanly and relaunch again. The same identities and
+  ownership remain, with one connection per launch and exactly one connection
+  teardown on clean quit.
+
+The runner reported no renderer page errors; targeted lint and formatting checks
+passed. This verifies app-level quit/interruption handling, not physical Command-Q
+key delivery, power loss, filesystem durability under power failure, or host/runtime
+restart. Arrangement transactions and the remaining requirements below still need
+their own acceptance evidence.
+
+### Latest completed native run before headless-only work — 2026-11-08
+
+Before the user's request to stop disruptive desktop testing, the existing full
+native suite completed successfully on macOS arm64 against the isolated preview
+at `127.0.0.1:5188`, reporting `omitted: []`. It verified project navigation/focus,
+host-independent pane lifetime, real fullscreen entry/exit, name-only native
+titles, dirty-editor/notebook/preview handoffs, missing-resource recovery,
+renderer reload, app interruption and close-review/relaunch. The process exited
+successfully and its fixture windows closed. No further native runs were launched
+after that request. This supersedes the earlier locked-console prerequisite for
+that run only; it does not establish OS drag, physical Command-Q or other platforms.
+
+## Deferred interactive and platform acceptance
+
+These preserve the original roadmap's broader acceptance checklist. Under the
+user's updated completion scope, they are follow-up manual/platform checks rather
+than blockers for implementation and headless verification. Many have partial
+automated or historical native evidence above; do not infer untested OS behaviour
+from a synthetic bridge or headless browser.
 
 1. Open files, sessions, full panes, and projects using their context menus.
    Confirm exact chrome, tab order, active selection, and ordinary editor,

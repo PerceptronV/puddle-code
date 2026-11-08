@@ -122,6 +122,7 @@ pnpm install            # workspace install
 pnpm dev                # daemon TypeScript watch + web (Vite); start daemon separately
 pnpm --filter @puddle/web dev:preview # UI with sample data, no daemon; localhost:5174
 pnpm --filter @puddle/web test:preview # browser checks against the running preview
+pnpm --filter @puddle/web test:windows:headless # window flows in headless Chromium; requires UI preview
 pnpm build              # all packages; web assets land inside the CLI (packages/cli/dist/public)
 pnpm test               # vitest across workspaces
 pnpm lint               # eslint + prettier check
@@ -162,6 +163,14 @@ The native transfer check uses the same isolated build and `PREVIEW_URL`. Its
 test-only IPC interceptor pauses or rejects selected replies around the real
 handlers, verifying renderer-crash rollback and observation after a lost commit
 reply. It does not require native focus and does not establish OS drag coverage.
+
+For non-disruptive window verification, use `test:windows:headless` with
+`PREVIEW_URL` set to a UI-only preview. It runs headless Chromium against the real
+window coordinators and renderer components, with synthetic native bridges; it
+never launches Electron or moves the OS pointer. Optional case-name arguments
+select individual checks. The separate `test:native-*` commands open real windows,
+change focus and may enter fullscreen; do not run them while the user is working
+on that desktop unless the user explicitly requests those interactive checks.
 
 For manual testing before a release exists: `pnpm build && pnpm build:tarball`, then
 `node packages/cli/dist/index.js launch --tarball dist-release/puddled-v*.tar.gz` (or

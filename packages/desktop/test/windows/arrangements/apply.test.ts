@@ -417,15 +417,13 @@ it('keeps a reopened closed slot’s omitted original drafts when late edits req
   f.dependencies.command.mockImplementation(async (id, command) => {
     const reply = await f.commands.arrangement(id, command);
     if (command.kind === 'stage-layout' && id === 'pane')
-      f.contents
-        .get(id)!
-        .restore({
-          ...command.version.content,
-          buffers: [
-            ...command.version.content.buffers,
-            { session, path: 'late.ts', content: 'late edit', baseMtimeMs: 1 },
-          ],
-        });
+      f.contents.get(id)!.restore({
+        ...command.version.content,
+        buffers: [
+          ...command.version.content.buffers,
+          { session, path: 'late.ts', content: 'late edit', baseMtimeMs: 1 },
+        ],
+      });
     return reply;
   });
   expect((await f.apply.apply('host', f.request)).status).toBe('cancelled');
