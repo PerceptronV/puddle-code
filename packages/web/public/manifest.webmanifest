@@ -6,6 +6,6 @@
   "scope": "/",
   "display": "standalone",
   "icons": [
-    { "src": "/puddle-app.png", "sizes": "1024x1024", "type": "image/png", "purpose": "any" }
+    { "src": "/puddle-app.png?v=2", "sizes": "1024x1024", "type": "image/png", "purpose": "any" }
   ]
 }

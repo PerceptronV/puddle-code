@@ -14,3 +14,7 @@ Past releases: see docs/changelogs/.
 #### Changed
 
 - Use frontend terminology throughout the application, documentation and future releases while retaining compatibility with published versions.
+
+#### Fixed
+
+- Refresh cached website favicons, installed web app icons and notification icons to use the new Puddle logo set.

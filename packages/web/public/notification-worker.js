@@ -133,7 +133,7 @@ function show(request, host, fromPush = false, client) {
         ...(host ? { host } : { client }),
         ...(targetOf(request.target) ? { target: targetOf(request.target) } : {}),
       },
-      icon: '/puddle-app.png',
+      icon: '/puddle-app.png?v=2',
     });
     if (deduplicate) await seen(request.id, true).catch(() => {});
   });
