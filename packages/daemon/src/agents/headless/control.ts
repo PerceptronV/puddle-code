@@ -4,10 +4,12 @@ import { createServer, type Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { StringDecoder } from 'node:string_decoder';
+import type { AgentTurnContext } from '@puddle/shared';
 import type { AgentControl, LifecycleLaunchResource } from '../adapter.js';
 import { record, type HeadlessContext, type HeadlessDriver, type JsonRecord } from './codec.js';
 import { HeadlessWrites } from './writes.js';
 import { HEADLESS_TERMINAL_SOURCE } from './terminal-source.js';
+import { HeadlessTurnObservation } from './native-turn.js';
 
 const LIMIT = 256 * 1024;
 const plain = (text: string) => text.replace(/[\x00-\x08\x0b-\x1f\x7f-\x9f]/g, ''); // eslint-disable-line no-control-regex -- Transcript output cannot carry terminal commands.
@@ -20,12 +22,13 @@ export class HeadlessControl implements AgentControl {
   private ref: string | undefined;
   private closed = false;
   private connected = false;
+  private bindingUnavailable = false;
   private initialPrompt: string | undefined;
   private pending: {
     id: string;
     observe(event: JsonRecord): void;
-    finish(error?: Error): void;
-    fail(error: Error): void;
+    finish(error?: Error, interrupted?: boolean): void;
+    fail(error: Error, interrupted: boolean): void;
   } | null = null;
 
   constructor(
@@ -37,7 +40,11 @@ export class HeadlessControl implements AgentControl {
   }
 
   get ready(): boolean {
-    return this.connected && !this.pending && !this.closed;
+    return this.connected && !this.pending && !this.closed && !this.bindingUnavailable;
+  }
+
+  get nativeTurnEvents(): boolean {
+    return !!this.context.reportNativeTurn;
   }
 
   connect(socket: Socket): void {
@@ -69,7 +76,7 @@ export class HeadlessControl implements AgentControl {
             this.cancel('Turn interrupted from the terminal');
           else if (event['id'] === this.pending?.id) this.pending?.observe(event);
         } catch {
-          this.cancel('Invalid structured agent output');
+          this.cancel('Invalid structured agent output', false);
         }
       }
       if (Buffer.byteLength(buffer) > 2 * LIMIT) this.dispose();
@@ -78,7 +85,12 @@ export class HeadlessControl implements AgentControl {
     socket.on('error', () => this.dispose());
   }
 
-  async ask(prompt: string, signal: AbortSignal, schema?: JsonRecord): Promise<string> {
+  async ask(
+    prompt: string,
+    signal: AbortSignal,
+    schema?: JsonRecord,
+    context?: AgentTurnContext,
+  ): Promise<string> {
     if (!this.ready) throw new Error('Agent is busy or not ready');
     signal.throwIfAborted();
     const id = randomUUID();
@@ -97,10 +109,19 @@ export class HeadlessControl implements AgentControl {
       failure: Error | undefined;
     let binding = Promise.resolve();
     let stderr = '';
+    const observation = new HeadlessTurnObservation(
+      id,
+      context,
+      this.context.reportNativeTurn,
+      this.context.reportNativeTurnGap,
+      this.context.bufferAllowance,
+    );
     return new Promise<string>((resolve, reject) => {
       const abort = () => this.cancel('Headless turn cancelled');
-      const finish = (error?: Error) => {
+      const finish = (error?: Error, interrupted = false) => {
         if (this.pending?.id !== id) return;
+        observation.finish(reply, error, interrupted);
+        observation.close();
         this.pending = null;
         signal.removeEventListener('abort', abort);
         this.context.reportStatus?.('waiting_input');
@@ -114,15 +135,25 @@ export class HeadlessControl implements AgentControl {
         const value = decode(record(JSON.parse(raw)));
         if (value.error) throw new Error(value.error);
         if (value.ref) {
-          seenRef = true;
+          if (value.ref.length > 200)
+            throw new Error('Native conversation identity exceeds 200 characters');
           if (this.ref && this.ref !== value.ref)
             throw new Error('Agent changed its native conversation unexpectedly');
+          const first = !seenRef;
+          seenRef = true;
+          observation.identify(value.ref);
           if (!this.ref) {
             this.ref = value.ref;
-            binding = this.context.bindConversation?.(value.ref) ?? Promise.resolve();
+            const ref = value.ref;
+            binding = Promise.resolve().then(() => this.context.bindConversation?.(ref));
+          }
+          if (first) {
+            binding = binding.then(() => observation.start());
             void binding.catch((error: unknown) => {
+              this.bindingUnavailable = true;
+              this.context.reportLifecycleUnavailable?.();
               failure = new Error(String(error));
-              this.cancel(failure.message);
+              this.cancel(failure.message, false);
             });
           }
         }
@@ -134,8 +165,9 @@ export class HeadlessControl implements AgentControl {
       this.pending = {
         id,
         finish,
-        fail: (error) => {
+        fail: (error, interrupted) => {
           failure ??= error;
+          if (interrupted) observation.finish('', error, true);
           this.send({ type: 'cancel', id });
         },
         observe: (event) => {
@@ -190,15 +222,15 @@ export class HeadlessControl implements AgentControl {
     });
   }
 
-  private cancel(message: string): void {
+  private cancel(message: string, interrupted = true): void {
     // Admission stays closed until the native child exits. An attached runtime
     // survives cancellation; a subsequent ask is always a new explicit turn.
-    this.pending?.fail(new Error(message));
+    this.pending?.fail(new Error(message), interrupted);
   }
 
   dispose(): void {
     this.closed = true;
-    this.pending?.finish(new Error('Agent terminal closed'));
+    this.pending?.finish(new Error('Agent terminal closed'), true);
     this.socket?.destroy();
     this.socket = null;
   }

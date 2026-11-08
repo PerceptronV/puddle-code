@@ -549,8 +549,10 @@ Do not infer completed turns from idle status or borrow attribution from a later
 Retain bounded attribution for asks ended before hook acknowledgement; delayed
 starts must not become external input, even after attribution capacity is exhausted.
 Bound records/pages, charge retained/write memory and expose gaps/pending persistence
-without killing unrelated PTYs. Hook-based interactive controls currently report
-observations; structured Codex/headless adapters and huddle completion-node delivery
+without killing unrelated PTYs. Hook-based interactive and headless controls report
+observations. Headless command keys are invocation correlations, not provider-issued
+ids; bind native identity before publication and require result plus exit 0 for success.
+Failed binding must keep later asks unavailable. Interactive Codex observation and huddle completion-node delivery
 remain unfinished. Inspect provider availability as well as protocol support.
 Application 27.0 adds the closed `huddle` session kind. Migration 43 and
 `db/stores/huddle/placements.ts` retain one immutable placement per

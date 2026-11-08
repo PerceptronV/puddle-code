@@ -55,9 +55,11 @@ Migration 47 adds bounded, transactionally captured host session lifecycle/statu
 observations and typed retention gaps. Optional `sessionEvents: 1` now delivers these
 observations into independent owners with durable source cursors, maintenance/reconnect
 fencing and Session lifecycle editor settings. Runtime protocol 1.2 now supplies a
-separate bounded native-turn stream for hook-based interactive controls, retaining
+separate bounded native-turn stream for hook-based interactive and headless controls, retaining
 exact outcomes and originating ask/huddle identities across controller disconnection.
-Structured Codex/headless adapters and delivery into huddle completion nodes remain pending.
+Headless observations use exact command-correlated keys, successful native results
+plus exit evidence, and immutable ask attribution. Interactive Codex observation
+and delivery into huddle completion nodes remain pending.
 Broader recurrence rules, exact native completion subscriptions, a richer trigger health/backlog
 inspector and custom trigger/readout workers remain unfinished.
 See [implementation evidence](../acceptance/huddle.md). Unshipped

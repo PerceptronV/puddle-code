@@ -67,7 +67,7 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
-- Retain exact hook-based interactive turn observations in a bounded independent stream across controller disconnection (runtime protocol 1.2), with explicit gaps, persistence status and originating ask/huddle identities. Keep older controllers compatible; structured Codex/headless adapters and huddle completion-node delivery remain pending.
+- Retain exact hook-based interactive and command-correlated headless turn observations in a bounded independent stream across controller disconnection (runtime protocol 1.2), with explicit gaps, persistence status and originating ask/huddle identities. Headless completion requires native identity binding, a successful result and exit 0. Keep older controllers compatible; interactive Codex observation and huddle completion-node delivery remain pending.
 
 - Queue huddle script asks durably through an optional private operation capability, with declared agent/worktree bindings, single-consumption dispatch claims and retained exact-result receipts. Preserve waiting workers across controller disconnect and refuse replay after lost replies.
 - Define huddle event/readout contracts and an internal node execution boundary with validated ports, immutable inputs and acknowledged emissions, ahead of independent owner integration.

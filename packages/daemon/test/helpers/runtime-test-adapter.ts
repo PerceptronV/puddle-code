@@ -1,4 +1,5 @@
 import { InteractiveControl } from '../../src/agents/interactive/control.js';
+import { prepareRuntimeHeadless } from './agents/runtime-headless.js';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { existsSync } from 'node:fs';
@@ -148,7 +149,10 @@ export const runtimeTestAdapter: AgentAdapter = {
   resolveSessionRef: async () => 'unused',
   statusPatterns: { waitingInput: [] },
   prepareLifecycleLaunch: prepare,
-  prepareHeadlessLaunch: prepare,
+  prepareHeadlessLaunch: (context) =>
+    context.env?.['PUDDLE_TEST_HEADLESS_NATIVE'] === '1'
+      ? prepareRuntimeHeadless(context)
+      : prepare(context),
 };
 
 /** Preset-id interactive fallback; no native provider executable or lifecycle hook. */

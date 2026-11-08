@@ -9,7 +9,7 @@ stream and launch seed are unchanged. Older controllers ignore the added fields
 and never receive unsolicited new event kinds. Application 28.4, remote protocol 5,
 database 47 and huddle owner/ledger contracts are unchanged.
 
-Native observations use `runtime/native-turns.ts`: exact conversation and native-hook
+Native observations use `runtime/native-turns.ts`: exact conversation and correlated
 turn identity, segment id, currently bound placement (nullable before adoption),
 owner observation timestamp, event/outcome and attribution. `start-turn.origin` is
 optional huddle/execution/operation causation supplied by the trusted host caller
@@ -30,7 +30,14 @@ Unmatched completion proves a gap unless a terminal observation is still retaine
 Late acknowledgement of an already-ended ask retains its origin and reports
 interruption. Exhausted retired attribution reports a gap and unknown origin;
 it cannot reclassify a delayed automated prompt as external input.
-Codex structured-control and headless observation adapters, huddle completion-node
+Headless adapters use `command:<uuid>` turn keys from the exact private command
+invocation; these are correlation keys, not claimed provider-issued turn ids.
+Native identity must bind before publishing observations, and successful completion
+requires both the bounded native result and exit 0. All headless invocations are
+automated; missing caller context remains unknown. Cancellation, binding loss and
+source memory refusal cannot become successful external-input events. This uses
+the existing optional availability field without another protocol version change.
+Interactive Codex structured-control observation, huddle completion-node
 delivery and native-provider acceptance remain pending.
 
 Database **47** retains bounded host session observations. Optional private huddle

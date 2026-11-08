@@ -24,8 +24,44 @@ Migration 47 retains bounded host session observations. Optional `sessionEvents:
 now delivers them to independent owners through durable subscriptions; Session
 lifecycle nodes and stopped/archived session selectors are available in the IDE.
 Runtime protocol 1.2 now retains an independent native-turn source for hook-based
-interactive controls; completion-trigger delivery remains pending.
+interactive and command-correlated headless controls; completion-trigger delivery remains pending.
 No user CLI command is enabled yet.
+
+## Implemented: headless native turn observation
+
+The existing Claude Code, Codex, Gemini CLI and OpenCode headless drivers now feed
+the native-turn stream. `agents/headless/native-turn.ts` retains immutable admitted
+ask/huddle context for one command invocation. `command:<uuid>` is the exact private
+invocation correlation, explicitly not a provider-issued turn id. Every headless
+invocation is automated; absent caller context remains unknown.
+
+Native conversation identity is bounded and must bind before observations are
+published. A successful result alone does not complete the source turn: exit 0 is
+also required. Cancellation after a result but before exit remains interrupted;
+missing results, nonzero exits and provider errors remain failed. Binding failure
+keeps later asks unavailable rather than reusing an unbound native ref. Interruption
+before binding produces a gap when an exact ref is known. Missing native identity
+does not fabricate a placement or a completed turn. A managed 4 KiB observation
+charge is released with the settled ask; capacity refusal and optional observer
+errors do not own the ordinary command's lifetime.
+
+Provider decoder fixtures execute through the real private terminal bridge, covering
+two distinct correlated turns, immutable attribution, missing caller context,
+native result/exit ordering, cancellation, delayed/rejected binding, disposal,
+memory refusal and bounded identity. Independent owner fixtures use the same
+headless control and a fixture executable to retain success or interruption across
+controller disconnection/replacement with the original huddle origin. These do not
+use installed provider CLIs or establish native/SSH/reboot acceptance.
+
+Verification on 2026-11-08: **75 tests in 18 files** passed across runtime execution,
+programme replacement and huddle-operation suites. The final headless bridge,
+observation and independent-owner recheck passed **41 tests in four files**, including
+failed-binding admission, oversized native identities and observer failure isolation.
+Shared/daemon/CLI TypeScript, repository ESLint, formatting and diff checks passed.
+
+Interactive Codex observation, huddle completion subscriptions/delivery and their
+editor controls remain pending. Application/runtime/remote protocol versions and
+database/ledger formats are unchanged by this provider integration.
 
 ## Implemented: native turn source retention
 
@@ -105,7 +141,7 @@ checkout lacks `docs/reports/persistent-runtimes/resources/2026-11-04-native.jso
 and the other recorded native report fixtures. This remains missing regression
 evidence; no fabricated resource report or native acceptance result substitutes for it.
 
-Pending: Codex structured-control and headless observation adapters, scoped native
+Pending: interactive Codex structured-control observation, scoped native
 source subscriptions/delivery into huddle owners, the completion-node UI and bounded
 feedback/echo policy, stopped-source inspection and full provider/SSH/native/reboot
 acceptance. Unreceived hooks cannot be reconstructed; detected missing admission is
