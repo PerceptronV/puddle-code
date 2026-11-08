@@ -339,7 +339,8 @@
 // 26.9: private desktop tab-window lookup and exact-window tab activation.
 // 26.10: optional private desktop reload with a durable window checkpoint.
 // 26.11: private desktop docking plans, staged destination commands and empty-source retirement.
-export const PROTOCOL_VERSION = { major: 26, minor: 11 } as const;
+// 26.12: single-use native pane drag offers and source-directed docking commands.
+export const PROTOCOL_VERSION = { major: 26, minor: 12 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

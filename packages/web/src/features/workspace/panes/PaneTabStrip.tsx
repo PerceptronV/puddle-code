@@ -41,6 +41,7 @@ import { tabRefKey } from '../layout/layout-tree';
 import { useDropIndicator } from '../layout/TilingDnd';
 import { PaneWindowContextMenu } from '../../windows/PaneWindowContextMenu';
 import { TabWindowContextMenu } from '../../windows/TabWindowContextMenu';
+import { beginPaneWindowDrag, canDragPaneWindow } from '../../windows/pane-drag';
 
 // The 7.2rem floor leaves a clickable title beside the three hover controls a stopped
 // session can show (resume, archive and close). Controls overlay the right edge
@@ -109,6 +110,8 @@ export function PaneTabStrip({
   onRenameFile: (tab: EditorTab, newName: string) => Promise<boolean>;
 }) {
   const single = leaf.tabs.length === 1;
+  const nativePaneDrag = canDragPaneWindow();
+  const nativeDragStart = useRef(false);
   const sessionsById = new Map(sessions.map((session) => [session.id, session]));
   const branches = new Map(sessions.map((s) => [s.id, s.branch]));
   const directories = new Map(sessions.map((s) => [s.id, s.worktree_path]));
@@ -140,8 +143,25 @@ export function PaneTabStrip({
         paneDrag.setNodeRef(node);
       }}
       data-pane-drag-handle={leaf.id}
+      draggable={nativePaneDrag || undefined}
+      onPointerDownCapture={(event) => {
+        nativeDragStart.current =
+          event.target === event.currentTarget ||
+          (single &&
+            event.target instanceof Element &&
+            !!event.target.closest('[data-pane-tab]') &&
+            !event.target.closest('button, input, [role="menuitem"]'));
+      }}
+      onDragStart={(event) => {
+        if (!nativePaneDrag || !nativeDragStart.current) {
+          event.preventDefault();
+          return;
+        }
+        beginPaneWindowDrag(event.dataTransfer, leaf.id);
+      }}
       onPointerDown={(event) => {
-        if (event.target === event.currentTarget) paneDrag.listeners?.onPointerDown?.(event);
+        if (!nativePaneDrag && event.target === event.currentTarget)
+          paneDrag.listeners?.onPointerDown?.(event);
       }}
       data-pane-single-edge={single || undefined}
       className={
@@ -163,6 +183,7 @@ export function PaneTabStrip({
             <PaneTab
               tab={ref}
               single={single}
+              nativePaneDrag={nativePaneDrag && single}
               filetreeRoot={filetreeRoot}
               leafId={leaf.id}
               index={index}
@@ -404,6 +425,7 @@ function CompilationControls({
 function PaneTab({
   tab,
   single,
+  nativePaneDrag,
   filetreeRoot,
   leafId,
   index,
@@ -429,6 +451,7 @@ function PaneTab({
 }: {
   tab: TabRef;
   single: boolean;
+  nativePaneDrag: boolean;
   filetreeRoot: string | null;
   leafId: string;
   index: number;
@@ -488,7 +511,7 @@ function PaneTab({
     <div
       ref={setRefs}
       {...(renaming ? {} : attributes)}
-      {...(renaming ? {} : listeners)}
+      {...(renaming || nativePaneDrag ? {} : listeners)}
       onClick={onActivate}
       onDoubleClick={onPromote}
       className={cn(cls, renaming && 'pane-tab-renaming cursor-text select-text')}

@@ -28,6 +28,9 @@ contextBridge.exposeInMainWorld('puddleDesktop', {
         ipcRenderer.invoke('puddle:window-dock-targets', { profileId }),
       prepareDock: (request: unknown) => ipcRenderer.invoke('puddle:window-prepare-dock', request),
       retire: (request: unknown) => ipcRenderer.invoke('puddle:window-transfer-retire', request),
+      beginPaneDrag: (request: unknown) =>
+        ipcRenderer.invoke('puddle:window-begin-pane-drag', request),
+      dropPane: (request: unknown) => ipcRenderer.invoke('puddle:window-drop-pane', request),
     },
     lifecycle: {
       ready: () => ipcRenderer.invoke('puddle:window-ready'),

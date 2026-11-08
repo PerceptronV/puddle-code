@@ -4,6 +4,7 @@ import {
   type DesktopPaneFocus,
   type DesktopWindowTransferCommand,
   type DesktopWorkspaceVersion,
+  type DesktopPaneMoveCommand,
 } from '@puddle/shared';
 
 interface WorkingSetCheckpoint {
@@ -21,6 +22,7 @@ export async function registerRendererLifecycle(
   transfer?: (
     command: DesktopWindowTransferCommand,
   ) => Promise<DesktopWorkspaceVersion | undefined>,
+  move?: (command: DesktopPaneMoveCommand) => void,
 ): Promise<() => void> {
   let queue = Promise.resolve();
   const unsubscribe = bridge.onCommand((value) => {
@@ -43,6 +45,11 @@ export async function registerRendererLifecycle(
           } else if (command.kind === 'resume') {
             for (const workingSet of workingSets()) workingSet.resume();
             fence(false);
+          } else if (command.kind === 'move-pane') {
+            if (!move) throw new Error('This window cannot move the requested pane');
+            // Acknowledge dispatch, not completion: a successful move may retire
+            // this renderer. The handoff itself retains its durable outcome.
+            move(command);
           } else {
             if (!transfer) throw new Error('This window cannot receive a transfer');
             version = await transfer(command);

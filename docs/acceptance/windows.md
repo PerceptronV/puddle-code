@@ -85,9 +85,19 @@ verification; pending items are not support claims.
   Its native window retires only if the exact committed source is empty, with no
   dirty buffers. Remaining tabs or late cleanup edits keep it open, with recovery
   drafts visible. Failure to retire leaves it editable and never repeats the move.
+- Detached pane strips now support native drag to an existing host/project pane
+  (application 26.12). Drag the blank strip area, or the thin top edge when there
+  is one tab. Edge drops preserve placement; a centre drop places the whole pane
+  to the right. The host's currently visible project receives the drop. The main
+  process accepts only a registered, single-use source offer from the same
+  host/profile; offers expire after a minute and are invalidated on renderer
+  replacement. The payload contains identities and a nonce, never dirty text.
+  Source commands start the same acknowledged handoff as menu return. A lost
+  command acknowledgement cannot dispatch the offer again. Destination highlights
+  expire when drag events cease, including cancellation in another window.
 
-Project detachment and redirects, native cross-window drag, and named window
-arrangements are still pending. Return to a project presentation is supported by
+Project detachment and redirects, native file/session transfers into pane windows,
+and named window arrangements are still pending. Return to a project presentation is supported by
 the coordinator, but the project-window creation action is not yet implemented.
 Pane detachment and menu return do not deliver the whole roadmap. Undo-stack transfer
 is not implemented; restored editors use
@@ -182,6 +192,19 @@ reload the host with the latest text/selection. Combining that option with
 reference. These are UI-only checks using the real desktop coordinator and state
 modules through a synthetic native bridge; they do not prove OS drag/focus,
 live PTY continuity, crash recovery or project-window return acceptance.
+
+The native pane-drag increment passed the 237-test window/layout/contract suite
+across 25 files; a subsequent visible-project routing test also passed. Desktop/web
+TypeScript, targeted ESLint and formatting passed; the production web build passed
+with its existing large-chunk advisory. `WINDOW_DOCK_BACK=drag` in the integrated
+Chromium script exercises the real source drag event, main-process offer, source
+command and destination drop listener, then verifies text/selection and reload.
+Both editor and terminal cases passed. This forwards the DataTransfer payload between isolated
+pages; it does not simulate an OS drag between native windows. The ordinary
+browser `web/test/dev/pane-drag.mjs` check passed tab splits, whole-pane swaps,
+edge placement, all-tab preservation and Escape cancellation. Native single-tab
+edge usability, cross-window Escape, iframe drop surfaces and OS focus remain
+acceptance items.
 
 Native acceptance has not run. Use an isolated UI preview for desktop interaction;
 start any real daemon from a plain shell, never from a coding-agent session.

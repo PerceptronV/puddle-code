@@ -2339,9 +2339,18 @@ buffers retires. Remaining tabs or late drafts stay visible. Retirement failure
 does not repeat the transfer. With no destination open, the pane remains independent
 and its menu directs the user to open a host/project window before returning it.
 
+Application 26.12 connects native pane dragging to that same handoff. The detached
+strip's blank area (or its thin single-tab edge) offers the whole pane. Main binds
+a one-minute, single-use nonce to its registered source and validates the live
+same-host/profile destination before dispatching a source move command. Drag data
+contains no document content. A positioned drop selects the destination's visible
+project; centre drops place the pane to its right. Invalidated or consumed offers
+never redispatch after a lost acknowledgement. Ordinary browser pane dragging
+continues through dnd-kit; native OS drag acceptance remains pending.
+
 The shared workspace can render full host, headerless project, and pane-only
 presentations; detached windows use native title bars. Project detachment,
-native cross-window drag, project redirects, and
+cross-window file/session transfers, project redirects, and
 named window arrangements remain in progress. See
 `docs/roadmap/windows.md` for the full contract and `docs/acceptance/windows.md`
 for implemented behaviour and verified scope. These foundations do not yet

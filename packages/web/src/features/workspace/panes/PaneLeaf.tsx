@@ -3,6 +3,9 @@ import { animateTabPlacement } from '../layout/animate-placement';
 import { compilationSourceKey, sourceExtension } from '../../editor/compilation/compilation-kind';
 import { useEffect, useRef, useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
+import { useParams } from 'react-router';
+import { dropPaneWindow, PANE_WINDOW_MIME } from '../../windows/pane-drag';
+import { toastError } from '../../../lib/transport/errors';
 import type {
   CompilationMode,
   CompilationProvider,
@@ -108,6 +111,7 @@ export function PaneLeaf({
   /** Browser-local scroll-following channel for this layout scope. */
   scrollChannel: string;
 }) {
+  const { id: projectId } = useParams();
   const activeRef = leaf.tabs.find((t) => tabRefKey(t) === leaf.activeKey) ?? null;
   const terminalKey = activeRef?.type === 'terminal' ? tabRefKey(activeRef) : null;
   const shownSession =
@@ -177,8 +181,14 @@ export function PaneLeaf({
   useEffect(() => {
     const el = bodyRef.current;
     if (!el) return;
+    let highlightTimer: ReturnType<typeof setTimeout> | undefined;
+    const onEnd = () => {
+      clearTimeout(highlightTimer);
+      setNativeZone(null);
+    };
     const carriesTab = (e: DragEvent) =>
-      e.dataTransfer !== null && hasTabTransfer(e.dataTransfer.types);
+      e.dataTransfer !== null &&
+      (hasTabTransfer(e.dataTransfer.types) || e.dataTransfer.types.includes(PANE_WINDOW_MIME));
     const zoneOf = (e: DragEvent): DropEdge => {
       const r = el.getBoundingClientRect();
       return zoneForPointer(
@@ -192,15 +202,29 @@ export function PaneLeaf({
       e.stopPropagation(); // the pane owns this gesture, not Monaco or xterm
       if (e.dataTransfer) e.dataTransfer.dropEffect = 'move';
       setNativeZone(zoneOf(e));
+      // A cross-window drag ends in its source renderer. If cancellation never
+      // sends this destination dragleave, stop showing its stale drop highlight.
+      clearTimeout(highlightTimer);
+      highlightTimer = setTimeout(onEnd, 750);
     };
     const onLeave = (e: DragEvent) => {
-      if (!el.contains(e.relatedTarget as Node | null)) setNativeZone(null);
+      if (!el.contains(e.relatedTarget as Node | null)) onEnd();
     };
     const onDrop = (e: DragEvent) => {
       if (!carriesTab(e)) return;
       e.preventDefault();
       e.stopPropagation();
-      setNativeZone(null);
+      onEnd();
+      if (e.dataTransfer?.types.includes(PANE_WINDOW_MIME)) {
+        if (projectId)
+          void dropPaneWindow(
+            e.dataTransfer.getData(PANE_WINDOW_MIME),
+            projectId,
+            leaf.id,
+            zoneOf(e),
+          ).catch(toastError);
+        return;
+      }
       const ref = decodeTabTransfer(e.dataTransfer?.getData(TAB_MIME) ?? '');
       if (ref) {
         const zone = zoneOf(e);
@@ -211,7 +235,6 @@ export function PaneLeaf({
     // over no drop target at all, or cancelled with Esc, none of which reaches
     // the drop/leave handlers above. `dragend` fires on the source for every
     // outcome, so it is the one signal that always arrives.
-    const onEnd = () => setNativeZone(null);
     el.addEventListener('dragenter', onOver, true);
     el.addEventListener('dragover', onOver, true);
     el.addEventListener('dragleave', onLeave, true);
@@ -223,8 +246,9 @@ export function PaneLeaf({
       el.removeEventListener('dragleave', onLeave, true);
       el.removeEventListener('drop', onDrop, true);
       window.removeEventListener('dragend', onEnd);
+      clearTimeout(highlightTimer);
     };
-  }, [leaf.id]);
+  }, [leaf.id, projectId]);
 
   return (
     <div
@@ -264,6 +288,7 @@ export function PaneLeaf({
           setNodeRef(el);
         }}
         data-editor-surface={activeRef?.type === 'editor' || undefined}
+        data-pane-drop-target={leaf.id}
         data-pane-view={activeRef ? tabRefKey(activeRef) : undefined}
         className={cn(
           'relative min-h-0 flex-1',

@@ -160,7 +160,9 @@ export class WindowTransfers {
     plan: Planning,
   ): Promise<void> {
     const projectId =
-      destination.window?.kind === 'project' ? destination.window.projectId : request.projectId;
+      destination.window?.kind === 'project'
+        ? destination.window.projectId
+        : (request.destinationProjectId ?? request.projectId);
     try {
       const planned = await this.dependencies.command!(plan.destinationId, {
         kind: 'plan-pane',

@@ -1,5 +1,14 @@
 # The puddle communication protocol
 
+Application **26.12** adds optional private native pane-drag registration and drop
+capabilities. A short-lived, single-use offer binds the registered source, pane
+and profile. Only a live destination on the same host/profile may request its
+source-directed move command; a lost acknowledgement never reissues that command.
+The existing staged handoff remains responsible for ownership. Drag data contains
+bounded identities and a nonce, never drafts, paths or credentials. An optional
+destination project selects the visible host-window slice for a positioned drop.
+No daemon, runtime or remote operation changes; older shells omit the controls.
+
 Application **26.11** adds optional private desktop pane docking capabilities.
 Destination commands return a bounded revisioned plan, remount prepared content,
 and restore the original presentation on cancellation. Main validates same-host

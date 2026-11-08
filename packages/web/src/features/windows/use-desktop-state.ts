@@ -14,6 +14,7 @@ import { fenceWindowInteraction } from './interaction-fence';
 import { allLeaves, focusTab, tabRefKey } from '../workspace/layout/layout-tree';
 import { currentProfileId } from '../profile/profile-store';
 import { DestinationTransfer } from './destination-transfer';
+import { transferDock } from './pane-transfer';
 
 const workingSets = new Map<string, DesktopWorkingSet>();
 const empty = uiStateSnapshotSchema.parse({});
@@ -69,6 +70,32 @@ export async function registerDesktopWindowLifecycle(): Promise<void> {
       owner.update({ layout_tree: focusTab(tree, leaf.id, tabRefKey(tab)) });
     },
     (command) => destinationTransfer.command(command),
+    (command) => {
+      const context = desktopWindowContext();
+      const owner = desktopWorkingSet(command.profileId);
+      const transfers = desktopBridge()?.windows?.transfers;
+      if (
+        context?.identity.kind !== 'pane' ||
+        context.identity.profileId !== command.profileId ||
+        context.identity.projectId !== command.projectId ||
+        currentProfileId() !== command.profileId ||
+        !owner?.loaded() ||
+        owner.locked() ||
+        !transfers
+      )
+        throw new Error('The dragged pane is no longer available');
+      void transferDock(
+        owner,
+        transfers,
+        command.projectId,
+        command.paneId,
+        command.destinationId,
+        fenceWindowInteraction,
+        suspendDesktopContent,
+        command.placement,
+        command.destinationProjectId,
+      ).catch(toastError);
+    },
   );
 }
 

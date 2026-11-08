@@ -49,6 +49,7 @@ import { HostConnections, type HostConnection } from './windows/connections.js';
 import { DesktopWindowState } from './windows/state.js';
 import { registerWindowStateIpc } from './windows/ipc.js';
 import { WindowCommands } from './windows/commands.js';
+import { PaneDrags, registerPaneDragIpc } from './windows/drags.js';
 import { WindowTransfers, registerWindowTransferIpc } from './windows/transfers.js';
 import { WindowNavigations } from './windows/navigation.js';
 import { reloadContents } from './windows/reload.js';
@@ -111,6 +112,24 @@ let windowStateLoaded = false;
 let windowState: DesktopWindowState | null = null;
 const windowCommands = new WindowCommands();
 const windowNavigations = new WindowNavigations();
+const paneDrags = new PaneDrags({
+  context: (id) => {
+    if (quitting || quitPending) throw new Error('Application is closing');
+    for (const host of shells.values()) {
+      const window = host.windows.get(id);
+      if (!window || window.win.isDestroyed()) continue;
+      if (windowNavigations.busy(host.target) || !windowCommands.available(id))
+        throw new Error('This window is reconnecting');
+      return {
+        identity: window.identity,
+        hostId: reopenWindowId({ target: host.target }),
+        stagingTransfer: windowState?.staging(id)?.id,
+      };
+    }
+    throw new Error('Window is unavailable');
+  },
+  move: (id, command) => windowCommands.movePane(id, command),
+});
 const pendingPaneFocus = new Map<string, DesktopPaneFocus>();
 const checkpoints = new Map<string, Promise<void>>();
 const windowTransfers = new WindowTransfers({
@@ -394,16 +413,19 @@ function createWindow(
     delivery.close();
     notifications.delete(contentsId);
     windowCommands.disconnected(identity.id);
+    paneDrags.disconnected(identity.id);
     pendingPaneFocus.delete(identity.id);
     windowTransfers.disconnected(identity.id);
   });
   win.webContents.on('render-process-gone', () => {
     windowCommands.disconnected(identity.id);
+    paneDrags.disconnected(identity.id);
     windowTransfers.disconnected(identity.id);
   });
   win.webContents.on('did-start-navigation', (_event, _url, inPlace, mainFrame) => {
     if (mainFrame && !inPlace && windowCommands.available(identity.id)) {
       windowCommands.disconnected(identity.id);
+      paneDrags.disconnected(identity.id);
       windowTransfers.disconnected(identity.id);
     }
   });
@@ -748,6 +770,7 @@ registerWindowStateIpc({
   },
 });
 registerWindowTransferIpc(ipcMain, windowContext, windowTransfers);
+registerPaneDragIpc(ipcMain, windowContext, paneDrags);
 ipcMain.handle('puddle:window-dock-targets', (event, value: unknown) => {
   const owner = windowContext(event);
   const { profileId } = desktopWindowReadSchema.parse(value);

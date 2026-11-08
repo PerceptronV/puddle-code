@@ -57,3 +57,30 @@ it('reports a failed checkpoint only after other profiles finish saving', async 
     expect(bridge.reply).toHaveBeenCalledWith({ id: 'close', error: 'Disk is full' }),
   );
 });
+
+it('acknowledges a source-directed pane move without waiting for source retirement', async () => {
+  let receive!: (command: DesktopWindowCommand) => void;
+  const bridge: DesktopWindowLifecycleBridge = {
+    onCommand: (callback) => {
+      receive = callback;
+      return vi.fn();
+    },
+    ready: vi.fn(async () => undefined),
+    reply: vi.fn(async () => undefined),
+  };
+  const move = vi.fn();
+  await registerRendererLifecycle(bridge, () => [], vi.fn(), vi.fn(), undefined, undefined, move);
+  const command = {
+    id: 'drop',
+    kind: 'move-pane' as const,
+    profileId: '1234567890',
+    projectId: 'abcdef1234',
+    paneId: 'source-pane',
+    destinationId: 'destination',
+    destinationProjectId: '0000000001',
+    placement: { paneId: 'destination-pane', edge: 'bottom' as const },
+  };
+  receive(command);
+  await vi.waitFor(() => expect(bridge.reply).toHaveBeenCalledWith({ id: 'drop' }));
+  expect(move).toHaveBeenCalledExactlyOnceWith(command);
+});

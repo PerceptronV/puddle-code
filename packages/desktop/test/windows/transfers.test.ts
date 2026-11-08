@@ -193,6 +193,34 @@ it('restores an existing destination after a staging failure without destroying 
   });
 });
 
+it('positions a drop in the visible destination project without changing the source anchor', async () => {
+  const f = docking();
+  const destinationProjectId = '0000000001';
+  const placement = { paneId: 'target-pane', edge: 'bottom' as const };
+  const prepared = f.transfers.prepareDock('source', {
+    ...f.request,
+    destinationProjectId,
+    placement,
+  });
+  await vi.waitFor(() => expect(f.state.outcome('move')).toBe('prepared'));
+  expect(f.command).toHaveBeenCalledWith(
+    'destination',
+    expect.objectContaining({
+      kind: 'plan-pane',
+      projectId: destinationProjectId,
+      placement,
+    }),
+  );
+  const accepted = f.transfers.accept('destination', request);
+  await prepared;
+  f.transfers.commit('source', request);
+  await accepted;
+  expect(f.source.window).toMatchObject({ projectId: request.projectId });
+  expect(f.state.openWindows().find((record) => record.window?.id === 'destination')?.route).toBe(
+    `/project/${destinationProjectId}`,
+  );
+});
+
 it('cancels an asynchronous destination plan before a late reply can prepare it', async () => {
   const f = docking();
   const gate = Promise.withResolvers<{ revision: number; content: typeof request.destination }>();

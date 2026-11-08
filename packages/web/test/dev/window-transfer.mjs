@@ -14,7 +14,7 @@ const directory = await mkdtemp(join(tmpdir(), 'puddle-live-window-'));
 const implementation = join(directory, 'implementation.mjs');
 await build({
   stdin: {
-    contents: `export { DesktopWindowState } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/state.ts'))};\nexport { WindowTransfers } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers.ts'))};\nexport { WindowCommands } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/commands.ts'))};`,
+    contents: `export { DesktopWindowState } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/state.ts'))};\nexport { WindowTransfers } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers.ts'))};\nexport { WindowCommands } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/commands.ts'))};\nexport { PaneDrags } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/drags.ts'))};`,
     resolveDir: root,
   },
   bundle: true,
@@ -23,12 +23,13 @@ await build({
   outfile: implementation,
   alias: { '@puddle/shared': resolve(root, 'packages/shared/src/index.ts') },
 });
-const { DesktopWindowState, WindowTransfers, WindowCommands } = await import(
+const { DesktopWindowState, WindowTransfers, WindowCommands, PaneDrags } = await import(
   pathToFileURL(implementation).href
 );
 const commands = new WindowCommands();
 const mode = process.env.WINDOW_TRANSFER_KIND ?? 'pane';
-const dockBack = process.env.WINDOW_DOCK_BACK === '1';
+const dragBack = process.env.WINDOW_DOCK_BACK === 'drag';
+const dockBack = process.env.WINDOW_DOCK_BACK === '1' || dragBack;
 assert.ok(['pane', 'file', 'session'].includes(mode));
 let focused = 0;
 const state = new DesktopWindowState(join(directory, 'windows.json'));
@@ -38,6 +39,14 @@ const records = new Map();
 const pages = new Map();
 const errors = [];
 const trace = [];
+const drags = new PaneDrags({
+  context: (id) => {
+    const record = records.get(id);
+    if (!record) throw new Error('Window unavailable');
+    return { identity: record.window, hostId: 'host', stagingTransfer: state.staging(id)?.id };
+  },
+  move: (id, command) => commands.movePane(id, command),
+});
 const preview = process.env.PREVIEW_URL ?? 'http://127.0.0.1:5186/';
 const coordinator = new WindowTransfers({
   state: () => state,
@@ -73,6 +82,8 @@ async function openPage(record) {
       if (request.error) trace.push([id, request.error]);
       return commands.reply(id, request);
     }
+    if (method === 'beginPaneDrag') return drags.begin(id, request);
+    if (method === 'dropPane') return drags.drop(id, request);
     if (method === 'reload') {
       await commands.request(id, 'checkpoint');
       await page.reload();
@@ -153,6 +164,8 @@ async function openPage(record) {
             'prepareDock',
             'retire',
             'dockTargets',
+            'beginPaneDrag',
+            'dropPane',
             'accept',
             'commit',
             'observe',
@@ -285,11 +298,47 @@ try {
         });
       });
     }
-    await target
-      .locator('[data-pane-drag-handle]')
-      .first()
-      .dispatchEvent('contextmenu', { button: 2 });
-    await target.getByRole('menuitem', { name: 'Return pane to Host window', exact: true }).click();
+    if (dragBack) {
+      // Chromium pages cannot share a live OS drag. Exercise the actual source
+      // event, registration and destination capture listener with its payload.
+      const payload = await target.evaluate(() => {
+        const handle = window.document.querySelector('[data-pane-drag-handle]');
+        const data = new window.DataTransfer();
+        handle.dispatchEvent(new window.PointerEvent('pointerdown', { bubbles: true }));
+        handle.dispatchEvent(
+          new window.DragEvent('dragstart', { bubbles: true, dataTransfer: data }),
+        );
+        return data.getData('application/x-puddle-pane-window');
+      });
+      assert.ok(payload, 'native drag carries a registered pane reference');
+      assert.ok(!payload.includes('Unsaved text'), 'native payload excludes dirty content');
+      await source
+        .locator('[data-workspace-pane]')
+        .first()
+        .evaluate((pane, payload) => {
+          const body = pane.querySelector('[data-pane-drop-target]');
+          const box = body.getBoundingClientRect();
+          const data = new window.DataTransfer();
+          data.setData('application/x-puddle-pane-window', payload);
+          body.dispatchEvent(
+            new window.DragEvent('drop', {
+              bubbles: true,
+              cancelable: true,
+              dataTransfer: data,
+              clientX: box.right - 10,
+              clientY: box.top + box.height / 2,
+            }),
+          );
+        }, payload);
+    } else {
+      await target
+        .locator('[data-pane-drag-handle]')
+        .first()
+        .dispatchEvent('contextmenu', { button: 2 });
+      await target
+        .getByRole('menuitem', { name: 'Return pane to Host window', exact: true })
+        .click();
+    }
     await expect.poll(() => records.size).toBe(1);
     assert.ok(records.has('host'));
     await checkText(source, undefined, 12, 22);
@@ -304,7 +353,7 @@ try {
     await source.screenshot({ path: '/tmp/puddle-live-pane-docking.png' });
     assert.deepEqual(errors, []);
     console.log(
-      `Live ${mode} return to an existing host, source retirement, and destination reload pass.`,
+      `Live ${mode} ${dragBack ? 'drag' : 'menu'} return to an existing host, source retirement, and destination reload pass.`,
     );
   } else {
     records.delete('host');

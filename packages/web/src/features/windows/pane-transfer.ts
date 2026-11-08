@@ -57,13 +57,15 @@ export async function transferDock(
   fence: (active: boolean) => void,
   suspend: (active: boolean) => void,
   placement?: DesktopPaneDock['placement'],
+  destinationProjectId?: string,
 ): Promise<void> {
   if (!bridge.prepareDock || !bridge.retire) throw new Error('Pane docking is unavailable');
   const reference = await transferContent(
     owner,
     {
       ...bridge,
-      preparePane: (request) => bridge.prepareDock!({ ...request, destinationId, placement }),
+      preparePane: (request) =>
+        bridge.prepareDock!({ ...request, destinationId, placement, destinationProjectId }),
     },
     projectId,
     (content) => detachPaneContent(content, projectId, paneId),

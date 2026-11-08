@@ -140,9 +140,42 @@ export const desktopPanePlacementSchema = z.object({
 });
 export const desktopPaneDockSchema = desktopPaneDetachSchema.extend({
   destinationId: desktopWindowIdSchema,
+  destinationProjectId: projectId.optional(),
   placement: desktopPanePlacementSchema.optional(),
 });
 export type DesktopPaneDock = z.infer<typeof desktopPaneDockSchema>;
+/** Native drag data contains a single-use registration, never document content. */
+export const desktopPaneDragSchema = z.object({
+  token: desktopWindowIdSchema,
+  profileId,
+  projectId,
+  paneId: z.string().min(1).max(512),
+});
+export type DesktopPaneDrag = z.infer<typeof desktopPaneDragSchema>;
+export const desktopPaneDragPayloadSchema = z.object({
+  token: desktopWindowIdSchema,
+  sourceId: desktopWindowIdSchema,
+  hostId: desktopWindowIdSchema,
+  profileId,
+});
+export const desktopPaneDropSchema = z.object({
+  token: desktopWindowIdSchema,
+  sourceId: desktopWindowIdSchema,
+  profileId,
+  projectId,
+  placement: desktopPanePlacementSchema,
+});
+export type DesktopPaneDrop = z.infer<typeof desktopPaneDropSchema>;
+export const desktopPaneMoveCommandSchema = z.object({
+  kind: z.literal('move-pane'),
+  profileId,
+  projectId,
+  paneId: z.string().min(1).max(512),
+  destinationId: desktopWindowIdSchema,
+  destinationProjectId: projectId,
+  placement: desktopPanePlacementSchema,
+});
+export type DesktopPaneMoveCommand = z.infer<typeof desktopPaneMoveCommandSchema>;
 export const desktopTransferReferenceSchema = z.object({ id: desktopWindowIdSchema, profileId });
 export type DesktopTransferReference = z.infer<typeof desktopTransferReferenceSchema>;
 export const desktopTransferRetireSchema = desktopTransferReferenceSchema.extend({
@@ -170,6 +203,8 @@ export interface DesktopWindowTransfersBridge {
   dockTargets?(profileId: string): Promise<DesktopDockTarget[]>;
   prepareDock?(request: DesktopPaneDock): Promise<void>;
   retire?(request: DesktopTransferRetire): Promise<void>;
+  beginPaneDrag?(request: DesktopPaneDrag): Promise<void>;
+  dropPane?(request: DesktopPaneDrop): Promise<void>;
 }
 
 export const desktopPaneFocusSchema = z.object({ profileId, ref: tabRefSchema });
@@ -206,6 +241,7 @@ export const desktopWindowTransferCommandSchema = z.discriminatedUnion('kind', [
 export type DesktopWindowTransferCommand = z.infer<typeof desktopWindowTransferCommandSchema>;
 export const desktopWindowCommandSchema = z.union([
   desktopWindowTransferCommandSchema.and(z.object({ id: desktopWindowIdSchema })),
+  desktopPaneMoveCommandSchema.and(z.object({ id: desktopWindowIdSchema })),
   z.discriminatedUnion('kind', [
     z.object({ id: desktopWindowIdSchema, kind: z.literal('checkpoint') }),
     z.object({ id: desktopWindowIdSchema, kind: z.literal('resume') }),
