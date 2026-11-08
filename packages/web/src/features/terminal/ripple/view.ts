@@ -113,6 +113,7 @@ export function rippleView(
     }
   }
   if (foundComposer && blankAbove(composer)) composer--;
+  const controlsFirst = foundComposer ? first + Math.max(0, composer) : null;
   if (nativeRows === 'cli') {
     composer = 0;
   } else if (nativeRows !== null) {
@@ -174,6 +175,8 @@ export function rippleView(
     last,
     firstCol,
     lastCol,
+    controlsFirst,
+    coveredLast: first + composer,
     nativeRows: occupiedRows - composer,
     inputRows,
     cellHeight,

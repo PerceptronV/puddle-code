@@ -219,3 +219,47 @@
     bottom: 0;
   }
 }
+
+/* Covered live controls retain native cells and input semantics. */
+.ripple-input {
+  position: relative;
+  flex: none;
+  max-height: 100%;
+  overflow: clip;
+  cursor: text;
+  touch-action: pan-x pinch-zoom;
+  background: var(--bg-base);
+  color: var(--text-primary);
+}
+.ripple-input-row {
+  white-space: pre;
+  height: 1lh;
+}
+.ripple-input-row > span {
+  display: inline-block;
+  vertical-align: top;
+}
+.ripple-input-caret {
+  position: absolute;
+  pointer-events: none;
+  border-left: 2px solid var(--text-primary);
+  opacity: 0.45;
+}
+.ripple-input-caret[data-focused='true'] {
+  opacity: 1;
+}
+.ripple-input-caret[data-visible='false'] {
+  visibility: hidden;
+}
+.ripple-input-composition {
+  position: absolute;
+  white-space: pre;
+  background: var(--bg-base);
+  color: var(--text-primary);
+  text-decoration: underline;
+}
+.xterm .xterm-helper-textarea.ripple-input-target {
+  left: var(--ripple-input-left) !important;
+  top: var(--ripple-input-top) !important;
+  height: var(--ripple-input-height) !important;
+}

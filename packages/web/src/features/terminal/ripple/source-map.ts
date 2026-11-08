@@ -107,21 +107,26 @@ export function rippleOffsetAtPoint(
   return null;
 }
 
+/** Reject cells from a previous frame, viewport or terminal size. */
+export function rippleAnchorIsCurrent(terminal: Terminal, anchor: RippleCellAnchor): boolean {
+  const buffer = terminal.buffer.active;
+  return (
+    terminal.cols === anchor.cols &&
+    buffer.type === anchor.bufferType &&
+    buffer.viewportY === anchor.viewport &&
+    buffer.getLine(anchor.row)?.translateToString(true) === anchor.line
+  );
+}
+
 /** Reuse xterm's negotiated mouse encoder, with current-screen validation. */
 export function relayRippleCell(
   terminal: Terminal,
   anchor: RippleCellAnchor,
   modifiers: MouseEventInit = {},
 ): boolean {
-  if (terminal.modes.mouseTrackingMode === 'none') return false;
-  const buffer = terminal.buffer.active;
-  if (
-    terminal.cols !== anchor.cols ||
-    buffer.type !== anchor.bufferType ||
-    buffer.viewportY !== anchor.viewport ||
-    buffer.getLine(anchor.row)?.translateToString(true) !== anchor.line
-  )
+  if (terminal.modes.mouseTrackingMode === 'none' || !rippleAnchorIsCurrent(terminal, anchor))
     return false;
+  const buffer = terminal.buffer.active;
   const screen = terminal.element?.querySelector('.xterm-screen');
   if (!screen) return false;
   const bounds = screen.getBoundingClientRect();

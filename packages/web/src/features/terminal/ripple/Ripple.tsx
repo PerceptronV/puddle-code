@@ -28,6 +28,8 @@ import 'katex/dist/katex.min.css';
 import './ripple.css';
 import { ripplePalette } from './xterm-style';
 import { attachRippleTouchScroll } from './touch-scroll';
+import { readRippleInput } from './input';
+import { RippleInput } from './RippleInput';
 import { useRippleOverflow } from './use-overflow';
 
 export function Ripple({
@@ -80,9 +82,22 @@ export function Ripple({
   const readSnapshot = useCallback(
     (view = updateView()) => {
       const palette = ripplePalette(terminal, agentType);
-      return readRippleBuffer(terminal.buffer.active, terminal.cols, view, palette.theme, palette);
+      const input =
+        nativeRows === null || nativeRows === 'cli'
+          ? undefined
+          : readRippleInput(terminal, view, palette);
+      return {
+        ...readRippleBuffer(
+          terminal.buffer.active,
+          terminal.cols,
+          input ? { ...view, last: input.first } : view,
+          palette.theme,
+          palette,
+        ),
+        ...(input && { input }),
+      };
     },
-    [terminal, agentType, updateView],
+    [terminal, agentType, updateView, nativeRows],
   );
   useRippleOverflow(viewport, snapshot, active && !collapsed);
   const theme = useSyncExternalStore(onThemeChange, currentTheme, currentTheme);
@@ -111,7 +126,9 @@ export function Ripple({
       const view = updateView();
       const selection = window.getSelection();
       const selecting =
-        selection && !selection.isCollapsed && viewport.current?.contains(selection.anchorNode);
+        selection &&
+        !selection.isCollapsed &&
+        viewport.current?.parentElement?.contains(selection.anchorNode);
       if (!force && selecting) return;
       const next = readSnapshot(view);
       setSnapshot((previous) =>
@@ -122,7 +139,8 @@ export function Ripple({
         previous.background === next.background &&
         JSON.stringify(previous.actions) === JSON.stringify(next.actions) &&
         JSON.stringify(previous.sourceMap) === JSON.stringify(next.sourceMap) &&
-        JSON.stringify(previous.parts) === JSON.stringify(next.parts)
+        JSON.stringify(previous.parts) === JSON.stringify(next.parts) &&
+        JSON.stringify(previous.input) === JSON.stringify(next.input)
           ? previous
           : next,
       );
@@ -133,6 +151,7 @@ export function Ripple({
     };
     const subscriptions = [
       terminal.onWriteParsed(schedule),
+      terminal.onCursorMove(schedule),
       terminal.onResize(schedule),
       { dispose: onThemeChange(schedule) },
       terminal.onScroll(schedule),
@@ -364,13 +383,16 @@ export function Ripple({
                   ),
                 )}
               </div>
-            ) : (
+            ) : !snapshot.input ? (
               <p className="ripple-note">
                 Agent output will appear here. Type in the native input below.
               </p>
-            )}
+            ) : null}
           </div>
         </div>
+      )}
+      {!collapsed && active && snapshot.input && (
+        <RippleInput terminal={terminal} snapshot={snapshot.input} />
       )}
       <RippleBoundary
         terminal={terminal}

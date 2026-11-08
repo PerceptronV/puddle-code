@@ -168,6 +168,7 @@ Object.assign(window, {
     output: (data: string, replay = false) =>
       socket.emit({ t: replay ? 'replay' : 'output', session: session.id, term: 'agent', data }),
     theme: applyTheme,
+    boundary: (rows: number | 'cli' | null) => setRippleBoundary(session.id, rows),
     enable: (value: boolean | null) => {
       setRippleBoundary(session.id, null);
       if (value !== null) updateClientSettings({ rippleEnabled: value });

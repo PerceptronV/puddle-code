@@ -4,6 +4,7 @@ import { readRow } from '../links/link-buffer';
 import { terminalRichBlocks } from '../rich-output/rich-output-buffer';
 import type { RipplePalette } from './xterm-style';
 import { rippleActions, rippleActionStyles, type RippleAction } from './interactions';
+import type { RippleInputSnapshot } from './input';
 import type { RippleSourceMap } from './source-map';
 
 export const RIPPLE_MAX_ROWS = 600;
@@ -15,6 +16,7 @@ export type RipplePart =
   | { kind: 'mermaid' | 'math'; source: string; display: boolean };
 
 export interface RippleSnapshot {
+  input?: RippleInputSnapshot;
   text: string;
   truncated: boolean;
   alternate: boolean;

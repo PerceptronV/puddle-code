@@ -61,6 +61,17 @@ try {
     };
     await draw(rows);
     await page.evaluate(() => window.rippleFixture.enable(true));
+    // Enabling the reader reserves two native rows. Real TUIs redraw on that
+    // resize; retain the same footer geometry before testing manual offsets.
+    await page.waitForFunction(
+      (rows) =>
+        window.rippleFixture.messages.findLast((m) => m.t === 'resize' || m.t === 'attach')
+          ?.rows ===
+        rows - 2,
+      rows,
+    );
+    await draw(rows - 2);
+    await page.waitForTimeout(100);
     const bubble = page.locator('.ripple-user-turn');
     await bubble.filter({ hasText: 'Explain terminal rendering' }).waitFor();
     assert.equal(await bubble.count(), 1, `${agent} identifies only the user turn`);

@@ -22,6 +22,8 @@ Past releases: see docs/changelogs/.
 
 #### Changed
 
+- Support typing through Ripple when its divider covers the live input, reusing native keyboard, paste and IME handling with anchored cells and a visible caret. Preserve the default display-only split and native composer.
+
 - Prepare project-window handoffs with durable return records and shared destination planning; project menus, redirects and native close integration remain in progress (application protocol 26.14).
 - Refresh the Puddle logo across the favicon, in-app branding, web app and notification icons, and macOS/Linux desktop icons.
 - Separate native window lifetime from host connections and retain revisioned desktop working sets and acknowledged transfer records (application protocol 26.7; detached-window controls are in progress).

@@ -63,3 +63,9 @@ export function ripplePalette(terminal: Terminal, agentType?: string): RipplePal
     },
   };
 }
+
+/** Cursor visibility is not yet exposed on xterm's public buffer API. */
+export function rippleCursorVisible(terminal: Terminal): boolean {
+  return !(terminal as unknown as { _core?: { coreService?: { isCursorHidden?: boolean } } })._core
+    ?.coreService?.isCursorHidden;
+}
