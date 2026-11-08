@@ -14,6 +14,7 @@
     "typecheck": "tsc --noEmit",
     "test:native-key-release": "node test/keyboard/command-key-up.mjs",
     "test:native-windows": "node test/windows/native/acceptance.mjs",
+    "test:native-window-transfers": "node test/windows/native/transfers/acceptance.mjs",
     "start": "electron .",
     "dist": "node scripts/build.mjs && electron-builder"
   },

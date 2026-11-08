@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict';
-import { mkdir, writeFile } from 'node:fs/promises';
+import { copyFile, mkdir, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
@@ -7,7 +7,7 @@ import { buildNative } from '../../../scripts/build-native.mjs';
 import { renderPrompt } from '../../../scripts/prompt-assets.mjs';
 
 /** Actual shell/preloads, isolated state and a compile-time replacement host launcher. */
-export async function buildNativePreview(directory) {
+export async function buildNativePreview(directory, { transferFaults = false } = {}) {
   const root = fileURLToPath(new URL('../../../../../', import.meta.url));
   const desktop = join(root, 'packages/desktop');
   const common = {
@@ -45,11 +45,20 @@ export async function buildNativePreview(directory) {
     await writeFile(join(directory, `${name}.html`), renderPrompt(name));
   buildNative(directory);
   await mkdir(join(directory, 'home'));
+  if (transferFaults)
+    await copyFile(
+      new URL('./transfers/ipc-faults.mjs', import.meta.url),
+      join(directory, 'transfer-faults.mjs'),
+    );
   await writeFile(
     join(directory, 'entry.cjs'),
-    `const { app } = require('electron');
+    `const { app, ipcMain } = require('electron');
 app.setPath('userData', require('node:path').join(__dirname, 'profile'));
-import('./main.mjs').catch(error => { console.error(error); app.exit(1); });
+async function start() {
+${transferFaults ? "  (await import('./transfer-faults.mjs')).installTransferFaults(ipcMain);" : ''}
+  await import('./main.mjs');
+}
+start().catch(error => { console.error(error); app.exit(1); });
 `,
   );
   // Exercise the real target-only migration on the first launch.

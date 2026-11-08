@@ -136,6 +136,7 @@ pnpm --filter @puddle-code/desktop start   # run the Electron shell (after pnpm 
 pnpm --filter @puddle-code/desktop dist    # package it (dmg/zip/AppImage via electron-builder)
 pnpm --filter @puddle-code/desktop test:native-key-release # macOS; requires running UI preview
 pnpm --filter @puddle-code/desktop test:native-windows # isolated Electron; requires UI preview
+pnpm --filter @puddle-code/desktop test:native-window-transfers # isolated native transfer faults; UI preview
 ```
 
 Mac desktop builds compile `desktop/native/command-key-up.m` with Xcode command-line
@@ -156,6 +157,11 @@ the full native acceptance run.
 The full run checks macOS console lock state before launching and requires an
 unlocked desktop for focus/fullscreen evidence. It never unlocks the session or
 silently substitutes recovery-only acceptance.
+
+The native transfer check uses the same isolated build and `PREVIEW_URL`. Its
+test-only IPC interceptor pauses or rejects selected replies around the real
+handlers, verifying renderer-crash rollback and observation after a lost commit
+reply. It does not require native focus and does not establish OS drag coverage.
 
 For manual testing before a release exists: `pnpm build && pnpm build:tarball`, then
 `node packages/cli/dist/index.js launch --tarball dist-release/puddled-v*.tar.gz` (or

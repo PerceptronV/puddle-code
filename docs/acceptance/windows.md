@@ -919,6 +919,38 @@ observations remain historical; rerun full mode on an unlocked desktop. Live OS
 drag, active notebook/widget execution, real host/runtime recovery, monitor changes
 and the remaining requirements below are still open.
 
+### Native transfer interruptions — 2026-11-08
+
+`PREVIEW_URL=http://127.0.0.1:5188/ pnpm --filter @puddle-code/desktop
+test:native-window-transfers` passed on macOS arm64 with the UI preview. The
+dedicated runner lives under `desktop/test/windows/native/transfers/`. It bundles
+the real main process and preloads using the existing compile-time preview host
+replacement, rejects CLI implementation inputs, and uses temporary app data.
+No daemon is started. An explicitly enabled test-only IPC wrapper holds or
+rejects a reply at a chosen boundary; the actual handlers, renderer components,
+transfer coordinator and durable state store still run.
+
+Observed cases:
+
+- Crash the destination renderer after its dirty editor mounts but before its
+  acceptance reaches the real handler. The durable outcome is cancelled, the
+  destination is excluded from reopening, and the source retains the exact dirty
+  text both in its model and its persisted working set.
+- Crash the source renderer after the destination accepts, before the source's
+  commit reaches the real handler. The transfer is cancelled and the source draft
+  remains durable. Force-kill only the fixture app and relaunch: one source window
+  reopens with its original identity and exact dirty text.
+- Reject the source's reply after the real commit succeeds. The renderer observes
+  the committed outcome once, retains the draft in the destination and removes
+  the transferred source tab. Exactly one prepare and one commit occurred; no
+  pending transfer remains.
+
+The runner reported no renderer page errors. Targeted lint and formatting checks
+passed. These cases add native renderer-crash and lost-reply evidence for opening
+a pane window; they do not cover every handoff boundary, existing-destination
+docking, project returns, arrangement transactions, real Command-Q delivery or OS
+drag. Those remain part of the acceptance requirements below.
+
 ## Required acceptance before completion
 
 1. Open files, sessions, full panes, and projects using their context menus.
