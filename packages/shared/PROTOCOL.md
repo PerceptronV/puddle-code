@@ -57,8 +57,15 @@ must not receive these messages/fields. Baselines are checked before intent chan
 deliveries bind the complete retained source, including cursor. Stale replies cannot
 fail a newer subscription. Private source replies are bounded to eight entries,
 pages retain native limits, and gaps/pending persistence are never admitted.
-The component remains absent from the public creation catalogue; host baseline
-capture/automatic delivery and editor enablement remain unfinished. Existing
+Optional `completionPlans: 1` separately gates private read-only `completion-plan`.
+The request can include a proposed Apply activation; otherwise it reads the current
+retained activation, including while interrupted. Its bounded response identifies
+generation/activation/revision and at most eight explicit node/session/worktree
+selections. Host controls capture durable native baselines only after queued review,
+rechecking target and caller authority after reads and immediately before dispatch.
+Older completion-event owners receive no new plan request. The component remains
+absent from the public creation catalogue; automatic delivery and editor enablement
+remain unfinished. Existing
 application/runtime/remote and huddle owner/ledger versions remain unchanged.
 
 Database **47** retains bounded host session observations. Optional private huddle

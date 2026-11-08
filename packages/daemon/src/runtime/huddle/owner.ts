@@ -24,6 +24,7 @@ import { requireHuddleDefinitionLocation } from '../../huddle/definitions/locati
 import { HuddleTimerController } from './triggers/controller.js';
 import { HuddleSessionController } from './triggers/sessions/controller.js';
 import { HuddleCompletionController } from './triggers/completions/controller.js';
+import { completionDefinitions } from './triggers/completions/definitions.js';
 import { requireSessionBaseline } from './triggers/sessions/definitions.js';
 import { HuddleGitController } from './triggers/git/controller.js';
 import { HuddleFiletreeController } from './triggers/filetree/controller.js';
@@ -256,6 +257,35 @@ export class HuddleOwner {
   private async execute(request: HuddleOwnerRequest): Promise<HuddleOwnerResponse> {
     const state = (): HuddleOwnerResponse => ({ t: 'state', id: request.id, state: this.state() });
     if (request.t === 'hello' || request.t === 'inspect') return state();
+    if (request.t === 'completion-plan') {
+      if (this.memory.launch.capabilities.completionPlans !== 1)
+        throw new Error('Owner has no completion plan capability');
+      const control = this.ledger.activations.current();
+      if (!control.activationId) throw new Error('Huddle has no activation');
+      const activation = request.activation
+        ? prepareHuddleActivation(
+            this.store.read(request.activation.revision),
+            request.activation,
+            this.ledger.identity.huddleId,
+          ).activation
+        : this.ledger.activations.get(control.activationId);
+      if (activation.worktree !== this.memory.launch.identity.canonical_worktree_path)
+        throw new Error('Huddle definition worktree cannot change within an owner');
+      const snapshot = this.store.read(activation.revision);
+      requireHuddleFeatures(snapshot, this.memory.launch.capabilities);
+      return {
+        t: 'completion-plan',
+        id: request.id,
+        plan: {
+          generation: control.generation,
+          activationId: activation.id,
+          revision: activation.revision,
+          sources: completionDefinitions(snapshot, activation).map(
+            ({ slot: _slot, ...source }) => source,
+          ),
+        },
+      };
+    }
     if (
       request.t === 'operation-page' ||
       request.t === 'operation-claim' ||

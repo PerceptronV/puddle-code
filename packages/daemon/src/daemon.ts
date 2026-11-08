@@ -109,6 +109,7 @@ import { HuddleExecutionService } from './huddle/execution/service.js';
 import { resolveHuddleAgent } from './huddle/execution/agents.js';
 import { HuddleSessionFeed } from './huddle/triggers/sessions/feed.js';
 import { HuddleSessionDispatcher } from './huddle/triggers/sessions/dispatcher.js';
+import { HuddleCompletionBaselines } from './huddle/triggers/completions/baselines.js';
 import { HuddleAgentDispatcher } from './huddle/operations/dispatch/service.js';
 import { HuddleAgentTurns } from './huddle/operations/turns/service.js';
 import { HuddleTurnStore } from './huddle/operations/turns/store.js';
@@ -263,6 +264,12 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       runtimeConnections,
       runtimeReconciler,
       () => new HuddleSessionFeed(db).checkpoint(),
+      new HuddleCompletionBaselines({
+        runtimes,
+        connections: runtimeConnections,
+        sessions,
+        projects,
+      }).capture,
     );
     failedStartup.push(() => runtimeControls.close());
     const runtimeLauncher =

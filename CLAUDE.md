@@ -719,8 +719,14 @@ requests and Arm/Apply baselines. Validate baselines before changing intent; rej
 stale sources before failing a current subscription. Charge subscription and page
 workspace separately, release on Stop/Interrupt/failure, and fence asynchronous
 refresh continuations by lifecycle epoch. The scheduler and feature gate share
-`runtime/huddle/components/`. The public creation catalogue excludes completion
-nodes until host/provider admission and automatic dispatch are connected.
+`runtime/huddle/components/`. Optional `completionPlans: 1` gates read-only retained
+or proposed activation plans. Keep host target validation and baseline capture under
+`huddle/triggers/completions/`; inspect native owners before/after durable reads,
+recheck authority and exact targets after awaits and before one lifecycle send.
+Busy observation does not require ask readiness. Never issue new plan requests to
+older event-only owners, follow a replacement native conversation or rebase a gap.
+The public creation catalogue excludes completion nodes until automatic dispatch
+and editor enablement are connected.
 Oversized JSON envelopes fail without truncating replies.
 Optional `git: 1` adds owner-local ref/HEAD observation under `triggers/git/`.
 Group refs and metadata watches by canonical common directory; retain distinct

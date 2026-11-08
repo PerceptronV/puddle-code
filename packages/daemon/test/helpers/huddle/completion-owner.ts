@@ -42,7 +42,10 @@ export async function completionOwnerFixture(completion = true) {
   mkdirSync(root, { recursive: true });
   writeFileSync(join(root, 'huddle.json'), snapshot.files['huddle.json']!);
   const capabilities = { ...HUDDLE_RUNTIME_CAPABILITIES };
-  if (!completion) delete capabilities.completionEvents;
+  if (!completion) {
+    delete capabilities.completionEvents;
+    delete capabilities.completionPlans;
+  }
   const launch = huddleOwnerLaunchSchema.parse({
     format: 1,
     role: 'huddle',

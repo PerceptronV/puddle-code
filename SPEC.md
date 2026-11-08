@@ -1488,8 +1488,13 @@ stale sources reject before the current-source failure path. Subscriptions and
 admission workspace use managed memory, and lifecycle changes fence asynchronous
 refresh continuations. The owner scheduler shares its captured component catalogue
 with feature validation. The public creation catalogue still excludes completion
-nodes: host baseline capture, provider/target admission, automatic delivery, editor
-controls and same-execution native feedback remain unfinished.
+nodes. Optional `completionPlans: 1` adds read-only plans for retained or proposed
+activations, allowing Resume to use current settings. Host controls capture baselines
+after queued review, checking exact owner/project/worktree/native identity and
+runtime/provider source support before and after read-only inspection. Recheck all
+targets before one lifecycle send; lost reads never authorise another action. Older
+event-only owners receive no plan request. Automatic delivery, editor controls and
+same-execution native feedback remain unfinished.
 The runtime entry point selects a separate huddle owner from a strict private launch
 record. It reuses runtime/memory claims, host grants and lifetime checks; consumes
 launch intent once; and provides bounded authenticated controller commands.

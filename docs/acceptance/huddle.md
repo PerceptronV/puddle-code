@@ -27,6 +27,48 @@ Runtime protocol 1.2 now retains an independent native-turn source for hook-base
 interactive, structured Codex and command-correlated headless controls; automatic completion-trigger delivery remains pending.
 No user CLI command is enabled yet.
 
+## Implemented: host completion baseline capture
+
+Optional `completionPlans: 1` adds private read-only `completion-plan`. It returns
+at most eight resolved node/session/worktree selections, the retained activation
+and revision, and the current generation. A proposed Apply activation can be
+inspected without changing intent. Resume plans come from the retained activation,
+not stale launch settings. Older `completionEvents: 1` owners remain compatible;
+controllers require the separate plan capability before requesting it or capturing
+baselines through this path. No application/runtime/remote or ledger version changes.
+
+Production host controls now compose `huddle/triggers/completions/baselines.ts`
+after queued review for Arm and armed Apply. Stopped Apply stays inactive. The
+capture checks the exact huddle owner connection/identity, project/profile,
+unarchived placement and definition location. Plans must match the reviewed
+generation and intended activation. Failure leaves lifecycle intent unchanged.
+
+`reader.ts` pins the selected agent's owner incarnation/launch, placement, worktree,
+native conversation and segment. It requires native-source support on runtime 1.2+
+and the provider's explicit availability; terminal placements, foreign scope,
+archived targets/projects, Stop intent and pending identity persistence are refused.
+The reader performs inspect, durable source read and reinspection, rechecking caller
+authority and target identity after each await. It neither prompts nor restarts an
+agent and can observe a busy agent without requiring automated-turn readiness.
+Pending source persistence and unexpected baseline/epoch changes cannot arm a source.
+All captured targets receive another synchronous check before the lifecycle send;
+a lost read never authorises a mutation or retry. Public capture failures return a
+bounded conflict without exposing private filesystem errors.
+
+Automatic native-event dispatch and editor enablement remain unfinished; the public
+creation catalogue still excludes completion nodes. The new reader also supports
+retained page reads for that upcoming dispatcher, preserving explicit gaps without
+rebasing. Tests use controlled native observation clients plus real isolated huddle
+owners; they do not establish live provider, native supervisor or reboot acceptance.
+
+Verification: **145 tests passed across 30 files** in the broader huddle control,
+controller, completion and shared-contract run. After adding the separate plan
+capability, **51 tests passed across 8 files** in the final focused run. Coverage
+includes read-only retained/proposed plans, busy-agent observation, authority/native
+identity changes at each awaited read, undurable baselines, old-owner request gating,
+final dispatch checks and real owner arming with a captured target. Shared/daemon/CLI
+TypeScript builds and repository ESLint, Prettier and diff checks passed.
+
 ## Implemented: owner completion subscription protocol
 
 Optional `completionEvents: 1` now exposes private `completion-sources`,
@@ -54,11 +96,11 @@ The scheduler and feature gate share the owner component catalogue in
 `runtime/huddle/components/`. This includes the completion contract, while the
 public creation catalogue still excludes it. A successful external completion now
 drives a captured script through an independently running owner when supplied by
-the private controller. This does **not** establish host-authorised target discovery
-or automatic native-source delivery: those, editor enablement and bounded native
-feedback opt-in remain unfinished. The host must verify exact live provider/runtime
-availability, capture durable baselines after queued review and never deliver pages
-whose persistence is pending. The existing ask-result feedback template is unchanged.
+the private controller. The subsequent host capture milestone above adds target
+validation and queued baseline capture. Automatic native-source delivery, editor
+enablement and bounded native feedback opt-in remain unfinished. Delivery must never
+admit pages whose persistence is pending. The existing ask-result feedback template
+is unchanged.
 
 Verification: **146 tests passed across 32 files**, including independent-process
 completion execution and controller replacement, invalid Arm/Apply preservation,
@@ -106,9 +148,10 @@ This is an internal admission core, **not an enabled completion trigger**.
 `puddle.trigger.turn-completed@1` is exported for composition but excluded from
 the creation catalogue. The subsequent owner protocol milestone above adds private
 delivery/lifecycle/resource admission without a protocol/database version change.
-Host-authorised baseline capture, live target/provider availability checks, automatic
-delivery, editor settings and explicit bounded native feedback routing remain unfinished.
-The admission-core tests do not establish those missing paths.
+Host-authorised baseline capture and live target/provider availability checks are
+covered by the subsequent milestone above. Automatic delivery, editor settings and
+explicit bounded native feedback routing remain unfinished; the admission-core
+tests do not establish those missing paths.
 
 Verification: **97 tests passed across 17 files**, including 16 new completion
 cases plus existing huddle revision, state, routing, scheduler, definition and

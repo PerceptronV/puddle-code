@@ -42,3 +42,15 @@ export const huddleCompletionSourceSchema = huddleCompletionBaselineSchema.exten
 export type HuddleCompletionTarget = z.infer<typeof huddleCompletionTargetSchema>;
 export type HuddleCompletionBaseline = z.infer<typeof huddleCompletionBaselineSchema>;
 export type HuddleCompletionSource = z.infer<typeof huddleCompletionSourceSchema>;
+
+/** Resolved resources for the inspected activation, without arming or rebasing a source. */
+export const huddleCompletionPlanSchema = z.strictObject({
+  generation: z.number().int().nonnegative().safe(),
+  activationId: z.uuid(),
+  revision: huddleRevisionSchema,
+  sources: z
+    .array(huddleCompletionSettingsSchema.extend({ node: huddleKeySchema }))
+    .max(HUDDLE_COMPLETION_SOURCE_LIMIT)
+    .refine((sources) => new Set(sources.map((source) => source.node)).size === sources.length),
+});
+export type HuddleCompletionPlan = z.infer<typeof huddleCompletionPlanSchema>;

@@ -8,6 +8,7 @@ import {
   huddleCompletionSourceSchema,
   huddleCompletionBaselinesSchema,
   HUDDLE_COMPLETION_SOURCE_LIMIT,
+  huddleCompletionPlanSchema,
 } from './triggers/completions.js';
 import { runtimeNativeTurnPageSchema } from '../native-turns.js';
 import { runtimeIdentitySchema } from '../protocol.js';
@@ -104,6 +105,11 @@ export const huddleOwnerRequestSchema = z.discriminatedUnion('t', [
   z.strictObject({ t: z.literal('inspect'), ...request }),
   z.strictObject({ t: z.literal('completion-sources'), ...request }),
   z.strictObject({
+    t: z.literal('completion-plan'),
+    ...request,
+    activation: huddleActivationInputSchema.optional(),
+  }),
+  z.strictObject({
     t: z.literal('completion-events'),
     ...request,
     source: huddleCompletionSourceSchema,
@@ -181,6 +187,11 @@ export const huddleOwnerResponseSchema = z.discriminatedUnion('t', [
   z.strictObject({ t: z.literal('changed'), observation: sequence }),
   z.strictObject({ t: z.literal('state'), id: z.uuid(), state: huddleOwnerStateSchema }),
   z.strictObject({ t: z.literal('accepted'), id: z.uuid() }),
+  z.strictObject({
+    t: z.literal('completion-plan'),
+    id: z.uuid(),
+    plan: huddleCompletionPlanSchema,
+  }),
   z.strictObject({
     t: z.literal('completion-sources'),
     id: z.uuid(),

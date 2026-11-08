@@ -11,7 +11,10 @@ import { ApiError } from '../../http/errors.js';
 import { RuntimeConnectionLost, type RuntimeClient } from '../transport/client.js';
 import type { RuntimeConnections } from '../transport/connections.js';
 import type { RuntimeReconciler } from './reconcile.js';
-import { HuddleRuntimeControls } from '../huddle/controller/controls.js';
+import {
+  HuddleRuntimeControls,
+  type HuddleCompletionBaselineCapture,
+} from '../huddle/controller/controls.js';
 
 interface Target {
   id: string;
@@ -36,8 +39,15 @@ export class RuntimeControls {
     private readonly connections: RuntimeConnections,
     private readonly reconciler: RuntimeReconciler,
     feedBaseline?: () => HuddleSessionFeedCursor,
+    completionBaselines?: HuddleCompletionBaselineCapture,
   ) {
-    this.huddles = new HuddleRuntimeControls(runtimes, connections, reconciler, feedBaseline);
+    this.huddles = new HuddleRuntimeControls(
+      runtimes,
+      connections,
+      reconciler,
+      feedBaseline,
+      completionBaselines,
+    );
   }
 
   private target(sessionId: string): Target {

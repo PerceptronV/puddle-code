@@ -12,3 +12,13 @@ it('preserves old owners and requires completion support before adopting a new o
   candidate.roles.huddle = old;
   expect(canAdoptHuddle(candidate, HUDDLE_RUNTIME_CAPABILITIES)).toBe(false);
 });
+
+it('keeps completion-event owners without the newer plan capability compatible', () => {
+  const { completionPlans: _, ...old } = HUDDLE_RUNTIME_CAPABILITIES;
+  expect(supportsHuddleRuntime(old)).toBe(true);
+  expect(supportsHuddleRuntime({ ...old, completionPlans: 2 })).toBe(false);
+  const candidate = daemonRuntimeCapabilities('fixture');
+  expect(canAdoptHuddle(candidate, old)).toBe(true);
+  candidate.roles.huddle = old;
+  expect(canAdoptHuddle(candidate, HUDDLE_RUNTIME_CAPABILITIES)).toBe(false);
+});

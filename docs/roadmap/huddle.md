@@ -65,8 +65,10 @@ remains pending. An internal completion subscription ledger now pins exact targe
 validates contiguous durable native pages and atomically admits external completions
 with their cursors. Optional `completionEvents: 1` now connects the ledger to private
 owner lifecycle/delivery controls and captured script execution. Automated/unknown
-completions are suppressed; host baseline capture/automatic delivery, editor enablement
-and explicit same-execution native feedback remain unfinished.
+completions are suppressed. Optional `completionPlans: 1` now supports read-only
+retained/proposed activation plans and host capture of exact durable agent baselines
+after queued review. Automatic delivery, editor enablement and explicit
+same-execution native feedback remain unfinished.
 Broader recurrence rules, exact native completion subscriptions, a richer trigger health/backlog
 inspector and custom trigger/readout workers remain unfinished.
 See [implementation evidence](../acceptance/huddle.md). Unshipped

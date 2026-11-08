@@ -11,6 +11,22 @@ it('routes completion pages through the independent owner and retains cursors th
   const f = await completionOwnerFixture(),
     client = f.client;
   expect(await f.sources()).toEqual([]);
+  expect(await client.request({ t: 'completion-plan' })).toMatchObject({
+    t: 'completion-plan',
+    plan: {
+      generation: 1,
+      activationId: f.launch.initial.id,
+      revision: f.launch.initial.revision,
+      sources: [{ node: 'run', worktree: f.home, session: f.baseline.target.sessionId }],
+    },
+  });
+  const proposed = { ...f.launch.initial, id: randomUUID() };
+  expect(await client.request({ t: 'completion-plan', activation: proposed })).toMatchObject({
+    plan: { generation: 1, activationId: proposed.id },
+  });
+  expect(await client.request({ t: 'inspect' })).toMatchObject({
+    state: { control: { generation: 1, activationId: f.launch.initial.id, state: 'stopped' } },
+  });
   const arm = { t: 'arm' as const, expectedGeneration: 1, autoStart: false };
   await expect(client.request(arm)).rejects.toThrow('rejected');
   expect(await client.request({ t: 'inspect' })).toMatchObject({
@@ -103,6 +119,9 @@ it('validates armed Apply before mutation, replaces baselines on Resume and reje
   expect((await f.sources())[0]!.cursor.sequence).toBe(30);
   await client.request({ t: 'interrupt' });
   expect(await f.sources()).toEqual([]);
+  expect(await client.request({ t: 'completion-plan' })).toMatchObject({
+    plan: { generation: 4, activationId: apply.activation.id, sources: [expect.anything()] },
+  });
   await client.request({
     t: 'arm',
     expectedGeneration: 4,
@@ -139,6 +158,7 @@ it('keeps older owners usable while rejecting unsupported completion controls', 
   const f = await completionOwnerFixture(false),
     client = f.client;
   await expect(client.request({ t: 'completion-sources' })).rejects.toThrow('rejected');
+  await expect(client.request({ t: 'completion-plan' })).rejects.toThrow('rejected');
   await expect(
     client.request({ t: 'arm', expectedGeneration: 1, autoStart: false, completionBaselines: [] }),
   ).rejects.toThrow('rejected');

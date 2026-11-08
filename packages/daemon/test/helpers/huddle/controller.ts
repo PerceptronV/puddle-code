@@ -5,6 +5,7 @@ import {
   HUDDLE_RUNTIME_CAPABILITIES,
   RUNTIME_PROTOCOL_VERSION,
   huddleOwnerLaunchSchema,
+  type HuddleRuntimeCapabilities,
 } from '@puddle/shared';
 import { atomicPrivateJson } from '@puddle/shared/node';
 import { HuddlePlacements } from '../../../src/db/stores/huddle/placements.js';
@@ -31,7 +32,10 @@ export default HuddleNode({contract:'./node.json', async run({inputs}) {
   return {completed: 42};
 }});`;
 
-export async function huddleControllerFixture(serviceLifetime = false) {
+export async function huddleControllerFixture(
+  serviceLifetime = false,
+  capabilities: HuddleRuntimeCapabilities = HUDDLE_RUNTIME_CAPABILITIES,
+) {
   const base = runtimeDatabase();
   let reconciler = base.reconciler;
   let connections: RuntimeConnections | undefined;
@@ -68,7 +72,7 @@ export async function huddleControllerFixture(serviceLifetime = false) {
       format: 1,
       role: 'huddle',
       contract: 1,
-      capabilities: HUDDLE_RUNTIME_CAPABILITIES,
+      capabilities,
       identity,
       scope: {
         hostId: 'fixture',

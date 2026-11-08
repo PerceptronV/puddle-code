@@ -4,6 +4,7 @@ import {
   type HuddleActivationInput,
   type HuddleJson,
   type HuddleSessionFeedCursor,
+  type HuddleCompletionBaseline,
 } from '@puddle/shared';
 import type { RuntimeStore } from '../../../db/stores/runtimes.js';
 import { ApiError } from '../../../http/errors.js';
@@ -30,6 +31,12 @@ interface Target {
   client: HuddleOwnerClient;
 }
 type Authorised = () => boolean;
+export type HuddleCompletionBaselineCapture = (
+  client: HuddleOwnerClient,
+  state: HuddleOwnerState,
+  activation: HuddleActivationInput | undefined,
+  check: () => void,
+) => Promise<{ baselines: HuddleCompletionBaseline[]; check(): void }>;
 const unavailable = () =>
   ApiError.conflict(
     'huddle_unavailable',
@@ -46,6 +53,7 @@ export class HuddleRuntimeControls {
     private readonly connections: RuntimeConnections,
     private readonly reconciler: RuntimeReconciler,
     private readonly feedBaseline?: () => HuddleSessionFeedCursor,
+    private readonly completionBaselines?: HuddleCompletionBaselineCapture,
   ) {}
 
   private check(target: Target, authorised: Authorised) {
@@ -171,7 +179,9 @@ export class HuddleRuntimeControls {
     );
   }
   private async review(target: Target, expected: HuddleControlTarget, authorised: Authorised) {
-    requireHuddleControl(await this.inspectTarget(target, authorised), expected);
+    const state = await this.inspectTarget(target, authorised);
+    requireHuddleControl(state, expected);
+    return state;
   }
   private requireDispatch(target: Target, authorised: Authorised) {
     // Recheck synchronously at dispatch after every awaited review.
@@ -193,8 +203,22 @@ export class HuddleRuntimeControls {
       sessionId,
       authorised,
       async (target) => {
-        await this.review(target, reviewed, authorised);
+        const state = await this.review(target, reviewed, authorised);
         this.requireDispatch(target, authorised);
+        const captured =
+          this.completionBaselines &&
+          state.capabilities.completionEvents === 1 &&
+          state.capabilities.completionPlans === 1 &&
+          (request.t === 'arm' || (request.t === 'apply' && state.control.state === 'armed'))
+            ? await this.completionBaselines(
+                target.client,
+                state,
+                request.t === 'apply' ? request.activation : undefined,
+                () => this.requireDispatch(target, authorised),
+              )
+            : undefined;
+        this.requireDispatch(target, authorised);
+        captured?.check();
         const feedBaseline =
           (request.t === 'arm' || request.t === 'apply') &&
           target.client.state?.capabilities.sessionEvents === 1 &&
@@ -205,6 +229,7 @@ export class HuddleRuntimeControls {
         const response = await target.client.request({
           ...request,
           ...(feedBaseline ? { feedBaseline } : {}),
+          ...(captured ? { completionBaselines: captured.baselines } : {}),
         });
         if (response.t !== 'state') throw unavailable();
         await this.observe(target, response.state, authorised);

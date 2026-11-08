@@ -2,14 +2,26 @@ import { randomUUID } from 'node:crypto';
 import { existsSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
-import { HuddleRuntimeControls } from '../../../src/runtime/huddle/controller/controls.js';
+import { HUDDLE_RUNTIME_CAPABILITIES } from '@puddle/shared';
+import {
+  HuddleRuntimeControls,
+  type HuddleCompletionBaselineCapture,
+} from '../../../src/runtime/huddle/controller/controls.js';
 import { huddleControlTarget } from '../../../src/runtime/huddle/controller/observations.js';
 import { RuntimeConnectionLost } from '../../../src/runtime/transport/client.js';
 import { huddleControllerFixture, until } from '../../helpers/huddle/controller.js';
 
-async function fixture() {
-  const f = await huddleControllerFixture();
-  const controls = new HuddleRuntimeControls(f.runtimes, f.connections, f.reconciler);
+async function fixture(capture?: HuddleCompletionBaselineCapture, plans = true) {
+  const capabilities = { ...HUDDLE_RUNTIME_CAPABILITIES };
+  if (!plans) delete capabilities.completionPlans;
+  const f = await huddleControllerFixture(false, capabilities);
+  const controls = new HuddleRuntimeControls(
+    f.runtimes,
+    f.connections,
+    f.reconciler,
+    undefined,
+    capture,
+  );
   return {
     ...f,
     controls,
@@ -21,6 +33,94 @@ async function fixture() {
   };
 }
 const authorised = () => true;
+
+it('does not send plan requests or capture fields to older completion-capable owners', async () => {
+  const capture = vi.fn<HuddleCompletionBaselineCapture>();
+  const f = await fixture(capture, false);
+  try {
+    const request = vi.spyOn(f.client, 'request');
+    await f.controls.arm(f.session.id, f.target(), false, authorised);
+    expect(capture).not.toHaveBeenCalled();
+    expect(request.mock.calls.find(([command]) => command.t === 'arm')?.[0]).not.toHaveProperty(
+      'completionBaselines',
+    );
+    expect(request.mock.calls.some(([command]) => command.t === 'completion-plan')).toBe(false);
+    await expect(f.client.request({ t: 'completion-plan' })).rejects.toThrow('rejected');
+    expect(await f.client.request({ t: 'inspect' })).toMatchObject({
+      state: { failure: null, control: { state: 'armed' } },
+    });
+  } finally {
+    await f.close();
+  }
+});
+
+it('captures completion baselines after queued review and rechecks before dispatch', async () => {
+  let valid = true;
+  const check = vi.fn();
+  const capture = vi.fn<HuddleCompletionBaselineCapture>(
+    async (_client, _state, _activation, guard) => {
+      guard();
+      return { baselines: [], check };
+    },
+  );
+  const f = await fixture(capture);
+  try {
+    const original = f.target();
+    await f.controls.apply(
+      f.session.id,
+      { ...f.launch.initial, id: randomUUID() },
+      original,
+      () => valid,
+    );
+    expect(capture).not.toHaveBeenCalled(); // Stopped Apply does not subscribe.
+    await expect(f.controls.arm(f.session.id, original, false, () => valid)).rejects.toMatchObject({
+      code: 'huddle_control_changed',
+    });
+    expect(capture).not.toHaveBeenCalled();
+    const request = vi.spyOn(f.client, 'request');
+    await f.controls.arm(f.session.id, f.target(), false, () => valid);
+    expect(capture).toHaveBeenCalledOnce();
+    expect(check).toHaveBeenCalledOnce();
+    expect(request.mock.calls.find(([command]) => command.t === 'arm')?.[0]).toMatchObject({
+      completionBaselines: [],
+    });
+    await f.controls.interrupt(f.session.id, f.target(), () => valid);
+    const before = f.target();
+    request.mockClear();
+    capture.mockImplementationOnce(async () => {
+      valid = false;
+      return { baselines: [], check };
+    });
+    await expect(f.controls.arm(f.session.id, before, false, () => valid)).rejects.toMatchObject({
+      code: 'upstream_expired',
+    });
+    expect(request.mock.calls.every(([command]) => command.t === 'inspect')).toBe(true);
+    expect(f.target()).toEqual(before);
+  } finally {
+    await f.close();
+  }
+});
+
+it('does not send lifecycle intent after a final completion target check fails', async () => {
+  const capture = vi.fn<HuddleCompletionBaselineCapture>(async () => ({
+    baselines: [],
+    check() {
+      throw new Error('Target changed during capture');
+    },
+  }));
+  const f = await fixture(capture);
+  try {
+    const before = f.target(),
+      request = vi.spyOn(f.client, 'request');
+    await expect(f.controls.arm(f.session.id, before, false, authorised)).rejects.toThrow(
+      'Target changed',
+    );
+    expect(request.mock.calls.every(([command]) => command.t === 'inspect')).toBe(true);
+    expect(f.target()).toEqual(before);
+  } finally {
+    await f.close();
+  }
+});
 
 it('rejects stale owner, activation and generation for every mutation before dispatch', async () => {
   const f = await fixture();
