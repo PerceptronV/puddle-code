@@ -1,3 +1,4 @@
+import { HuddleNativeFeedback } from '../operations/native-feedback.js';
 import { randomUUID } from 'node:crypto';
 import {
   canonicalHuddleJson,
@@ -142,7 +143,8 @@ export class HuddleCompletionSources {
             'Completion record differs from its pinned session/segment/native identity',
           );
         // Never reset a huddle's causal budgets by turning its own completion into a fresh root.
-        // Explicit automated feedback needs a separate same-execution routing contract.
+        // Opted-in asks consume native evidence once within their existing invocation.
+        new HuddleNativeFeedback(this.db).observe(source, record);
         if (record.event !== 'completed' || record.origin.kind !== 'external') continue;
         const worktree = target.identity.canonical_worktree_path;
         const runtimeId = target.identity.runtime_id;

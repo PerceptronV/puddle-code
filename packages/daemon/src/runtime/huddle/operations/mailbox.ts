@@ -1,3 +1,4 @@
+import { nativeAskInput, nativeReplyHash } from './native-feedback.js';
 import {
   HUDDLE_OPERATION_PAGE_LIMITS,
   canonicalHuddleJson,
@@ -8,6 +9,7 @@ import {
   huddleOperationRecordSchema,
   huddleTurnScopeSchema,
   puddlangAskSchema,
+  resolveHuddleParameters,
   type HuddleAgentOutcome,
   type HuddleJson,
   type HuddleWorkerRequest,
@@ -24,6 +26,7 @@ import type { HuddleSpawnMailbox } from './spawns/mailbox.js';
 
 /** Owner-owned asks wait here through controller loss. A consumed claim is never offered for dispatch again. */
 export class HuddleOperationMailbox {
+  private readonly nativePending = new Set<string>();
   private readonly pending: HuddlePendingOperations;
   constructor(
     private readonly identity: RuntimeIdentity,
@@ -43,20 +46,31 @@ export class HuddleOperationMailbox {
     signal: AbortSignal,
   ): Promise<HuddleJson> {
     signal.throwIfAborted();
-    const { invocation, operation, target } = this.binding(message, expected);
+    const { invocation, operation, target, completion } = this.binding(message, expected);
     if (operation.op === 'attach')
       return { runtime_id: target.runtimeId, session_id: target.sessionId };
-    return this.pending.request(
-      {
-        id: message.id,
-        invocationId: invocation.id,
-        kind: 'ask',
-        target,
-        input: JSON.parse(JSON.stringify(operation.request)),
-      },
-      signal,
-      this.identity,
-    );
+    if (completion) this.nativePending.add(message.id);
+    try {
+      return await this.pending.request(
+        {
+          id: message.id,
+          invocationId: invocation.id,
+          kind: 'ask',
+          target,
+          input: JSON.parse(
+            JSON.stringify(
+              completion
+                ? { request: operation.request, nativeCompletion: completion }
+                : operation.request,
+            ),
+          ),
+        },
+        signal,
+        this.identity,
+      );
+    } finally {
+      this.nativePending.delete(message.id);
+    }
   }
 
   // Keep the captured source out of the asynchronous request's retained state.
@@ -81,7 +95,36 @@ export class HuddleOperationMailbox {
       reference,
       this.spawns?.target(invocation, reference),
     );
-    return { invocation, operation, target };
+    let completion;
+    if (operation.op === 'ask' && operation.nativeCompletion) {
+      const component = snapshot.components[invocation.node]!;
+      const parameter = component.nativeCompletion;
+      if (!parameter) throw new Error('Node must declare its native completion parameter');
+      const node = snapshot.definition.nodes.find((item) => item.id === invocation.node)!;
+      const settings = resolveHuddleParameters(
+        snapshot.definition,
+        node,
+        component,
+        activation.variables,
+      );
+      completion = this.ledger.completions
+        .list()
+        .find(
+          (source) => source.node === settings[parameter] && source.activationId === activation.id,
+        );
+      if (
+        !completion ||
+        completion.target.identity.runtime_id !== target.runtimeId ||
+        completion.target.identity.incarnation !== target.incarnation ||
+        completion.target.identity.project_id !== target.projectId ||
+        completion.target.identity.canonical_worktree_path !== target.worktree ||
+        completion.target.sessionId !== target.sessionId
+      )
+        throw new Error(
+          'Native feedback requires an active completion trigger for this exact agent and worktree',
+        );
+    }
+    return { invocation, operation, target, completion };
   }
 
   describe(id: string) {
@@ -103,7 +146,7 @@ export class HuddleOperationMailbox {
         target: huddleAgentTargetSchema.parse(operation.target),
       },
       node: invocation.node,
-      request: puddlangAskSchema.parse(operation.input),
+      request: nativeAskInput(operation.input)?.request ?? puddlangAskSchema.parse(operation.input),
       deadline: execution.deadline,
       active:
         execution.state === 'running' &&
@@ -165,14 +208,47 @@ export class HuddleOperationMailbox {
     );
     // Durable ledger storage precedes both the worker reply and the host receipt response.
     this.changed();
-    if (result.turn.status === 'completed')
-      this.pending.resolve(scope.operationId, result.turn.reply!);
-    else
+    if (result.turn.status === 'completed') {
+      if (nativeAskInput(this.ledger.operations.get(scope.operationId).input)) this.confirmNative();
+      else this.pending.resolve(scope.operationId, result.turn.reply!);
+    } else
       this.pending.reject(
         scope.operationId,
         new Error(result.turn.error ?? `Agent turn ${result.turn.status}`),
       );
     return result;
+  }
+
+  /** Called after either durable receipt arrival or atomic native-page admission. */
+  confirmNative() {
+    for (const id of this.nativePending) {
+      const proof = this.ledger.nativeFeedback.proof(id);
+      if (!proof) continue;
+      if (proof.event !== 'completed') {
+        this.pending.reject(id, new Error(proof.error ?? `Native turn ${proof.event}`));
+        continue;
+      }
+      const operation = this.describe(id);
+      if (operation.state !== 'completed' || !operation.result || !('turn' in operation.result))
+        continue;
+      const turn = operation.result.turn;
+      const source = nativeAskInput(this.ledger.operations.get(id).input)!.nativeCompletion;
+      if (
+        turn.turn !== proof.turn ||
+        turn.expected_ref !== source.target.nativeRef ||
+        nativeReplyHash(turn.reply!) !== proof.replyHash
+      )
+        this.pending.reject(
+          id,
+          new Error('Native completion does not match the retained ask result'),
+        );
+      else this.pending.resolve(id, turn.reply!);
+    }
+  }
+
+  cancelNative() {
+    for (const id of this.nativePending)
+      this.pending.reject(id, new Error('Native completion subscription stopped or changed'));
   }
 
   unavailable(scope: HuddleTurnScope, unsent: boolean, error: string) {

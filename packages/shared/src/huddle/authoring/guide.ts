@@ -60,4 +60,13 @@ the reviewed digest and exact inspected owner target. Never refresh targets or
 retry a mutation automatically after a failed reply. Two agents may communicate
 through explicit bounded feedback; removing feedback edges must leave a DAG.
 Keep account/worktree selections and turn/spawn/time budgets explicit.
+
+On host 28.20 with nativeFeedback:1, native-prompt-agent/native-review-agent templates
+can confirm asks against an existing Turn completed source. Manifest nativeCompletion
+names a string parameter whose value is that source node id. agent.askNative() has
+the same prompt/structured overloads as ask(), but resolves once only after matching
+native and ask evidence. Source and script must select the same existing agent and
+worktree. Use its result in ordinary bounded feedback; automated events never start
+another root. Stop, source replacement, gaps and takeover end the wait without
+resending. Standalone pudl run does not support native confirmation.
 `;

@@ -103,7 +103,11 @@ with their cursors. Optional `completionEvents: 1` now connects the ledger to pr
 owner lifecycle/delivery controls and captured script execution. Automated/unknown
 completions are suppressed. Optional `completionPlans: 1` now supports read-only
 retained/proposed activation plans and host capture of exact durable agent baselines
-after queued review. Explicit same-execution native feedback remains unfinished.
+after queued review. Application 28.20 adds opt-in same-execution native confirmation through
+`agent.askNative()` and a declared completion-trigger parameter. Native prompt/review
+templates keep the same execution and feedback/turn/time budgets, require matching
+ask and native evidence, and never emit an additional automated root. Real-provider
+native feedback acceptance remains open.
 Project-local HuddleTrigger adapters now run in bounded independent subscription
 workers with atomic event/cursor admission, explicit resume policy and source-local
 health. Their subscriptions survive frontend/controller disconnection, and the IDE

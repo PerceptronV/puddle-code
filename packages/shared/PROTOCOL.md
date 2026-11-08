@@ -1,5 +1,27 @@
 # The puddle communication protocol
 
+Application **28.20** adds explicit same-execution native feedback behind optional
+owner **`nativeFeedback: 1`**, requiring operations-2, completionEvents-1 and
+completionPlans-1. Script manifests may declare `nativeCompletion`, the name of a
+string parameter selecting a Turn completed node. `agent.askNative()` sends the
+ordinary ask through the existing session/turn bridge, then waits for both its
+retained result and the selected native source's matching automation event.
+Standalone puddlang rejects native confirmation; ordinary asks are unchanged.
+
+The private ask input retains its source generation, activation, cursor and exact
+agent/conversation/segment. The existing operation intent transaction reserves a
+bounded `native-completions` evidence row before dispatch. Native page admission
+retains the terminal native turn identity and reply digest atomically with cursor
+advancement. It never creates an automated root. Result and event may arrive in
+either order; matching origin, turn number, conversation and reply produce one
+worker response in the original invocation/execution. Existing turn/round/time
+budgets, takeover handling, cancellation and owner-loss interruption apply.
+Stopping/replacing a subscription rejects pending native waits without replay.
+No new agent detector, agent protocol, HTTP route or database migration is added.
+Old runtimes retain existing graphs; native-feedback source requires supporting
+capabilities. Editable native prompt/review templates and their completion-trigger
+selector are available on 28.20; generated authoring types include askNative.
+
 Application **28.19** adds bounded automatic Linux huddle crash recovery behind
 optional owner **`automaticRecovery: 1`**, requiring crashRecovery-1. The existing
 private recovery provenance adds optional `automaticAttempts` (1–3), requiring

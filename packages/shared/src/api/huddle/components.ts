@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { PROFILE_ICON_COLOURS } from '../profiles.js';
 import { huddleParametersSchema, huddlePortsSchema } from './contracts.js';
-import { HUDDLE_LIMITS, huddleRelativePathSchema } from './values.js';
+import { HUDDLE_LIMITS, huddleKeySchema, huddleRelativePathSchema } from './values.js';
 
 export const huddleComponentIdSchema = z
   .string()
@@ -36,6 +36,7 @@ export const huddleComponentSchema = z
       .max(5)
       .default([]),
     activation: z.enum(['all', 'any']).default('all'),
+    nativeCompletion: huddleKeySchema.optional(),
     lifecycle: z.enum(['resume', 'restart']).optional(),
     trigger: z.strictObject({ resume: z.enum(['continue', 'fresh']) }).optional(),
     readout: z
@@ -58,6 +59,18 @@ export const huddleComponentSchema = z
         code: 'custom',
         path: ['lifecycle'],
         message: 'Lifecycle actions require a session script',
+      });
+    if (
+      component.nativeCompletion &&
+      (component.category !== 'script' ||
+        !component.capabilities.includes('sessions') ||
+        component.parameters[component.nativeCompletion]?.schema.type !== 'string')
+    )
+      ctx.addIssue({
+        code: 'custom',
+        path: ['nativeCompletion'],
+        message:
+          'Native completion requires a session script and a string parameter naming its completion trigger',
       });
     const retained = Object.entries(component.inputs).filter(
       ([, port]) => port.scope === 'execution',

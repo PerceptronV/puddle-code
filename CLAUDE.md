@@ -899,6 +899,16 @@ runtime observation closes. Completion nodes are in the public catalogue; host
 launch/Apply requires both event and plan capabilities. Resolve targets as observed
 live agents with explicit worktrees, without requiring an automated ask bridge.
 Oversized JSON envelopes fail without truncating replies.
+Application 28.20 and optional `nativeFeedback: 1` add native-confirmed asks,
+requiring operations-2 and both completion capabilities. A script's `nativeCompletion`
+metadata names a string parameter selecting its completion source. Reuse the ordinary
+ask mailbox/host dispatcher and native source; never add a second status detector.
+`operations/native-feedback.ts` reserves private evidence with operation intent and
+commits terminal native identity/reply digest with cursor progress. Both receipt/event
+orders require exact origin, source, turn and reply before one worker continuation.
+Keep the same execution/feedback budgets; automated events never become fresh roots.
+Source replacement, gaps and interruption reject native waits without resending.
+Standalone puddlang rejects askNative; older graphs and runtimes keep ordinary asks.
 Optional `git: 1` adds owner-local ref/HEAD observation under `triggers/git/`.
 Group refs and metadata watches by canonical common directory; retain distinct
 worktree HEAD targets and OIDs. `state/git.ts` uses bounded `git-sources` slots

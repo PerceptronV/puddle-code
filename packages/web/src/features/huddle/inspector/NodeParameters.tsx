@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import {
   huddleBindingSchema,
+  completionHuddleTrigger,
   type HuddleBinding,
   type HuddleComponent,
   type HuddleDefinition,
@@ -17,12 +18,14 @@ export function NodeParameters({
   node,
   component,
   variables,
+  nodes,
   edit,
   session,
 }: {
   node: HuddleNodeDefinition;
   component?: HuddleComponent;
   variables: HuddleDefinition['variables'];
+  nodes: HuddleDefinition['nodes'];
   edit: EditGraph;
   session: Session;
 }) {
@@ -55,6 +58,17 @@ export function NodeParameters({
           binding={node.parameters[name]}
           variables={variables}
           resources={resources}
+          completionChoices={
+            component?.nativeCompletion === name
+              ? nodes
+                  .filter(
+                    (item) =>
+                      item.source.kind === 'builtin' &&
+                      item.source.component === completionHuddleTrigger.id,
+                  )
+                  .map((item) => ({ value: item.id, label: item.id }))
+              : undefined
+          }
           set={(binding) => set(name, binding)}
         />
       ))}
@@ -80,6 +94,7 @@ function Parameter({
   variables,
   set,
   resources,
+  completionChoices,
 }: {
   name: string;
   parameter: HuddleParameter;
@@ -87,6 +102,7 @@ function Parameter({
   variables: HuddleDefinition['variables'];
   set(binding: HuddleBinding | undefined): void;
   resources: NodeResourceOptions;
+  completionChoices?: Array<{ value: string; label: string }>;
 }) {
   const id = useId();
   const [kind, setKind] = useState(binding?.kind ?? 'literal');
@@ -113,7 +129,8 @@ function Parameter({
     /* Keep partially entered JSON local until Apply. */
   }
   const choices =
-    parameter.editor === 'worktree'
+    completionChoices ??
+    (parameter.editor === 'worktree'
       ? resources.worktrees
       : parameter.editor === 'session'
         ? resources.sessions
@@ -123,7 +140,7 @@ function Parameter({
             ? resources.projects
             : parameter.editor === 'agent'
               ? resources.providers
-              : undefined;
+              : undefined);
   return (
     <div className="flex flex-col gap-2" role="group" aria-label={parameter.title ?? name}>
       <Label htmlFor={id}>
@@ -164,7 +181,12 @@ function Parameter({
           onChange={(event) => setText(event.target.value)}
         >
           <option value="">
-            Choose {parameter.editor === 'agent' ? 'provider' : parameter.editor}
+            Choose{' '}
+            {completionChoices
+              ? 'completion trigger'
+              : parameter.editor === 'agent'
+                ? 'provider'
+                : parameter.editor}
           </option>
           {text && !choices.some((choice) => choice.value === text) && (
             <option value={text}>{text} · unavailable</option>

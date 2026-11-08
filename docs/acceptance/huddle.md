@@ -30,9 +30,52 @@ now delivers them to independent owners through durable subscriptions; Session
 lifecycle nodes and stopped/archived session selectors are available in the IDE.
 Runtime protocol 1.2 now retains an independent native-turn source for hook-based
 interactive, structured Codex and command-correlated headless controls. Automatic
-delivery and the Turn completed node's editor settings are implemented; explicit
-bounded native feedback remains pending.
+delivery and the Turn completed node's editor settings are implemented. Application
+28.20 adds explicit native-confirmed asks within bounded feedback executions.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
+
+## Implemented: native-confirmed feedback
+
+Application **28.20** adds explicit same-execution native feedback behind optional
+owner **`nativeFeedback: 1`**, requiring operations-2, completionEvents-1 and
+completionPlans-1. Script manifests may declare `nativeCompletion`, the name of a
+string parameter selecting a Turn completed node. `agent.askNative()` sends the
+ordinary ask through the existing session/turn bridge, then waits for both its
+retained result and the selected native source's matching automation event.
+Standalone puddlang rejects native confirmation; ordinary asks are unchanged.
+
+The private ask input retains its source generation, activation, cursor and exact
+agent/conversation/segment. The existing operation intent transaction reserves a
+bounded `native-completions` evidence row before dispatch. Native page admission
+retains the terminal native turn identity and reply digest atomically with cursor
+advancement. It never creates an automated root. Result and event may arrive in
+either order; matching origin, turn number, conversation and reply produce one
+worker response in the original invocation/execution. Existing turn/round/time
+budgets, takeover handling, cancellation and owner-loss interruption apply.
+Stopping/replacing a subscription rejects pending native waits without replay.
+No new agent detector, agent protocol, HTTP route or database migration is added.
+Old runtimes retain existing graphs; native-feedback source requires supporting
+capabilities. Editable native prompt/review templates and their completion-trigger
+selector are available on 28.20; generated authoring types include askNative.
+
+Focused checks: **19 cases passed** across the existing operation-mailbox,
+completion-state and two-agent feedback suites. The added case exercises event-first
+and result-first confirmation, a mismatched turn and subscription cancellation;
+it checks one retained execution, one charged turn and no second dispatch. Existing
+coverage checks cursor atomicity/retention and two agents completing four asks
+through shipped nodes and a bounded feedback edge. Shared/daemon/CLI and web type
+checks, scoped lint and generated SDK consistency passed.
+These fixtures do not establish real-provider native completion acceptance.
+
+Manual acceptance: add Turn completed sources for two already running agents with
+explicit worktrees, then Native prompt/Native review nodes selecting their respective
+sources. Wire Run → prompt → review → bounded feedback to prompt, using the normal
+review `complete` condition and finite round/turn/time limits. Confirm one execution
+and one ask per node invocation, including after controller reconnect. Interrupt or
+replace a subscription while its ask is awaiting confirmation: the wait must end,
+with no resend or fresh root. Human takeover and native history gaps must fail
+visibly. Existing external human turns still enter through the trigger's event
+output when connected. Real-provider, SSH and packaged acceptance remain open.
 
 ## Implemented: bounded automatic Linux crash recovery
 

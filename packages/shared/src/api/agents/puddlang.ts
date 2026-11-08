@@ -75,7 +75,12 @@ export const puddlangOperationSchema = z.discriminatedUnion('op', [
   z.object({ op: z.literal('resume'), reference: z.string().min(1).max(4096) }),
   z.object({ op: z.literal('restart'), reference: z.string().min(1).max(4096) }),
   z.object({ op: z.literal('attach'), reference: z.string().min(1).max(4096) }),
-  z.object({ op: z.literal('ask'), handle: puddlangHandleSchema, request: puddlangAskSchema }),
+  z.object({
+    op: z.literal('ask'),
+    handle: puddlangHandleSchema,
+    request: puddlangAskSchema,
+    nativeCompletion: z.literal(true).optional(),
+  }),
   z.object({ op: z.literal('stop'), handle: puddlangHandleSchema }),
 ]);
 export type PuddlangOperation = z.infer<typeof puddlangOperationSchema>;

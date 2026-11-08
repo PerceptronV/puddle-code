@@ -1662,7 +1662,16 @@ One active-subscription host tick, four concurrent owner scans and four page pas
 bound polling; stopped huddles do not poll and idle native heads omit page reads.
 Maintenance fences and drains delivery before runtime observation stops. Host
 launch/Apply requires both completion capabilities; older event-only owners retain
-their existing private protocol. Explicit same-execution native feedback remains unfinished.
+their existing private protocol. Application 28.20 and optional `nativeFeedback: 1` add opt-in native-confirmed asks.
+A script manifest names a completion-trigger parameter with `nativeCompletion`;
+`agent.askNative()` waits for the ordinary ask receipt and its exact attributed
+native event, using the existing agent lifecycle and completion feed. Private
+`native-completions` evidence is reserved with operation intent and committed
+with source cursors. Matching turn, conversation and reply digest resolve once
+in the original execution; automated events never become fresh roots. Source
+replacement, gaps and interruption reject waits without replay. Both event/result
+arrival orders are supported. Editable prompt/review templates expose a completion
+selector; normal graph feedback/turn/time limits still apply.
 Ask/spawn admission now stores the exact caller identity in private ledger
 `operation-origins`, atomically with operation intent and spawn cleanup reservation.
 Each immutable format-1 record binds the operation key, parent execution and

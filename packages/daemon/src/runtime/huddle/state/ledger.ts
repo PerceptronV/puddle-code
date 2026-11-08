@@ -1,3 +1,4 @@
+import { HuddleNativeFeedback } from '../operations/native-feedback.js';
 import {
   huddleEmissionRecordSchema,
   huddleExecutionRecordSchema,
@@ -36,6 +37,7 @@ export class HuddleLedger {
   readonly filetrees: HuddleFiletrees;
   readonly git: HuddleGitSources;
   readonly sessions: HuddleSessionSources;
+  readonly nativeFeedback: HuddleNativeFeedback;
   readonly completions: HuddleCompletionSources;
   readonly customTriggers: HuddleCustomTriggers;
   private readonly database: HuddleStateDatabase;
@@ -47,6 +49,7 @@ export class HuddleLedger {
     originOwners: readonly RuntimeIdentity[] = [],
   ) {
     this.database = new HuddleStateDatabase(home, identity, limits, originOwners);
+    this.nativeFeedback = new HuddleNativeFeedback(this.database);
     this.executions = new HuddleExecutions(this.database);
     this.invocations = new HuddleInvocations(this.database, this.executions);
     this.operations = new HuddleOperations(this.database, this.executions, this.invocations);

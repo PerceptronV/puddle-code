@@ -14,7 +14,7 @@ graph outputs to external services on supporting runtimes. [Custom triggers](hud
 can subscribe to external sources with durable cursors and visible source health.
 Spawn agent creates an agent and sends its initial prompt. Resume agent and Restart
 agent use ordinary Puddle lifecycle controls, retain the selected conversation and
-send the configured prompt. Explicit native feedback remains unfinished. Source inspection, inactive creation/opening and core runtime controls are available
+send the configured prompt. Native-confirmed prompt/review templates are available on application 28.20. Source inspection, inactive creation/opening and core runtime controls are available
 through `pudl huddle` and MCP. Placement inspection and archive/unarchive also
 share the ordinary session lifecycle; unarchive leaves the huddle stopped. **Edit with agent**
 supplies a bundled huddle skill to a selected authoring account. Native provider,
@@ -305,6 +305,25 @@ long disconnections can produce an explicit gap. Conversation/runtime replacemen
 and history gaps stop the subscription visibly instead of following another agent
 or skipping unseen replies. Inspect the failure and explicitly re-arm when ready
 to accept a fresh baseline. Resume excludes turns completed during interruption.
+
+## Use native completion in a two-agent conversation
+
+On application 28.20 with a runtime advertising `nativeFeedback: 1`, add **Prompt
+agent with native completion** or **Review agent with native completion**. Add a
+**Turn completed** source for each selected agent and choose that node in the new
+**Completion trigger** setting. The source and script must select the same existing
+agent and explicit worktree. A variable may supply the source node id.
+
+Wire the script's `completed` output into the ordinary bounded feedback workflow.
+The script calls `agent.askNative()` and continues once its ask result and exact
+native completion agree. It uses one execution and the same turn/round/time limits;
+the matching automated event does not also fire the trigger's `event` output.
+The trigger can still admit external human turns through that output if connected.
+
+This uses Puddle's existing turn observation and session lifecycle. It requires an
+already bound native conversation; it does not create or restart an agent to obtain
+one. A source gap, takeover, subscription replacement or interruption ends the wait
+without retrying the prompt. Saving nodes remains inactive until Start/Apply.
 
 ## Prompt existing agents
 

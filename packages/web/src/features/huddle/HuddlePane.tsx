@@ -413,6 +413,7 @@ function HuddleEditor({
                     node={node}
                     component={component}
                     variables={graph.definition.variables}
+                    nodes={graph.definition.nodes}
                     session={session}
                     edit={edit}
                   />

@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Add editable native-confirmed Prompt/Review agent nodes with a completion-trigger selector. Reuse existing agent lifecycle and native turn observation, continuing once within the original execution and feedback limits (application 28.20).
+
 - Automatically recover armed Linux huddles from verified owner crashes through existing lifecycle reconciliation, respecting Stop/archive/maintenance and a retained three-replacement limit (application 28.19).
 
 - Recover a crashed Linux systemd/cgroup-v2 huddle explicitly after its recorded script scope is confirmed empty, reusing existing queued-work recovery without replaying agent actions (application 28.18).
@@ -75,6 +77,8 @@ Past releases: see docs/changelogs/.
 ### Daemon
 
 #### Added
+
+- Support opt-in huddle `askNative()` confirmation through existing asks and completion feeds, retaining exact native evidence atomically with source cursors. Suppress automated roots and reject changed subscriptions without resending prompts; gate source on `nativeFeedback: 1`.
 
 - Retain explicitly scoped huddle inputs once per execution, joining them with later feedback activations without creating new agents or mixing root events. Reject competing deliveries and commit newly ready joins atomically within execution/storage budgets.
 - Advertise huddle spawn support after integrating admission, dispatch, cleanup and authoring. Honor each execution’s captured stop-owned/retain-owned policy across Apply; retained agents stay under ordinary session controls.

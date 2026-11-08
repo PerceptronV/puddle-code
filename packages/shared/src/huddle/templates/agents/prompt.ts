@@ -81,7 +81,7 @@ export const agentPromptSource = String.raw`export function formatPrompt(templat
   });
 }
 `;
-export function agentNodeSource(structured: boolean, spawned = false) {
+export function agentNodeSource(structured: boolean, spawned = false, native = false) {
   return `import { HuddleNode } from 'puddlang/huddle';
 ${structured ? "import { z } from 'zod';\n" : ''}import { formatPrompt } from './prompt.ts';
 
@@ -96,7 +96,7 @@ export default HuddleNode({
         : 'const agent = await puddlang.attach(bindings.agent);'
     }
     const prompt = formatPrompt(String(parameters.prompt), inputs.value);
-    const reply = await agent.ask(${structured ? '{ prompt, schema: z.object({ complete: z.boolean(), feedback: z.string() }).strict() }' : 'prompt'});
+    const reply = await agent.${native ? 'askNative' : 'ask'}(${structured ? '{ prompt, schema: z.object({ complete: z.boolean(), feedback: z.string() }).strict() }' : 'prompt'});
     await emit('turn', reply);
     return { completed: reply };
   },

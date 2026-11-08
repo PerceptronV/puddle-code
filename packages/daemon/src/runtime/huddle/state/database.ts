@@ -45,6 +45,7 @@ export type HuddleCollection =
   | 'git-sources'
   | 'session-sources'
   | 'completion-sources'
+  | 'native-completions'
   | 'custom-sources'
   | 'inbox'
   | 'cursors'

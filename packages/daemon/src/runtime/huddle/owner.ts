@@ -134,6 +134,13 @@ export class HuddleOwner {
           entryPath: realpathSync(workerEntry),
           allowance: memory.allowance,
           operation: (request, invocation, signal) => {
+            if (
+              request.action.kind === 'operation' &&
+              request.action.operation.op === 'ask' &&
+              request.action.operation.nativeCompletion &&
+              launch.capabilities.nativeFeedback !== 1
+            )
+              throw new Error('Owner has no native feedback capability');
             if (!launch.capabilities.operations)
               throw new Error('Owner has no host-operation capability');
             if (
@@ -543,6 +550,7 @@ export class HuddleOwner {
         if (request.t === 'completion-unavailable')
           throw new Error(`Completion ${request.source.node}: observation gap: ${request.error}`);
         if (this.completions.accept(request.source, request.page)) this.drive();
+        this.operations.confirmNative();
       } catch (error) {
         this.triggerFailure(error);
         throw error;
@@ -706,6 +714,7 @@ export class HuddleOwner {
     this.git.stop();
     this.sessions.stop();
     this.completions.stop();
+    this.operations.cancelNative();
     this.custom.stop();
   }
   private triggerFailure(error: unknown) {

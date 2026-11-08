@@ -1,3 +1,4 @@
+import { HuddleNativeFeedback } from '../operations/native-feedback.js';
 import { HuddleOperationOrigins } from './operation-origins.js';
 import {
   HUDDLE_LIMITS,
@@ -60,6 +61,7 @@ export class HuddleOperations {
       if (invocation.state !== 'running')
         throw new Error('Operation requires a running node invocation');
       this.save(operation, OUTCOME_RESERVATION);
+      new HuddleNativeFeedback(this.db).prepare(operation);
       if (owner) new HuddleOperationOrigins(this.db).prepare(operation, owner);
       if (operation.kind === 'spawn')
         new HuddleSpawnCleanup(this.db).prepare(operation.id, operation.executionId);

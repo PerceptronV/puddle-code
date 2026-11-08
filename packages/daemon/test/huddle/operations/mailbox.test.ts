@@ -1,6 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { afterEach, expect, it, vi } from 'vitest';
-import { encodeHuddleAgentTarget, type HuddleWorkerRequest } from '@puddle/shared';
+import {
+  encodeHuddleAgentTarget,
+  type HuddleWorkerRequest,
+  type HuddleCompletionBaseline,
+} from '@puddle/shared';
 import { HuddleOperationMailbox } from '../../../src/runtime/huddle/operations/mailbox.js';
 import { huddleBoundAgent } from '../../../src/runtime/huddle/operations/bindings.js';
 import { agentGraphSnapshot } from '../../helpers/huddle/agent-graph.js';
@@ -182,4 +186,125 @@ it('retains the ask caller across mailbox reconstruction without granting a seco
   mailbox.unavailable(scope, true, 'unadmitted');
   expect(ledger.operations.get(request.id)).toMatchObject({ state: 'failed', consumed: true });
   expect(ledger.executions.get(f.invocation.executionId).state).toBe('interrupted');
+});
+
+it('confirms native feedback in either arrival order without creating another execution or spending another turn', async () => {
+  for (const order of ['native-first', 'receipt-first', 'mismatch', 'stop'] as const) {
+    const f = fixture();
+    f.component.nativeCompletion = 'completion';
+    f.component.parameters.completion = {
+      schema: { type: 'string' },
+      editor: 'text',
+      required: true,
+    };
+    f.snapshot.definition.nodes.push({
+      ...f.snapshot.definition.nodes.find((node) => node.id === 'worker')!,
+      id: 'coder',
+      parameters: {
+        worktree: { kind: 'literal', value: f.home },
+        agent: { kind: 'literal', value: f.target.sessionId },
+        completion: { kind: 'literal', value: 'native' },
+      },
+    });
+    Object.assign(f.activation.bindings, {
+      native: { worktree: f.home, session: f.target.sessionId },
+    });
+    Object.assign(f.activation, f.ledger.activations.apply(f.activation, 0).activation);
+    f.ledger.activations.setIntent(1, 'armed', false);
+    const baseline: HuddleCompletionBaseline = {
+      node: 'native',
+      cursor: { epoch: 'a'.repeat(32), sequence: 10 },
+      target: {
+        identity: {
+          runtime_id: f.target.runtimeId,
+          incarnation: f.target.incarnation,
+          launch_id: randomUUID(),
+          profile_id: f.identity.profileId,
+          project_id: f.target.projectId,
+          session_id: f.target.sessionId,
+          canonical_worktree_path: f.home,
+        },
+        sessionId: f.target.sessionId,
+        segmentId: randomUUID(),
+        nativeRef: 'native-ref',
+      },
+    };
+    f.ledger.completions.initialise(
+      [{ node: 'native', slot: 0, worktree: f.home, session: f.target.sessionId }],
+      f.activation,
+      [baseline],
+    );
+    const request = f.request();
+    if (request.action.kind !== 'operation' || request.action.operation.op !== 'ask')
+      throw new Error('Expected ask');
+    request.action.operation.nativeCompletion = true;
+    const settled = vi.fn();
+    const waiting = f.mailbox.request(request, f.invocation, new AbortController().signal);
+    void waiting.then(settled, settled);
+    const scope = f.mailbox.claim(request.id).operation.scope;
+    const receipt = {
+      receipt: 'b'.repeat(64),
+      turn: {
+        turn: 7,
+        status: 'completed' as const,
+        expected_ref: 'native-ref',
+        reply: 'approved',
+      },
+    };
+    const observe = () => {
+      const source = f.ledger.completions.list()[0]!;
+      expect(
+        f.ledger.completions.admit(
+          source,
+          {
+            state: 'events',
+            persistencePending: false,
+            head: 11,
+            cursor: { ...source.cursor, sequence: 11 },
+            records: [
+              {
+                sequence: 11,
+                event: 'completed',
+                observedAt: new Date().toISOString(),
+                sessionId: f.target.sessionId,
+                segmentId: baseline.target.segmentId,
+                agentSessionRef: baseline.target.nativeRef,
+                nativeTurnId: 'native-turn',
+                reply: 'approved',
+                origin: {
+                  kind: 'automation',
+                  turn: order === 'mismatch' ? 8 : 7,
+                  huddle: {
+                    huddleId: f.identity.huddleId,
+                    executionId: f.invocation.executionId,
+                    operationId: request.id,
+                  },
+                },
+              },
+            ],
+          },
+          f.settings,
+        ),
+      ).toBe(0);
+      f.mailbox.confirmNative();
+    };
+    if (order === 'native-first') observe();
+    else f.mailbox.settle(scope, receipt);
+    await Promise.resolve();
+    expect(settled).not.toHaveBeenCalled();
+    if (order === 'native-first') f.mailbox.settle(scope, receipt);
+    else if (order === 'stop') f.mailbox.cancelNative();
+    else observe();
+    if (order === 'mismatch' || order === 'stop')
+      await expect(waiting).rejects.toThrow(
+        order === 'mismatch' ? 'does not match' : 'stopped or changed',
+      );
+    else await expect(waiting).resolves.toBe('approved');
+    f.mailbox.settle(scope, receipt);
+    f.mailbox.confirmNative();
+    expect(settled).toHaveBeenCalledOnce();
+    expect(f.ledger.page('executions')).toHaveLength(1);
+    expect(f.ledger.executions.get(f.invocation.executionId).turns).toBe(1);
+    expect(f.mailbox.claim(request.id).dispatch).toBe(false);
+  }
 });

@@ -19,6 +19,20 @@ export class PuddlangAgent {
   async ask<T>(
     request: string | { prompt: string; input?: unknown; schema: z.ZodType<T> },
   ): Promise<string | T> {
+    return this.request(request, false);
+  }
+  /** Huddle only: continue once both the ask result and its declared native source agree. */
+  askNative(prompt: string): Promise<string>;
+  askNative<T>(request: { prompt: string; input?: unknown; schema: z.ZodType<T> }): Promise<T>;
+  async askNative<T>(
+    request: string | { prompt: string; input?: unknown; schema: z.ZodType<T> },
+  ): Promise<string | T> {
+    return this.request(request, true);
+  }
+  private async request<T>(
+    request: string | { prompt: string; input?: unknown; schema: z.ZodType<T> },
+    nativeCompletion: boolean,
+  ): Promise<string | T> {
     const prompt =
       typeof request === 'string'
         ? request
@@ -27,6 +41,7 @@ export class PuddlangAgent {
     const outputSchema = typeof request === 'string' ? undefined : z.toJSONSchema(request.schema);
     const reply = await this.call({
       op: 'ask',
+      ...(nativeCompletion ? { nativeCompletion: true as const } : {}),
       handle: this.handle,
       request: { prompt, ...(outputSchema ? { output_schema: outputSchema } : {}) },
     });

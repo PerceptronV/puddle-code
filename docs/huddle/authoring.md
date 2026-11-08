@@ -339,3 +339,25 @@ Apply; the node never follows a replacement or restarts after a generic prompt
 failure. A lost reply is observed through retained operation history and cannot
 cause another resume/restart. If dispatch was interrupted before a replacement
 was recorded, inspect the ordinary session before taking a new explicit action.
+
+
+## Native-confirmed asks
+
+Application 28.20 and owner capability `nativeFeedback: 1` add editable templates
+`native-prompt-agent` and `native-review-agent`. They use the ordinary agent bindings,
+worktree and prompt settings, plus a `completion` parameter selecting a Turn
+completed node id. Their manifests declare `"nativeCompletion": "completion"`.
+The selected trigger must already observe the exact bound agent/conversation.
+
+Custom scripts can use `await agent.askNative(prompt)` or the same structured
+`{ prompt, input?, schema }` overload as `ask()`. Declare sessions capability, an
+explicit worktree and a string parameter named by `nativeCompletion`. The selected
+source is checked before sending the prompt. The method waits for both the ordinary
+ask result and matching native evidence; it returns the reply once. Use normal
+finite feedback edges and turn/time budgets. Never wire a second continuation from
+an inferred status change. Automated completion events stay suppressed as roots;
+external human turns retain the normal trigger behaviour.
+
+Subscription replacement/stopping rejects waits; unknown or lost operations are
+observed, never automatically resent. Standalone `pudl run` does not support this
+method. Update the offline authoring kit to obtain generated askNative types.
