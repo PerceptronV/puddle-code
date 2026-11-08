@@ -1413,7 +1413,7 @@ and project menus. Huddle content renders saved nodes/ports/wires, a list/inspec
 and ordinary editor source links. Manifest graph edits now share the source file's
 Monaco model, drafts, undo, conditional saves and conflict review. Node creation,
 connection selectors, deletion, parameter bindings and appearance controls are
-available; node movement, complete settings and IDE Start/Run remain unfinished.
+available; node movement and complete settings remain unfinished.
 Huddle views can move through panes, project layouts and native
 transfers without creating PTYs or owners. Closing a view is independent of Stop.
 Desktop recovery format 4 migrates versions 2/3; `windows.huddles` gates native
@@ -1450,8 +1450,17 @@ trigger/readout adapters fail before launch. Missing source blocks new work but
 not inspection or Stop. The event host id persists in private `huddle-host.json`
 and grants no authority. Public history omits private ledger keys and operation
 inputs/targets; stopped-owner history and active-revision details remain pending.
-Remote profile leases and the connector deny these APIs. IDE execution controls
-remain unfinished.
+Remote profile leases and the connector deny these APIs. The local/SSH IDE gates
+execution on application 28.2 and the shell's huddle capability. Its action tray
+separates saved-source Start/Apply with explicit JSON variables from manual Run
+against the active activation. Local definition drafts block source activation;
+Run does not save or apply them. Interrupt, retained-activation Resume and Stop
+use the inspected target. Per-placement pending/error state is shared across views
+in one renderer; commands are never retried or queued for reconnect. After a failed
+reply, another mutation requires explicit runtime/history observation. History
+shows paged execution outcomes, node inputs/results and operation states from a
+connected owner; visible-page polling stops on errors. Source and runtime status
+remain separate, including unavailable observation and host-session lifetime.
 Migration 44 adds
 `huddle_stop_requests(runtime_id, session_id, requested_at)`; consumed Stop is
 observed after a lost reply. Existing session kill/archive delegates to huddle Stop

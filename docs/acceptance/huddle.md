@@ -4,13 +4,66 @@ Status: foundation in progress, 2026-11-08. The full objective remains the
 [huddle roadmap](../roadmap/huddle.md). Application 27.1 exposes inactive definition
 creation/opening through local/SSH HTTP. Application 28.0 adds the sidebar entry
 and graph panes. Manifest editing now shares ordinary editor drafts, undo and
-conflict review; layout editing and IDE execution controls remain unfinished.
+conflict review; layout editing remains unfinished. The IDE now includes reviewed
+manual execution controls and live history.
 Application 28.2 exposes local/SSH manual execution and live-owner history APIs.
 Runtime archives declare their internal huddle-role contracts;
 application 27.0 now includes huddle session identity and migration 43 records
 placements/owner roles. The daemon launcher and lifecycle controls now integrate
 with session kill/archive; migration 44 retains Stop intent. No user CLI command
 is enabled yet.
+
+## Implemented: IDE execution controls and live history
+
+`web/features/huddle/execution/` groups transport, shared command/query state,
+input review and history presentation. Application 28.2, local/SSH transport and
+the existing native huddle capability gate execution controls. Older supporting
+hosts retain authoring without calls to these newer routes. No protocol or database
+version changes were needed for this UI increment.
+
+- Start and Apply inspect the owner and freshly capture saved source before
+  showing its digest, definition worktree and editable JSON variables. Declared
+  defaults are visible; missing required or invalid values fail before dispatch.
+  Dirty local buffers under the definition directory and source conflicts block
+  source activation. Start alone sends no manual event.
+- Run uses the reviewed activation and a fresh per-dialog event UUID. Input is
+  explicit bounded JSON, initially `null`. Saved manual-trigger nodes are only
+  suggestions; an existing active trigger id can be entered when the revisions
+  differ. Run never saves or applies source edits.
+- Interrupt, Resume of the retained activation, and Stop use inspected owner
+  targets. Runtime status distinguishes stopped, armed/idle, executing,
+  interrupted and unavailable observations, and identifies host-session lifetime.
+- Pending/error state is shared per placement in one renderer and survives view
+  remounts. Mutations have no retry/reconnect queue. Any failed command requires
+  explicit runtime/history observation before a subsequent command; failed
+  observation retains that barrier. Separate native windows still rely on the
+  server's exact-owner admission and event identity.
+- Run acceptance opens live history at the returned execution id; it does not
+  imply completion. History offers bounded execution pages and per-execution
+  node/operation pages, showing states, inputs, results and consumed dispatch.
+  Previous/Next and refresh retain cursor semantics; focused runtime and visible
+  history pages poll every three seconds, stopping on errors. Value previews are
+  visibly truncated at 16 KiB. Stopped/offline history, full-value export and active
+  revision/binding inspection remain unfinished.
+
+UI-only verification uses `test/huddle/execution.browser.mjs`, with synthetic
+HTTP replies and no daemon or provider. It covers the 28.1 capability gate,
+required variable validation, held Start without duplicate dispatch, explicit
+Run/results, dirty source, saved Apply, Interrupt/Resume/Stop, stale source after
+review, accepted Run with a lost reply, failed outcome observation, explicit next
+input, pagination and narrow dialogs. Existing authoring/editing regressions cover
+creation/opening, unsupported runtimes, shared drafts, conflict review and closing
+views without execution. These checks establish UI behaviour only; real isolated
+owner/API evidence is recorded separately below. Native service, live-provider,
+SSH and reboot acceptance remain pending.
+
+Verified 2026-11-08: all three huddle browser scripts passed against the UI-only
+preview; seven huddle unit tests in three files passed. Shared/web TypeScript,
+repository ESLint, Prettier and semantic-token/contrast checks passed. Reviewed
+light-theme history and dark-theme narrow input screenshots. The `pnpm lint`
+wrapper tried dependency installation and stopped before running checks; the
+installed ESLint, Prettier and token-check commands were run directly instead,
+without changing dependencies. No production daemon or native window was started.
 
 ## Implemented: local/SSH lifecycle admission and live history API
 
@@ -64,7 +117,7 @@ existing 256-row/1 MiB private-ledger limits. Their cursor enumerates rows, not
 changes: refresh earlier pages for mutable outcomes. Public inspection identifies
 the active activation, but does not yet expose its revision digest/binding details.
 Retained history after owner shutdown, reboot recovery, auto-start controls,
-provider-backed nodes and the IDE's execution/history controls remain unfinished.
+provider-backed nodes remain unfinished; the IDE integration is documented above.
 
 Verification: **377 tests in 53 files** passed across the shared schemas, complete
 huddle suite, daemon profile-authority tests and connector policy tests. Six new
@@ -105,7 +158,7 @@ Unknown operations remain unknown.
 This controller increment originally added no HTTP routes or UI controls; the
 28.2 routes above now reuse it. It does not read stopped owners' ledgers or change
 private owner contracts, ordinary runtime 1.1, or remote protocol 5. Retained/offline
-history projection and the IDE's Start/Run/history integration remain pending.
+history projection remains pending; the IDE now uses the 28.2 APIs above.
 
 Verification: **184 tests in 31 files** passed across shared/huddle and
 daemon/huddle, including five new real isolated-owner controller tests and four
@@ -1121,8 +1174,8 @@ software and did not start a service.
 Phase 0 remains open for the full component catalogue and resource admission.
 Phase 1 has retained revisions/activation, the ledger, routing, workers and a manual
 scheduler composed in an independent owner process, now exposed through local/SSH
-lifecycle and live-history APIs. Next connect these APIs to IDE controls and
-complete retained/offline history, active-revision detail, the exact-operation
+lifecycle and live-history APIs with IDE controls. Next complete retained/offline
+history, active-revision detail, the exact-operation
 bridge, host resource accounting and lifecycle fencing. Finish node movement and
 settings, actual trigger/readout adapters, provider-backed lifecycle nodes,
 authoring tools/docs/skills and packaged integration.

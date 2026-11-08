@@ -539,7 +539,8 @@ acknowledge fan-out before every downstream admission commits. The scheduler
 records routing failures and cancels dependent work. `runtime/huddle/owner.ts`
 composes an independent process with private control under `transport/`, sharing
 runtime claims, host memory grants and lifetime checks. Public lifecycle
-admission and provider dispatch remain pending; do not infer application support from entry-point existence.
+admission is exposed through the routes below; provider dispatch remains pending.
+Do not infer support for an operation from entry-point existence.
 Application 27.0 adds the closed `huddle` session kind. Migration 43 and
 `db/stores/huddle/placements.ts` retain one immutable placement per
 project/canonical worktree/definition. The common runtime inventory records its
@@ -595,7 +596,15 @@ enter terminal keep-alive, stdin, ordinary Resume or provider controls. Keep kin
 selection in `sessionTabRef`, and preserve duplicate huddle views when closing one.
 Desktop persistence is format 4 (migrate 2/3); require `windows.huddles` before
 opening or saving huddle-containing working sets, including parked project slices.
-Keep source links on the existing editor path. IDE Start/Run remains unfinished.
+Keep source links on the existing editor path. `web/features/huddle/execution/`
+owns application-28.2 lifecycle/input reviews and paged live history. Start/Apply
+use freshly inspected saved source; Run uses the reviewed active target without
+saving. Local dirty definition buffers block source activation. Share pending and
+uncertain-command state per placement within the renderer, and never retry or
+queue mutations on reconnect. Explicit runtime/history inspection clears the
+review barrier after a failure; failed observation leaves it intact. Poll only
+focused runtime/visible history pages and stop polling after errors. Do not infer
+that saved source is the active revision, or that acceptance means completion.
 Manifest graph editing uses the shared `huddle.json` editor model, existing conditional file
 saves/drafts/conflicts and undo history. `tabHoldsFile` recognises manifest ownership
 for window transfers, close review, arrangements and model retention. Keep source

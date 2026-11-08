@@ -12,13 +12,14 @@ import {
   sessionSchema,
 } from '@puddle/shared';
 import { profile, project, sessions } from '../../src/dev/preview/data';
+import { huddleRuntimeFixture } from './runtime';
 
 const fixture = mountWorkspaceFixture();
 const transport = browserTransport()!;
 installBrowserTransport(null);
 profileStore.set(profile.id);
 const messages: unknown[] = [];
-const requests: Array<{ method: string; path: string }> = [];
+const requests: Array<{ method: string; path: string; body?: unknown }> = [];
 // Local transport shape with in-memory HTTP and WS; never contacts a daemon.
 window.WebSocket = class extends EventTarget {
   static OPEN = 1;
@@ -111,6 +112,12 @@ const disk = new Map<string, { content: string; mtime: number }>([
   [savedId, { content: JSON.stringify(document.definition, null, 2), mtime: 1 }],
 ]);
 let available = true;
+const runtime = huddleRuntimeFixture(() => document);
+let executionSupported = !new URLSearchParams(location.search).has('old-execution');
+let revision = 10;
+const changedRevision = () => {
+  document.digest = (++revision).toString(16).padStart(64, '0');
+};
 let opened = false;
 const nativeFetch = window.fetch.bind(window);
 window.fetch = async (input, init) => {
@@ -120,8 +127,14 @@ window.fetch = async (input, init) => {
   const method = init?.method ?? 'GET';
   const body = init?.body ? JSON.parse(String(init.body)) : undefined;
   const path = url.pathname;
-  requests.push({ method, path });
+  requests.push({ method, path, body });
   const prefix = `/api/huddle/${profile.id}`;
+  if (path === '/api/version' && !executionSupported) {
+    const version = await transport.request(method, path, body).then((response) => response.json());
+    return Response.json({ ...version, protocol: { major: 28, minor: 1 } });
+  }
+  const execution = path.match(new RegExp(`^${prefix}/sessions/([^/]+)/([^/]+)$`));
+  if (execution) return runtime.request(execution[1]!, execution[2]!, body);
   if (path === `${prefix}/availability`)
     return Response.json(
       available
@@ -188,6 +201,7 @@ window.fetch = async (input, init) => {
       file.mtime++;
       const target = id === savedId ? document : blank!;
       target.definition = huddleDefinitionSchema.parse(JSON.parse(file.content));
+      target.digest = (++revision).toString(16).padStart(64, '0');
       for (const node of target.definition.nodes) {
         if (node.source.kind === 'local' && node.source.manifest === 'nodes/review/node.json')
           target.components[node.id] = reviewer;
@@ -219,9 +233,15 @@ Object.assign(window, {
       file.content = JSON.stringify(value, null, 2);
       file.mtime++;
       document.definition = huddleDefinitionSchema.parse(value);
+      changedRevision();
     },
     available: (value: boolean) => {
       available = value;
     },
+    runtime,
+    executionSupported: (value: boolean) => {
+      executionSupported = value;
+    },
+    changedRevision,
   },
 });

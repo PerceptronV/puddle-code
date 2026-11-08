@@ -12,6 +12,7 @@ import { AddNode, Connections } from './inspector/GraphEditing';
 import { removeGraphNode } from './documents/graph-edits';
 import { NodeAppearance } from './inspector/NodeAppearance';
 import { NodeParameters } from './inspector/NodeParameters';
+import { ExecutionControls } from './execution/ExecutionControls';
 
 export function HuddlePane({ session, focused = true }: { session: Session; focused?: boolean }) {
   const supported = useHuddleSupported();
@@ -115,6 +116,15 @@ function HuddleEditor({ session, focused }: { session: Session; focused: boolean
           </button>
         </ControlTray>
       </div>
+      {profile && (
+        <ExecutionControls
+          key={`${profile}:${session.id}`}
+          profile={profile}
+          session={session}
+          focused={focused}
+          locked={draft.locked || !!buffer.conflict}
+        />
+      )}
       {buffer.dirty && <p className="px-4 text-xs text-fg-muted">Unsaved changes</p>}
       {buffer.restoredNotice && (
         <p className="px-4 text-xs text-fg-muted">Restored unsaved changes</p>

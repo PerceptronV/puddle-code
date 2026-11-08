@@ -53,7 +53,10 @@ try {
   });
   await page.getByRole('button', { name: 'New huddle', exact: true }).click();
   await page.getByRole('dialog').waitFor();
-  await page.getByText('Install a runtime with huddle support', { exact: true }).waitFor();
+  await page
+    .getByRole('dialog')
+    .getByText('Install a runtime with huddle support', { exact: true })
+    .waitFor();
   await page.getByLabel('Name', { exact: true }).fill('Unavailable');
   assert.equal(
     await page.getByRole('button', { name: 'Create huddle', exact: true }).isDisabled(),
