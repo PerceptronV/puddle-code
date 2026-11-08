@@ -17,6 +17,7 @@
  *   ├── CONNECTOR_PROTOCOL # remote protocol, display-only in the component inventory
  *   ├── RUNTIME_PROTOCOL   # private daemon/runtime major.minor
  *   ├── HOST_CAPABILITIES.json # passive protocol compatibility declaration
+ *   ├── RUNTIME_CAPABILITIES.json # optional runtime roles and their complete contracts
  *   ├── LICENSE
  *   ├── bin/node           # pinned runtime, nothing else from the Node dist
  *   └── daemon/
@@ -257,6 +258,14 @@ function writeMetadata() {
   });
   if (JSON.parse(capabilities).version !== version) fail('host capability version mismatch');
   writeFileSync(join(stage, 'HOST_CAPABILITIES.json'), capabilities);
+  const runtimeCapabilities = execFileSync(join(stage, 'puddler'), ['--runtime-capabilities'], {
+    encoding: 'utf8',
+    timeout: 5000,
+    maxBuffer: 32 * 1024,
+  });
+  if (JSON.parse(runtimeCapabilities).version !== version)
+    fail('runtime capability version mismatch');
+  writeFileSync(join(stage, 'RUNTIME_CAPABILITIES.json'), runtimeCapabilities);
 }
 
 /* 5 — smoke test: a broken bundle, missing banner, or wrong-ABI native dies here. */

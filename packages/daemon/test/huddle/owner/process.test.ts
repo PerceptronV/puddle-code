@@ -5,10 +5,16 @@ import { once } from 'node:events';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
-import { huddleOwnerLaunchSchema, type HuddleOwnerLaunch } from '@puddle/shared';
+import {
+  huddleOwnerLaunchSchema,
+  HUDDLE_RUNTIME_CAPABILITIES,
+  type HuddleOwnerLaunch,
+} from '@puddle/shared';
 import { atomicPrivateJson, ipcPath } from '@puddle/shared/node';
 import { HuddleRevisionStore } from '../../../src/runtime/huddle/state/revisions.js';
 import { huddleRevisionDigest } from '../../../src/huddle/definitions/revision.js';
+import { resolveHuddleRuntimeRelease } from '../../../src/runtime/huddle/control/release.js';
+import { runtimeRelease } from '../../helpers/runtime-release.js';
 import { HuddleOwnerClient } from '../../../src/runtime/huddle/transport/client.js';
 import {
   acquireRuntimeControllerWhenAvailable,
@@ -50,6 +56,7 @@ function fixture(source: string, concurrency = 1) {
     format: 1,
     role: 'huddle',
     contract: 1,
+    capabilities: HUDDLE_RUNTIME_CAPABILITIES,
     identity: base.launch.identity,
     scope: {
       hostId: 'fixture',
@@ -170,6 +177,19 @@ describe('independent huddle owner process', () => {
     expect(existsSync(join(f.directory, 'consumed.json'))).toBe(false);
   });
 
+  it('refuses unsupported definition capabilities before consuming the launch', async () => {
+    const f = fixture(wrap('return {completed: 42};'));
+    atomicPrivateJson(join(f.directory, 'launch.json'), {
+      ...f.launch,
+      capabilities: { ...f.launch.capabilities, definition: 2 },
+    });
+    const owner = launchOwner(f.home, f.launch.identity.runtime_id);
+    await once(owner.child, 'exit');
+    expect(owner.child.exitCode).not.toBe(0);
+    expect(owner.errors()).toContain('unsupported runtime capabilities');
+    expect(existsSync(join(f.directory, 'consumed.json'))).toBe(false);
+  });
+
   it('observes one accepted run after its acknowledgement is discarded', async () => {
     const f = fixture(
       wrap(`fs.appendFileSync(inputs.value + '/effects', 'x'); return {completed: 42};`),
@@ -254,6 +274,9 @@ describe('independent huddle owner process', () => {
     await until(() => existsSync(join(f.home, 'effects')));
     const replacement = await acquireRuntimeControllerWhenAvailable(f.home);
     controllers.push(replacement);
+    // An unsupported new default blocks future huddles, not adoption of this pinned live owner.
+    runtimeRelease(f.home, '0.0.1', '1.0').select();
+    expect(() => resolveHuddleRuntimeRelease(f.home)).toThrow(/capability metadata/);
     const observer = await connect(f, f.launch, replacement.record);
     expect(observer.state?.identity.incarnation).toBe(incarnation);
     await until(async () => {

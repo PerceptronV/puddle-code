@@ -3,6 +3,7 @@ import { runtimeIdentitySchema } from '../protocol.js';
 import { huddleJsonSchema, huddleKeySchema } from '../../api/huddle/values.js';
 import { huddleLedgerIdentitySchema } from './state.js';
 import { huddleControlStateSchema, huddleRevisionActivationSchema } from './revisions.js';
+import { huddleRuntimeCapabilitiesSchema } from './capabilities.js';
 
 /** Unshipped role contract. No agent/terminal message or retained record changes. */
 export const HUDDLE_OWNER_CONTRACT = 1 as const;
@@ -13,6 +14,7 @@ export const huddleOwnerLaunchSchema = z
     format: z.literal(1),
     role: z.literal('huddle'),
     contract: z.literal(HUDDLE_OWNER_CONTRACT),
+    capabilities: huddleRuntimeCapabilitiesSchema,
     identity: runtimeIdentitySchema,
     scope: huddleLedgerIdentitySchema,
     secret: z.string().regex(/^[a-f0-9]{64}$/),
@@ -41,6 +43,7 @@ export const huddleOwnerStateSchema = z.strictObject({
   format: z.literal(1),
   role: z.literal('huddle'),
   contract: z.literal(HUDDLE_OWNER_CONTRACT),
+  capabilities: huddleRuntimeCapabilitiesSchema,
   identity: runtimeIdentitySchema,
   scope: huddleLedgerIdentitySchema,
   build: z.string().min(1).max(128),

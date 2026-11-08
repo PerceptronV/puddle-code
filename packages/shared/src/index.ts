@@ -68,6 +68,8 @@ export * from './runtime/huddle/routing.js';
 export * from './runtime/huddle/worker.js';
 export * from './runtime/huddle/revisions.js';
 export * from './runtime/huddle/owner.js';
+export * from './runtime/huddle/capabilities.js';
+export * from './runtime/capabilities.js';
 export * from './installation/stage.js';
 export * from './installation/collection.js';
 export * from './installation/update.js';

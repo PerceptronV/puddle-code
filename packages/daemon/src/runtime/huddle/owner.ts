@@ -3,6 +3,8 @@ import { join } from 'node:path';
 import {
   huddleOwnerLaunchSchema,
   huddleOwnerStateSchema,
+  HUDDLE_RUNTIME_CAPABILITIES,
+  supportsHuddleRuntime,
   type HuddleOwnerLaunch,
   type HuddleOwnerRequest,
   type HuddleOwnerResponse,
@@ -70,6 +72,8 @@ export class HuddleOwner {
     try {
       if (memory.launch.build !== build)
         throw new Error('Huddle owner build differs from its pinned launch');
+      if (!supportsHuddleRuntime(memory.launch.capabilities))
+        throw new Error('Huddle launch requires unsupported runtime capabilities');
       owner = new HuddleOwner(home, memory, workerEntry);
       owner.releaseLifetime = await prepareRuntimeLifetime(home, memory.launch);
       // Consume once before activating source or listening. Owner replacement needs a separate fenced recovery.
@@ -104,6 +108,7 @@ export class HuddleOwner {
       format: 1,
       role: 'huddle',
       contract: launch.contract,
+      capabilities: HUDDLE_RUNTIME_CAPABILITIES,
       identity: launch.identity,
       scope: launch.scope,
       build: launch.build,

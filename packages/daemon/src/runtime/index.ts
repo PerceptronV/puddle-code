@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { RUNTIME_PROTOCOL_VERSION } from '@puddle/shared';
+import { RUNTIME_PROTOCOL_VERSION, runtimeReleaseCapabilities } from '@puddle/shared';
 import { RuntimeHost } from './host.js';
 import { HuddleOwner } from './huddle/owner.js';
 import { readRuntimeJson, runtimeDirectory } from './ownership/storage.js';
@@ -17,7 +17,9 @@ const version =
         }
       ).version;
 
-if (process.argv.includes('--version')) {
+if (process.argv.length === 3 && process.argv[2] === '--runtime-capabilities') {
+  console.log(JSON.stringify(runtimeReleaseCapabilities(version)));
+} else if (process.argv.includes('--version')) {
   console.log(
     `puddler ${version} (runtime protocol ${RUNTIME_PROTOCOL_VERSION.major}.${RUNTIME_PROTOCOL_VERSION.minor})`,
   );
@@ -31,6 +33,8 @@ if (process.argv.includes('--version')) {
   const launch = readRuntimeJson(join(runtimeDirectory(args[1]!, args[3]!), 'launch.json'));
   const huddle =
     typeof launch === 'object' && launch !== null && 'role' in launch && launch.role === 'huddle';
+  if (typeof launch === 'object' && launch !== null && 'role' in launch && !huddle)
+    throw new Error('Unsupported runtime role');
   const host = huddle
     ? await HuddleOwner.start(
         args[1]!,

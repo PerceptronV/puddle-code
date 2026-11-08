@@ -32,9 +32,15 @@ It shares permanent runtime and process-memory claims, lifetime validation,
 pre-dispatch grants and bounded framing. Its handshake binds the exact scoped
 identity, secret, build and current controller epoch; command sequences survive
 controller replacement. A consumed launch cannot restart the same incarnation.
-No passive huddle capability or production creation path is advertised yet.
-Capability negotiation and maintenance/adoption integration must precede product
-enablement; the presence of this internal role is not admission evidence.
+Archives now carry a separate `RUNTIME_CAPABILITIES.json` with exact build/protocol
+and role contract versions. The bounded huddle selection reader requires owner,
+definition, component and ledger support plus pinned helper files, then rechecks
+the exact selection before launch intent. Private huddle launches retain those
+requirements and live adoption verifies actual capabilities. Ordinary owners need
+no new metadata and historical `HOST_CAPABILITIES.json` readers are unchanged.
+No production creation path is enabled yet. Application admission and
+maintenance/adoption integration must precede product enablement; executable
+presence or the ordinary runtime protocol alone is not huddle admission evidence.
 See [huddle acceptance](../../docs/acceptance/huddle.md) for the tested scope.
 
 Runtime 1.1 adds exact attachment to Claude-owned background jobs. Before writing

@@ -540,7 +540,11 @@ records routing failures and cancels dependent work. `runtime/huddle/owner.ts`
 composes an independent process with private control under `transport/`, sharing
 runtime claims, host memory grants and lifetime checks. Production launcher,
 application projection, maintenance/capability admission and provider dispatch
-remain pending; do not advertise support from entry-point existence. A consumed
+remain pending; do not infer application support from entry-point existence.
+Runtime-role metadata lives separately in `RUNTIME_CAPABILITIES.json`; huddle
+selection must validate exact build/protocol/contracts/helpers and recheck the
+selected generation before intent. Keep historical host capability and ordinary
+runtime readers compatible. Live huddle adoption verifies pinned capabilities. A consumed
 launch cannot restart without separately fenced recovery. Source publication is separate from Apply/arming;
 keep accepted executions bound to their original activation through later edits.
 `runtime/huddle/workers/` executes captured component closures in isolated children;

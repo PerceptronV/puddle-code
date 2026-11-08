@@ -5,6 +5,7 @@ import {
   huddleOwnerRequestSchema,
   huddleOwnerResponseSchema,
   RUNTIME_LIMITS,
+  supportsHuddleRuntime,
   type HuddleOwnerLaunch,
   type HuddleOwnerRequest,
   type HuddleOwnerResponse,
@@ -57,6 +58,8 @@ export class HuddleOwnerClient {
     socket.on('close', () => this.close());
   }
   static async open(home: string, launch: HuddleOwnerLaunch, controller: RuntimeControllerRecord) {
+    if (!supportsHuddleRuntime(launch.capabilities))
+      throw new Error('Huddle launch requires unsupported runtime capabilities');
     const path = ipcPath(home, `runtime:${launch.identity.runtime_id}`);
     privatePath(path);
     const socket = connect(path);
@@ -91,6 +94,8 @@ export class HuddleOwnerClient {
         canonicalHuddleJson(reply.state.scope) !== canonicalHuddleJson(launch.scope) ||
         reply.state.build !== launch.build ||
         reply.state.contract !== launch.contract ||
+        canonicalHuddleJson(reply.state.capabilities) !==
+          canonicalHuddleJson(launch.capabilities) ||
         reply.state.lifetime !== launch.lifetime
       )
         throw new Error('Huddle owner does not match its exact launch');

@@ -1386,8 +1386,11 @@ common host allowance. Shutdown retains ownership until worker exit is confirmed
 Production service launch/adoption, host operation authority, complete resource
 accounting and service-scope recovery remain integration work. Retained auto-start
 intent alone provides no reboot promise.
-There is no huddle API, runtime capability or UI yet; existing sessions and
-protocols remain unchanged. Contracts, bounds, verification and unfinished
+Archives separately declare huddle role/format support in `RUNTIME_CAPABILITIES.json`.
+Pinned selection checks require that metadata and complete helpers; private launch
+and live handshake capabilities must match. Ordinary runtime selection and
+`HOST_CAPABILITIES.json` remain compatible. There is no huddle API or UI yet;
+existing sessions and protocols remain unchanged. Contracts, bounds, verification and unfinished
 work are recorded in [huddle acceptance](docs/acceptance/huddle.md); the complete
 design is in the [roadmap](docs/roadmap/huddle.md).
 

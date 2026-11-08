@@ -6,7 +6,8 @@ validation, data-only source discovery/capture, event/delivery contracts and an
 internal node execution boundary. Phase 1 has the private execution ledger and
 durable graph routing with correlated joins and bounded feedback, plus isolated
 captured-source script workers, retained revisions/activation and a manual scheduler
-in an independent owner process with private authenticated control. Production
+in an independent owner process with private authenticated control, explicit
+runtime-role metadata and pinned capability checks. Production
 launch/adoption, native supervision, provider dispatch and UI integration remain unfinished.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals, not available commands/imports.
