@@ -72,7 +72,11 @@ describe('immutable huddle source publication', () => {
   it('restores metadata without loading code and rejects missing or extra captured dependencies', () => {
     const { f, store, snapshot } = setup();
     snapshot.definition.nodes[1]!.source = { kind: 'local', manifest: './nodes/result/node.json' };
-    snapshot.components['result'] = { ...snapshot.components['result']!, entry: './run.ts' };
+    snapshot.components['result'] = {
+      ...snapshot.components['result']!,
+      entry: './run.ts',
+      readout: { idempotent: false, reconciliation: 'none', cancellation: 'none' },
+    };
     snapshot.files = {
       'huddle.json': JSON.stringify(snapshot.definition),
       'nodes/result/node.json': JSON.stringify(snapshot.components['result']),

@@ -46,6 +46,12 @@ export function requireHuddleFeatures(
   for (const node of snapshot.definition.nodes) {
     const component = snapshot.components[node.id]!;
     if (
+      node.source.kind === 'local' &&
+      component.category === 'readout' &&
+      capabilities.readouts !== 1
+    )
+      throw new Error('This runtime does not support custom huddle readouts');
+    if (
       component.id === filetreeHuddleTrigger.id &&
       node.source.kind === 'builtin' &&
       capabilities.filetree !== 1

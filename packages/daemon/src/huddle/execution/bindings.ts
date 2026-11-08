@@ -37,8 +37,8 @@ export function huddleExecutionBindings(
         ((reference: string, worktree: string) =>
           observeSession(reference, worktree, completion ? 'agent' : 'any'))
       : agent;
-    if (node.source.kind === 'local' && component.category !== 'script')
-      unsupported('Custom trigger and readout adapters are not available yet');
+    if (node.source.kind === 'local' && component.category === 'trigger')
+      unsupported('Custom trigger adapters are not available yet');
     if (component.capabilities.includes('sessions') && !observing && !agent)
       unsupported('The huddle agent-operation bridge is not available yet');
     const values = resolveHuddleParameters(snapshot.definition, node, component, variables);

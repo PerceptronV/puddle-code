@@ -6,6 +6,7 @@ import {
   resolveHuddleParameters,
   type HuddleInvocationRecord,
   type HuddleJson,
+  type HuddleWorkerJob,
 } from '@puddle/shared';
 import type { HuddleDefinitionSnapshot } from './capture.js';
 import { huddleRevisionDigest } from './revision.js';
@@ -16,6 +17,7 @@ export function prepareHuddleWorkerJob(
   invocation: HuddleInvocationRecord,
   variables: Record<string, HuddleJson>,
   bindings: Record<string, string>,
+  readout?: HuddleWorkerJob['readout'],
 ) {
   if (
     snapshot.digest !== invocation.revision ||
@@ -31,8 +33,12 @@ export function prepareHuddleWorkerJob(
     throw new Error('Graph settings differ from captured source');
   const node = snapshot.definition.nodes.find((node) => node.id === invocation.node);
   const component = snapshot.components[invocation.node];
-  if (node?.source.kind !== 'local' || component?.category !== 'script' || !component.entry)
-    throw new Error('Invocation has no captured local script');
+  if (
+    node?.source.kind !== 'local' ||
+    !component?.entry ||
+    !['script', 'readout'].includes(component.category)
+  )
+    throw new Error('Invocation has no captured executable component');
   const manifest = node.source.manifest.replace(/^\.\//, '');
   const directory = posix.dirname(manifest);
   const paths = [
@@ -43,6 +49,7 @@ export function prepareHuddleWorkerJob(
     invocationId: invocation.id,
     revision: invocation.revision,
     node: node.id,
+    ...(readout ? { readout } : {}),
     manifest,
     component,
     files: Object.fromEntries(paths.map((path) => [path, snapshot.files[path]])),

@@ -36,11 +36,39 @@ export const huddleComponentSchema = z
       .max(5)
       .default([]),
     activation: z.enum(['all', 'any']).default('all'),
+    readout: z
+      .strictObject({
+        idempotent: z.boolean(),
+        reconciliation: z.enum(['none', 'observe']),
+        cancellation: z.enum(['none', 'signal']),
+      })
+      .optional(),
     appearance: huddleAppearanceSchema.optional(),
     entry: huddleRelativePathSchema.optional(),
     dependencies: z.array(huddleRelativePathSchema).max(HUDDLE_LIMITS.files).default([]),
   })
   .superRefine((component, ctx) => {
+    if (component.category === 'readout' && component.entry && !component.readout)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['readout'],
+        message: 'Local readouts must declare delivery support',
+      });
+    if (component.readout && component.category !== 'readout')
+      ctx.addIssue({
+        code: 'custom',
+        path: ['readout'],
+        message: 'Delivery support belongs to a readout',
+      });
+    if (
+      component.category === 'readout' &&
+      Object.values(component.outputs).some((port) => port.emission !== 'completion')
+    )
+      ctx.addIssue({
+        code: 'custom',
+        path: ['outputs'],
+        message: 'Readout outputs require confirmed delivery',
+      });
     if (component.category === 'trigger' && Object.keys(component.inputs).length)
       ctx.addIssue({
         code: 'custom',

@@ -39,8 +39,6 @@ export interface HuddleTriggerAdapter {
 
 export interface HuddleReadoutAdapter {
   contract: string;
-  /** Retry admission also requires the owner's exact delivery ledger. */
-  idempotent: boolean;
   deliver(context: HuddleExtensionContext, delivery: HuddleDelivery): Promise<HuddleDeliveryResult>;
   observe?(
     context: HuddleExtensionContext,

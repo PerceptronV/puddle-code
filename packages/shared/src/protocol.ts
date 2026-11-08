@@ -359,7 +359,8 @@
 // 28.2: local/SSH huddle lifecycle commands, runtime observation and bounded history.
 // 28.3: materialise editable huddle agent-node templates without activating a graph.
 // 28.4: expected_mtime_ms -1 exclusively creates an absent file; huddle layout drafts.
-export const PROTOCOL_VERSION = { major: 28, minor: 4 } as const;
+// 28.5: optional local readout delivery declarations in huddle component contracts.
+export const PROTOCOL_VERSION = { major: 28, minor: 5 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

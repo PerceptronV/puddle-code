@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { isoTimestamp, profileId, projectId, sessionId } from '../common.js';
-import { huddleIdSchema, huddleJsonSchema, huddleKeySchema } from './values.js';
+import { HUDDLE_LIMITS, huddleIdSchema, huddleJsonSchema, huddleKeySchema } from './values.js';
 import { huddleComponentIdSchema } from './components.js';
 
 export const huddleRevisionSchema = z.string().regex(/^[a-f0-9]{64}$/);
@@ -65,6 +65,12 @@ export const huddleEventSchema = z.strictObject({
 });
 export type HuddleEvent = z.infer<typeof huddleEventSchema>;
 
+const deliveryInputs = z
+  .record(huddleKeySchema, huddleJsonSchema)
+  .refine(
+    (value) =>
+      Object.keys(value).length <= HUDDLE_LIMITS.ports && huddleJsonSchema.safeParse(value).success,
+  );
 export const huddleDeliverySchema = z.strictObject({
   format: z.literal(1),
   id: z.uuid(),
@@ -72,13 +78,16 @@ export const huddleDeliverySchema = z.strictObject({
   event: huddleEventSchema,
   invocationId: z.uuid(),
   node: huddleKeySchema,
-  port: huddleKeySchema,
-  data: huddleJsonSchema,
+  inputs: deliveryInputs,
 });
 export type HuddleDelivery = z.infer<typeof huddleDeliverySchema>;
 
 export const huddleDeliveryResultSchema = z.discriminatedUnion('status', [
-  z.strictObject({ status: z.literal('delivered'), receipt: huddleJsonSchema }),
+  z.strictObject({
+    status: z.literal('delivered'),
+    receipt: huddleJsonSchema,
+    outputs: deliveryInputs.optional(),
+  }),
   z.strictObject({ status: z.literal('failed'), message: z.string().min(1).max(4096) }),
   z.strictObject({ status: z.literal('unknown'), message: z.string().min(1).max(4096) }),
 ]);

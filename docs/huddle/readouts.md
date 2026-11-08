@@ -1,0 +1,114 @@
+# Custom huddle readouts
+
+A readout sends graph inputs to a destination and records whether delivery was
+confirmed, refused or uncertain. Project-local readouts require application 28.5
+and a runtime advertising `readouts: 1`. They run in captured workers on the project
+host, using the same trusted-code model as puddlang scripts.
+
+Create these files beneath `.puddle/huddle/<huddle_id>/nodes/report/`:
+
+```text
+node.json
+readout.ts
+```
+
+`node.json` defines settings, input/output ports and delivery support:
+
+```json
+{
+  "format": 1,
+  "id": "project.readout.report",
+  "version": 1,
+  "category": "readout",
+  "title": "Send report",
+  "entry": "./readout.ts",
+  "capabilities": ["network"],
+  "readout": {
+    "idempotent": false,
+    "reconciliation": "none",
+    "cancellation": "signal"
+  },
+  "parameters": {
+    "endpoint": {
+      "title": "Endpoint",
+      "schema": { "type": "string" },
+      "editor": "text"
+    }
+  },
+  "inputs": { "report": { "schema": {} } },
+  "outputs": { "completed": { "schema": {} } }
+}
+```
+
+This example expects a destination that confirms delivery with a successful JSON
+response. Adjust the response handling to the destination's documented semantics:
+an HTTP error alone does not always prove that the action was refused.
+
+```ts
+import { HuddleReadout } from 'puddlang/huddle';
+
+export default HuddleReadout({
+  contract: './node.json',
+  async deliver(context, delivery) {
+    try {
+      const response = await fetch(String(context.parameters.endpoint), {
+        method: 'POST',
+        headers: {
+          'content-type': 'application/json',
+          'idempotency-key': delivery.idempotencyKey,
+        },
+        body: JSON.stringify(delivery.inputs.report),
+        signal: context.signal,
+      });
+      if (!response.ok) {
+        return { status: 'unknown', message: 'Destination did not confirm delivery' };
+      }
+      const receipt = await response.json();
+      return { status: 'delivered', receipt, outputs: { completed: receipt } };
+    } catch {
+      return { status: 'unknown', message: 'Destination reply was unavailable' };
+    }
+  },
+});
+```
+
+In the IDE, choose **Add local node** with `nodes/report/node.json`, configure
+**Endpoint**, and connect an upstream output to `report`. Save, then explicitly
+Start or Apply. Opening the graph and inspecting settings never executes the module.
+Put additional source files in `dependencies` so activation captures their exact
+contents. The readout's contract path is relative to its component directory.
+
+The immutable delivery contains all named inputs from the invocation, its root
+event and scope, source port, graph revision, node, invocation id and idempotency
+key. Settings and resolved bindings are also immutable. File, Git and session
+components must declare an explicit `worktree` parameter; use `context.bindings`
+for resolved resource references. A network-only component need not invent a file
+or session binding. Integration-secret references are not implemented yet; keep
+credentials out of graph source files.
+
+Return one of:
+
+- `{ status: 'delivered', receipt, outputs? }` after confirmation. The receipt and
+  outputs must be bounded JSON. Outputs must match the declared completion ports.
+- `{ status: 'failed', message }` when the destination confirms that delivery failed.
+- `{ status: 'unknown', message }` when the outcome cannot be established.
+
+The owner records delivery intent before evaluating project code. It retains a
+confirmed receipt before acknowledging the worker, then waits for successful
+worker exit before routing completion outputs. Throwing, timing out or exiting
+without a receipt leaves the delivery unknown. The original operation stays
+consumed and is not automatically sent again. History exposes the retained
+operation outcome even when its graph execution failed.
+
+Only declare `idempotent: true` when the destination actually deduplicates the
+supplied key; sending a header alone is insufficient. The declaration does not
+enable retries. `cancellation: 'signal'` lets the adapter pass the abort signal to
+its I/O and perform brief cleanup; termination cannot prove the action was undone.
+Use `'none'` when the adapter cannot cooperate.
+
+Adapters declaring `reconciliation: 'observe'` must also export
+`async observe(context, delivery)` returning the same result type. This method must
+query the original delivery by its retained key and must not resend it. The worker
+supports separate observation, but explicit owner/API reconciliation controls are
+still unfinished. Until those are available, inspect uncertain delivery at the
+destination before deliberately starting new work.

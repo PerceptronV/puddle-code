@@ -70,8 +70,7 @@ describe('huddle event and delivery contracts', () => {
       event: event(),
       invocationId: randomUUID(),
       node: 'report',
-      port: 'input',
-      data: 'report',
+      inputs: { input: 'report' },
     };
     expect(huddleDeliverySchema.parse(delivery).event.revision).toBe('a'.repeat(64));
     expect(huddleDeliverySchema.safeParse({ ...delivery, idempotencyKey: undefined }).success).toBe(

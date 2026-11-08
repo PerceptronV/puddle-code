@@ -28,7 +28,7 @@ export function validateHuddleOperation(
   if (
     !node ||
     !component ||
-    component.category !== 'script' ||
+    !['script', 'readout'].includes(component.category) ||
     !component.capabilities.includes('sessions') ||
     component.parameters.worktree?.editor !== 'worktree' ||
     !Object.values(component.parameters).some((parameter) => parameter.editor === 'session')

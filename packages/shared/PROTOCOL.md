@@ -1,5 +1,24 @@
 # The puddle communication protocol
 
+Application **28.5** adds optional `readout` delivery declarations to local huddle
+component manifests: idempotency support, `none|observe` reconciliation and
+`none|signal` cancellation. Local readout entries must declare these fields;
+existing script and built-in contracts are unchanged. Optional private huddle
+capability `readouts: 1` gates launch/Apply and daemon adoption. Existing agent/terminal
+IPC, remote protocol 5, database 47 and huddle owner/ledger versions are unchanged.
+
+The previously unused delivery SDK envelope now contains the complete named
+`inputs` map instead of a single `port/data` pair, preserving joined input ports.
+It retains the root event, source port, scope, revision, invocation and idempotency
+key. Delivery results may include completion `outputs` only with `delivered`.
+This draft SDK change does not replace a previously sent application message.
+Private worker jobs optionally carry the exact delivery and `deliver|observe` mode;
+`readout-result` requests record outcomes before acknowledging the worker. A single
+consumed `readout` operation precedes source evaluation. Unknown/failed outcomes
+cannot publish completion outputs. Confirmed delivery and worker exit remain
+separate evidence; no automatic delivery retry or completed-script replay exists.
+Explicit owner/API reconciliation of unknown deliveries remains pending.
+
 Private agent/terminal runtime protocol **1.2** adds a separate `native-turns`
 read request/response, optional `state.native_turns` source status and optional
 `agent.native_turn_events: 1` availability. Inspect both protocol and provider

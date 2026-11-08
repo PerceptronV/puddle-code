@@ -19,6 +19,7 @@ import {
   type HuddleWorkerOptions,
 } from '../workers/process.js';
 import { huddleRecords } from './records.js';
+import { HuddleReadoutDelivery } from '../readouts/delivery.js';
 
 export interface HuddleAttemptOptions extends Pick<
   HuddleWorkerOptions,
@@ -99,16 +100,22 @@ export class HuddleAttempts {
     component: HuddleComponent,
     releaseWorker: (() => void) | null | undefined,
   ): boolean {
+    const readout =
+      component.category === 'readout'
+        ? new HuddleReadoutDelivery(this.ledger, invocation, component)
+        : undefined;
     const job = prepareHuddleWorkerJob(
       snapshot,
       invocation,
       activation.variables,
       activation.bindings[node.id] ?? {},
+      readout ? { delivery: readout.envelope, mode: 'deliver' } : undefined,
     );
     const execution = this.ledger.executions.requireRunning(invocation.executionId);
     this.ledger.invocations.start(invocation.id, Date.now(), node.concurrency);
     let handle: HuddleWorkerHandle;
     try {
+      readout?.dispatch();
       handle = startHuddleWorker(job, {
         ...this.options,
         cwd: activation.worktree,
@@ -116,12 +123,18 @@ export class HuddleAttempts {
         request: async (message, signal) => {
           this.ledger.executions.requireRunning(invocation.executionId);
           signal.throwIfAborted();
+          if (message.action.kind === 'readout-result') {
+            if (!readout) throw new Error('Script workers cannot settle external readouts');
+            readout.accept(message.action.result);
+            return null;
+          }
           if (message.action.kind === 'operation') {
             if (!this.options.operation)
               throw new Error('Huddle host operation bridge is unavailable');
             return this.options.operation(message, invocation, signal);
           }
           const { port, value, sequence } = message.action;
+          if (readout) throw new Error('Readout outputs require confirmed delivery');
           const contract = component.outputs[port];
           if (contract?.emission !== 'event' || validateHuddleValue(contract.schema, value).length)
             throw new Error('Invalid worker event port');
@@ -141,8 +154,10 @@ export class HuddleAttempts {
     }
     const task = handle.result
       .then((outputs) => {
-        if (this.ledger.executions.get(invocation.executionId).state === 'running')
+        if (this.ledger.executions.get(invocation.executionId).state === 'running') {
+          readout?.requireDelivered(outputs);
           this.ledger.invocations.complete(invocation.id, outputs);
+        }
       })
       .catch((error: unknown) => {
         const failure = error instanceof Error ? error : new Error(String(error));

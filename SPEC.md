@@ -1350,8 +1350,8 @@ concurrent edits. It does not execute scripts or create runtime/session records.
 Shared event/delivery contracts retain exact turn identity and separate unknown
 delivery from success. The internal `puddlang/huddle/` node boundary validates
 inputs, settings, outputs and acknowledged event emissions, with immutable values
-and cancellation checks. Its trigger/readout interfaces await durable owner
-integration; `pudl run` does not expose the huddle import yet.
+and cancellation checks. Local readout execution is described below; custom trigger
+subscriptions remain unfinished. `pudl run` does not expose the huddle import yet.
 `runtime/huddle/state/` supplies the private owner-local SQLite ledger: atomic
 trigger/cursor admission, bounded node attempts and outbox routing, retained
 execution budgets and single-consumption operation intent. Capacity reservations
@@ -1373,6 +1373,17 @@ observation. Source preparation rechecks the revision digest; imports use the
 declared component closure and the pinned HuddleNode/puddlang/zod helpers.
 The existing single-file runner shares its provider-neutral agent client with
 these workers. Archive builds bundle and smoke-test the new helper entries.
+Application 28.5 adds local readout delivery declarations; optional `readouts: 1`
+gates supporting owners. `HuddleReadout` accepts immutable joined inputs and the
+exact scoped source event, revision, invocation and idempotency key. Delivery policy
+declares idempotency, observation and cancellation support. The owner consumes a
+durable `readout` operation before project-source evaluation, retaining known
+receipts/refusals or unknown outcomes without replay. Completion outputs require a
+delivered receipt, matching owner acknowledgement and successful worker exit.
+Readouts reuse captured closures, the worker pool, memory/transport/log bounds and
+declared agent-resource bridge. Signal cancellation gives bounded cleanup without
+proving absence of delivery. Separate worker observation invokes only `observe`;
+explicit owner/API reconciliation and custom trigger subscriptions remain pending.
 Private immutable revision documents and compare-and-swap activation records
 separate source publication from Apply/arming. Managed executions retain their
 accepted revision, variable values and resource bindings across later Apply.
@@ -1628,7 +1639,8 @@ scripts; spawn/resume and shipped agent nodes remain pending. No ordinary agent
 IPC changes.
 Node worktrees resolve to registered roots in the placement's project and are
 rechecked after asynchronous admission. Unsupported account/project/provider
-selectors and local trigger/readout adapters fail before launch. Missing source blocks new work but
+selectors and local trigger adapters fail before launch. Custom readouts require a
+supporting runtime and captured delivery policy. Missing source blocks new work but
 not inspection or Stop. The event host id persists in private `huddle-host.json`
 and grants no authority. Public history omits private ledger keys and operation
 inputs/targets; stopped-owner history and active-revision details remain pending.

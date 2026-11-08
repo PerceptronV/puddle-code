@@ -1,7 +1,11 @@
 import { z } from 'zod';
 import { puddlangOperationSchema } from '../../api/agents/puddlang.js';
 import { huddleComponentSchema } from '../../api/huddle/components.js';
-import { huddleRevisionSchema } from '../../api/huddle/events.js';
+import {
+  huddleRevisionSchema,
+  huddleDeliverySchema,
+  huddleDeliveryResultSchema,
+} from '../../api/huddle/events.js';
 import {
   HUDDLE_LIMITS,
   huddleJsonSchema,
@@ -29,6 +33,9 @@ export const huddleWorkerJobSchema = z.strictObject({
   invocationId: z.uuid(),
   revision: huddleRevisionSchema,
   node: huddleKeySchema,
+  readout: z
+    .strictObject({ delivery: huddleDeliverySchema, mode: z.enum(['deliver', 'observe']) })
+    .optional(),
   manifest: huddleRelativePathSchema,
   component: huddleComponentSchema,
   files: z
@@ -50,6 +57,7 @@ export const huddleWorkerJobSchema = z.strictObject({
 export type HuddleWorkerJob = z.infer<typeof huddleWorkerJobSchema>;
 
 export const huddleWorkerActionSchema = z.discriminatedUnion('kind', [
+  z.strictObject({ kind: z.literal('readout-result'), result: huddleDeliveryResultSchema }),
   z.strictObject({
     kind: z.literal('operation'),
     operation: puddlangOperationSchema.refine(

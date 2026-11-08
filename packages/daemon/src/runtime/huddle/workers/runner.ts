@@ -3,6 +3,8 @@ import { huddleWorkerInputSchema, type HuddleWorkerJob } from '@puddle/shared';
 import { readRuntimeFrames, writeRuntimeFrame } from '../../transport/framing.js';
 import { executeHuddleNode } from '../../../puddlang/huddle/execute.js';
 import { HuddleNode } from '../../../puddlang/huddle/node.js';
+import { HuddleReadout } from '../../../puddlang/huddle/readout.js';
+import { executeHuddleReadout } from '../../../puddlang/huddle/execute-readout.js';
 import { HuddleWorkerCalls } from './calls.js';
 import { installWorkerImports } from './source.js';
 import './sdk.js';
@@ -11,12 +13,19 @@ const socket = new Socket({ fd: 3, readable: true, writable: true });
 const abort = new AbortController();
 let started = false;
 let finished = false;
+let cancellation: 'none' | 'signal' = 'none';
 const calls = new HuddleWorkerCalls((message) => {
   if (!writeRuntimeFrame(socket, message)) throw new Error('Huddle worker transport closed');
 });
 function disconnected(error: Error) {
+  if (abort.signal.aborted) return;
   abort.abort(error);
   calls.close(error);
+  if (cancellation === 'signal' && !finished) {
+    // Best-effort cleanup only, never proof that the destination did not receive a delivery.
+    setTimeout(() => process.exit(1), 250);
+    return;
+  }
   process.exit(1);
 }
 socket.on('error', disconnected);
@@ -47,8 +56,29 @@ readRuntimeFrames(
 );
 
 async function run(job: HuddleWorkerJob) {
+  cancellation = job.readout ? (job.component.readout?.cancellation ?? 'none') : 'none';
   const imports = installWorkerImports(job, new URL('./sdk.js', import.meta.url).href);
   const module = (await import(imports.entryUrl)) as { default?: unknown };
+  if (job.readout) {
+    const adapter = HuddleReadout(module.default as Parameters<typeof HuddleReadout>[0]);
+    imports.checkContract(adapter.contract);
+    const result = await executeHuddleReadout(
+      adapter,
+      job.component,
+      {
+        parameters: job.parameters,
+        bindings: job.bindings,
+        signal: abort.signal,
+        log: (message) => console.log(message),
+      },
+      job.readout.delivery,
+      job.readout.mode,
+    );
+    if (calls.pendingCount) throw new Error('Readout finished with unawaited operations');
+    await calls.call({ kind: 'readout-result', result });
+    if (result.status !== 'delivered') throw new Error(result.message);
+    return result.outputs ?? {};
+  }
   const node = HuddleNode(module.default as Parameters<typeof HuddleNode>[0]);
   imports.checkContract(node.contract);
   let sequence = 0;

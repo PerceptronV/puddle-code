@@ -127,6 +127,16 @@ export class HuddleExecutions {
     return huddleExecutionRecordSchema.parse(JSON.parse(row.body));
   }
 
+  event(id: string): HuddleEvent {
+    const execution = this.get(id);
+    const row = this.db.get('inbox', execution.eventKey);
+    if (!row) throw new Error('Huddle execution source event is missing');
+    const event = huddleInboxRecordSchema.parse(JSON.parse(row.body)).event;
+    if (event.executionId !== id || event.revision !== execution.revision)
+      throw new Error('Huddle execution source event differs from its retained identity');
+    return event;
+  }
+
   start(id: string, now = Date.now()): HuddleExecutionRecord {
     return this.db.atomic(() => {
       const execution = this.get(id);

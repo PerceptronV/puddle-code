@@ -103,7 +103,7 @@ it('refuses bridge and adapter features before execution and validates variables
   snapshot.components.worker!.capabilities = ['sessions'];
   expect(() => huddleExecutionBindings(snapshot, {}, [])).toThrow('bridge');
   snapshot.components.worker!.capabilities = [];
-  snapshot.components.worker!.category = 'readout';
+  snapshot.components.worker!.category = 'trigger';
   expect(() => huddleExecutionBindings(snapshot, {}, [])).toThrow('adapters');
   snapshot.definition.nodes = [];
   snapshot.definition.variables = { required: { schema: { type: 'boolean' }, required: true } };

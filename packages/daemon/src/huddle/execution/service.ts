@@ -306,7 +306,7 @@ export class HuddleExecutionService {
         if (
           Object.values(snapshot.components).some(
             (component) =>
-              component.category === 'script' && component.capabilities.includes('sessions'),
+              component.category !== 'trigger' && component.capabilities.includes('sessions'),
           ) &&
           state.capabilities.operations !== 2
         )

@@ -10,6 +10,7 @@ manual execution controls and live history.
 Application 28.2 exposes local/SSH manual execution and live-owner history APIs.
 Application 28.3 adds editable agent templates and feedback settings.
 Application 28.4 adds guarded absent-file creation and layout editing.
+Application 28.5 adds local readout delivery declarations and execution.
 Runtime archives declare their internal huddle-role contracts;
 application 27.0 now includes huddle session identity and migration 43 records
 placements/owner roles. The daemon launcher and lifecycle controls now integrate
@@ -28,6 +29,58 @@ interactive, structured Codex and command-correlated headless controls. Automati
 delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 No user CLI command is enabled yet.
+
+## Implemented: project-local readout delivery
+
+Local `readout` components now execute captured source through the existing bounded
+worker pool. They export the inert `HuddleReadout` wrapper from `puddlang/huddle`.
+Application **28.5** adds the optional manifest `readout` declaration with explicit
+idempotency, reconciliation and cancellation support. Local readout entries require
+it; script and built-in contracts retain their existing shapes. Runtime capability
+`readouts: 1` gates host launch/Apply and adoption, preserving older owners.
+
+`puddlang/huddle/execute-readout.ts` validates immutable named inputs, settings,
+bindings and the exact delivery envelope before invoking custom code. The formerly
+unused delivery SDK now carries all joined input ports in `inputs`; its root event
+retains the source port, scope and revision. It also binds node/invocation identity
+and a stable SHA-256 idempotency key. The declared dependency closure, pinned SDK,
+source digest, transport/log bounds, 128 MiB heap setting, worker deadline and
+managed child allowance are shared with scripts. Graph inspection does not load
+project modules, and this trusted-code path is not an OS sandbox.
+
+`runtime/huddle/readouts/delivery.ts` consumes one `readout` operation before
+evaluating project source. It retains the exact envelope and declared delivery
+policy. `delivered` stores a bounded receipt and validated completion outputs;
+`failed` records a known refusal; `unknown`, exceptions, missing/invalid replies,
+or cancellation preserve consumed intent without retry. The public operation
+history exposes the existing result/error projection. The owner compares worker
+outputs with the acknowledged receipt and waits for successful child exit before
+publishing them. A worker crash after receipt does not erase known delivery, and a
+zero exit without a receipt cannot claim success.
+
+Readouts may use declared attach/ask resources through the existing operation
+bridge and budgets. File/Git/session resources still require explicit worktree
+bindings. Network/file operations made directly by trusted source are represented
+by the enclosing delivery operation. `signal` cancellation gives bounded best-effort
+cleanup before forced exit; it is never proof that a destination received nothing.
+
+The worker supports a separate `observe` mode and verifies its exported method
+against the captured declaration. Tests prove that this mode does not invoke
+`deliver`. **Owner/API controls for explicitly reconciling unknown deliveries are
+still unfinished**, as are custom trigger subscriptions, managed integration-secret
+references and destination-specific conformance/acceptance. No automatic retry is
+enabled merely because a component declares idempotency support.
+
+Verification: the broader huddle/shared run passed **251 tests**, with one older
+readout-source fixture missing the newly required delivery declaration. After
+correcting that fixture and adding lost-receipt-acknowledgement coverage, the final
+focused run passed **18 tests across 4 files**. These cover real isolated workers,
+immutable envelopes, durable consumption before source evaluation, receipt routing,
+failed/unknown outcomes, cancellation, reopening without replay, separate observation,
+and HTTP Start/Run/history with a loopback destination that can drop its reply after
+receiving a delivery. Shared/daemon/CLI TypeScript, web typechecking, repository
+ESLint/Prettier and diff checks passed. Destination-specific, installed-provider,
+native supervisor, SSH and reboot acceptance remain pending.
 
 ## Implemented: completion node authoring and public execution
 
@@ -1261,7 +1314,7 @@ This slice runs queued manual inputs, local script nodes and built-in result
 readouts. Explicit literal/variable worktree settings resolve to canonical roots
 registered to the definition's project. Supporting owners now also admit declared
 session resources and attach/ask scripts. Account/project/provider selectors and
-local trigger/readout adapters remain rejected. Cross-project binding remains
+local trigger adapters remain rejected; custom readouts are covered above. Cross-project binding remains
 unfinished. Scripts retain the trusted-code execution model; these checks are not
 an OS sandbox.
 
@@ -2092,7 +2145,7 @@ workers without renderer participation. `control/manual.ts` admits idempotent
 manual events; `shared/huddle/components/core.ts` provides the initial Run trigger and
 result readout contracts. The scheduler runs local script components and stores
 result-readout input in the retained invocation. It refuses unsupported built-in
-contracts and local trigger/readout adapters. Coalescing/drop admission is refused
+contracts and local trigger adapters; custom readouts are covered above. Coalescing/drop admission is refused
 until those policies are implemented. The independent owner entry point below
 now composes these helpers; public creation/Run and interval triggers are documented above.
 

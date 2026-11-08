@@ -9,7 +9,7 @@ captured-source script workers, retained revisions/activation and a manual sched
 in an independent owner process with private authenticated control, explicit
 runtime-role metadata and pinned capability checks. Phase 2 has the third session
 kind, immutable application placement and common runtime inventory role, with
-application protocol 28.4. Local/SSH inactive creation, discovery, inspection and
+application protocol 28.5. Local/SSH inactive creation, discovery, inspection and
 placement opening now have sidebar creation and a graph pane with manifest
 editing, shared source/layout drafts, settings, undo and file-conflict review.
 Pointer/touch and keyboard node movement, position settings, pan and fit controls
@@ -71,7 +71,10 @@ completions are suppressed. Optional `completionPlans: 1` now supports read-only
 retained/proposed activation plans and host capture of exact durable agent baselines
 after queued review. Explicit same-execution native feedback remains unfinished.
 Broader recurrence rules, a richer trigger health/backlog
-inspector and custom trigger/readout workers remain unfinished.
+inspector and custom trigger workers remain unfinished. Local readouts now execute
+captured HuddleReadout adapters with durable intent, bounded receipts and explicit
+unknown outcomes. The isolated worker supports observation, but owner/API controls
+for reconciling uncertain deliveries remain unfinished.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals except where explicitly documented
 in acceptance as implemented.
@@ -374,7 +377,7 @@ use the same versioned contracts and conformance tests.
 The common event envelope includes contract version, source/component id, stable
 event id, observed/occurred timestamps, host/profile/project scope, applicable
 worktree/session/runtime/turn identity, correlation/causation ids and typed data.
-The delivery envelope also binds graph revision, node, port and invocation.
+The delivery envelope also binds graph revision, node, all named input ports and invocation.
 Define payload/count/time bounds and cursor expiry behaviour in the contracts.
 
 Custom trigger/readout source lives in the project and executes on its host in

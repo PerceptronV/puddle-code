@@ -5,7 +5,8 @@ the implemented local/SSH workflow. The [roadmap](roadmap/huddle.md) covers the 
 design; [acceptance](acceptance/huddle.md) records verified behaviour and remaining
 work. Interval, calendar and one-off date triggers are available on supporting
 runtimes. Filetree, Git, session lifecycle/status and exact external turn-completion
-observation are also available. Agent spawn/resume nodes, explicit native feedback
+observation are also available. [Custom readouts](huddle/readouts.md) can deliver
+graph outputs to external services on supporting runtimes. Agent spawn/resume nodes, explicit native feedback
 and authoring CLI/skills remain unfinished. Native provider, supervisor and reboot acceptance is pending.
 
 ## Create and edit

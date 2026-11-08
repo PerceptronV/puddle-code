@@ -14,8 +14,18 @@ const normal = (path: string) => huddleRelativePathSchema.parse(path).replace(/^
 export function checkedWorkerSource(job: HuddleWorkerJob) {
   const manifest = normal(job.manifest);
   const component = job.component;
-  if (component.category !== 'script' || !component.entry)
-    throw new Error('Worker requires a local script entry point');
+  if (!['script', 'readout'].includes(component.category) || !component.entry)
+    throw new Error('Worker requires a local executable entry point');
+  if ((component.category === 'readout') !== !!job.readout)
+    throw new Error('Readout worker requires its exact delivery envelope');
+  if (
+    job.readout &&
+    (job.readout.delivery.invocationId !== job.invocationId ||
+      job.readout.delivery.node !== job.node ||
+      job.readout.delivery.event.revision !== job.revision ||
+      canonicalHuddleJson(job.readout.delivery.inputs) !== canonicalHuddleJson(job.inputs))
+  )
+    throw new Error('Readout delivery differs from its captured invocation');
   const directory = posix.dirname(manifest);
   const entry = normal(posix.join(directory, component.entry));
   const paths = [
