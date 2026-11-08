@@ -74,7 +74,9 @@ function SessionLabel({ session, accountLabel }: { session: Session; accountLabe
       <span>{renderTitle(session)}</span>
       <span className="text-2xs text-fg-muted">{session.branch}</span>
       <span className="mt-0.5 flex items-center gap-1 text-2xs text-fg-muted">
-        {session.kind === 'terminal' ? (
+        {session.kind === 'huddle' ? (
+          <span>huddle</span>
+        ) : session.kind === 'terminal' ? (
           <>
             {session.detected_agent_type ? (
               <AgentIcon type={session.detected_agent_type} className="size-3 shrink-0" />

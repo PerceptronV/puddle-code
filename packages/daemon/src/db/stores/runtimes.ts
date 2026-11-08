@@ -2,6 +2,10 @@ import { isAbsolute } from 'node:path';
 import {
   runtimeIdentitySchema,
   runtimeSegmentSchema,
+  huddleIdSchema,
+  huddleRuntimeCapabilitiesSchema,
+  supportsHuddleRuntime,
+  type HuddleRuntimeCapabilities,
   type RuntimeIdentity,
   type RuntimeSegment,
   type RuntimePlacementBinding,
@@ -12,6 +16,10 @@ import { ProgrammeSpawnStore } from './programme-spawns.js';
 import type { ProgrammeOperation } from '../../puddlang/runtime-turn-store.js';
 
 export interface RuntimeBinding {
+  /** Absent only in historical fixture inputs; migrated rows always name their role. */
+  role?: 'session' | 'huddle';
+  huddle_id?: string | null;
+  huddle_capabilities?: string | null;
   runtime_id: string;
   incarnation: string;
   launch_id: string;
@@ -44,6 +52,8 @@ export interface RuntimeSegmentBinding {
 }
 
 interface Placement {
+  kind: string;
+  huddle_id: string | null;
   project_id: string;
   profile_id: string;
   canonical_worktree_path: string;
@@ -257,8 +267,19 @@ export class RuntimeStore {
     releasePath: string;
     codeRunDirectory?: string;
     programme?: ProgrammeOperation;
+    huddle?: { id: string; capabilities: HuddleRuntimeCapabilities };
   }): RuntimeBinding {
     const identity = runtimeIdentitySchema.parse(input.identity);
+    if (input.huddle) {
+      huddleIdSchema.parse(input.huddle.id);
+      huddleRuntimeCapabilitiesSchema.parse(input.huddle.capabilities);
+      if (
+        !supportsHuddleRuntime(input.huddle.capabilities) ||
+        input.programme ||
+        input.codeRunDirectory !== undefined
+      )
+        throw new Error('Invalid huddle runtime admission');
+    }
     if (!isAbsolute(input.releasePath) || input.releasePath.includes('\0'))
       throw new Error('Runtime release path must be absolute');
     if (
@@ -278,6 +299,7 @@ export class RuntimeStore {
         build: input.build,
         protocol: input.protocol,
         releasePath: input.releasePath,
+        ...(input.huddle ? { role: 'huddle', huddle: input.huddle } : {}),
         ...(input.programme ? { programme: input.programme } : {}),
         ...(input.codeRunDirectory === undefined
           ? {}
@@ -295,13 +317,23 @@ export class RuntimeStore {
       }
       const placement = this.placement(identity.session_id);
       this.checkPlacement(placement, identity);
+      if (
+        (placement.kind === 'huddle') !== !!input.huddle ||
+        (input.huddle &&
+          (placement.huddle_id !== input.huddle.id ||
+            placement.account_id !== null ||
+            placement.agent_type !== null ||
+            placement.conversation_id !== null))
+      )
+        throw new Error('Runtime role does not match its placement');
       this.db
         .prepare(
           `INSERT INTO runtime_bindings (
         runtime_id, incarnation, launch_id, launch_fingerprint, profile_id, project_id,
         launch_session_id, active_session_id, active_segment_id, account_id, agent_type, canonical_worktree_path,
-        conversation_id, build, protocol_major, protocol_minor, release_path, state, created_at
-      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'prepared', ?)`,
+        conversation_id, build, protocol_major, protocol_minor, release_path, state, created_at,
+        role, huddle_id, huddle_capabilities
+      ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'prepared', ?, ?, ?, ?)`,
         )
         .run(
           identity.runtime_id,
@@ -312,7 +344,7 @@ export class RuntimeStore {
           identity.project_id,
           identity.session_id,
           identity.session_id,
-          identity.runtime_id,
+          input.huddle ? null : identity.runtime_id,
           placement.account_id,
           placement.agent_type,
           identity.canonical_worktree_path,
@@ -322,13 +354,18 @@ export class RuntimeStore {
           input.protocol.minor,
           input.releasePath,
           new Date().toISOString(),
+          input.huddle ? 'huddle' : 'session',
+          input.huddle?.id ?? null,
+          input.huddle ? JSON.stringify(input.huddle.capabilities) : null,
         );
-      this.db
-        .prepare(
-          'INSERT INTO runtime_segments (runtime_id, segment_id, session_id, start_cursor) VALUES (?, ?, ?, 0)',
-        )
-        .run(identity.runtime_id, identity.runtime_id, identity.session_id);
-      this.setTerminalOwner(identity.session_id, identity.runtime_id);
+      if (!input.huddle) {
+        this.db
+          .prepare(
+            'INSERT INTO runtime_segments (runtime_id, segment_id, session_id, start_cursor) VALUES (?, ?, ?, 0)',
+          )
+          .run(identity.runtime_id, identity.runtime_id, identity.session_id);
+        this.setTerminalOwner(identity.session_id, identity.runtime_id);
+      }
       if (input.programme)
         new ProgrammeSpawnStore(this.db).bind(
           input.programme,
@@ -368,6 +405,8 @@ export class RuntimeStore {
     return this.db.transaction(() => {
       const current = this.get(id);
       if (!current) throw new Error('Unknown runtime');
+      if (current.role === 'huddle')
+        throw new Error('Huddle observations cannot create terminal segments');
       if (event.cursor <= current.event_cursor) return false;
       if (current.state !== 'prepared' && current.state !== 'running')
         throw new Error('An ended runtime cannot be adopted again');
@@ -503,7 +542,7 @@ export class RuntimeStore {
     const placement = this.db
       .prepare(
         `SELECT s.project_id, p.profile_id, s.canonical_worktree_path,
-      s.account_id, s.agent_type, s.conversation_id FROM sessions s JOIN projects p ON p.id = s.project_id WHERE s.id = ?`,
+      s.account_id, s.agent_type, s.conversation_id, s.kind, s.huddle_id FROM sessions s JOIN projects p ON p.id = s.project_id WHERE s.id = ?`,
       )
       .get(id) as Placement | undefined;
     if (!placement) throw new Error('Runtime placement does not exist');

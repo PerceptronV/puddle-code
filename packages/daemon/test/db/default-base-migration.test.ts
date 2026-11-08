@@ -76,7 +76,7 @@ it('clears every legacy repository default once while preserving settings and pl
     oldProjects.map((row) => ({ ...row, colour: null })),
   );
   expect(db.prepare('SELECT * FROM sessions ORDER BY id').all()).toEqual(
-    oldSessions.map((row) => ({ ...row, agent_mode: 'interactive' })),
+    oldSessions.map((row) => ({ ...row, agent_mode: 'interactive', huddle_id: null })),
   );
   expect(() => db.prepare("UPDATE sessions SET agent_mode = 'unknown'").run()).toThrow(/CHECK/);
   expect(db.pragma('foreign_key_check')).toEqual([]);

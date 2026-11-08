@@ -46,7 +46,6 @@ it('migrates saved scripted sessions to headless while preserving their state an
     config_dir: '/tmp/test-account',
     skip_permissions_default: false,
   });
-  const sessions = new SessionStore(db);
   let migratedId = '';
   for (const mode of ['interactive', 'scripted']) {
     const conversation = new ConversationStore(db).upsert(profile.id, 'codex', account.id, {
@@ -57,21 +56,14 @@ it('migrates saved scripted sessions to headless while preserving their state an
       createdAt: null,
       updatedAt: null,
     });
-    const session = sessions.create({
-      id: randomUUID(),
-      project_id: projectId,
-      account_id: account.id,
-      conversation_id: conversation.id,
-      worktree_path: repo.path,
-      base_branch: 'main',
-      branch: 'main',
-      kind: 'agent',
-      agent_type: 'codex',
-      title: mode,
-      status: 'interrupted',
-      native_sync: 'full',
-      skip_permissions: false,
-    });
+    // Historical fixtures use the historical columns, independently of today's store writer.
+    const session = { id: randomUUID() };
+    db.prepare(
+      `INSERT INTO sessions (id, project_id, account_id, conversation_id,
+      worktree_path, canonical_worktree_path, base_branch, branch, kind, agent_type,
+      title, status, native_sync, skip_permissions, created_at, updated_at)
+      VALUES (?, ?, ?, ?, ?, ?, 'main', 'main', 'agent', 'codex', ?, 'interrupted', 'full', 0, ?, ?)`,
+    ).run(session.id, projectId, account.id, conversation.id, repo.path, repo.path, mode, now, now);
     // Write the historical value directly: the current API only accepts headless.
     db.prepare('UPDATE sessions SET agent_mode = ?, session_env = ? WHERE id = ?').run(
       mode,
@@ -92,6 +84,7 @@ it('migrates saved scripted sessions to headless while preserving their state an
   const expected = before.map((row) => ({
     ...row,
     agent_mode: row['agent_mode'] === 'scripted' ? 'headless' : 'interactive',
+    huddle_id: null,
   }));
   expect(rows()).toEqual(expected);
   expect(new SessionStore(db).get(migratedId).agent_mode).toBe('headless');

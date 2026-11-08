@@ -1389,8 +1389,17 @@ intent alone provides no reboot promise.
 Archives separately declare huddle role/format support in `RUNTIME_CAPABILITIES.json`.
 Pinned selection checks require that metadata and complete helpers; private launch
 and live handshake capabilities must match. Ordinary runtime selection and
-`HOST_CAPABILITIES.json` remain compatible. There is no huddle API or UI yet;
-existing sessions and protocols remain unchanged. Contracts, bounds, verification and unfinished
+`HOST_CAPABILITIES.json` remain compatible. Application protocol 27.0 adds the
+third session kind and its definition id; older clients require a coordinated
+frontend/daemon update. Migration 43 gives huddles an immutable project/canonical
+worktree/definition identity and a role in the common runtime inventory. They have
+no placement-level provider, conversation, owned branch or terminal segment.
+Ordinary agent/terminal launch fingerprints, records and runtime protocol 1.1 are
+unchanged. The internal placement store does not launch an owner or grant project
+authority; its future service must validate scope and runtime capability first.
+There is no huddle creation API or IDE yet. Existing agent/terminal creation and
+restart controls cannot launch huddles. Production role-aware adoption and host
+maintenance checkpoints remain unfinished. Contracts, bounds, verification and unfinished
 work are recorded in [huddle acceptance](docs/acceptance/huddle.md); the complete
 design is in the [roadmap](docs/roadmap/huddle.md).
 

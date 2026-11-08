@@ -2,8 +2,59 @@
 
 Status: foundation in progress, 2026-11-08. The full objective remains the
 [huddle roadmap](../roadmap/huddle.md). Huddles cannot yet be created or run through
-the application. Runtime archives now declare their internal huddle-role contracts;
-no new session kind, API route, user CLI command or UI is enabled yet.
+the application. Runtime archives declare their internal huddle-role contracts;
+application 27.0 now includes huddle session identity and migration 43 records
+placements/owner roles. No huddle creation route, user CLI command or IDE is enabled yet.
+
+## Implemented: application placements and runtime inventory
+
+Application protocol **27.0** adds `Session.kind = 'huddle'` and its `huddle_id`.
+This is a coordinated frontend/daemon major transition because older clients
+validate a closed kind enum. Agent/terminal runtime protocol **1.1**, the huddle
+owner's unshipped contract 1 and remote transport protocol 5 are unchanged.
+Earlier foundation entries below describe their own increments, which added no
+application wire changes.
+
+Migration **43** adds a unique project/canonical-worktree/definition placement.
+The internal `db/stores/huddle/placements.ts` opens one stopped identity, canonicalises
+worktree aliases and returns the existing identity on repeated opens, including
+an archived one. Different definitions in one worktree and the same portable
+definition in different worktrees remain independent. Opening does not write
+definition files, unarchive, arm triggers or launch an owner. The future public
+service must authorise the project/worktree and validate installed huddle support
+before calling this store; this helper grants neither scope nor runtime admission.
+
+Database guards forbid provider/account/conversation attachment, branch ownership,
+implicit cwd, conversion of an ordinary placement and relocation of a huddle's
+identity. Huddle projections omit agent mode. Ordinary session creation retains
+the agent/terminal-only request and UI types; ordinary resume, kill, shell creation
+and runtime inspection/restart refuse huddles before launch effects. A stopped
+placement can use reversible archive/unarchive without registering onboarding.
+Full running-huddle lifecycle routing remains pending.
+
+`RuntimeStore.prepare` records the huddle role, id and required capabilities in the
+existing runtime inventory, checks that they match the placement and preserves
+all ordinary launch fingerprints. Huddle bindings have no active terminal segment,
+terminal-placement row or provider identity. Shared worktree/release retention
+sees their prepared/running owners. Ordinary terminal observations cannot attach
+segments to them. Migration retains historical agent/terminal records as role
+`session`; it does not restart or rewrite their owners. Production role-aware
+connections, daemon projection and maintenance/recovery checkpoints remain
+unfinished, so these internal records do not enable public huddle launches.
+
+The shared session glyph renders the Puddle mark and sidebar labels/search identify
+the huddle kind. This is presentation groundwork; there is no creation tray action,
+canvas, huddle tab or window content yet.
+
+Verification: **269 tests in 39 files** passed across shared schemas, placement and
+database migrations, ordinary runtime ownership, session runtime maintenance,
+puddlang outcome migration and web session/glyph helpers. A separate real-store
+session-boundary test passed, proving ordinary controls create no PTY/owner and
+archive/unarchive adds no onboarding. Schema-42 migration coverage verifies
+unchanged agent/terminal identities, fingerprints, cursors and terminal history,
+including idempotent preparation with the old launch inputs. Older migration
+fixtures now seed historical columns independently of the current session writer.
+Shared/daemon/web TypeScript, scoped ESLint and changed-file formatting checks passed.
 
 ## Implemented: definition and validation foundation
 
@@ -481,9 +532,9 @@ Phase 0 remains open for the full component contract catalogue and lifecycle
 admission. Phase 1 has retained revisions/activation, the ledger, routing, workers
 and a manual scheduler composed in an independent owner process. Next connect
 the production launcher, daemon projection and exact-operation bridge, including
-complete host resource accounting and lifecycle fencing. Runtime capability
-admission; third session kind and application protocol
-transition; IDE and normal windows; actual trigger/readout adapters; provider-backed
+complete host resource accounting and lifecycle fencing. Connect the implemented
+runtime capability checks and application placements to authorised creation;
+build the IDE and normal windows; actual trigger/readout adapters; provider-backed
 lifecycle nodes; authoring
 tools, docs/skill and packaged integration.
 

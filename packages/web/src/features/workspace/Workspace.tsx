@@ -8,7 +8,12 @@ import { IslandSeparator } from './layout/IslandSeparator';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
 import { Group, Panel, type Layout } from 'react-resizable-panels';
-import { UNTITLED_SESSION, type Session, type SessionKind, type TabRef } from '@puddle/shared';
+import {
+  UNTITLED_SESSION,
+  type Session,
+  type AgentTerminalKind,
+  type TabRef,
+} from '@puddle/shared';
 import { useWorkspaceEditor } from '../editor/tabs/use-workspace-editor';
 import { requestActiveTabSave } from '../editor/buffers/active-tab-save';
 import { useWorkspaceDrafts } from './tabs/use-workspace-drafts';
@@ -301,7 +306,7 @@ function WorkspaceInner() {
   const [narrowNav, setNarrowNav] = useState(false);
   const [narrowSessions, setNarrowSessions] = useState(false);
   const [creating, setCreating] = useState(false);
-  const [createKind, setCreateKind] = useState<SessionKind>('agent');
+  const [createKind, setCreateKind] = useState<AgentTerminalKind>('agent');
   const [seedAccountId, setSeedAccountId] = useState<number | undefined>(undefined);
   // Where the create dialogue lands its session: null = the current project;
   // a project-header context menu retargets it (SPEC §12) via `openCreateIn`.
@@ -309,7 +314,7 @@ function WorkspaceInner() {
     null,
   );
   const openCreate = useCallback(
-    (kind: SessionKind = 'agent', target?: { projectId: string; repoId: number }) => {
+    (kind: AgentTerminalKind = 'agent', target?: { projectId: string; repoId: number }) => {
       setSeedAccountId(undefined);
       setCreateTarget(target ?? null);
       setCreateKind(kind);
@@ -320,7 +325,7 @@ function WorkspaceInner() {
   // "New agent/terminal in this project" from a project header's right-click:
   // the SAME create dialogue, seeded with that project instead of the current.
   const openCreateIn = useCallback(
-    (kind: SessionKind, pid: string) => {
+    (kind: AgentTerminalKind, pid: string) => {
       const p = orderedProjects.find((x) => x.id === pid);
       openCreate(kind, p ? { projectId: p.id, repoId: p.repo_id } : undefined);
     },

@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useMemo, useState, type ReactNode } from 'react';
-import type { SessionKind } from '@puddle/shared';
+import type { AgentTerminalKind } from '@puddle/shared';
 
 /**
  * Lets the workspace hand its "open new-session modal" action to the shell
@@ -8,7 +8,7 @@ import type { SessionKind } from '@puddle/shared';
  * profile panel uses it to start a session on a chosen account in one click.
  * `kind` opens the modal in terminal mode instead of the default agent mode.
  */
-type OpenOpts = { accountId?: number; kind?: SessionKind };
+type OpenOpts = { accountId?: number; kind?: AgentTerminalKind };
 
 interface NewSessionContextValue {
   /** Opens the modal if a workspace is mounted; no-op otherwise. */

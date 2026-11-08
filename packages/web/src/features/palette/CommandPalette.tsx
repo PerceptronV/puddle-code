@@ -12,7 +12,7 @@ import {
   TerminalSquare,
   UserRound,
 } from 'lucide-react';
-import type { SessionKind } from '@puddle/shared';
+import type { AgentTerminalKind } from '@puddle/shared';
 import {
   CommandDialog,
   CommandEmpty,
@@ -45,7 +45,7 @@ export function CommandPalette({
   onNewProject,
 }: {
   /** Opens the new-session modal; `kind` picks agent (default) or terminal. */
-  onNewSession?: (opts?: { kind?: SessionKind }) => void;
+  onNewSession?: (opts?: { kind?: AgentTerminalKind }) => void;
   onNewProject?: () => void;
 }) {
   const [open, setOpen] = useState(false);

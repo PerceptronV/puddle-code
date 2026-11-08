@@ -87,7 +87,7 @@ export function SessionListBody({
             group.name,
             renderTitle(session),
             session.branch,
-            session.kind === 'terminal' ? 'terminal' : (session.agent_type ?? 'agent'),
+            session.kind === 'agent' ? (session.agent_type ?? 'agent') : session.kind,
             isArchived
               ? session.last_activity_at === null
                 ? ''

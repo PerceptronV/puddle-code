@@ -18,6 +18,7 @@ interface Row {
   branch: string;
   separate_branch: number;
   kind: Session['kind'];
+  huddle_id: string | null;
   agent_type: string | null;
   agent_mode: NonNullable<Session['agent_mode']>;
   title: string | null;
@@ -39,6 +40,7 @@ interface Row {
 }
 
 export interface NewSessionRow {
+  huddle_id?: string;
   agent_mode?: Session['agent_mode'];
   id: string;
   project_id: string;
@@ -76,10 +78,14 @@ function toSession(r: Row): Session {
     joined_agent_title,
     joined_parent_conversation_id,
     joined_conversation_missing,
+    huddle_id,
+    agent_mode,
     ...rest
   } = r;
   return {
     ...rest,
+    ...(huddle_id === null ? {} : { huddle_id }),
+    ...(r.kind === 'huddle' ? {} : { agent_mode }),
     agent_session_ref: joined_agent_session_ref,
     agent_title: joined_agent_title,
     conversation_id: joined_conversation_id,
@@ -117,8 +123,8 @@ export class SessionStore {
           `INSERT INTO sessions (id, project_id, account_id, conversation_id,
            worktree_path, canonical_worktree_path, base_branch, branch,
            separate_branch, branch_owned, kind, agent_type, title, status,
-           native_sync, skip_permissions, created_at, updated_at, cwd, agent_mode)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+           native_sync, skip_permissions, created_at, updated_at, cwd, agent_mode, huddle_id)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
         )
         .run(
           row.id,
@@ -141,6 +147,7 @@ export class SessionStore {
           now,
           row.cwd ?? null,
           row.agent_mode ?? 'interactive',
+          row.huddle_id ?? null,
         );
       if (programme) new ProgrammeSpawnStore(this.db).record(programme, row.id);
       return this.get(row.id);

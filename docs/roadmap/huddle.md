@@ -7,7 +7,9 @@ internal node execution boundary. Phase 1 has the private execution ledger and
 durable graph routing with correlated joins and bounded feedback, plus isolated
 captured-source script workers, retained revisions/activation and a manual scheduler
 in an independent owner process with private authenticated control, explicit
-runtime-role metadata and pinned capability checks. Production
+runtime-role metadata and pinned capability checks. Phase 2 has the third session
+kind, immutable application placement and common runtime inventory role, with
+application protocol 27.0; public creation and the IDE remain unfinished. Production
 launch/adoption, native supervision, provider dispatch and UI integration remain unfinished.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals, not available commands/imports.
@@ -80,7 +82,7 @@ grid, bevelled boxes, thick borders or glossy headers.
 
 | Area | Existing code to reuse | Required extension |
 | --- | --- | --- |
-| Session identity | `shared/src/api/agents/sessions.ts`, daemon `db/stores/sessions.ts` and `sessions/` | The kind enum currently contains only `agent` and `terminal`. Introduce a real huddle placement without inventing an agent account, native conversation or PTY. Audit every binary kind branch. |
+| Session identity | `shared/src/api/agents/sessions.ts`, daemon `db/stores/sessions.ts`, `db/stores/huddle/placements.ts` and `sessions/` | Migration 43 and application 27.0 add huddle placement identity without an account, native conversation or PTY. Authorised creation/lifecycle services and the remaining binary-kind audit are still required. |
 | Sidebar and actions | Web `features/workspace/sessions/SessionSidebar.tsx`, `sidebar/`, `SessionActions.tsx`, `lifecycle.ts`, `session-selection.ts` | Add creation, glyph, opening and lifecycle policy to expanded/collapsed presentations and bulk actions. Current callbacks and rows assume ordinary sessions. |
 | Puddlang | Daemon `puddlang/service.ts`, `operations.ts`, `runner.ts`, `runtime-api.ts`, `outcomes/`; shared `api/agents/puddlang*.ts` | Reuse provider-neutral spawn/attach/ask/stop and exact turn handling. Current programmes are daemon-owned child processes and become interrupted on daemon replacement. No graph, durable scheduler or plug-in API exists. |
 | Independent ownership | Daemon `runtime/ownership/`, `transport/`, `lifecycle/`, `resources/`, `controller/`, `execution/turns.ts`; shared `runtime/` | Add a huddle owner role with retained graph state and triggers. Existing terminal snapshots, native-conversation segments and agent launch seeds cannot stand in for a huddle. |
@@ -560,10 +562,11 @@ when the default runtime changes; unsupported defaults block new launches only.
 
 Adding `huddle` to the current closed session-kind enum and tab union is a breaking
 **application** change unless an explicitly negotiated representation prevents
-old readers/writers from seeing it. Plan an application major bump and coordinated
-frontend/daemon update rather than calling this additive. Desktop persistence and
+old readers/writers from seeing it. The session-kind change now allocates
+application **27.0**, requiring a coordinated frontend/daemon update. Tab support
+is still pending. Desktop persistence and
 saved layouts also need versioned migration/rejection; old writers must not erase
-huddle content. Allocate actual versions during implementation after reading
+huddle content. Allocate their versions during implementation after reading
 [PROTOCOL.md](../../packages/shared/PROTOCOL.md).
 
 The private runtime protocol has a separate compatibility boundary. Prefer an

@@ -351,7 +351,9 @@
 // 26.21: native host-effect ownership and bounded notification claims.
 // 26.22: private pane-window tab review followed by a guarded final checkpoint.
 // 26.23: frontend terminology with legacy private host-update command normalization.
-export const PROTOCOL_VERSION = { major: 26, minor: 23 } as const;
+// 27.0: huddle is a third session kind with a project/worktree definition identity.
+// Older closed session-kind readers require a coordinated frontend/daemon update.
+export const PROTOCOL_VERSION = { major: 27, minor: 0 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

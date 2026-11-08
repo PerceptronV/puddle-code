@@ -48,7 +48,7 @@ export function SessionRow({
     selection && selected && selectedIds && selectedIds.length > 1
       ? { sessionIds: selectedIds, archiveAll: selection.onArchive }
       : undefined;
-  const kindLabel = session.kind === 'terminal' ? 'terminal' : (session.agent_type ?? 'agent');
+  const kindLabel = session.kind === 'agent' ? (session.agent_type ?? 'agent') : session.kind;
   // An archived row trades its account for its last activity — the account is
   // fixed for the session's life and interesting while it runs; once archived,
   // when you last touched it is what tells the list apart.

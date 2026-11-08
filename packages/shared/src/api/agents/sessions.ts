@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { isoTimestamp, projectId, rowId, sessionId } from '../common.js';
+import { huddleIdSchema } from '../huddle/values.js';
 
 export const sessionStatusSchema = z.enum([
   'starting',
@@ -12,12 +13,13 @@ export const sessionStatusSchema = z.enum([
 export type SessionStatus = z.infer<typeof sessionStatusSchema>;
 
 /**
- * A session is either an `agent` (a coding agent driving the worktree) or a
- * `terminal` (a plain shell PTY, no agent and no account — SPEC §4). The kind
- * decides which columns are populated: `terminal` sessions have null
- * `account_id`/`agent_type` and never onboard, resume a conversation, or migrate.
+ * Agents own a coding conversation, terminals own a shell PTY, and huddles own
+ * an orchestration graph. Terminals and huddles have no account/provider; huddles
+ * additionally have no terminal segment and retain a project/worktree definition id.
  */
-export const sessionKindSchema = z.enum(['agent', 'terminal']);
+export const agentTerminalKindSchema = z.enum(['agent', 'terminal']);
+export type AgentTerminalKind = z.infer<typeof agentTerminalKindSchema>;
+export const sessionKindSchema = z.enum(['agent', 'terminal', 'huddle']);
 export type SessionKind = z.infer<typeof sessionKindSchema>;
 export const agentModeSchema = z.enum(['interactive', 'headless']);
 
@@ -32,7 +34,9 @@ export const sessionSchema = z.object({
   /** False: the session works directly on the base branch in a shared worktree (SPEC §4). */
   separate_branch: z.boolean(),
   kind: sessionKindSchema,
-  /** Null for terminal sessions, which run a plain shell rather than an agent. */
+  /** Project-local definition identity for a huddle placement; no provider/account is implied. */
+  huddle_id: huddleIdSchema.optional(),
+  /** Null for terminal and huddle placements; their kind has no provider identity. */
   agent_type: z.string().nullable(),
   /** Native TUI or structured CLI execution with a terminal transcript. */
   agent_mode: agentModeSchema.optional(),
@@ -120,7 +124,7 @@ export const createSessionRequestSchema = z.object({
    * worktree — no account, no agent, no onboarding — and defaults
    * `separate_branch` to false (SPEC §4).
    */
-  kind: sessionKindSchema.optional(),
+  kind: agentTerminalKindSchema.optional(),
   base_branch: z.string().min(1).optional(),
   branch: z.string().min(1).max(200).optional(),
   /**

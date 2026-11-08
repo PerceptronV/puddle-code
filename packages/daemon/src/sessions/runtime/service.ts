@@ -45,7 +45,11 @@ export class SessionRuntimeService {
   }
 
   async inspect(id: string, authorised: () => boolean): Promise<SessionRuntimeInspection> {
-    this.deps.sessions.get(id);
+    if (this.deps.sessions.get(id).kind === 'huddle')
+      throw ApiError.conflict(
+        'huddle_control_required',
+        'Use huddle lifecycle controls for this placement',
+      );
     const owner = this.deps.runtimes?.ownerOf(id) ?? null;
     let release: RuntimeSelectedRelease | null = null;
     try {
@@ -87,6 +91,11 @@ export class SessionRuntimeService {
         'The runtime or installed software changed. Inspect it again before restarting.',
       );
     requireAuthority();
+    if (this.deps.sessions.get(id).kind === 'huddle')
+      throw ApiError.conflict(
+        'huddle_control_required',
+        'Use huddle lifecycle controls for this placement',
+      );
     const launcher = this.deps.runtimeLauncher;
     const controls = this.deps.runtimeControls;
     if (!launcher || !controls) throw changed();

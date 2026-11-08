@@ -9,7 +9,7 @@ import {
   TAB_TITLE_VARIABLES,
   type ProfileSettings,
   type SessionDefaults,
-  type SessionKind,
+  type AgentTerminalKind,
 } from '@puddle/shared';
 import { renderSessionTitle, type TitleSession } from '../../../lib/session-display';
 import { Button } from '../../../components/ui/button';
@@ -82,7 +82,7 @@ function SessionSeedRows({
   onSave,
   pending,
 }: {
-  kind: SessionKind;
+  kind: AgentTerminalKind;
   heading: string;
   settings: ProfileSettings;
   onSave: (next: SessionDefaults) => void;
@@ -91,7 +91,7 @@ function SessionSeedRows({
   const seed = resolveSessionSeed(kind, settings);
   const stored = settings.sessionDefaults ?? {};
   const [branch, setBranch] = useState(seed.baseBranch);
-  const save = (change: SessionDefaults[SessionKind]) =>
+  const save = (change: SessionDefaults[AgentTerminalKind]) =>
     onSave({ ...stored, [kind]: { ...stored[kind], ...change } });
   return (
     <>

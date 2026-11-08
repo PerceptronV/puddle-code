@@ -541,6 +541,14 @@ composes an independent process with private control under `transport/`, sharing
 runtime claims, host memory grants and lifetime checks. Production launcher,
 application projection, maintenance/capability admission and provider dispatch
 remain pending; do not infer application support from entry-point existence.
+Application 27.0 adds the closed `huddle` session kind. Migration 43 and
+`db/stores/huddle/placements.ts` retain one immutable placement per
+project/canonical worktree/definition. The common runtime inventory records its
+role/capabilities without a terminal segment; preserve ordinary launch fingerprints
+and protocol 1.1. No public creation route is enabled. Callers must check scope and
+runtime support before placement intent; keep huddles out of ordinary session
+creation, PTY controls and runtime restart. Role-aware daemon adoption and
+maintenance checkpoint integration are still required before enabling launches.
 Runtime-role metadata lives separately in `RUNTIME_CAPABILITIES.json`; huddle
 selection must validate exact build/protocol/contracts/helpers and recheck the
 selected generation before intent. Keep historical host capability and ordinary

@@ -353,6 +353,11 @@ export class SessionService extends EventEmitter {
 
   /** Removed as each control is routed through the adopted external backend. */
   assertLegacyRuntime(id: string): void {
+    if (this.deps.sessions.get(id).kind === 'huddle')
+      throw ApiError.conflict(
+        'huddle_control_required',
+        'Use huddle lifecycle controls for this placement',
+      );
     if (this.deps.runtimes?.ownerOf(id)) {
       throw ApiError.conflict(
         'runtime_reconciliation_required',
@@ -1060,6 +1065,11 @@ export class SessionService extends EventEmitter {
   /** SIGTERM the session's PTYs and wait for the agent to exit. */
   async kill(id: string, authorised: () => boolean = () => true): Promise<Session> {
     if (!authorised()) throw new ApiError(401, 'upstream_expired', 'Connection authority expired');
+    if (this.deps.sessions.get(id).kind === 'huddle')
+      throw ApiError.conflict(
+        'huddle_control_required',
+        'Use huddle lifecycle controls for this placement',
+      );
     if (this.deps.runtimes?.ownerOf(id)) {
       if (!this.deps.runtimeControls) this.assertLegacyRuntime(id);
       await this.deps.runtimeControls!.stop(id, authorised);
@@ -1120,7 +1130,7 @@ export class SessionService extends EventEmitter {
     const worktreePresent = existsSync(session.worktree_path);
     this.transition(id, 'exited');
     this.deps.events.record(id, 'unarchived', { worktree_present: worktreePresent });
-    if (worktreePresent) {
+    if (worktreePresent && session.kind !== 'huddle') {
       const project = this.deps.projects.get(session.project_id);
       this.deps.onboarding.watch(id, project.repo_id, session.worktree_path);
     }
@@ -1156,6 +1166,8 @@ export class SessionService extends EventEmitter {
 
   /** Spawn a shell PTY cd'd into the worktree; returns the new term id. */
   async spawnShell(sessionId: string, authorised: () => boolean = () => true): Promise<string> {
+    if (this.deps.sessions.get(sessionId).kind === 'huddle')
+      throw ApiError.conflict('huddle_control_required', 'Huddles do not own terminal shells');
     const external = this.deps.runtimes?.ownerOf(sessionId);
     if (external && !this.deps.runtimeControls) this.assertLegacyRuntime(sessionId);
     const session = this.deps.sessions.get(sessionId);

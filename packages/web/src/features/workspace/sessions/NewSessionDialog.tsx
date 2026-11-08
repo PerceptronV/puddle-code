@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState, type ReactNode } from 'react';
 import { ChevronDown } from 'lucide-react';
-import type { Project, Session, SessionKind } from '@puddle/shared';
+import type { Project, Session, AgentTerminalKind } from '@puddle/shared';
 import { Button } from '../../../components/ui/button';
 import {
   Dialog,
@@ -77,7 +77,7 @@ export function NewSessionDialog({
   repoId: number;
   open: boolean;
   /** 'terminal' opens the dialog in shell mode (no account); defaults to 'agent'. */
-  kind?: SessionKind;
+  kind?: AgentTerminalKind;
   /** Preselects the account picker (profile panel → session on this account). */
   seedAccountId?: number;
   onOpenChange: (open: boolean) => void;

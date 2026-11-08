@@ -1,4 +1,4 @@
-import type { ProfileSettings, SessionKind } from '@puddle/shared';
+import type { ProfileSettings, AgentTerminalKind } from '@puddle/shared';
 
 /**
  * Resolves what the new-session modal opens WITH (SPEC §11): the profile's
@@ -15,13 +15,13 @@ export interface SessionSeed {
   separateWorktree: boolean;
 }
 
-const BUILT_IN: Record<SessionKind, SessionSeed> = {
+const BUILT_IN: Record<AgentTerminalKind, SessionSeed> = {
   agent: { baseBranch: '', separateBranch: false, separateWorktree: false },
   terminal: { baseBranch: '', separateBranch: false, separateWorktree: false },
 };
 
 export function resolveSessionSeed(
-  kind: SessionKind,
+  kind: AgentTerminalKind,
   settings: ProfileSettings | undefined,
 ): SessionSeed {
   const stored = settings?.sessionDefaults?.[kind];

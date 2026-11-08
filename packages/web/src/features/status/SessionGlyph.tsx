@@ -1,6 +1,7 @@
 import { SquareTerminal } from 'lucide-react';
 import type { SessionKind, SessionStatus } from '@puddle/shared';
 import { AgentIcon } from '../../components/agent-icon';
+import { PuddleGlyph } from '../../components/puddle-glyph';
 import { cn } from '../../lib/utils';
 
 /**
@@ -47,11 +48,13 @@ export function SessionGlyph({
 }) {
   const displayedAgent = kind === 'terminal' ? detectedAgentType : agentType;
   const what =
-    kind === 'terminal'
-      ? displayedAgent
-        ? `${displayedAgent} in terminal`
-        : 'terminal'
-      : (displayedAgent ?? 'agent');
+    kind === 'huddle'
+      ? 'huddle'
+      : kind === 'terminal'
+        ? displayedAgent
+          ? `${displayedAgent} in terminal`
+          : 'terminal'
+        : (displayedAgent ?? 'agent');
   const label = `${what} — status: ${status.replace('_', ' ')}${
     stale ? ' (no agent activity for over an hour — possibly stalled)' : ''
   }`;
@@ -65,7 +68,9 @@ export function SessionGlyph({
       title={stale ? 'No agent activity for over an hour — possibly stalled' : undefined}
       aria-label={label}
     >
-      {kind === 'terminal' && !displayedAgent ? (
+      {kind === 'huddle' ? (
+        <PuddleGlyph className={iconClassName} />
+      ) : kind === 'terminal' && !displayedAgent ? (
         <SquareTerminal className={iconClassName} strokeWidth={2 * iconStrokeScale} />
       ) : (
         <AgentIcon

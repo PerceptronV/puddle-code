@@ -1,5 +1,14 @@
 # The puddle communication protocol
 
+Application **27.0** adds `huddle` to the closed session-kind enum and an optional
+`huddle_id` definition identity on session projections. Old clients cannot safely
+interpret that kind, so frontend and daemon require a coordinated major update.
+Migration 43 retains one huddle placement per project/canonical worktree/definition
+and records huddle owners in the common runtime inventory without terminal segments.
+The existing create-session request still accepts only agent/terminal kinds;
+huddle creation, daemon adoption and lifecycle routes are not enabled yet.
+Agent/terminal runtime protocol 1.1 and remote transport protocol 5 are unchanged.
+
 Application **26.23** names the UI frontend throughout current application code.
 Private host-update inspect/apply commands accept canonical `frontend` version
 fields and normalize the historical `cockpit` spelling on receipt. Mixed spellings

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Archive, Bot, ChevronDown, Files, MoreHorizontal, SquareTerminal } from 'lucide-react';
-import type { Project, Session, SessionKind } from '@puddle/shared';
+import type { Project, Session, AgentTerminalKind } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import {
   DropdownMenu,
@@ -36,7 +36,7 @@ export function PhoneTerminalBar({
   projectId: string;
   connected: boolean;
   chooseProject(id: string): void;
-  create(kind: SessionKind): void;
+  create(kind: AgentTerminalKind): void;
   choose(session: Session): void;
   inspect(session: Session): void;
   files(): void;

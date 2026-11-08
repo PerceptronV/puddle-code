@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { SquareTerminal } from 'lucide-react';
-import type { NotificationTarget, Session, SessionKind } from '@puddle/shared';
+import type { NotificationTarget, Session, AgentTerminalKind } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { browserScope } from '../../lib/transport/browser-transport';
 import {
@@ -50,7 +50,7 @@ export function PhoneWorkspace({
   );
   const [view, setView] = useState<'terminals' | 'files'>('terminals');
   const [pickingProject, setPickingProject] = useState(!initialProject);
-  const [creating, setCreating] = useState<SessionKind | null>(null);
+  const [creating, setCreating] = useState<AgentTerminalKind | null>(null);
   const [inspected, setInspected] = useState<Session | null>(null);
   const [requestedSession, setRequestedSession] = useState<string>();
   const [attached, setAttached] = useState(wsManager.isConnected());
