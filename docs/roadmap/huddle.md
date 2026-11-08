@@ -9,7 +9,7 @@ captured-source script workers, retained revisions/activation and a manual sched
 in an independent owner process with private authenticated control, explicit
 runtime-role metadata and pinned capability checks. Phase 2 has the third session
 kind, immutable application placement and common runtime inventory role, with
-application protocol 28.10. Local/SSH inactive creation, discovery, inspection and
+application protocol 28.11. Local/SSH inactive creation, discovery, inspection and
 placement opening now have sidebar creation and a graph pane with manifest
 editing, shared source/layout drafts, settings, undo and file-conflict review.
 Pointer/touch and keyboard node movement, position settings, pan and fit controls
@@ -30,8 +30,11 @@ collection now recognise huddle ownership and clean shutdown evidence. Host-upda
 checkpoints and fresh adoption/recovery now preserve huddle contracts alongside
 ordinary owners.
 Revision-checked single-file source saves now reject detected concurrent edits;
-the graph UI currently shares ordinary editor conditional file saves. Full-capture
-digest save integration remains unfinished; retained graph view state is implemented.
+the graph UI currently shares ordinary editor conditional file saves. Application
+28.11 adds exact captured-source reads and text-preserving digest-checked saves,
+with CLI/MCP support and response verification. Full-capture digest integration
+with IDE drafts/conflicts/window recovery remains unfinished; retained graph view
+state is implemented.
 Internal queued Apply/Arm/Run/Interrupt now require the inspected owner and
 activation, preventing stale views from dispatching against a replacement.
 Bounded live-owner history reads validate execution/node/operation records;

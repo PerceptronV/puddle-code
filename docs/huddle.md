@@ -83,6 +83,11 @@ its desired canvas position; an invalid or obsolete saved view uses defaults.
 Navigation never changes tracked source or starts a runtime. Browser state uses
 bounded per-window storage; desktop views join the normal recovery snapshot.
 
+For agent/tool authoring on host 28.11+, [captured source and guarded saves](huddle/source.md)
+provide exact source text and a digest-checked publication of `huddle.json` or
+`layout.json` through CLI/MCP. The IDE has not yet adopted that complete-capture
+save contract; its existing per-file conflict checks remain in use.
+
 Connect nodes by dragging an output socket onto an input, or click/focus the output
 then click/press Enter on the input. Escape cancels. Compatible destinations are
 highlighted; duplicate routes and definitely incompatible port types are refused.

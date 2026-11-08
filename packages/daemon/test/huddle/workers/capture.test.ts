@@ -26,7 +26,7 @@ describe('captured script execution through the durable graph', () => {
     const worktree = join(f.home, 'project');
     const root = join(worktree, '.puddle/huddle', f.identity.huddleId);
     await mkdir(join(root, 'nodes/example'), { recursive: true });
-    const sample = workerJob(`import {HuddleNode} from 'puddlang/huddle';
+    const sample = workerJob(`\uFEFFimport {HuddleNode} from 'puddlang/huddle';
       import {double} from './helper.ts';
       export default HuddleNode({contract:'./node.json', async run({inputs,emit}) {
         await emit('turn', inputs.value);

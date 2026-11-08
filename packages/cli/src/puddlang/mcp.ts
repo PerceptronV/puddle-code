@@ -10,6 +10,7 @@ import {
   puddlangMcpOutcomesSchema,
   puddlangMcpOutcomeSchema,
   huddleMcpTools,
+  huddleSourceMcpTools,
   huddleExecutionMcpTools,
   huddlePlacementMcpTools,
   huddleAuthoringMcpTool,
@@ -18,6 +19,7 @@ import {
 } from '@puddle/shared';
 import type { PuddlangClient } from './client.js';
 import { callHuddleTool } from '../huddle/mcp.js';
+import { callHuddleSourceTool } from '../huddle/source/mcp.js';
 import { callHuddleExecutionTool, executionTools } from '../huddle/execution/mcp.js';
 import { callHuddlePlacementTool, placementTools } from '../huddle/placement/mcp.js';
 
@@ -81,6 +83,7 @@ export async function serveMcp(
           ...puddlangMcpTools,
           huddleAuthoringMcpTool,
           ...(client.huddles?.supported ? huddleMcpTools : []),
+          ...(client.huddles?.source.supported ? huddleSourceMcpTools : []),
           ...executionTools(client.huddles?.execution),
           ...placementTools(client.huddles?.placement),
         ],
@@ -103,6 +106,8 @@ export async function serveMcp(
         result = readHuddleAuthoring(huddleAuthoringRequestSchema.parse(args).path);
       } else if (huddleMcpTools.some((tool) => tool.name === call.data.name)) {
         result = await callHuddleTool(client.huddles, call.data.name, args);
+      } else if (huddleSourceMcpTools.some((tool) => tool.name === call.data.name)) {
+        result = await callHuddleSourceTool(client.huddles?.source, call.data.name, args);
       } else if (huddleExecutionMcpTools.some((tool) => tool.name === call.data.name)) {
         result = await callHuddleExecutionTool(client.huddles?.execution, call.data.name, args);
       } else if (huddlePlacementMcpTools.some((tool) => tool.name === call.data.name)) {

@@ -1683,6 +1683,20 @@ unmount. Selected/focused objects and active drag/connection sources stay mounte
 wire control-point hulls retain crossing and backward curves even with both nodes
 off screen. Fit graph can render the whole graph; Node list and the connection
 inspector still address all objects. Complete settings remain unfinished.
+Application 28.11 adds local/SSH `GET/PUT /api/huddle/:profile/definitions/:id/source`
+for source-preserving authoring. A read returns `{document, files}` from one capture;
+a save takes explicit project/worktree, `expected_digest` and
+`edit: {file: 'huddle.json' | 'layout.json', content}`. Structural validation rejects
+future/unknown JSON without reserializing text. Both save forms share repository
+exclusion, authority/storage admission, digest comparison and final synchronous
+source checks. Each publication changes one file; the response observes a new
+capture and may fail after the write landed. Clients never retry or substitute a
+new digest automatically. Source text is bounded to 256 KiB/file and 4 MiB/128 files;
+JSON documents have no BOM, while script BOMs are retained. CLI `source`/`save-source`
+and MCP `huddle_source`/`huddle_save_source` verify captured source against metadata
+and its digest, and compare a save reply with the submitted text. None needs a
+runtime or evaluates code. Existing IDE saves still need integration with this
+contract, including shared drafts, conflict review and window recovery.
 Application 28.3 adds editable Prompt agent and Review agent templates under
 `shared/huddle/templates/`, published by `daemon/huddle/templates/` as local
 `nodes/<component>/{node.json,run.ts,prompt.ts}` source. Template creation checks

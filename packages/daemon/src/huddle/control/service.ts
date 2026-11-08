@@ -5,6 +5,8 @@ import {
   huddleLocationSchema,
   huddleOpenSchema,
   huddleSaveSchema,
+  huddleSaveSourceSchema,
+  type HuddleSaveSource,
   huddleInstallTemplateSchema,
   type HuddleInstallTemplate,
   type HuddleCreate,
@@ -26,7 +28,7 @@ import {
 import { ApiError } from '../../http/errors.js';
 import { captureHuddleDefinition, type HuddleDefinitionSnapshot } from '../definitions/capture.js';
 import { createHuddleDefinition } from '../definitions/create.js';
-import { saveHuddleDefinition } from '../definitions/save.js';
+import { saveHuddleDefinition, saveHuddleSource } from '../definitions/save.js';
 import { discoverHuddleDefinitions } from '../definitions/discovery.js';
 import { installHuddleTemplate } from '../templates/install.js';
 import { coreHuddleComponents } from '@puddle/shared';
@@ -96,6 +98,20 @@ export class HuddleService {
     });
   }
 
+  source(profile: string, raw: HuddleOpen, authority: () => boolean) {
+    return this.withSnapshot(profile, raw, authority, async (snapshot) => ({
+      document: this.document(snapshot),
+      files: snapshot.files,
+    }));
+  }
+
+  saveSource(profile: string, raw: HuddleSaveSource, authority: () => boolean) {
+    const input = huddleSaveSourceSchema.parse(raw);
+    return this.saveSnapshot(profile, input, authority, (location, snapshot) =>
+      saveHuddleSource(location.worktree, snapshot, input.edit, location.check),
+    ).then((saved) => ({ document: this.document(saved), files: saved.files }));
+  }
+
   /** Internal execution admission shares the same registered source scope and repository lock. */
   withSnapshot<T>(
     profile: string,
@@ -148,6 +164,17 @@ export class HuddleService {
 
   save(profile: string, raw: HuddleSave, authority: () => boolean) {
     const input = huddleSaveSchema.parse(raw);
+    return this.saveSnapshot(profile, input, authority, (location, snapshot) =>
+      saveHuddleDefinition(location.worktree, snapshot, input.edit, location.check),
+    ).then((saved) => this.document(saved));
+  }
+
+  private saveSnapshot(
+    profile: string,
+    input: HuddleOpen & { expected_digest: string },
+    authority: () => boolean,
+    publish: (location: Location, snapshot: HuddleDefinitionSnapshot) => void,
+  ) {
     return this.atLocation(profile, input, authority, async (location) => {
       const snapshot = await this.capture(location.worktree, input.huddle_id);
       location.check();
@@ -158,12 +185,12 @@ export class HuddleService {
         );
       await this.deps.storage?.assertAdmission([location.worktree]);
       location.check();
-      saveHuddleDefinition(location.worktree, snapshot, input.edit, location.check);
+      publish(location, snapshot);
       // Source is already saved if this observation fails. The caller must inspect
       // it after a lost reply, never replay with a freshly substituted digest.
       const saved = await this.capture(location.worktree, input.huddle_id);
       location.check();
-      return this.document(saved);
+      return saved;
     });
   }
 

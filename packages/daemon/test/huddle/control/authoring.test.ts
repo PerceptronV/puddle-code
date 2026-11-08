@@ -136,6 +136,65 @@ function fixture() {
 }
 
 describe('inactive huddle authoring', () => {
+  it('round-trips captured source through the real CLI/HTTP path, refuses competing revisions and retains text after a lost reply', async () => {
+    const f = fixture();
+    const definition = createHuddleDefinition(f.worktree, 'Source');
+    f.unsupported();
+    const app = new Hono()
+      .use('*', async (c, next) => {
+        c.set('authorityValid', f.authority);
+        await next();
+      })
+      .route('/api/huddle', huddleAuthoringRoutes(f.service));
+    app.onError((error, c) =>
+      c.json(
+        { error: error instanceof ApiError ? error.code : 'internal' },
+        error instanceof ApiError ? (error.status as 400) : 500,
+      ),
+    );
+    let loseReply = false;
+    const request = vi.fn(async (path: string, body?: unknown, method?: 'PUT') => {
+      const response = await app.request(`/api/huddle/${f.profile.id}${path}`, {
+        method: method ?? (body === undefined ? 'GET' : 'POST'),
+        headers: { 'content-type': 'application/json' },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+      if (loseReply && method === 'PUT') throw new Error('Lost response after publication');
+      return response.json();
+    });
+    const client = new HuddleClient(request, PROTOCOL_VERSION);
+    const target = { ...f.location, huddle_id: definition.id };
+    const baseline = await client.source.read(target);
+    const content = `${'\t'.repeat(200_000)}${JSON.stringify({ format: 1, id: definition.id, name: 'Exact 🦆', nodes: [], edges: [] })}\r\n`;
+    const input = {
+      ...target,
+      expected_digest: baseline.document.digest,
+      edit: { file: 'huddle.json' as const, content },
+    };
+    const saved = await client.source.save(input);
+    expect(saved.files['huddle.json']).toBe(content);
+    expect(saved.document.definition.name).toBe('Exact 🦆');
+    await expect(client.source.save(input)).rejects.toThrow('huddle_source_changed');
+    loseReply = true;
+    const next = {
+      ...input,
+      expected_digest: saved.document.digest,
+      edit: { file: 'layout.json' as const, content: '{"nodes":{}, "format":1}' },
+    };
+    const calls = request.mock.calls.length;
+    await expect(client.source.save(next)).rejects.toThrow(
+      /Lost response.*\n.*Do not retry automatically/,
+    );
+    expect(request.mock.calls.length).toBe(calls + 1);
+    const observed = await client.source.read(target);
+    expect(observed.files['layout.json']).toBe(next.edit.content);
+    expect(observed.document.digest).not.toBe(next.expected_digest);
+    expect(f.checkHuddleAvailable).not.toHaveBeenCalled();
+    expect(f.db.prepare('SELECT * FROM sessions').all()).toEqual([]);
+    expect(f.db.prepare('SELECT * FROM runtime_bindings').all()).toEqual([]);
+  });
+
   it('serves CLI source validation without a placement, capable runtime or module evaluation', async () => {
     const f = fixture();
     const definition = createHuddleDefinition(f.worktree, 'Agent-authored graph');
@@ -198,6 +257,12 @@ describe('inactive huddle authoring', () => {
     expect(await client.list(f.location)).toEqual([expect.objectContaining({ id: definition.id })]);
     expect((await client.validate(target)).valid).toBe(true);
     const digest = (await client.inspect(target)).digest;
+    const captured = await client.source.read(target);
+    expect(captured.document.digest).toBe(digest);
+    expect(Object.keys(captured.document.components).sort()).toEqual(['run', 'transform']);
+    expect(captured.files['nodes/example/run.ts']).toBe(
+      readFileSync(join(root, 'nodes/example/run.ts'), 'utf8'),
+    );
     graph.edges[0]!.to.port = 'absent';
     writeFileSync(join(root, 'huddle.json'), JSON.stringify(graph));
     const result = await client.validate(target);
@@ -212,7 +277,7 @@ describe('inactive huddle authoring', () => {
     expect(f.db.prepare('SELECT * FROM runtime_bindings').all()).toEqual([]);
     f.revoke();
     await expect(client.inspect(target)).rejects.toThrow('HTTP 401');
-    expect(methods).toHaveLength(5);
+    expect(methods).toHaveLength(6);
   });
   it.each(['prompt-agent', 'spawn-agent', 'prompt-spawned-agent', 'review-spawned-agent'] as const)(
     'materialises editable %s templates without changing the graph, overwriting edits or starting an owner',
@@ -570,6 +635,19 @@ describe('inactive huddle authoring', () => {
     expect((await install({ host_id: 'untrusted' })).status).toBe(400);
     expect((await install()).status).toBe(200);
     const query = new URLSearchParams(f.location);
+    const sourcePath = `${path}/definitions/${opened.session.huddle_id}/source`;
+    const readSource = () => app.request(`${sourcePath}?${query}`);
+    const saveSource = () =>
+      app.request(sourcePath, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          ...f.location,
+          expected_digest: opened.document.digest,
+          edit: { file: 'layout.json', content: '{"format":1,"nodes":{}}' },
+        }),
+      });
+    expect((await readSource()).status).toBe(200);
     expect((await app.request(`${path}/definitions?${query}`)).status).toBe(200);
     expect(
       (await app.request(`${path}/definitions/${opened.session.huddle_id}?${query}`)).status,
@@ -587,12 +665,16 @@ describe('inactive huddle authoring', () => {
     expect(huddleDocumentSchema.parse(await saved.json()).layout).toEqual(edit.value);
     expect((await save(edit)).status).toBe(409);
     remote = true;
+    expect((await readSource()).status).toBe(403);
+    expect((await saveSource()).status).toBe(403);
     expect((await install()).status).toBe(403);
     expect((await save(edit)).status).toBe(403);
     expect((await post(f.input)).status).toBe(403);
     expect((await app.request(`${path}/availability`)).status).toBe(403);
     remote = false;
     f.revoke();
+    expect((await readSource()).status).toBe(401);
+    expect((await saveSource()).status).toBe(401);
     expect((await install()).status).toBe(401);
     expect((await save(edit)).status).toBe(401);
     expect((await post(f.input)).status).toBe(401);

@@ -14,7 +14,13 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import { HUDDLE_LIMITS, type HuddleSave } from '@puddle/shared';
+import {
+  HUDDLE_LIMITS,
+  huddleTextEditSchema,
+  huddleDefinitionSchema,
+  type HuddleSave,
+  type HuddleTextEdit,
+} from '@puddle/shared';
 import { ApiError } from '../../http/errors.js';
 import type { HuddleDefinitionSnapshot } from './capture.js';
 
@@ -85,14 +91,33 @@ export function saveHuddleDefinition(
   edit: HuddleSave['edit'],
   check: () => void,
 ): void {
-  if (edit.file === 'huddle.json' && edit.value.id !== snapshot.definition.id)
+  saveHuddleSource(
+    worktree,
+    snapshot,
+    { file: edit.file, content: `${JSON.stringify(edit.value, null, 2)}\n` },
+    check,
+  );
+}
+
+/** The text contract validates structure while retaining whitespace, key order and Unicode. */
+export function saveHuddleSource(
+  worktree: string,
+  snapshot: HuddleDefinitionSnapshot,
+  raw: HuddleTextEdit,
+  check: () => void,
+): void {
+  if (Buffer.byteLength(raw.content) > HUDDLE_LIMITS.fileBytes)
+    throw ApiError.badRequest('huddle_file_too_large', 'Huddle source file exceeds its size limit');
+  const edit = huddleTextEditSchema.parse(raw);
+  if (
+    edit.file === 'huddle.json' &&
+    huddleDefinitionSchema.parse(JSON.parse(edit.content)).id !== snapshot.definition.id
+  )
     throw ApiError.badRequest(
       'huddle_identity_changed',
       'A saved huddle must keep its directory id',
     );
-  const text = `${JSON.stringify(edit.value, null, 2)}\n`;
-  if (Buffer.byteLength(text) > HUDDLE_LIMITS.fileBytes)
-    throw ApiError.badRequest('huddle_file_too_large', 'Huddle source file exceeds its size limit');
+  const text = edit.content;
   const retained = Object.entries(snapshot.files).filter(([path]) => path !== edit.file);
   if (
     retained.length + 1 > HUDDLE_LIMITS.files ||

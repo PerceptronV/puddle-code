@@ -2,6 +2,7 @@ import {
   huddleToolDefinitionSchema,
   huddleToolLocationSchema,
   huddleToolCreateSchema,
+  huddleToolSaveSourceSchema,
   huddleToolExecutionCommandSchema,
   huddleExecutionToolSchemas,
   huddleToolPlacementCommandSchema,
@@ -9,6 +10,7 @@ import {
   type HuddleLocation,
   type HuddleOpen,
   type HuddleCreate,
+  type HuddleSaveSource,
   type HuddleToolExecutionCommand,
   type HuddleToolPlacementCommand,
 } from '@puddle/shared';
@@ -20,6 +22,8 @@ export const huddleHelp = `  pudl huddle list --project ID --worktree /absolute/
   pudl huddle validate <huddle-id> --project ID --worktree /absolute/host/worktree
   pudl huddle create --name NAME --project ID --worktree /absolute/host/worktree
   pudl huddle open <huddle-id> --project ID --worktree /absolute/host/worktree
+  pudl huddle source <huddle-id> --project ID --worktree /absolute/host/worktree
+  pudl huddle save-source <huddle-id> --project ID --worktree /absolute/host/worktree --request JSON
   pudl huddle runtime <session-id>
   pudl huddle session|archive|unarchive <session-id>
   pudl huddle start|apply|run|interrupt|resume|stop <session-id> --request JSON
@@ -46,12 +50,17 @@ or worktrees. Use session to inspect archive status, including after lost replie
 Revision requires target; diff also requires expected_digest from saved source.
 Both are read-only (host 28.10+). Add entry: {kind: "file"|"component", path: "..."}
 to read exact retained/before-and-after text; otherwise get the change inventory.
+Source reads the exact captured files and their document/digest (host 28.11+).
+Save-source takes {expected_digest, edit: {file: "huddle.json"|"layout.json", content}}
+and preserves that JSON text. It never activates code. Reconcile a stale save;
+after a lost reply, read source and compare before another explicit save.
 `;
 
 export type HuddleCommand =
   | { action: 'authoring'; input: { path?: string } }
   | { action: 'list'; input: HuddleLocation }
-  | { action: 'inspect' | 'validate' | 'open'; input: HuddleOpen }
+  | { action: 'inspect' | 'validate' | 'open' | 'source'; input: HuddleOpen }
+  | { action: 'save-source'; input: HuddleSaveSource }
   | { action: 'create'; input: HuddleCreate }
   | { action: 'placement'; command: HuddleToolPlacementCommand }
   | { action: 'execution'; command: HuddleToolExecutionCommand };
@@ -78,6 +87,27 @@ export function parseHuddleCommand(
       command: huddleToolPlacementCommandSchema.parse({ action, session_id: id }),
     };
   }
+  if (action === 'save-source') {
+    if (args.length !== 2 || options.name !== undefined || options.request === undefined)
+      throw new Error(huddleHelp);
+    const request: unknown = JSON.parse(options.request);
+    if (
+      !request ||
+      typeof request !== 'object' ||
+      Array.isArray(request) ||
+      Object.keys(request).some((key) => key !== 'expected_digest' && key !== 'edit')
+    )
+      throw new Error(huddleHelp);
+    return {
+      action,
+      input: huddleToolSaveSourceSchema.parse({
+        ...request,
+        project_id: options.project,
+        worktree: options.worktree,
+        huddle_id: id,
+      }),
+    };
+  }
   if (action && Object.hasOwn(huddleExecutionToolSchemas, action)) {
     if (
       args.length !== 2 ||
@@ -102,7 +132,10 @@ export function parseHuddleCommand(
     return { action, input: huddleToolCreateSchema.parse({ ...location, name: options.name }) };
   if (action === 'list' && args.length === 1)
     return { action, input: huddleToolLocationSchema.parse(location) };
-  if ((action === 'inspect' || action === 'validate' || action === 'open') && args.length === 2)
+  if (
+    (action === 'inspect' || action === 'validate' || action === 'open' || action === 'source') &&
+    args.length === 2
+  )
     return { action, input: huddleToolDefinitionSchema.parse({ ...location, huddle_id: id }) };
   throw new Error(huddleHelp);
 }
@@ -110,7 +143,7 @@ export function parseHuddleCommand(
 export async function runHuddleCommand(
   client: Pick<
     HuddleClient,
-    'list' | 'inspect' | 'validate' | 'create' | 'open' | 'execution' | 'placement'
+    'list' | 'inspect' | 'validate' | 'create' | 'open' | 'execution' | 'placement' | 'source'
   >,
   command: HuddleCommand,
   print: (value: unknown) => void,
@@ -121,6 +154,8 @@ export async function runHuddleCommand(
   else if (command.action === 'inspect') print(await client.inspect(command.input));
   else if (command.action === 'open') print(await client.open(command.input));
   else if (command.action === 'create') print(await client.create(command.input));
+  else if (command.action === 'source') print(await client.source.read(command.input));
+  else if (command.action === 'save-source') print(await client.source.save(command.input));
   else if (command.action === 'execution') print(await client.execution.execute(command.command));
   else if (command.action === 'placement') print(await client.placement.execute(command.command));
   else {

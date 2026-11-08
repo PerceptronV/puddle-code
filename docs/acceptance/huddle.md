@@ -34,6 +34,61 @@ delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## Implemented: captured text and digest-checked source authoring
+
+Application **28.11** adds local/SSH `GET/PUT
+/api/huddle/:profile/definitions/:id/source`. Reads return the existing document
+projection and the exact captured source file map together. Writes take explicit
+project/worktree, the reviewed `expected_digest`, and
+`edit: {file: 'huddle.json' | 'layout.json', content}`. Existing structured saves
+and new text saves share `HuddleService` admission and the same synchronous
+publication helper. Source can be inspected/saved with no placement, owner or
+supporting installed runtime; code is never evaluated or activated.
+
+The text schema validates current strict JSON without publishing its parsed or
+default-filled representation. Whitespace, CRLF, key order, Unicode and final
+newline choice survive unchanged. Unknown/future fields, directory-id changes,
+lossy Unicode and unsupported files fail. Source retains the existing 256 KiB/file,
+128-file and 4 MiB closure limits; the HTTP body permits JSON escaping overhead
+without relaxing decoded limits. Script UTF-8 byte-order marks now remain part of
+captured bytes and digest checks. BOM-prefixed JSON is rejected instead of silently
+normalizing it; ordinary valid JSON and existing retained revisions are unchanged.
+
+Repository mutation exclusion, profile/worktree authority, storage admission and
+the capture digest are checked before writes. Final synchronous byte/inode checks
+cover captured dependencies and layout absence after staging. A stale revision
+does not publish. One request writes one file; no multi-file atomicity is claimed.
+Post-publication capture may fail or observe a later external edit. A failed/lost
+reply therefore never authorizes automatic replay or digest substitution. External
+editors do not participate in Puddle's repository lock.
+
+CLI `source`/`save-source` and MCP `huddle_source`/`huddle_save_source` live under
+`cli/huddle/source/` and gate on 28.11. They verify identity, parsed metadata and
+SHA-256 using the same unchanged canonical revision encoding as capture; a save
+reply must contain the exact submitted text. CLI request JSON cannot override its
+explicit scope. Invalid/unsupported input fails before HTTP. Read-only and mutation
+MCP annotations are distinct, with no automatic retry on errors or lost replies.
+See [source authoring usage](../huddle/source.md).
+
+**192/192 tests in 31 files pass** across shared huddle contracts, daemon source
+publication, HTTP authoring, captured worker execution/revision review and CLI/MCP.
+Evidence includes real CLI-to-HTTP exact-text saves with substantial JSON escaping,
+stale dependency/source rejection, competing structured writers through the shared
+path, lost replies followed by explicit source observation, no-op writes, staging/
+flush failure, authority/storage rechecks, symlink rejection, source byte/count
+bounds, response mismatch rejection and older-host tool gating. A captured script
+with a BOM executes correctly through an isolated worker. The broader review
+fixtures require private Unix IPC permission; the authorised run passes all cases.
+Shared/daemon/CLI and web TypeScript, scoped ESLint/formatting, web/CLI builds and
+packaged CLI help checks pass. No production daemon, native UI or provider is used.
+
+**Remaining in this workstream:** adopt captured baselines in IDE shared models,
+draft persistence, conflict review, source-tab saves and pane/window recovery.
+The current Save button still uses ordinary per-file guards. This increment does
+not complete that integration or the huddle roadmap; offline history/recovery,
+agent restart/native feedback, integration secrets/settings and provider/platform/
+packaged acceptance also remain.
+
 ## Implemented: large-graph viewport culling
 
 `web/features/huddle/canvas/visibility/` observes the actual clamped viewport,

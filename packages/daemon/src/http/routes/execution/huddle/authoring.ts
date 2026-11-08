@@ -9,6 +9,8 @@ import {
   huddleOpenedSchema,
   huddleOpenSchema,
   huddleSaveSchema,
+  huddleSaveSourceSchema,
+  huddleSourceSchema,
   huddleInstallTemplateSchema,
   huddleInstalledTemplateSchema,
   HUDDLE_LIMITS,
@@ -24,7 +26,11 @@ export function huddleAuthoringRoutes(service: HuddleService): Hono {
   return new Hono()
     .use('*', localHuddleAccess)
     .use('/:profile/definitions', bodyLimit({ maxSize: HUDDLE_LIMITS.fileBytes + 16 * 1024 }))
-    .use('/:profile/definitions/*', bodyLimit({ maxSize: HUDDLE_LIMITS.fileBytes + 16 * 1024 }))
+    .use('/:profile/definitions/*', (c, next) =>
+      bodyLimit({
+        maxSize: HUDDLE_LIMITS.fileBytes * (c.req.path.endsWith('/source') ? 6 : 1) + 16 * 1024,
+      })(c, next),
+    )
     .use('/:profile/open', bodyLimit({ maxSize: HUDDLE_LIMITS.fileBytes + 16 * 1024 }))
     .get('/:profile/availability', async (c) =>
       c.json(
@@ -50,6 +56,26 @@ export function huddleAuthoringRoutes(service: HuddleService): Hono {
       return c.json(
         huddleDocumentSchema.parse(
           await service.inspect(hexIdParam(c, 'profile'), input.data, requestAuthority(c)),
+        ),
+      );
+    })
+    .get('/:profile/definitions/:id/source', async (c) => {
+      const input = huddleOpenSchema.safeParse({ ...c.req.query(), huddle_id: c.req.param('id') });
+      if (!input.success)
+        throw ApiError.badRequest('invalid_location', 'Choose a project, worktree and huddle id');
+      return c.json(
+        huddleSourceSchema.parse(
+          await service.source(hexIdParam(c, 'profile'), input.data, requestAuthority(c)),
+        ),
+      );
+    })
+    .put('/:profile/definitions/:id/source', async (c) => {
+      const body = await parseBody(c, huddleSaveSourceSchema.omit({ huddle_id: true }));
+      const input = huddleSaveSourceSchema.safeParse({ ...body, huddle_id: c.req.param('id') });
+      if (!input.success) throw ApiError.badRequest('invalid_location', 'Choose a valid huddle id');
+      return c.json(
+        huddleSourceSchema.parse(
+          await service.saveSource(hexIdParam(c, 'profile'), input.data, requestAuthority(c)),
         ),
       );
     })

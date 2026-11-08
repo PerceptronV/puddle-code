@@ -14,20 +14,23 @@ import {
 import { HuddleExecutionClient } from './execution/client.js';
 import { HuddlePlacementClient } from './placement/client.js';
 import { huddleMutation } from './mutation.js';
+import { HuddleSourceClient } from './source/client.js';
 
 /** Uses the same selected profile/authority as puddlang. Source and execution stay separate. */
 export class HuddleClient {
   readonly supported: boolean;
   readonly execution: HuddleExecutionClient;
   readonly placement: HuddlePlacementClient;
+  readonly source: HuddleSourceClient;
   constructor(
-    private readonly request: (path: string, body?: unknown) => Promise<unknown>,
+    private readonly request: (path: string, body?: unknown, method?: 'PUT') => Promise<unknown>,
     protocol?: { major: number; minor: number },
     sessionRequest?: (path: string, body?: unknown) => Promise<unknown>,
   ) {
     this.supported = supportsApplicationFeature(protocol, { major: 27, minor: 1 });
     this.execution = new HuddleExecutionClient(request, protocol);
     this.placement = new HuddlePlacementClient(request, sessionRequest, protocol);
+    this.source = new HuddleSourceClient(request, protocol);
   }
   private requireSupported() {
     if (!this.supported)

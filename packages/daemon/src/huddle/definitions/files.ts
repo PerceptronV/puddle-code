@@ -50,7 +50,9 @@ export async function readHuddleFile(root: string, path: string): Promise<string
       before.dev !== current.dev
     )
       throw new Error(`Huddle file changed while reading: ${path}`);
-    return new TextDecoder('utf-8', { fatal: true }).decode(buffer.subarray(0, offset));
+    return new TextDecoder('utf-8', { fatal: true, ignoreBOM: true }).decode(
+      buffer.subarray(0, offset),
+    );
   } finally {
     await handle.close();
   }

@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Read exact captured huddle source and save manifest/layout text against its reviewed digest through CLI/MCP (application 28.11), preserving formatting and rejecting stale saves without automatic retry.
+
 - Cull off-screen huddle nodes and connections while preserving crossing wires, selection, keyboard focus and active gestures; retain full graph access through Node list and fit controls.
 
 - Restore huddle pan/zoom, node and connection selection, and graph/list mode across tab reopening, browser reload and pane/window transfers. Keep duplicate views independent and navigation out of tracked source files.
@@ -92,6 +94,10 @@ Past releases: see docs/changelogs/.
 - Extend host runtime removal and release collection to huddles, rechecking Stop impact and retaining pinned software until clean shutdown and the existing later-boot barrier are proven.
 - Preserve huddle identity and contract requirements through host-update preflight, shutdown checkpoints and fresh adoption/recovery. Candidate daemons must explicitly advertise huddle adoption support; existing agent/terminal metadata stays compatible.
 - Add pinned huddle launch admission and exact-owner lifecycle controls, with durable Stop intent and ordinary session kill/archive integration. New owners start inactive; public Start/Run and the UI remain pending.
+
+#### Fixed
+
+- Preserve byte-order marks in captured huddle scripts and digest checks; reject BOM-prefixed JSON documents instead of silently changing their source bytes.
 
 ### Runtime
 

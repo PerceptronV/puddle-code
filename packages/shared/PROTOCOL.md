@@ -1,5 +1,36 @@
 # The puddle communication protocol
 
+Application **28.11** adds local/SSH `GET/PUT
+/api/huddle/:profile/definitions/:id/source`. GET takes the existing explicit
+project/worktree query and returns `{document, files}` from one verified capture;
+files map relative source paths to exact UTF-8 text, including referenced scripts.
+PUT takes `{project_id, worktree, expected_digest, edit: {file, content}}`, with
+file restricted to `huddle.json` or `layout.json`. Strict current JSON validation
+does not reserialize content: whitespace, CRLF, key order, Unicode and omitted
+defaults remain as submitted. Unknown/future document fields and lossy Unicode
+are rejected. JSON documents must have no BOM; script BOMs remain captured bytes.
+
+Source limits remain 128 files, 256 KiB per file and 4 MiB per closure. The source
+PUT body permits JSON escaping overhead (six times the per-file limit plus 16 KiB),
+while decoded text retains the ordinary byte bound. Both old structured saves and
+new text saves share the repository lock, registered worktree/profile authority,
+whole-capture digest comparison, storage admission and final synchronous source
+rechecks before publication. Each save changes one file. The reply is a fresh
+observed capture after publication; failed observation/lost replies never imply
+that nothing was saved, and may not be retried automatically. Reads and saves
+need no owner or supporting installed runtime and never evaluate/activate code.
+
+CLI `pudl huddle source|save-source HUDDLE_ID --project ID --worktree ABSOLUTE`
+and MCP `huddle_source`/`huddle_save_source` require 28.11. Save-source additionally
+takes `--request JSON` with exactly `expected_digest` and `edit`; MCP includes the
+explicit location/id in its strict arguments. Clients verify source/document
+identity and SHA-256 using the unchanged canonical revision encoding, and a save
+reply must contain exactly the submitted file text. Stale, mismatched or uncertain
+replies trigger no lookup/retry/fresh digest substitution. Old document routes and
+response shapes remain unchanged. No runtime, remote, database, owner or ledger
+version changes. The IDE still uses ordinary file saves; retaining this digest
+through its draft/conflict/window lifecycle remains pending.
+
 Client-local `pudl huddle authoring [asset-path]` and stdio MCP `huddle_authoring`
 now list/read the bundled authoring kit. MCP takes strict `{path?: string}`;
 an exact inventory name selects a schema, declaration, template or fixture.

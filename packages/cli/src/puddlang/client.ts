@@ -26,7 +26,7 @@ export class PuddlangClient {
     private readonly protocol?: { major: number; minor: number },
   ) {
     this.huddles = new HuddleClient(
-      (path, body) => this.request(path, body, 'huddle'),
+      (path, body, method) => this.request(path, body, 'huddle', method),
       protocol,
       (path, body) => this.request(path, body, 'sessions'),
     );
@@ -36,11 +36,12 @@ export class PuddlangClient {
     path: string,
     body?: unknown,
     namespace: 'puddlang' | 'huddle' | 'sessions' = 'puddlang',
+    method?: 'PUT',
   ): Promise<unknown> {
     const response = await fetch(
       `http://127.0.0.1:${this.port()}/api/${namespace}${namespace === 'sessions' ? '' : '/' + encodeURIComponent(this.profile)}${path}`,
       {
-        method: body === undefined ? 'GET' : 'POST',
+        method: method ?? (body === undefined ? 'GET' : 'POST'),
         headers: {
           authorization: `Bearer ${this.authority.credential()}`,
           'content-type': 'application/json',

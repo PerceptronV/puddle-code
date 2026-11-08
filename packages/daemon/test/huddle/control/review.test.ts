@@ -9,7 +9,7 @@ it('compares exact source and contracts without execution, and rejects stale dig
   try {
     const saved = await f.source();
     const started = await f.request('start', { expected_digest: saved.digest, variables: {} });
-    expect(started.status).toBe(200);
+    expect(started.status, JSON.stringify(started.body)).toBe(200);
     const target = started.body.owner.target;
     const read = await f.request('revision', {
       target,
