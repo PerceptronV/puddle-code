@@ -1175,3 +1175,12 @@ restoration, without terminal keep-alive or PTY attachment. Initial evidence and
 remaining huddle view-state/IDE work are in [huddle acceptance](huddle.md). Historical
 format-3 evidence above describes those earlier increments; native OS acceptance
 has not been rerun for huddles.
+
+Huddle manifest drafts now participate in the shared buffer ownership policy.
+`tabHoldsFile` identifies the implicit `huddle.json` view for transfer partition,
+arrangement distribution, orphan recovery and pane-close review; explicit source
+tabs or duplicate graph views retain their shared copy. Unit tests cover these
+projections and capture. All 13 existing headless cases passed after this change;
+the huddle editing browser fixture covers duplicate-view/final-view close review.
+An actual huddle transfer through the synthetic native bridge and native OS
+acceptance remain pending; ordinary-file transfer checks do not establish them.

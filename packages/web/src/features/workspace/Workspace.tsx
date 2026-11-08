@@ -1,4 +1,5 @@
 import { NewHuddleDialog } from '../huddle/documents/NewHuddleDialog';
+import { huddleDefinitionPath } from '@puddle/shared';
 import { useHuddleSupported } from '../huddle/documents/queries';
 import { ContentMotion } from '../../components/ui/content-motion';
 import { TrayMotionProvider } from '../../components/ui/tray-motion';
@@ -569,7 +570,8 @@ function WorkspaceInner() {
     'tab.close': () => {
       const leaf = layout.focusedLeaf;
       const ref = leaf.tabs.find((t) => tabRefKey(t) === leaf.activeKey);
-      if (ref?.type === 'editor') requestEditorClose(tabCloseKey(leaf.id, tabRefKey(ref)));
+      if (ref?.type === 'editor' || ref?.type === 'huddle')
+        requestEditorClose(tabCloseKey(leaf.id, tabRefKey(ref)));
       else if (ref) onCloseTab(leaf.id, ref);
     },
     'tab.reopen': reopenClosedTab,
@@ -583,7 +585,15 @@ function WorkspaceInner() {
     // caret remains in another pane's Monaco; document.activeElement must not
     // decide which file is written (SPEC §8).
     'editor.save': () => {
-      requestActiveTabSave(layout.activeEditorTab);
+      const session =
+        focusedRef?.type === 'huddle'
+          ? tabSessions.find((s) => s.id === focusedRef.session)
+          : undefined;
+      requestActiveTabSave(
+        session?.huddle_id
+          ? { session: session.id, path: huddleDefinitionPath(session.huddle_id) }
+          : layout.activeEditorTab,
+      );
     },
     'editor.compile': () => {
       const tab = layout.activeEditorTab;

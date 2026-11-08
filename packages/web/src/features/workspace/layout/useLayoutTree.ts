@@ -76,7 +76,7 @@ export interface LayoutController {
   revealSource(followerLeafId: string, target: EditorTab): string;
   /** Retarget every live view of a file after its on-disk path changes. */
   renameFile(source: EditorTab, nextPath: string): void;
-  removeSession(session: string): void;
+  removeSession(session: string, source?: EditorTab): void;
   pruneSessions(alive: ReadonlySet<string>): void;
   resize(splitId: string, sizes: number[]): void;
   drop(spec: DropSpec): void;
@@ -318,11 +318,17 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
         const next = renameBufferTabs(tree, source, nextPath);
         if (next !== tree) persist(next);
       },
-      removeSession: (session) => {
+      removeSession: (session, source) => {
         // Archive completion can arrive after other tabs were closed or opened.
         // Read through the handle so overlapping replies (even in one tick)
         // cannot restore the layout captured when their requests began.
-        const current = uiState.current().layout_tree ?? tree;
+        let current = uiState.current().layout_tree ?? tree;
+        if (source) {
+          for (const leaf of allLeaves(current)) {
+            if (leaf.tabs.some((ref) => ref.type === 'huddle' && ref.session === session))
+              current = addBackgroundTabToLeaf(current, leaf.id, { type: 'editor', tab: source });
+          }
+        }
         persist(pruneTabs(current, (ref) => ref.type === 'editor' || ref.session !== session));
       },
       // Session-less tabs (untitled drafts, directory targets) survive: the nil

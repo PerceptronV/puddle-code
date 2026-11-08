@@ -10,8 +10,9 @@ in an independent owner process with private authenticated control, explicit
 runtime-role metadata and pinned capability checks. Phase 2 has the third session
 kind, immutable application placement and common runtime inventory role, with
 application protocol 28.1. Local/SSH inactive creation, discovery, inspection and
-placement opening now have sidebar creation and an initial graph-inspection pane.
-Visual editing and execution controls remain unfinished. Daemon
+placement opening now have sidebar creation and a graph pane with manifest
+editing, shared source drafts, settings, undo and file-conflict review. Node
+movement, full visual editing and execution controls remain unfinished. Daemon
 adoption/projection now observes independent huddle owners alongside ordinary
 runtimes, including across isolated daemon replacement. Pinned production launch
 and exact-owner controls now integrate with session kill/archive. Authorised public
@@ -23,7 +24,8 @@ collection now recognise huddle ownership and clean shutdown evidence. Host-upda
 checkpoints and fresh adoption/recovery now preserve huddle contracts alongside
 ordinary owners.
 Revision-checked single-file source saves now reject detected concurrent edits;
-graph draft/conflict UI integration remains unfinished.
+the graph UI currently shares ordinary editor conditional file saves. Full-capture
+digest save integration and retained graph view state remain unfinished.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals except where explicitly documented
 in acceptance as implemented.
@@ -693,8 +695,9 @@ ledger plus durable
 graph routing, isolated script workers, retained revisions/activation and a manual
 scheduler and independent owner process/private control. Production launch/adoption
 and maintenance integration are implemented; the provider bridge and native continuity acceptance remain unfinished. Phase 2 has
-inactive creation/opening, sidebar integration and a first graph-inspection pane;
-visual editing and public execution controls remain pending. Each phase
+inactive creation/opening, sidebar integration and manifest graph editing with
+shared editor drafts; node movement, complete settings and public execution
+controls remain pending. Each phase
 must update
 `docs/acceptance/huddle.md` with implemented details and evidence, rather than
 leaving the only accurate description in code or marking future phases complete.

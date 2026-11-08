@@ -32,7 +32,7 @@ export interface SaverTarget {
 }
 
 type Saver = () => boolean | void | Promise<boolean | void>;
-const savers = new Map<string, { target?: SaverTarget; save: Saver }>();
+const savers = new Map<string, Set<{ target?: SaverTarget; save: Saver }>>();
 
 /**
  * Publish the save action for one buffer while its body is mounted. Two bodies
@@ -42,16 +42,19 @@ const savers = new Map<string, { target?: SaverTarget; save: Saver }>();
  */
 export function registerSaver(key: string, save: Saver, target?: SaverTarget): () => void {
   const entry = { save, ...(target ? { target } : {}) };
-  savers.set(key, entry);
+  const holders = savers.get(key) ?? new Set();
+  holders.add(entry);
+  savers.set(key, holders);
   return () => {
-    if (savers.get(key) === entry) savers.delete(key);
+    holders.delete(entry);
+    if (!holders.size && savers.get(key) === holders) savers.delete(key);
   };
 }
 
 /** Run the save for `key`. False when nothing is mounted for it (nothing happened). */
 export function requestSave(key: string | null): boolean {
   if (key === null) return false;
-  const entry = savers.get(key);
+  const entry = [...(savers.get(key) ?? [])].at(-1);
   if (!entry) return false;
   void entry.save();
   return true;
@@ -67,7 +70,8 @@ export async function saveCompilationInputs(
   inputExtensions: ReadonlySet<string>,
 ): Promise<boolean> {
   const sourceKey = saverKey(source.session, source.path, source.root);
-  const pending = [...savers.entries()].flatMap(([key, entry]) => {
+  const pending = [...savers.entries()].flatMap(([key, holders]) => {
+    const entry = [...holders].at(-1)!;
     const target = entry.target;
     if (!target || target.session !== source.session || target.root !== source.root) return [];
     const extension = fileExtension(target.path);

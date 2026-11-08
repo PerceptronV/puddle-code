@@ -107,3 +107,5 @@ export {
   parseReleaseProtocol,
   isNewerVersion,
 } from './installation/version.js';
+
+export * from './huddle/components/core.js';

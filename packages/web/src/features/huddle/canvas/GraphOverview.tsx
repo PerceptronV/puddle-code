@@ -45,7 +45,7 @@ export function GraphOverview({
   );
   const byId = new Map(nodes.map((node) => [node.node.id, node]));
   return (
-    <div className="relative min-h-0 flex-1">
+    <div className="relative min-h-0 min-w-0 flex-1">
       <div className="absolute right-3 top-2 z-10">
         <ControlTray label="Graph zoom" variant="island">
           <button

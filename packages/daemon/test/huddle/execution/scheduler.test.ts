@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { huddleResultReadout } from '../../../src/huddle/components/core.js';
+import { huddleResultReadout } from '@puddle/shared';
 import { huddleRevisionDigest } from '../../../src/huddle/definitions/revision.js';
 import { huddleDefinitionSchema, type HuddleJson } from '@puddle/shared';
 import type { HuddleDefinitionSnapshot } from '../../../src/huddle/definitions/capture.js';

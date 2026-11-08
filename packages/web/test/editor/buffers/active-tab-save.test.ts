@@ -18,6 +18,21 @@ afterEach(() => {
 });
 
 describe('requestActiveTabSave', () => {
+  it('restores the surviving saver when a second graph/source holder unmounts', () => {
+    const tab = { session: 'session', path: '.puddle/huddle/id/huddle.json' };
+    const first = vi.fn();
+    const second = vi.fn();
+    const offFirst = registerSaver(saverKey(tab.session, tab.path), first);
+    const offSecond = registerSaver(saverKey(tab.session, tab.path), second);
+    requestActiveTabSave(tab);
+    expect(second).toHaveBeenCalledOnce();
+    expect(first).not.toHaveBeenCalled();
+    offSecond();
+    expect(requestActiveTabSave(tab)).toBe(true);
+    expect(first).toHaveBeenCalledOnce();
+    offFirst();
+    expect(requestActiveTabSave(tab)).toBe(false);
+  });
   it('saves only the ordinary file tab it is given', () => {
     const envSave = vi.fn();
     const otherSave = vi.fn();

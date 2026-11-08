@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { huddleEventSchema, type HuddleJson } from '@puddle/shared';
-import { manualHuddleTrigger } from '../../../huddle/components/core.js';
+import { manualHuddleTrigger } from '@puddle/shared';
 import { HuddleLedger } from '../state/ledger.js';
 import { HuddleRevisionStore } from '../state/revisions.js';
 

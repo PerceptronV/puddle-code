@@ -1410,8 +1410,11 @@ automatic creation retries. No owner launches or trigger admissions occur during
 creation/opening. Remote profile leases are denied. Application 28.0 adds a
 closed-union huddle tab and sidebar creation/opening, including the collapsed rail
 and project menus. Huddle content renders saved nodes/ports/wires, a list/inspector
-and ordinary editor source links; visual graph editing and public Start/Run remain
-unfinished. Huddle views can move through panes, project layouts and native
+and ordinary editor source links. Manifest graph edits now share the source file's
+Monaco model, drafts, undo, conditional saves and conflict review. Node creation,
+connection selectors, deletion, parameter bindings and appearance controls are
+available; node movement, complete settings and public Start/Run remain unfinished.
+Huddle views can move through panes, project layouts and native
 transfers without creating PTYs or owners. Closing a view is independent of Stop.
 Desktop recovery format 4 migrates versions 2/3; `windows.huddles` gates native
 opening and working-set admission, preserving hidden project slices on old shells.
@@ -1420,8 +1423,10 @@ Application 28.1 adds revision-checked single-file manifest/layout saves under t
 repository mutation lock, with bounded staged publication and final source/authority
 checks. A stale captured digest returns a conflict; a lost reply requires source
 inspection. Save returns diagnostics without activating code. This does not provide
-a multi-file transaction or a lock against external editors. Shared graph drafts
-and visual save/conflict controls remain unfinished. Existing agent/terminal creation and
+a multi-file transaction or a lock against external editors. The graph UI currently
+shares the ordinary editor's mtime-checked file-save path. Huddle tabs hold their
+manifest buffers through transfer/arrangement planning and close review; duplicate
+source/graph views retain the shared text. Existing agent/terminal creation and
 restart controls cannot launch huddles. The shared launcher now has a huddle path
 under the existing admission, supervisor and host memory controls. It requires an
 installed capable release, validates the retained activation before intent, pins

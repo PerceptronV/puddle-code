@@ -1,3 +1,4 @@
+import { huddleDefinitionPath } from '@puddle/shared';
 import { tabCloseKey } from '../tabs/close/TabCloseRequests';
 import { panePathLabel } from './pane-path';
 import './pane-tab-strip.css';
@@ -616,21 +617,39 @@ function PaneTab({
           <span className="truncate">
             {session ? renderTitle(session) : tab.session.slice(0, 8)}
           </span>
+          {tab.type === 'huddle' && session?.huddle_id && (
+            <LazyEditorDirtyDot
+              session={session.id}
+              path={huddleDefinitionPath(session.huddle_id)}
+              kind="file"
+            />
+          )}
           <TabControls>
             {session && <SessionTabActions session={session} onArchived={onArchived} />}
-            <button
-              type="button"
-              onPointerDown={(event) => event.stopPropagation()}
-              onDoubleClick={(event) => event.stopPropagation()}
-              onClick={(e) => {
-                e.stopPropagation();
-                onClose();
-              }}
-              className="inline-flex rounded-sm p-0.5 text-fg-muted transition-colors hover:text-fg"
-              aria-label="Close tab"
-            >
-              <X className="size-3" />
-            </button>
+            {tab.type === 'huddle' && session?.huddle_id ? (
+              <LazyEditorTabClose
+                closeKey={tabCloseKey(leafId, key)}
+                session={session.id}
+                path={huddleDefinitionPath(session.huddle_id)}
+                kind="file"
+                label={renderTitle(session)}
+                onClose={onClose}
+              />
+            ) : (
+              <button
+                type="button"
+                onPointerDown={(event) => event.stopPropagation()}
+                onDoubleClick={(event) => event.stopPropagation()}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onClose();
+                }}
+                className="inline-flex rounded-sm p-0.5 text-fg-muted transition-colors hover:text-fg"
+                aria-label="Close tab"
+              >
+                <X className="size-3" />
+              </button>
+            )}
           </TabControls>
         </>
       ) : (

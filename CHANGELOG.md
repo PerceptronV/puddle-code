@@ -13,7 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
-- Add New huddle to the session tray, collapsed rail and project menus, with explicit worktree selection and saved-huddle opening. Huddles open as separate pane content with graph inspection, node-list navigation and source links; creating/opening stays inactive. Visual editing and public execution controls remain pending.
+- Add New huddle to the session tray, collapsed rail and project menus, with explicit worktree selection and saved-huddle opening. Huddles open as separate pane content; creating/opening stays inactive.
+- Edit huddle nodes, connections, parameter bindings, colours and icons using a shared graph/source draft with undo and save-conflict review. Manifest drafts follow pane/window transfers and closing duplicate views preserves them. Node movement and public execution controls remain pending.
 - Preserve huddle tabs through layouts and native window content. Application protocol 28 and desktop recovery format 4 require supporting clients; existing agent/terminal runtime contracts remain unchanged.
 
 #### Changed

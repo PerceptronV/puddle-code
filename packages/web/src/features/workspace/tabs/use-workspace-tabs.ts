@@ -2,6 +2,7 @@ import { huddleShellSupported } from '../../huddle/documents/queries';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import type { Session, TabRef } from '@puddle/shared';
+import { huddleDefinitionPath } from '@puddle/shared';
 import { tabKind } from '../../editor/tabs/editor-tabs';
 import { wsManager } from '../../../lib/transport/ws';
 import { rememberClosedTab, takeClosedTab } from './closed-tabs';
@@ -207,13 +208,21 @@ export function useWorkspaceTabs({
         route.current.projectId === projectId &&
         route.current.activeSessionId === id;
       if (wasActive && stillBound) justClosedActive.current = id;
-      layout.removeSession(id);
+      const session = tabSessions.find((item) => item.id === id);
+      // Archive stops/hides the session, but retains its editable source just
+      // like ordinary file tabs associated with an archived agent.
+      layout.removeSession(
+        id,
+        session?.huddle_id
+          ? { session: id, path: huddleDefinitionPath(session.huddle_id) }
+          : undefined,
+      );
       if (wasActive) {
         if (uiState.current().active_session === id) uiState.update({ active_session: null });
         if (stillBound) void navigate(`/project/${projectId}`);
       }
     },
-    [layout, uiState, activeSessionId, navigate, projectId],
+    [layout, uiState, activeSessionId, navigate, projectId, tabSessions],
   );
   // Activating a tab focuses its pane; activating a terminal also navigates so
   // the left sidebar binds to it. A terminal tab may belong to ANOTHER project

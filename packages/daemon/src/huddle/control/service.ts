@@ -26,7 +26,7 @@ import { captureHuddleDefinition, type HuddleDefinitionSnapshot } from '../defin
 import { createHuddleDefinition } from '../definitions/create.js';
 import { saveHuddleDefinition } from '../definitions/save.js';
 import { discoverHuddleDefinitions } from '../definitions/discovery.js';
-import { coreHuddleComponents } from '../components/core.js';
+import { coreHuddleComponents } from '@puddle/shared';
 
 interface Dependencies {
   home: string;

@@ -3,7 +3,7 @@ import {
   huddleDefinitionSchema,
   type HuddleComponent,
 } from '@puddle/shared';
-import { manualHuddleTrigger, huddleResultReadout } from '../../../src/huddle/components/core.js';
+import { manualHuddleTrigger, huddleResultReadout } from '@puddle/shared';
 import { huddleRevisionDigest } from '../../../src/huddle/definitions/revision.js';
 import type { HuddleDefinitionSnapshot } from '../../../src/huddle/definitions/capture.js';
 

@@ -1,4 +1,5 @@
 import type { LayoutNode, TabRef } from '../../api/workspace/ui-state.js';
+import { tabHoldsFile } from '../../api/workspace/ui-state.js';
 import type { DesktopBufferSnapshot, DesktopWorkspaceContent } from './content.js';
 
 const bufferKey = (buffer: Pick<DesktopBufferSnapshot, 'session' | 'path' | 'root'>) =>
@@ -12,6 +13,14 @@ function analyseClose(content: DesktopWorkspaceContent) {
     if (!node) return;
     if (node.kind === 'split') return node.children.forEach(visit);
     for (const ref of node.tabs) {
+      if (ref.type === 'huddle') {
+        const held = content.buffers.filter(
+          (buffer) => remaining.has(bufferKey(buffer)) && tabHoldsFile(ref, buffer),
+        );
+        if (held.length) targets.push({ paneId: node.id, ref });
+        for (const buffer of held) remaining.delete(bufferKey(buffer));
+        continue;
+      }
       if (ref.type !== 'editor' || ref.tab.kind === 'commit') continue;
       const key = bufferKey(ref.tab);
       if (ref.tab.kind === 'untitled' || remaining.has(key)) targets.push({ paneId: node.id, ref });

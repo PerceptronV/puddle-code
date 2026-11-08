@@ -6,7 +6,7 @@ import { huddleSaveSchema, HUDDLE_LIMITS } from '@puddle/shared';
 import { createHuddleDefinition } from '../../../src/huddle/definitions/create.js';
 import { captureHuddleDefinition } from '../../../src/huddle/definitions/capture.js';
 import { saveHuddleDefinition } from '../../../src/huddle/definitions/save.js';
-import { coreHuddleComponents } from '../../../src/huddle/components/core.js';
+import { coreHuddleComponents } from '@puddle/shared';
 
 vi.mock('node:fs', async (original) => ({ ...(await original<typeof import('node:fs')>()) }));
 

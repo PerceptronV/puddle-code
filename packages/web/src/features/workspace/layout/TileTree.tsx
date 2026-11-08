@@ -1,4 +1,5 @@
 import { IslandSeparator } from './IslandSeparator';
+import { huddleDefinitionPath } from '@puddle/shared';
 import { Fragment, useMemo } from 'react';
 import { Group, Panel, type Layout } from 'react-resizable-panels';
 import type {
@@ -76,6 +77,12 @@ export function TileTree({ tree, ...handlers }: { tree: LayoutNode } & TileHandl
     const seen = new Set<string>();
     const out: HeldBuffer[] = [];
     for (const t of flattenTabs(tree)) {
+      if (t.type === 'huddle') {
+        const session = handlers.sessions.find((session) => session.id === t.session);
+        if (session?.huddle_id)
+          out.push({ session: t.session, path: huddleDefinitionPath(session.huddle_id) });
+        continue;
+      }
       // Commit and untitled tabs use private/profile-owned models. External
       // files are full editors and therefore retain a root-qualified buffer,
       // exactly like file/diff tabs retain their worktree buffer.
@@ -87,7 +94,7 @@ export function TileTree({ tree, ...handlers }: { tree: LayoutNode } & TileHandl
       }
     }
     return out;
-  }, [tree]);
+  }, [tree, handlers.sessions]);
 
   return (
     <>

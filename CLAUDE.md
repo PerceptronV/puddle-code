@@ -581,8 +581,13 @@ enter terminal keep-alive, stdin, ordinary Resume or provider controls. Keep kin
 selection in `sessionTabRef`, and preserve duplicate huddle views when closing one.
 Desktop persistence is format 4 (migrate 2/3); require `windows.huddles` before
 opening or saving huddle-containing working sets, including parked project slices.
-Keep source links on the existing editor path. Public Start/Run, visual graph
-editing, live source coordination and retained huddle view state remain unfinished.
+Keep source links on the existing editor path. Public Start/Run remains unfinished.
+Manifest graph editing uses the shared `huddle.json` editor model, existing conditional file
+saves/drafts/conflicts and undo history. `tabHoldsFile` recognises manifest ownership
+for window transfers, close review, arrangements and model retention. Keep source
+holders when a graph closes, and retain a source tab when its session is archived.
+The save registry retains every mounted holder. Node movement, full resource
+settings, live component observation and retained huddle view state remain unfinished.
 Application 28.1 adds revision-checked `PUT /api/huddle/:profile/definitions/:id`:
 one manifest/layout publication per request, under the repository mutation lock.
 `huddle/definitions/save.ts` stages, rechecks captured source/authority and renames

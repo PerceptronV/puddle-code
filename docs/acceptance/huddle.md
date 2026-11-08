@@ -3,12 +3,71 @@
 Status: foundation in progress, 2026-11-08. The full objective remains the
 [huddle roadmap](../roadmap/huddle.md). Application 27.1 exposes inactive definition
 creation/opening through local/SSH HTTP. Application 28.0 adds the sidebar entry
-and a first graph-inspection pane; visual editing and public execution controls
-remain unfinished. Runtime archives declare their internal huddle-role contracts;
+and graph panes. Manifest editing now shares ordinary editor drafts, undo and
+conflict review; layout editing and public execution controls remain unfinished.
+Runtime archives declare their internal huddle-role contracts;
 application 27.0 now includes huddle session identity and migration 43 records
 placements/owner roles. The daemon launcher and lifecycle controls now integrate
 with session kill/archive; migration 44 retains Stop intent. No user CLI command
 is enabled yet.
+
+## Implemented: editable manifest graph and shared source drafts
+
+Graph views now edit the same Monaco text model as their `huddle.json` source tab.
+Add node offers searchable Run/Result built-ins and references to local component
+contracts. Connections have labelled output/input selectors and explicit
+disconnect controls, usable with keyboard or touch. Delete node removes its
+incident edges while retaining component files. Each graph edit is an undo step;
+Undo/Redo also traverses edits made in the ordinary JSON source editor. Invalid
+JSON, future formats and mismatched directory ids disable graph edits without
+rewriting the source. Graph validation displays diagnostics for incomplete drafts.
+
+The inspector generates literal/variable binding controls from component parameters:
+text, booleans and general JSON values, with declared variable choices, explicit
+Apply/Clear and visible defaults. Worktree fields retain explicit roots or variable
+references. Node colours use the existing swatches/custom picker and icons use the
+profile catalogue in the existing popover. Resource-specific pickers, richer
+prompt/enum controls, variable declaration editing and feedback-edge controls are
+still pending. Adding a local node references its contract; it does not generate
+its script or template files.
+
+Save and the normal save shortcut use the **existing editor file save path**, with
+its loaded mtime, stale-file rejection, opt-in comparison and reconciliation.
+The separate application-28.1 full-capture digest save API remains available for
+structured authoring; this UI increment does not route ordinary source buffers
+through it or claim whole-component-bundle compare-and-swap. Saving never applies
+a revision or runs a node. Clean manifests follow the editor's focus-aware file
+refresh; dirty manifests keep their text when an agent changes disk. Newly
+referenced local component contracts load after Save/Refresh. Live component-file
+observation remains pending.
+
+The existing IndexedDB draft writer and native buffer capture retain edits.
+Huddle tabs count as holders of their manifest even with no source tab open:
+pane/tab/project transfers, arrangement planning, orphan recovery, native close
+review and model lifetimes recognise that relationship. Separate source tabs
+or duplicate huddle views retain a copy during transfer. Divergent native drafts
+still refuse a silent merge. Closing one of multiple views does not discard shared
+edits; closing the final view uses the existing Keep editing/Discard dialogue.
+Save is available in the editor before closing; a Save choice inside that close
+dialogue remains pending. Archive retains a source tab so removing the session
+view cannot silently discard its buffer. App/runtime protocols and desktop storage
+format are unchanged. The save registry now retains all mounted holders, restoring
+the surviving graph/source saver when the newest holder unmounts.
+
+Built-in contracts now live in `shared/huddle/components/core.ts`, used by both
+the runtime and UI; the daemon forwarding path was removed. New UI logic is
+grouped under `huddle/documents/` and `huddle/inspector/`.
+
+Evidence: 474 shared/workspace/window/editor unit tests passed in 63 files, plus
+38 isolated daemon authoring/source/scheduler tests in 3 files. The headless
+`test/huddle/editing.browser.mjs` passes node/connection edits, undo/redo,
+icon/colour changes, keyboard Save, shared JSON edits, stale-save comparison,
+custom string/boolean/JSON/worktree-variable settings, and duplicate-view/final
+view close review. It asserts no Start/Run/Resume request. The existing huddle
+creation/inspection/narrow-view browser check also passed. All 13 existing headless
+window acceptance cases passed in one run, including transfers, arrangements,
+workspace continuity and component regressions. Native OS transfer,
+browser reload and complete graph view-state acceptance remain separate work.
 
 ## Implemented: revision-checked source saves
 
@@ -44,9 +103,8 @@ Verification covers competing service saves; source/layout edits, revocation,
 archive and storage failure during admission; script-dependency changes; symlink
 rejection; staging/rename failures; permission preservation; id/schema/size bounds;
 and publication followed by failed response observation. Runtime binding tables
-remain empty during these authoring tests. The graph UI still uses the inspection
-surface; visual edits, shared dirty drafts, conflict review and save integration
-remain the next IDE work.
+remain empty during these authoring tests. The graph UI's shared editor-buffer
+integration is described above; the full-capture digest API is a separate save path.
 
 Validation: **219 tests in 30 files passed** across shared contracts, huddle
 authoring/placement boundaries, source capture and controller integration. The
@@ -115,8 +173,8 @@ tab-entry animations; it passed unchanged in isolation, followed by
 `browser-components`. This intermittent animation result remains recorded here;
 no assertion was weakened. Light and dark huddle screenshots were inspected.
 
-Still pending: visual add/connect/move/delete and undo, generated editable settings,
-source/graph conflict coordination and automatic source-change observation,
+Later manifest editing is documented above. Still pending: node movement and wire
+dragging, complete generated settings and component-change observation,
 retained graph camera/selection across transfers, templates, public execution
 controls/history and authoring assistance. This is an initial inspectable pane,
 not acceptance of the complete IDE. Native OS focus/drag and packaged continuity
@@ -707,7 +765,7 @@ and cursor hand-off remain the future owner's responsibility.
 
 The internal `HuddleScheduler` drives durable executions, routing and isolated
 workers without renderer participation. `control/manual.ts` admits idempotent
-manual events; `huddle/components/core.ts` provides the initial Run trigger and
+manual events; `shared/huddle/components/core.ts` provides the initial Run trigger and
 result readout contracts. The scheduler runs local script components and stores
 result-readout input in the retained invocation. It refuses unsupported built-in
 contracts and local trigger/readout adapters. Coalescing/drop admission is refused

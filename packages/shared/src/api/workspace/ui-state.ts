@@ -63,6 +63,23 @@ export const tabRefSchema = z.discriminatedUnion('type', [
 ]);
 export type TabRef = z.infer<typeof tabRefSchema>;
 
+/** A graph view holds its manifest buffer even without an explicit source tab. */
+export function tabHoldsFile(
+  ref: TabRef,
+  file: Pick<EditorTabRef, 'session' | 'path' | 'root'>,
+): boolean {
+  if (ref.type === 'editor')
+    return (
+      ref.tab.session === file.session && ref.tab.path === file.path && ref.tab.root === file.root
+    );
+  return (
+    ref.type === 'huddle' &&
+    ref.session === file.session &&
+    file.root === undefined &&
+    /^\.puddle\/huddle\/[a-f0-9]{32}\/huddle\.json$/.test(file.path)
+  );
+}
+
 /** Session content identity is separate from whether that session owns a PTY. */
 export function sessionTabRef(session: {
   id: string;

@@ -1,4 +1,4 @@
-import { huddleComponentSchema } from '@puddle/shared';
+import { huddleComponentSchema } from '../../api/huddle/components.js';
 
 export const manualHuddleTrigger = huddleComponentSchema.parse({
   format: 1,

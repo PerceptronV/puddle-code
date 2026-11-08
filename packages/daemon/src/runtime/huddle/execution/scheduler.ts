@@ -6,7 +6,7 @@ import {
   huddleInvocationRecordSchema,
   type HuddleExecutionRecord,
 } from '@puddle/shared';
-import { coreHuddleComponents } from '../../../huddle/components/core.js';
+import { coreHuddleComponents } from '@puddle/shared';
 import { HuddleRevisionController } from '../control/revisions.js';
 import { HuddleLedger } from '../state/ledger.js';
 import { HuddleAttempts, type HuddleAttemptOptions } from './attempts.js';

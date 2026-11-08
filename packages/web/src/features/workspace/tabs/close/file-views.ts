@@ -1,4 +1,5 @@
 import type { EditorTabRef, LayoutNode, UiStateSnapshot } from '@puddle/shared';
+import { tabHoldsFile } from '@puddle/shared';
 
 type FileIdentity = Pick<EditorTabRef, 'session' | 'path' | 'root'>;
 
@@ -9,12 +10,8 @@ export function fileViewCount(snapshot: UiStateSnapshot, file: FileIdentity): nu
     if (tree.kind === 'split') return tree.children.reduce((sum, child) => sum + count(child), 0);
     return tree.tabs.filter(
       (ref) =>
-        ref.type === 'editor' &&
-        ref.tab.kind !== 'commit' &&
-        ref.tab.kind !== 'untitled' &&
-        ref.tab.session === file.session &&
-        ref.tab.path === file.path &&
-        ref.tab.root === file.root,
+        (ref.type !== 'editor' || (ref.tab.kind !== 'commit' && ref.tab.kind !== 'untitled')) &&
+        tabHoldsFile(ref, file),
     ).length;
   };
   return snapshot.layout_mode === 'project'

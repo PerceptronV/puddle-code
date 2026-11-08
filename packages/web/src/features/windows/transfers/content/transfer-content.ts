@@ -1,5 +1,5 @@
 import type { DesktopWorkspaceContent, LayoutNode, UiStateSnapshot, TabRef } from '@puddle/shared';
-import { desktopTabKey } from '@puddle/shared';
+import { desktopTabKey, tabHoldsFile } from '@puddle/shared';
 import {
   findLeaf,
   flattenTabs,
@@ -13,12 +13,15 @@ import { scopedSnapshot } from '../../../workspace/layout/project-layout';
 import { windowBufferKey } from '../../state/content-state';
 import { transferPaneViews } from './transfer-views';
 
-function bufferKeys(tree: LayoutNode | null): Set<string> {
+function bufferKeys(
+  tree: LayoutNode | null,
+  buffers: DesktopWorkspaceContent['buffers'],
+): Set<string> {
   return new Set(
     tree
-      ? flattenTabs(tree).flatMap((ref) =>
-          ref.type === 'editor' ? [windowBufferKey(ref.tab)] : [],
-        )
+      ? buffers
+          .filter((buffer) => flattenTabs(tree).some((ref) => tabHoldsFile(ref, buffer)))
+          .map(windowBufferKey)
       : [],
   );
 }
@@ -154,11 +157,14 @@ export function partitionWindowContent(
   destination: UiStateSnapshot,
   sourceProjectId: string,
 ) {
-  const moved = bufferKeys(destination.layout_tree);
-  const retained = bufferKeys(source.layout_mode === 'project' ? null : source.layout_tree);
+  const moved = bufferKeys(destination.layout_tree, content.buffers);
+  const retained = bufferKeys(
+    source.layout_mode === 'project' ? null : source.layout_tree,
+    content.buffers,
+  );
   if (source.layout_mode === 'project') {
     for (const slice of Object.values(source.project_layouts)) {
-      for (const key of bufferKeys(slice.layout_tree)) retained.add(key);
+      for (const key of bufferKeys(slice.layout_tree, content.buffers)) retained.add(key);
     }
   }
   // Duplicate views in the source retain their own recoverable copy. Orphaned

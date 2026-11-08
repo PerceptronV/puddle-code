@@ -3,7 +3,9 @@ import type {
   DesktopWorkspaceContent,
   LayoutNode,
   UiStateSnapshot,
+  TabRef,
 } from '@puddle/shared';
+import { tabHoldsFile } from '@puddle/shared';
 import type { WindowContentSource } from './working-set';
 
 export function windowBufferKey(
@@ -12,17 +14,17 @@ export function windowBufferKey(
   return JSON.stringify([buffer.session, buffer.path, buffer.root ?? null]);
 }
 
-function referencedBuffers(snapshot: UiStateSnapshot): Set<string> {
-  const keys = new Set<string>();
+function referencedTabs(snapshot: UiStateSnapshot): TabRef[] {
+  const refs: TabRef[] = [];
   const visit = (node: LayoutNode | null) => {
     if (!node) return;
     if (node.kind === 'split') node.children.forEach(visit);
-    else for (const tab of node.tabs) if (tab.type === 'editor') keys.add(windowBufferKey(tab.tab));
+    else refs.push(...node.tabs);
   };
   if (snapshot.layout_mode === 'project') {
     for (const slice of Object.values(snapshot.project_layouts)) visit(slice.layout_tree);
   } else visit(snapshot.layout_tree);
-  return keys;
+  return refs;
 }
 
 /**
@@ -114,13 +116,16 @@ export class DesktopContentState implements WindowContentSource {
   }
 
   capture(snapshot?: UiStateSnapshot): Pick<DesktopWorkspaceContent, 'buffers' | 'views'> {
-    const referenced = snapshot ? referencedBuffers(snapshot) : null;
+    const referenced = snapshot ? referencedTabs(snapshot) : null;
     const buffers = new Map(this.buffers);
     for (const [key, readers] of this.readers) {
       // React may not have disposed the source model yet after a transfer.
       // Never recapture a model whose tab has moved out of this working set.
-      if (referenced && !referenced.has(key)) continue;
       const value = [...readers].at(-1)?.() ?? null;
+      // A null reader still clears a previously captured, now-clean draft.
+      const identity = value ?? buffers.get(key);
+      if (referenced && identity && !referenced.some((ref) => tabHoldsFile(ref, identity)))
+        continue;
       if (value) buffers.set(key, value);
       else buffers.delete(key);
     }

@@ -1,4 +1,12 @@
 import { expect, it } from 'vitest';
+import {
+  desktopPaneCloseReview,
+  desktopPaneOrphanedBuffers,
+  huddleDefinitionPath,
+} from '@puddle/shared';
+import { fileViewCount } from '../../src/features/workspace/tabs/close/file-views';
+import { DesktopContentState } from '../../src/features/windows/state/content-state';
+import { retainLateDrafts } from '../../src/features/windows/state/late-draft-recovery';
 import { desktopTabKey, hasHuddleTabs, sessionTabRef, uiStateSnapshotSchema } from '@puddle/shared';
 import {
   allLeaves,
@@ -20,6 +28,36 @@ import { sessionLifecycle } from '../../src/features/workspace/sessions/lifecycl
 const id = '00000000-0000-4000-8000-000000000001';
 const project = '1111111111';
 const ref = sessionTabRef({ id, kind: 'huddle' });
+
+it('moves a graph manifest draft with its implicit huddle view, reviews it on close, and preserves duplicate source holders', () => {
+  const buffer = {
+    session: id,
+    path: huddleDefinitionPath('a'.repeat(32)),
+    content: 'unsaved graph',
+    baseMtimeMs: 1,
+  };
+  const unrelated = { ...buffer, path: '.puddle/huddle/' + 'a'.repeat(32) + '/nodes/script.ts' };
+  const leaf = makeLeaf([ref]);
+  const snapshot = uiStateSnapshotSchema.parse({ layout_tree: leaf });
+  const content = { snapshot, buffers: [buffer, unrelated], views: {} };
+  expect(fileViewCount(snapshot, buffer)).toBe(1);
+  expect(desktopPaneCloseReview(content).targets).toEqual([{ paneId: leaf.id, ref }]);
+  expect(desktopPaneOrphanedBuffers(content)).toEqual([unrelated]);
+  expect(retainLateDrafts(snapshot, [buffer])).toBe(snapshot);
+  const moved = detachTabContent(content, project, ref, leaf.id);
+  expect(moved.destination.buffers).toEqual([buffer]);
+  expect(moved.source.buffers).toEqual([unrelated]);
+  const duplicate = uiStateSnapshotSchema.parse({
+    layout_tree: makeSplit('row', [leaf, makeLeaf([{ type: 'editor', tab: buffer }])]),
+  });
+  expect(fileViewCount(duplicate, buffer)).toBe(2);
+  const copied = detachTabContent({ ...content, snapshot: duplicate }, project, ref, leaf.id);
+  expect(copied.source.buffers).toContainEqual(buffer);
+  expect(copied.destination.buffers).toEqual([buffer]);
+  const state = new DesktopContentState();
+  state.registerBuffer(buffer, () => buffer);
+  expect(state.capture(snapshot).buffers).toEqual([buffer]);
+});
 
 it('gives a huddle a distinct tab identity and never parks it as a terminal', () => {
   expect(ref).toEqual({ type: 'huddle', session: id });

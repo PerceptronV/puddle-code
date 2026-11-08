@@ -45,6 +45,7 @@ const document = huddleDocumentSchema.parse({
     format: 1,
     id: savedId,
     name: 'Review graph',
+    variables: { targetWorktree: { schema: { type: 'string' }, editor: 'worktree' } },
     nodes: [
       { id: 'run', source: { kind: 'builtin', component: 'puddle.trigger.manual', version: 1 } },
       { id: 'result', source: { kind: 'builtin', component: 'puddle.readout.result', version: 1 } },
@@ -87,8 +88,28 @@ const saved = sessionSchema.parse({
   account_id: null,
   agent_type: null,
 });
+const reviewer = huddleComponentSchema.parse({
+  format: 1,
+  id: 'example.reviewer',
+  version: 1,
+  category: 'script',
+  title: 'Reviewer',
+  entry: 'run.ts',
+  inputs: { request: { schema: {} } },
+  outputs: { reply: { schema: {} } },
+  capabilities: ['sessions'],
+  parameters: {
+    prompt: { title: 'Prompt', schema: { type: 'string' }, editor: 'prompt' },
+    worktree: { title: 'Worktree', schema: { type: 'string' }, editor: 'worktree' },
+    enabled: { title: 'Enabled', schema: { type: 'boolean' }, editor: 'boolean' },
+    options: { title: 'Options', schema: { type: 'object' }, editor: 'json', required: false },
+  },
+});
 let created: typeof saved | undefined;
 let blank: typeof document | undefined;
+const disk = new Map<string, { content: string; mtime: number }>([
+  [savedId, { content: JSON.stringify(document.definition, null, 2), mtime: 1 }],
+]);
 let available = true;
 let opened = false;
 const nativeFetch = window.fetch.bind(window);
@@ -141,6 +162,7 @@ window.fetch = async (input, init) => {
       }),
       components: {},
     });
+    disk.set(createdId, { content: JSON.stringify(blank.definition, null, 2), mtime: 1 });
     fixture.addSession(created);
     return Response.json({ created: true, session: created, document: blank }, { status: 201 });
   }
@@ -153,13 +175,32 @@ window.fetch = async (input, init) => {
     }
     return Response.json({ created: false, session: saved, document });
   }
-  if (path.endsWith('/file') && url.searchParams.get('path')?.startsWith('.puddle/huddle/'))
+  if (path.endsWith('/file') && url.searchParams.get('path')?.startsWith('.puddle/huddle/')) {
+    const id = url.searchParams.get('path')!.split('/')[2]!;
+    const file = disk.get(id)!;
+    if (method === 'PUT') {
+      if (body.expected_mtime_ms !== undefined && body.expected_mtime_ms !== file.mtime)
+        return Response.json(
+          { error: { code: 'stale_file', message: 'Definition changed on disk' } },
+          { status: 409 },
+        );
+      file.content = body.content;
+      file.mtime++;
+      const target = id === savedId ? document : blank!;
+      target.definition = huddleDefinitionSchema.parse(JSON.parse(file.content));
+      for (const node of target.definition.nodes) {
+        if (node.source.kind === 'local' && node.source.manifest === 'nodes/review/node.json')
+          target.components[node.id] = reviewer;
+      }
+    }
     return Response.json({
       path: url.searchParams.get('path'),
-      content: JSON.stringify(document.definition, null, 2),
+      content: file.content,
       binary: false,
-      mtime_ms: 1,
+      size: file.content.length,
+      mtime_ms: file.mtime,
     });
+  }
   return transport.request(method, url.pathname + url.search, body);
 };
 Object.assign(window, {
@@ -170,6 +211,15 @@ Object.assign(window, {
     messages,
     saved: saved.id,
     project: project.id,
+    source: () => JSON.parse(disk.get(savedId)!.content),
+    externalEdit: (name: string) => {
+      const file = disk.get(savedId)!;
+      const value = JSON.parse(file.content);
+      value.name = name;
+      file.content = JSON.stringify(value, null, 2);
+      file.mtime++;
+      document.definition = huddleDefinitionSchema.parse(value);
+    },
     available: (value: boolean) => {
       available = value;
     },

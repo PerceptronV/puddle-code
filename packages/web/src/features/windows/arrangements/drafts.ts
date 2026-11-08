@@ -3,6 +3,7 @@ import type {
   DesktopBufferSnapshot,
   DesktopWorkspaceContent,
 } from '@puddle/shared';
+import { tabHoldsFile } from '@puddle/shared';
 import { flattenTabs } from '../../workspace/layout/layout-tree';
 import { retainLateDrafts } from '../state/late-draft-recovery';
 import { windowBufferKey } from '../state/content-state';
@@ -37,9 +38,13 @@ export function retainArrangementDrafts(
     destinations.map((window) => [
       window.identity.id,
       new Set(
-        arrangementTrees(window.content.snapshot)
-          .flatMap(({ tree }) => (tree ? flattenTabs(tree) : []))
-          .flatMap((ref) => (ref.type === 'editor' ? [windowBufferKey(ref.tab)] : [])),
+        all
+          .filter(({ buffer }) =>
+            arrangementTrees(window.content.snapshot)
+              .flatMap(({ tree }) => (tree ? flattenTabs(tree) : []))
+              .some((ref) => tabHoldsFile(ref, buffer)),
+          )
+          .map(({ buffer }) => windowBufferKey(buffer)),
       ),
     ]),
   );

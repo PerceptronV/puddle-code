@@ -6,16 +6,35 @@ import { ControlTray } from '../../components/ui/control-tray';
 import { PuddleGlyph } from '../../components/puddle-glyph';
 import { useHuddleDocument, useHuddleSupported } from './documents/queries';
 import { GraphOverview } from './canvas/GraphOverview';
+import { useGraphBuffer } from './documents/use-graph-buffer';
+import { ConflictSurface } from '../editor/conflicts/ConflictSurface';
+import { AddNode, Connections } from './inspector/GraphEditing';
+import { removeGraphNode } from './documents/graph-edits';
+import { NodeAppearance } from './inspector/NodeAppearance';
+import { NodeParameters } from './inspector/NodeParameters';
 
-export function HuddlePane({ session }: { session: Session }) {
-  const profile = useCurrentProfileId() ?? undefined;
+export function HuddlePane({ session, focused = true }: { session: Session; focused?: boolean }) {
   const supported = useHuddleSupported();
+  if (!supported || !session.huddle_id)
+    return (
+      <p className="p-4 text-sm text-fg-muted">
+        Use a current desktop or browser over a local or SSH connection to open this huddle.
+      </p>
+    );
+  return <HuddleEditor session={session} focused={focused} />;
+}
+
+function HuddleEditor({ session, focused }: { session: Session; focused: boolean }) {
+  const profile = useCurrentProfileId() ?? undefined;
   const document = useHuddleDocument(profile, session);
+  const draft = useGraphBuffer(session, document.data, focused);
+  const { buffer, graph, edit } = draft;
   const [selected, setSelected] = useState<string | null>(null);
   const [list, setList] = useState(false);
+  const [adding, setAdding] = useState(false);
+  const [connecting, setConnecting] = useState(false);
   const { openFile } = useEditor();
   const prefix = `.puddle/huddle/${session.huddle_id}/`;
-  const graph = document.data;
   const node = graph?.definition.nodes.find((node) => node.id === selected);
   const component = node && graph?.components[node.id];
   const source = node?.source.kind === 'local' ? node.source.manifest : null;
@@ -28,7 +47,51 @@ export function HuddlePane({ session }: { session: Session }) {
         <span className="min-w-0 flex-1 truncate text-sm">
           {graph?.definition.name ?? session.title ?? 'Huddle'}
         </span>
-        <ControlTray label="Huddle actions">
+        <ControlTray label="Huddle actions" className="max-w-full flex-wrap">
+          <button
+            type="button"
+            className={actionClass}
+            disabled={draft.locked || !graph}
+            aria-pressed={adding}
+            onClick={() => setAdding(!adding)}
+          >
+            Add node
+          </button>
+          <button
+            type="button"
+            className={actionClass}
+            disabled={draft.locked || !graph}
+            aria-pressed={connecting}
+            onClick={() => setConnecting(!connecting)}
+          >
+            Connections
+          </button>
+          <button
+            type="button"
+            className={actionClass}
+            disabled={draft.locked || !buffer.model?.canUndo()}
+            onClick={() => void buffer.model?.undo()}
+          >
+            Undo
+          </button>
+          <button
+            type="button"
+            className={actionClass}
+            disabled={draft.locked || !buffer.model?.canRedo()}
+            onClick={() => void buffer.model?.redo()}
+          >
+            Redo
+          </button>
+          <button
+            type="button"
+            className={actionClass}
+            disabled={draft.locked || !buffer.dirty}
+            onClick={() => {
+              void Promise.resolve(buffer.save()).then(() => document.refetch());
+            }}
+          >
+            Save
+          </button>
           <button
             type="button"
             className={actionClass}
@@ -43,7 +106,7 @@ export function HuddlePane({ session }: { session: Session }) {
           <button
             type="button"
             className={actionClass}
-            disabled={!supported || document.isFetching}
+            disabled={document.isFetching}
             onClick={() => {
               void document.refetch();
             }}
@@ -52,18 +115,49 @@ export function HuddlePane({ session }: { session: Session }) {
           </button>
         </ControlTray>
       </div>
-      {!supported ? (
-        <p className="p-4 text-sm text-fg-muted">
-          Use a current desktop or browser over a local or SSH connection to open this huddle.
-        </p>
-      ) : document.error ? (
+      {buffer.dirty && <p className="px-4 text-xs text-fg-muted">Unsaved changes</p>}
+      {buffer.restoredNotice && (
+        <p className="px-4 text-xs text-fg-muted">Restored unsaved changes</p>
+      )}
+      {buffer.peerBadge && (
+        <p className="px-4 text-xs text-fg-muted">This definition has changes in another window.</p>
+      )}
+      {buffer.conflict?.phase === 'unresolved' && (
+        <div className="flex items-center gap-2 px-4 text-xs text-fg-muted">
+          The definition changed on disk. Your edits are intact.
+          <button type="button" className={actionClass} onClick={buffer.compare}>
+            Compare
+          </button>
+        </div>
+      )}
+      {buffer.conflict && buffer.conflict.phase !== 'unresolved' ? (
+        <ConflictSurface session={session.id} path={draft.path} buffer={buffer} focused={focused} />
+      ) : buffer.status === 'error' ||
+        buffer.status === 'binary' ||
+        buffer.status === 'too-large' ? (
         <p className="p-4 text-sm text-fg-muted" role="alert">
-          {document.error.message}
+          {buffer.errorMessage ?? 'This definition cannot be edited as text.'}
         </p>
-      ) : !graph ? (
+      ) : buffer.status === 'loading' ? (
         <p className="p-4 text-sm text-fg-muted">Loading huddle…</p>
+      ) : !graph ? (
+        <div className="overflow-auto p-4 text-sm text-fg-muted">
+          <p>Fix the definition in its source editor to continue editing the graph.</p>
+          <pre className="whitespace-pre-wrap text-xs">{draft.error}</pre>
+        </div>
       ) : (
         <>
+          {document.error && (
+            <p className="px-4 text-xs text-fg-muted">
+              Saved component inspection: {document.error.message}
+            </p>
+          )}
+          {(adding || connecting) && (
+            <div className="flex max-h-64 shrink-0 gap-4 overflow-auto">
+              {adding && <AddNode edit={edit} />}
+              {connecting && <Connections graph={graph} edit={edit} />}
+            </div>
+          )}
           {graph.diagnostics.length > 0 && (
             <details className="max-h-36 overflow-auto px-4 py-2 text-xs text-fg-muted">
               <summary className="cursor-pointer">
@@ -147,9 +241,21 @@ export function HuddlePane({ session }: { session: Session }) {
                     </button>
                   )}
                   <p className="mt-4 text-xs text-fg-muted">Parameters</p>
-                  <pre className="whitespace-pre-wrap break-words py-2 text-xs">
-                    {JSON.stringify(node.parameters, null, 2)}
-                  </pre>
+                  <NodeParameters
+                    key={node.id}
+                    node={node}
+                    component={component}
+                    variables={graph.definition.variables}
+                    edit={edit}
+                  />
+                  <NodeAppearance node={node} component={component} edit={edit} />
+                  <button
+                    type="button"
+                    className={`${actionClass} mt-4`}
+                    onClick={() => edit((definition) => removeGraphNode(definition, node.id))}
+                  >
+                    Delete node
+                  </button>
                 </aside>
               )}
             </div>

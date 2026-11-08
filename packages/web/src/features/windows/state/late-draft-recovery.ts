@@ -1,5 +1,6 @@
 import {
   UNTITLED_SESSION,
+  tabHoldsFile,
   type DesktopBufferSnapshot,
   type TabRef,
   type UiStateSnapshot,
@@ -11,7 +12,6 @@ import {
   makeSplit,
   normalise,
 } from '../../workspace/layout/layout-tree';
-import { windowBufferKey } from './content-state';
 
 /** Keep exceptional post-confirmation edits visible in their source window. */
 export function retainLateDrafts(
@@ -21,13 +21,9 @@ export function retainLateDrafts(
 ): UiStateSnapshot {
   const scoped = snapshot.layout_mode === 'project' && projectId !== undefined;
   const tree = scoped ? snapshot.project_layouts[projectId]?.layout_tree : snapshot.layout_tree;
-  const existing = new Set(
-    (tree ? flattenTabs(tree) : []).flatMap((ref) =>
-      ref.type === 'editor' ? [windowBufferKey(ref.tab)] : [],
-    ),
-  );
+  const existing = tree ? flattenTabs(tree) : [];
   const missing: TabRef[] = buffers
-    .filter((buffer) => !existing.has(windowBufferKey(buffer)))
+    .filter((buffer) => !existing.some((ref) => tabHoldsFile(ref, buffer)))
     .map((buffer) => ({
       type: 'editor',
       tab: {
