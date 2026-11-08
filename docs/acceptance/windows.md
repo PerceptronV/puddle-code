@@ -869,9 +869,55 @@ No console-error assertion was relaxed. No daemon or real kernel was started.
 
 All 598 selected unit tests across 84 files passed, alongside web TypeScript,
 targeted ESLint and formatting checks. Native focus/fullscreen remain explicitly
-omitted in this mode. Source/preview-pair transfer, active notebook execution and
-widgets, every transfer interruption phase, real host/runtime recovery and the
-other requirements below still need their own acceptance evidence.
+omitted in this mode. Source/preview-pair transfer is covered by the next increment.
+Active notebook execution and widgets, every transfer interruption phase, real
+host/runtime recovery and the other requirements below still need their own evidence.
+
+### Source/preview transfers and native presentation prerequisite — 2026-11-08
+
+The native source/locked-preview regression exposed a workspace crash while
+detaching the source pane. Disposing its hidden dirty-diff editor left Monaco's
+global hover factory pointing at that editor's disposed child service container.
+Later suggest/hover construction failed with `InstantiationService has been
+disposed`, including during sibling diff cleanup. The existing pinned Monaco
+0.55.1 patch now resolves the renderer-wide standalone service inside this global
+factory. Its existing cancellation/disposed-model fixes remain intact. pnpm's
+patch hash and the lockfile changed together; no exception filter was added.
+
+The extended native recovery-only suite passed on macOS arm64 using the isolated
+UI preview at `127.0.0.1:5188`, including:
+
+- Create a dirty Markdown source and locked preview in separate panes using the
+  existing components. Prepare the split with an in-document drop; this is not
+  evidence of an OS drag between windows.
+- Detach the source with its pane context menu, retain the rendered dirty text
+  in the project, then return the source through the pane context-menu action.
+- Detach the preview itself, retain the source's dirty model in the project,
+  and return the preview. After checkpoint/reload, both panes, the locked view
+  mode and the exact unsaved text remain.
+- Close one view without discarding the shared draft; the final view still asks
+  for discard. Existing quit/relaunch, renderer crash, missing-resource recovery,
+  duplicate-window edits, notebook close and last-window teardown checks also pass.
+
+The production web build and 223 focused editor/window-transfer tests passed.
+Dirty-diff and workspace-transition browser regressions passed with the patched
+dependency. The latter's tab clicks now target the leading edge, inside collapsed
+strips and clear of floating view controls; its previous centre click changed the
+view instead of selecting the file. Targeted lint and formatting checks passed. An additional
+native run while extending the scenario timed out awaiting docking closure with
+both windows/text retained; the final run passed both handoffs. The fixture now
+reports a visible docking rejection immediately rather than waiting only for
+window closure. Stress/interruption acceptance remains required.
+
+The current macOS console reports `CGSSessionScreenIsLocked: true` for the console
+session. Full native presentation acceptance now checks this before launching and
+fails with an explicit unlock prerequisite. The blocked full-mode command was
+verified to exit unsuccessfully; it never silently substitutes recovery-only
+coverage. Only console lock booleans are used, and no unlock action is performed.
+Focus/fullscreen therefore remain unverified in this increment. Earlier successful
+observations remain historical; rerun full mode on an unlocked desktop. Live OS
+drag, active notebook/widget execution, real host/runtime recovery, monitor changes
+and the remaining requirements below are still open.
 
 ## Required acceptance before completion
 

@@ -153,6 +153,9 @@ Set `PREVIEW_URL` (default `http://127.0.0.1:5186/`); optionally set
 `PUDDLE_NATIVE_RECOVERY_ONLY=1` explicitly omits OS focus/fullscreen assertions
 while exercising lifecycle and missing-resource recovery; it does not replace
 the full native acceptance run.
+The full run checks macOS console lock state before launching and requires an
+unlocked desktop for focus/fullscreen evidence. It never unlocks the session or
+silently substitutes recovery-only acceptance.
 
 For manual testing before a release exists: `pnpm build && pnpm build:tarball`, then
 `node packages/cli/dist/index.js launch --tarball dist-release/puddled-v*.tar.gz` (or

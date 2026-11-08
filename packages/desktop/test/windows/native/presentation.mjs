@@ -1,5 +1,32 @@
 /* global document, performance */
 import assert from 'node:assert/strict';
+import { execFileSync } from 'node:child_process';
+
+/** A locked macOS console cannot establish native focus or AppKit transitions. */
+export function requireNativePresentation() {
+  if (process.platform !== 'darwin') return;
+  const plist = execFileSync('/usr/sbin/ioreg', ['-a', '-n', 'Root', '-d', '1'], {
+    timeout: 5_000,
+  });
+  const value = JSON.parse(
+    execFileSync('/usr/bin/plutil', ['-convert', 'json', '-o', '-', '-'], {
+      input: plist,
+      encoding: 'utf8',
+      timeout: 5_000,
+    }),
+  );
+  const roots = Array.isArray(value) ? value : [value];
+  const locked = roots
+    .flatMap((root) => root.IOConsoleUsers ?? [])
+    .some(
+      (session) =>
+        session.kCGSSessionOnConsoleKey === true && session.CGSSessionScreenIsLocked === true,
+    );
+  if (locked)
+    throw new Error(
+      'Native focus/fullscreen acceptance requires an unlocked macOS console. Unlock it and rerun; PUDDLE_NATIVE_RECOVERY_ONLY=1 explicitly omits these gates.',
+    );
+}
 
 export async function checkNativeTitle(application, page, expect, title) {
   await expect(page.locator('header .profile-trigger')).toHaveCount(0);

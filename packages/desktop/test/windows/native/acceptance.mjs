@@ -6,11 +6,12 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { buildNativePreview } from './build.mjs';
 import { measureNativeWindows } from './resources.mjs';
-import { checkNativeTitle, changeFullScreen } from './presentation.mjs';
+import { checkNativeTitle, changeFullScreen, requireNativePresentation } from './presentation.mjs';
 import { checkMissingResources } from './recovery.mjs';
 import { checkRecoveryClose } from './recovery-close.mjs';
 import { checkIndependentDrafts } from './duplicate-views.mjs';
 import { checkNotebookClose } from './notebook-close.mjs';
+import { checkPreviewPair } from './preview-pair.mjs';
 import { checkCleanPaneClose, prepareUntitledClose, finishUntitledClose } from './close.mjs';
 
 const require = createRequire(import.meta.url);
@@ -80,6 +81,7 @@ const quit = async () => {
   application = undefined;
 };
 try {
+  if (!recoveryOnly) requireNativePresentation();
   await buildNativePreview(directory);
   await launch();
   const host = await application.firstWindow();
@@ -135,6 +137,7 @@ try {
   await checkRecoveryClose(application, project, expect, state);
   await checkIndependentDrafts(application, project, expect, state);
   await checkNotebookClose(application, project, expect, state);
+  await checkPreviewPair(application, project, expect, state);
   assert.deepEqual(await application.evaluate(() => globalThis.nativePreviewConnections), {
     starts: 1,
     closes: 0,

@@ -2376,6 +2376,13 @@ native windows retain their own close review and recover their own dirty text
 after a sibling discards its copy. This policy lives with workspace tab closure
 and reuses the existing editor controls in healthy and recovery presentations.
 
+Native source/preview transfers also retain the existing editor dependency patch:
+Monaco's global hover factory resolves its renderer-wide standalone service,
+never a diff editor's disposable child service. Removing a source view and its
+hidden dirty-diff controller cannot leave later hover/suggest construction pointing
+at that disposed service. This changes editor service lifetime, not buffer ownership
+or the existing shared source/preview components.
+
 Document titles have one composition owner under `shell/title/`: the mounted
 workspace shows only its project name. An isolated pane shows its active file's
 basename or session label, following tab switches. App/host prefixes, suffixes and

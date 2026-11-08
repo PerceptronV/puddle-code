@@ -84,7 +84,8 @@ try {
   await page
     .locator('[data-pane-drag-handle] [aria-roledescription="draggable"]')
     .filter({ hasText: 'README.md' })
-    .click();
+    // The floating action tray covers the centre of a short tab on hover.
+    .click({ position: { x: 10, y: 2 } });
   await page.waitForSelector('.monaco-editor');
   assert.equal(
     await page.evaluate(async () => {
@@ -112,7 +113,7 @@ try {
   // projects. Neither content nor the surrounding workspace should cross-fade.
   for (let round = 0; round < 2; round++) {
     for (let index = 0; index < tabCount; index++) {
-      await tabs.nth(index).click();
+      await tabs.nth(index).click({ position: { x: 10, y: 2 } });
       await page.waitForTimeout(50);
     }
   }
