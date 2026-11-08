@@ -83,8 +83,9 @@ export class DesktopWorkingSet {
 
   /** Buffers/view state can change without changing the layout tree. */
   changed(): void {
-    if (!this.ready || this.frozen) return;
+    if (!this.ready) return;
     this.generation++;
+    if (this.frozen) return;
     clearTimeout(this.timer);
     this.timer = setTimeout(() => {
       this.timer = undefined;
@@ -152,6 +153,22 @@ export class DesktopWorkingSet {
       this.notify();
       throw error;
     }
+  }
+
+  /** Cancel a close/transfer without replacing live models with an older capture. */
+  resume(): void {
+    if (!this.frozen) return;
+    this.frozen = false;
+    this.changed();
+    this.notify();
+  }
+
+  /** A close may arrive while the first profile seed is still loading. */
+  async checkpoint(): Promise<void> {
+    await this.loading;
+    if (!this.ready) return;
+    if (this.frozen) throw new Error('A window transfer is still pending');
+    await this.freeze();
   }
 
   /** After a committed/aborted transfer, adopt the main process's exact outcome. */

@@ -6,6 +6,8 @@ host association and durable state; renderer identities do not select transports
 or grant authority. These records add no daemon REST/WS operation and do not
 change the remote or runtime protocol. Renderer window capabilities must be
 detected through the preload bridge; older shells retain their existing UI.
+The optional private lifecycle bridge adds bounded checkpoint/resume commands and
+exact-window replies for close and app quit. It is independently capability-detected.
 
 Runtime **1.1** advertises exact Claude-owned background job attachment. The
 application and remote protocols, IPC shapes and retained-state formats are

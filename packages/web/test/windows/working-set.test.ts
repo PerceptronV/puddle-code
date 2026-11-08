@@ -118,4 +118,36 @@ describe('desktop working-set writer', () => {
     expect(model.get().sidebar_collapsed).toBe(true);
     expect(source.restore).toHaveBeenLastCalledWith(next.content);
   });
+
+  it('captures late buffer notifications during a pending checkpoint and resumes without rollback', async () => {
+    vi.useFakeTimers();
+    const io = bridge();
+    let text = 'initial';
+    const source = {
+      capture: () => ({
+        buffers: [{ session: 's', path: 'a.ts', content: text, baseMtimeMs: 1 }],
+        views: {},
+      }),
+      restore: vi.fn(),
+    };
+    const model = new DesktopWorkingSet('1234567890', io, source, vi.fn());
+    await model.load(seed);
+    const pending = Promise.withResolvers<void>();
+    const write = io.write.getMockImplementation()!;
+    io.write.mockImplementationOnce(async (request) => {
+      const saved = await write(request);
+      await pending.promise;
+      return saved;
+    });
+    const checkpoint = model.checkpoint();
+    await Promise.resolve();
+    text = 'latest unsaved text';
+    model.changed();
+    pending.resolve();
+    await checkpoint;
+    expect((await io.read())?.content.buffers[0]?.content).toBe(text);
+    model.resume();
+    expect(model.locked()).toBe(false);
+    expect(source.restore).toHaveBeenCalledOnce(); // Initial load only; no stale recapture.
+  });
 });

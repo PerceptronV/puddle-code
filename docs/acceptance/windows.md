@@ -30,9 +30,15 @@ verification; pending items are not support claims.
   widths. Their profile is fixed by native identity. Editor buffers, untitled
   content, Monaco views, notebook/preview scroll, and PDF zoom have desktop capture
   hooks. Browser persistence retains its existing path.
+- Native close and Command-Q request a bounded checkpoint from each registered
+  renderer before teardown. The renderer fences interaction, drains loaded
+  profiles and dirty buffers, and acknowledges only after durable writes finish.
+  A failed or missing acknowledgement cancels closure and resumes editing;
+  renderer reload/crash invalidates outstanding commands. Quitting retains the
+  arrangement, while explicit closure removes its window from the reopen set.
 
 Detach actions are not exposed yet. Transfer orchestration between live renderers,
-project redirects, docking, coordinated close/quit flushing, and named window
+project redirects, docking, and named window
 arrangements are still pending. The state engine and presentations alone do not
 deliver the roadmap. Undo-stack transfer is not implemented; restored editors use
 new Monaco models with recovered text.
@@ -54,6 +60,15 @@ new Monaco models with recovered text.
 
 These are intermediate results. Rerun appropriate checks after remaining changes
 and replace this record with the final verified scope.
+
+The subsequent close/quit checkpoint increment passed 49 focused desktop/web tests,
+including withheld/failed acknowledgements, sibling admission, renderer replacement,
+late buffer notifications, and quit cancellation. Native OS acceptance remains
+pending. The UI-only Chromium check also passed immediate unsaved-editor
+checkpointing before the debounce timer, interaction fencing, cancellation, and
+reload recovery in all three presentations. Host refresh/reload still needs the
+same checkpoint integration; a renderer
+crash can only recover the last durable snapshot.
 
 Native acceptance has not run. Use an isolated UI preview for desktop interaction;
 start any real daemon from a plain shell, never from a coding-agent session.

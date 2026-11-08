@@ -17,6 +17,7 @@ import {
   screen,
   shell as osShell,
   type MenuItemConstructorOptions,
+  type IpcMainInvokeEvent,
 } from 'electron';
 import {
   applyDesktopUpdate,
@@ -44,6 +45,7 @@ import { DesktopNotifications } from './notifications.js';
 import { HostConnections, type HostConnection } from './windows/connections.js';
 import { DesktopWindowState } from './windows/state.js';
 import { registerWindowStateIpc } from './windows/ipc.js';
+import { WindowCommands } from './windows/commands.js';
 
 /**
  * The desktop shell (SPEC §10): an Electron main process that drives the SAME
@@ -97,9 +99,33 @@ let promptWin: BrowserWindow | null = null;
 let pickerWin: BrowserWindow | null = null;
 let stopped = false;
 let quitting = false;
+let quitPending = false;
 let restoringWindows = true;
 let windowStateLoaded = false;
 let windowState: DesktopWindowState | null = null;
+const windowCommands = new WindowCommands();
+const checkpoints = new Map<string, Promise<void>>();
+
+function checkpointWindow(id: string): Promise<void> {
+  const pending = checkpoints.get(id);
+  if (pending) return pending;
+  if (!windowCommands.available(id)) return Promise.resolve();
+  const operation = windowCommands.request(id, 'checkpoint').finally(() => {
+    if (checkpoints.get(id) === operation) checkpoints.delete(id);
+  });
+  checkpoints.set(id, operation);
+  return operation;
+}
+
+async function resumeWindows(ids: string[]): Promise<void> {
+  await Promise.allSettled(
+    ids
+      .filter((id) => windowCommands.available(id))
+      .map((id) =>
+        windowCommands.request(id, 'resume').catch((error) => logger.warn(errorText(error))),
+      ),
+  );
+}
 
 function persistWindows(): void {
   windowState?.syncOpenWindows([...rememberedWindows.values()]);
@@ -280,6 +306,41 @@ function createWindow(
   win.on('closed', () => {
     delivery.close();
     notifications.delete(contentsId);
+    windowCommands.disconnected(identity.id);
+  });
+  win.webContents.on('render-process-gone', () => windowCommands.disconnected(identity.id));
+  win.webContents.on('did-start-navigation', (_event, _url, inPlace, mainFrame) => {
+    if (mainFrame && !inPlace) windowCommands.disconnected(identity.id);
+  });
+
+  let closeAccepted = false;
+  let closePending = false;
+  win.on('close', (event) => {
+    if (quitting || closeAccepted) return;
+    if (quitPending) {
+      event.preventDefault();
+      return;
+    }
+    if (!windowCommands.available(identity.id)) return;
+    event.preventDefault();
+    if (closePending) return;
+    closePending = true;
+    void checkpointWindow(identity.id).then(
+      () => {
+        closePending = false;
+        if (quitPending || quitting || win.isDestroyed()) return;
+        closeAccepted = true;
+        win.close();
+      },
+      async (error: unknown) => {
+        closePending = false;
+        // The app-wide attempt owns rollback and error presentation if it joined us.
+        if (quitPending || quitting) return;
+        await resumeWindows([identity.id]);
+        if (!win.isDestroyed())
+          dialog.showErrorBox('Could not close this window', errorText(error));
+      },
+    );
   });
 
   // Full-screen state is a WINDOW fact only the main process knows, and the top
@@ -345,7 +406,7 @@ async function openShell(
   placement?: WindowPlacement,
   restored?: ReopenWindow,
 ): Promise<void> {
-  if (quitting) return;
+  if (quitting || quitPending) return;
   const identity = restored?.window ?? { kind: 'host' as const, id: reopenWindowId({ target }) };
   const existing = restored
     ? shells.get(target)?.windows.get(identity.id)
@@ -361,7 +422,7 @@ async function openShell(
       identity,
       win: createWindow(target, host.cockpit, identity, placement, restored?.route),
     }));
-    if (!window || quitting) return;
+    if (!window || quitting || quitPending) return;
     if (window.trackingPlacement) {
       raise(window.win);
       return;
@@ -549,24 +610,38 @@ ipcMain.on('puddle:raise', (event) => {
 });
 
 // Only a cockpit's main frame can use its own notification channel.
+function windowContext(event: IpcMainInvokeEvent) {
+  if (event.senderFrame !== event.sender.mainFrame) throw new Error('Invalid window sender');
+  for (const host of shells.values()) {
+    const window = [...host.windows.values()].find(
+      ({ win }) => !win.isDestroyed() && win.webContents === event.sender,
+    );
+    if (!window) continue;
+    if (new URL(event.senderFrame.url).origin !== new URL(host.cockpit.origin).origin) break;
+    return { identity: window.identity, hostId: reopenWindowId({ target: host.target }) };
+  }
+  throw new Error('Window is unavailable');
+}
+
 registerWindowStateIpc({
   ipc: ipcMain,
-  context: (event) => {
-    if (event.senderFrame !== event.sender.mainFrame) throw new Error('Invalid window sender');
-    for (const host of shells.values()) {
-      const window = [...host.windows.values()].find(
-        ({ win }) => !win.isDestroyed() && win.webContents === event.sender,
-      );
-      if (!window) continue;
-      if (new URL(event.senderFrame.url).origin !== new URL(host.cockpit.origin).origin) break;
-      return { identity: window.identity, hostId: reopenWindowId({ target: host.target }) };
-    }
-    throw new Error('Window is unavailable');
-  },
+  context: windowContext,
   state: () => {
     if (!windowState || quitting) throw new Error('Window state is unavailable');
     return windowState;
   },
+});
+
+ipcMain.handle('puddle:window-ready', (event) => {
+  const owner = windowContext(event);
+  if (quitting || quitPending) throw new Error('Application is closing');
+  windowCommands.ready(owner.identity.id, (command) =>
+    event.sender.send('puddle:window-command', command),
+  );
+});
+ipcMain.handle('puddle:window-reply', (event, reply: unknown) => {
+  const owner = windowContext(event);
+  windowCommands.reply(owner.identity.id, reply);
 });
 
 ipcMain.handle('puddle:notification-status', (event) => {
@@ -852,27 +927,52 @@ if (!app.requestSingleInstanceLock()) {
   // that are only disappearing because the app is quitting are restored.
   // The update path also reaches this event, replacing its former one-shot
   // special case with the same durable rule as every other restart.
-  app.on('before-quit', () => {
-    // `window-all-closed` calls app.quit() too; guard a second before-quit so
-    // windows closed by the FIRST quit cannot overwrite its pre-close snapshot.
-    if (quitting) return;
+  const finishQuit = () => {
+    // A quit before ready must leave unread standing state intact.
+    if (windowStateLoaded) {
+      for (const shell of shells.values()) {
+        for (const window of shell.windows.values()) {
+          rememberedWindows.set(window.identity.id, reopenWindow(shell.target, window));
+        }
+      }
+      persistWindows();
+    }
     quitting = true;
-    // A quit before ready must leave the unread standing state intact.
-    if (!windowStateLoaded) {
-      void connections.dispose();
+    quitPending = false;
+    void connections.dispose();
+  };
+  app.on('before-quit', (event) => {
+    if (quitting) return;
+    if (quitPending) {
+      event.preventDefault();
       return;
     }
-    for (const shell of shells.values()) {
-      for (const window of shell.windows.values()) {
-        rememberedWindows.set(window.identity.id, reopenWindow(shell.target, window));
+    const ids = [...shells.values()].flatMap((host) => [...host.windows.keys()]);
+    if (!ids.some((id) => windowCommands.available(id))) {
+      try {
+        finishQuit();
+      } catch (error) {
+        event.preventDefault();
+        dialog.showErrorBox('Could not save windows before quitting', errorText(error));
       }
+      return;
     }
-    try {
-      persistWindows();
-    } catch (error) {
-      logger.warn(`could not remember quitting windows: ${errorText(error)}`);
-    }
-    void connections.dispose();
+    event.preventDefault();
+    quitPending = true;
+    void (async () => {
+      // Wait for every reply before rolling back; a sibling can still be saving.
+      const results = await Promise.allSettled(ids.map(checkpointWindow));
+      try {
+        const failure = results.find((result) => result.status === 'rejected');
+        if (failure?.status === 'rejected') throw failure.reason;
+        finishQuit();
+        app.quit();
+      } catch (error) {
+        await resumeWindows(ids);
+        quitPending = false;
+        dialog.showErrorBox('Could not save windows before quitting', errorText(error));
+      }
+    })();
   });
 
   // Belt and braces: window 'closed' handlers stop their own cockpits; this

@@ -119,10 +119,28 @@ export interface DesktopWindowContext {
   hostId: string;
 }
 
+export const desktopWindowCommandSchema = z.object({
+  id: desktopWindowIdSchema,
+  kind: z.enum(['checkpoint', 'resume']),
+});
+export type DesktopWindowCommand = z.infer<typeof desktopWindowCommandSchema>;
+export const desktopWindowCommandReplySchema = z.object({
+  id: desktopWindowIdSchema,
+  error: z.string().max(2048).optional(),
+});
+export type DesktopWindowCommandReply = z.infer<typeof desktopWindowCommandReplySchema>;
+
+export interface DesktopWindowLifecycleBridge {
+  ready(): Promise<void>;
+  onCommand(callback: (command: DesktopWindowCommand) => void): () => void;
+  reply(reply: DesktopWindowCommandReply): Promise<void>;
+}
+
 /** Capability-detected private bridge, independent of daemon feature availability. */
 export interface DesktopWindowsBridge {
   version: 1;
   context(): Promise<DesktopWindowContext>;
   read(profileId: string): Promise<DesktopWorkspaceVersion | null>;
   write(request: DesktopWindowWrite): Promise<DesktopWindowWriteResult>;
+  lifecycle?: DesktopWindowLifecycleBridge;
 }

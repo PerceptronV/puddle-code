@@ -9,10 +9,24 @@ import { desktopContentState } from './content-state';
 import { desktopWindowContext } from './window-context';
 import { DesktopWorkingSet } from './working-set';
 import { desktopProfileSeed } from './profile-seed';
+import { registerRendererLifecycle } from './renderer-lifecycle';
+import { fenceWindowInteraction } from './interaction-fence';
 
 const workingSets = new Map<string, DesktopWorkingSet>();
 const empty = uiStateSnapshotSchema.parse({});
 const subscribeNothing = () => () => undefined;
+
+/** Installed once before workspace children mount, including on the dashboard. */
+export async function registerDesktopWindowLifecycle(): Promise<void> {
+  const bridge = desktopBridge()?.windows?.lifecycle;
+  if (!bridge) return;
+  await registerRendererLifecycle(
+    bridge,
+    () => workingSets.values(),
+    fenceWindowInteraction,
+    toastError,
+  );
+}
 
 export function desktopWorkingSet(profileId: string): DesktopWorkingSet | null {
   const bridge = desktopBridge()?.windows;

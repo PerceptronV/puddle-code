@@ -16,6 +16,15 @@ contextBridge.exposeInMainWorld('puddleDesktop', {
     context: () => ipcRenderer.invoke('puddle:window-context'),
     read: (profileId: string) => ipcRenderer.invoke('puddle:window-read', { profileId }),
     write: (request: unknown) => ipcRenderer.invoke('puddle:window-write', request),
+    lifecycle: {
+      ready: () => ipcRenderer.invoke('puddle:window-ready'),
+      onCommand: (callback: (command: unknown) => void) => {
+        const handler = (_event: unknown, command: unknown) => callback(command);
+        ipcRenderer.on('puddle:window-command', handler);
+        return () => ipcRenderer.removeListener('puddle:window-command', handler);
+      },
+      reply: (reply: unknown) => ipcRenderer.invoke('puddle:window-reply', reply),
+    },
   },
   notificationStatus: () => ipcRenderer.invoke('puddle:notification-status'),
   showNotification: (request: unknown) => ipcRenderer.invoke('puddle:notification-show', request),

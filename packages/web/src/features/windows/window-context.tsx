@@ -14,11 +14,13 @@ function initialise(): Promise<void> {
   if (!initialising) {
     const bridge = desktopBridge()?.windows;
     initialising = bridge
-      ? bridge.context().then((value) => {
+      ? bridge.context().then(async (value) => {
           context = {
             identity: desktopWindowIdentitySchema.parse(value.identity),
             hostId: value.hostId,
           };
+          const { registerDesktopWindowLifecycle } = await import('./use-desktop-state');
+          await registerDesktopWindowLifecycle();
         })
       : Promise.resolve();
   }

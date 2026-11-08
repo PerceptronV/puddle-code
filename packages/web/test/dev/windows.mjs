@@ -1,4 +1,4 @@
-/* global window, localStorage */
+/* global window, localStorage, document */
 // UI-only window presentations and dirty recovery. Native transfer/lifecycle has
 // separate Electron acceptance; this bridge cannot reach or start a daemon.
 import assert from 'node:assert/strict';
@@ -12,11 +12,33 @@ try {
     page.on('pageerror', (error) => errors.push(error.message));
     await page.addInitScript((kind) => {
       const key = `window-fixture-${kind}`;
+      let receive;
+      let sequence = 0;
+      const replies = new Map();
+      window.windowCommand = (kind) =>
+        new Promise((resolve, reject) => {
+          const id = `fixture-${++sequence}`;
+          replies.set(id, { resolve, reject });
+          receive({ id, kind });
+        });
       window.puddleDesktop = {
         raiseWindow() {},
         isFullScreen: async () => false,
         windows: {
           version: 1,
+          lifecycle: {
+            ready: async () => undefined,
+            onCommand: (callback) => {
+              receive = callback;
+              return () => {};
+            },
+            reply: async ({ id, error }) => {
+              const pending = replies.get(id);
+              replies.delete(id);
+              if (error) pending.reject(new Error(error));
+              else pending.resolve();
+            },
+          },
           context: async () => {
             const { profile, project } = await import('/src/dev/preview/data.ts');
             return {
@@ -88,7 +110,10 @@ try {
       const model = monaco.editor.getModels().find((model) => model.uri.scheme === 'puddle');
       if (!model) throw new Error('No editable fixture model');
       model.setValue(text);
+      // Checkpoint in the same task as the edit, ahead of its debounce timer.
+      await window.windowCommand('checkpoint');
     }, `Recovered ${kind} window edits`);
+    assert.equal(await page.evaluate(() => document.getElementById('root').inert), true);
     await page.waitForFunction(
       (kind) =>
         JSON.parse(localStorage.getItem(`window-fixture-${kind}`)).content.buffers.some(
@@ -96,6 +121,8 @@ try {
         ),
       kind,
     );
+    await page.evaluate(() => window.windowCommand('resume'));
+    assert.equal(await page.evaluate(() => document.getElementById('root').inert), false);
     await page.reload();
     await page.locator('[data-editor-surface] .monaco-editor').waitFor();
     await page.waitForFunction(async (text) => {

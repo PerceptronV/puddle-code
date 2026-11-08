@@ -3,6 +3,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
+import { uiStateSnapshotSchema } from '@puddle/shared';
 import { loadHostIdentities } from '../src/host-identities.js';
 import { loadReopenWindows, saveReopenWindows } from '../src/reopen.js';
 
@@ -77,6 +78,9 @@ vi.mock('electron', async () => {
       return this.destroyed;
     }
     close() {
+      const event = { preventDefault: vi.fn() };
+      this.emit('close', event);
+      if (event.preventDefault.mock.calls.length) return;
       this.destroyed = true;
       this.emit('closed');
     }
@@ -107,7 +111,7 @@ vi.mock('electron', async () => {
   };
 });
 
-import { app, BrowserWindow, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain } from 'electron';
 
 const windows = (BrowserWindow as unknown as { windows: BrowserWindow[] }).windows;
 const file = () => join(mocks.home, 'reopen-windows.json');
@@ -375,4 +379,99 @@ it('admits window context only from the registered exact-origin main frame', asy
   ).toThrow('Invalid window sender');
   frame.url = 'http://localhost:7433@evil.example/';
   expect(() => context(event)).toThrow('unavailable');
+});
+
+function renderer(win: BrowserWindow) {
+  const frame = { url: 'http://localhost:7433/' };
+  Object.assign(win.webContents, { mainFrame: frame });
+  const event = { sender: win.webContents, senderFrame: frame } as Electron.IpcMainInvokeEvent;
+  const handler = (name: string) =>
+    vi.mocked(ipcMain.handle).mock.calls.find(([channel]) => channel === name)![1];
+  handler('puddle:window-ready')(event);
+  return {
+    lastCommand: () =>
+      vi.mocked(win.webContents.send).mock.calls.at(-1)![1] as {
+        id: string;
+        kind: string;
+      },
+    reply: (id: string, error?: string) => handler('puddle:window-reply')(event, { id, error }),
+    write: (request: unknown) => handler('puddle:window-write')(event, request),
+  };
+}
+
+it('holds explicit closure and its connection until the renderer has saved', async () => {
+  const connection = cockpit();
+  mocks.startLocal.mockResolvedValue(connection);
+  saveReopenWindows(file(), [{ target: 'local' }]);
+  await boot();
+  const win = BrowserWindow.getAllWindows()[0]!;
+  const owner = renderer(win);
+  win.close();
+  expect(win.isDestroyed()).toBe(false);
+  expect(connection.stop).not.toHaveBeenCalled();
+  expect(owner.lastCommand().kind).toBe('checkpoint');
+  owner.reply(owner.lastCommand().id);
+  await flush();
+  expect(win.isDestroyed()).toBe(true);
+  expect(targets()).toEqual([]);
+  expect(connection.stop).toHaveBeenCalledOnce();
+});
+
+it('retains all quitting windows and accepts state writes while waiting for the last checkpoint', async () => {
+  saveReopenWindows(file(), [
+    { target: 'local', window: { kind: 'host', id: 'host' } },
+    {
+      target: 'local',
+      window: { kind: 'pane', id: 'pane', profileId: '1234567890', projectId: 'abcdef1234' },
+    },
+  ]);
+  await boot();
+  const owners = BrowserWindow.getAllWindows().map(renderer);
+  const event = { preventDefault: vi.fn() };
+  app.emit('before-quit', event);
+  expect(event.preventDefault).toHaveBeenCalledOnce();
+  const saved = owners[0]!.write({
+    profileId: '1234567890',
+    revision: 0,
+    content: {
+      snapshot: uiStateSnapshotSchema.parse({}),
+      buffers: [{ session: 's', path: 'a.ts', content: 'last edit', baseMtimeMs: 1 }],
+      views: {},
+    },
+  });
+  expect(saved.revision).toBe(1);
+  owners[0]!.reply(owners[0]!.lastCommand().id);
+  await flush();
+  expect(app.quit).not.toHaveBeenCalled();
+  expect(BrowserWindow.getAllWindows()).toHaveLength(2);
+  owners[1]!.reply(owners[1]!.lastCommand().id);
+  await flush();
+  expect(app.quit).toHaveBeenCalledOnce();
+  for (const win of BrowserWindow.getAllWindows()) win.close();
+  expect(targets()).toEqual(['local', 'local']);
+});
+
+it('cancels quit after a failed save and releases the interaction fence in every window', async () => {
+  saveReopenWindows(file(), [{ target: 'local' }]);
+  await boot();
+  const win = BrowserWindow.getAllWindows()[0]!;
+  const owner = renderer(win);
+  app.emit('before-quit', { preventDefault: vi.fn() });
+  owner.reply(owner.lastCommand().id, 'Disk is full');
+  await flush();
+  expect(owner.lastCommand().kind).toBe('resume');
+  owner.reply(owner.lastCommand().id);
+  await flush();
+  expect(app.quit).not.toHaveBeenCalled();
+  expect(win.isDestroyed()).toBe(false);
+  expect(dialog.showErrorBox).toHaveBeenCalledWith(
+    'Could not save windows before quitting',
+    'Disk is full',
+  );
+  // A fresh user attempt is admitted after cancellation.
+  app.emit('before-quit', { preventDefault: vi.fn() });
+  expect(owner.lastCommand().kind).toBe('checkpoint');
+  owner.reply(owner.lastCommand().id);
+  await flush();
+  expect(app.quit).toHaveBeenCalledOnce();
 });
