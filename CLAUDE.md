@@ -539,7 +539,8 @@ acknowledge fan-out before every downstream admission commits. The scheduler
 records routing failures and cancels dependent work. `runtime/huddle/owner.ts`
 composes an independent process with private control under `transport/`, sharing
 runtime claims, host memory grants and lifetime checks. Public lifecycle
-admission is exposed through the routes below; provider dispatch remains pending.
+admission is exposed through the routes below; attach/ask dispatch now shares
+the ordinary runtime turn service.
 Do not infer support for an operation from entry-point existence.
 Application 27.0 adds the closed `huddle` session kind. Migration 43 and
 `db/stores/huddle/placements.ts` retain one immutable placement per
@@ -598,8 +599,15 @@ durable script ask queue and declared session/worktree resolution. Optional
 `operations: 1` enables private page/claim/settle commands; preserve legacy owner
 metadata and never claim twice after a lost reply. Store exact outcome/receipt
 before replying, and retain late results without routing interrupted graph output.
-The production daemon dispatch loop remains pending; `sessions` capabilities
-remain rejected at source admission.
+`huddle/operations/dispatch/` now composes the automatic loop with the same
+`RuntimeProgrammeTurns` instance as ordinary puddlang. Capability `operations: 2`
+adds explicit unsent/unknown failures; only supporting owners admit agent graphs.
+`huddle/execution/agents.ts` resolves explicit session UUIDs to exact live agents in
+the declared project/worktree. Recheck bindings before activation. Migration 46
+persists one cancellation attempt before its exact send. Pause/drain this dispatcher
+before connections/projection; shutdown preserves admitted agent turns. Never
+redispatch consumed operations during adoption. Spawn/resume and shipped agent
+nodes remain unfinished.
 Migration 44 persists Stop consumption before sending
 shutdown; repeat observation cannot send another Stop. The existing kill/archive
 paths delegate to these controls and refuse unresolved owner cleanup. Keep huddle

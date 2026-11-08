@@ -11,6 +11,7 @@ export function daemonUpdatePause(deps: {
   upkeep: Participant;
   retention: Participant;
   programmes: Participant;
+  huddles?: Participant;
   compilation: Participant;
   catalogue: Participant;
   markers: Participant;
@@ -26,7 +27,13 @@ export function daemonUpdatePause(deps: {
 }) {
   const pause = new HostUpdatePause([
     [deps.clients, deps.upkeep, deps.retention],
-    [deps.programmes, deps.compilation, deps.catalogue, deps.markers],
+    [
+      deps.programmes,
+      ...(deps.huddles ? [deps.huddles] : []),
+      deps.compilation,
+      deps.catalogue,
+      deps.markers,
+    ],
     deps.launcher ? [deps.launcher] : [],
     [deps.sessions, deps.controls, deps.notebooks],
     [deps.notifications, deps.cleanup],

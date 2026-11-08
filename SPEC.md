@@ -1454,19 +1454,27 @@ reads retain results until an exact private owner receipt confirms durable ledge
 storage; acknowledgement permits reclamation without reusing the operation id.
 The private owner mailbox under `runtime/huddle/operations/` now accepts script
 attach/ask calls against retained session/worktree bindings. Optional huddle
-capability `operations: 1` enables bounded operation pages, single-consumption
+capabilities `operations: 1`/`2` enable bounded operation pages, single-consumption
 claims and exact-result settlement. Intent and turn-budget consumption precede
 external dispatch; a lost claim reply cannot grant another send. Worker requests
 wait through controller loss within their existing cancellation/deadline limits.
 Settlement retains the agent outcome/receipt before worker/controller replies;
 late results cannot complete interrupted graphs. Pending requests share owner
 memory admission; result envelopes must fit the huddle JSON value limit.
-Legacy owners without the capability remain adoptable. The production daemon
-dispatch loop and agent-node admission remain pending, so application graphs still
-cannot use agent operations. No ordinary agent IPC changes.
+Legacy and capability-1 owners remain adoptable. Production dispatch under
+`huddle/operations/dispatch/` requires capability 2, which adds explicit unsent
+failure reports and unknown-send errors to waiting nodes. It shares the ordinary
+puddlang busy gate and observes consumed operations after controller replacement.
+Migration 46 retains exact single-consumption cancellation intent. Maintenance and
+daemon shutdown drain dispatch while preserving admitted agent turns; interruption
+cancels only the original placement/turn. Start/Apply resolve declared session UUIDs
+to exact live agents in the same project and node worktree, and recheck bindings
+after asynchronous admission. Capability-2 owners can execute these attach/ask
+scripts; spawn/resume and shipped agent nodes remain pending. No ordinary agent
+IPC changes.
 Node worktrees resolve to registered roots in the placement's project and are
-rechecked after asynchronous admission. Unsupported agent bridges and local
-trigger/readout adapters fail before launch. Missing source blocks new work but
+rechecked after asynchronous admission. Unsupported account/project/provider
+selectors and local trigger/readout adapters fail before launch. Missing source blocks new work but
 not inspection or Stop. The event host id persists in private `huddle-host.json`
 and grants no authority. Public history omits private ledger keys and operation
 inputs/targets; stopped-owner history and active-revision details remain pending.

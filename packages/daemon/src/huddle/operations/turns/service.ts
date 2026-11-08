@@ -34,6 +34,22 @@ export class HuddleAgentTurns {
     return this.store.bind(scope, request, authorised).observe();
   }
 
+  unused(scope: HuddleTurnScope, request: unknown, authorised: HuddleTurnAuthority) {
+    return this.store.bind(scope, request, authorised).unused();
+  }
+
+  cancel(scope: HuddleTurnScope, request: unknown, authorised: HuddleTurnAuthority) {
+    const bound = this.store.bind(scope, request, authorised);
+    const cancellation = bound.cancellation();
+    return this.turns.cancelFor(
+      bound.target,
+      bound.caller,
+      cancellation.placement,
+      cancellation.turn,
+      cancellation.claim,
+    );
+  }
+
   acknowledge(
     scope: HuddleTurnScope,
     request: unknown,

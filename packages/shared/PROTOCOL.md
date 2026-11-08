@@ -19,8 +19,9 @@ Disconnected owners have no actionable target or invented lifecycle state.
 Schemas live in `api/huddle/execution.ts`; clients feature-detect 28.2. The IDE
 execution UI now uses these APIs; stopped-owner history and active-revision detail
 remain pending.
-Only manual input, local scripts and result readouts are currently executable;
-unsupported adapters/agent bridges are rejected before launch. Existing owners
+Manual input, local scripts and result readouts are executable. Supporting owners
+now also accept declared session bindings for attach/ask scripts; unsupported
+selectors and external adapters are rejected before launch. Existing owners
 remain usable if the selected default loses huddle support. Remote profile leases
 and the connector still deny all huddle routes. Ordinary runtime 1.1, private
 huddle contracts, database schema and remote protocol 5 are unchanged.
@@ -30,7 +31,7 @@ and exact owner-result receipts. The internal dispatcher shares ordinary agent
 runtime 1.1 without new agent IPC or public routes. Release capability metadata
 advertises the new database requirement through the existing schema boundary.
 
-The optional private huddle **`operations: 1`** capability now enables
+The optional private huddle **`operations: 1`** capability introduced
 `operation-page`, `operation-claim` and `operation-settle` in owner contract 1.
 Pages bound agent-operation scope, request, state and outcome to 16 records/1 MiB.
 Claims consume intent before external dispatch and never grant a second send.
@@ -40,8 +41,17 @@ original metadata and refuse these commands; adoption metadata must cover every
 required capability. Shared contracts live in `runtime/huddle/operations/`.
 Puddlang attach references now accept 4,096 characters for resolved huddle agent
 bindings; references alone grant no authority. Application, ordinary runtime,
-ledger and database versions are unchanged. Production daemon dispatch and
-agent-capable source admission remain pending.
+and ledger versions are unchanged.
+
+Private huddle **`operations: 2`** adds `operation-unavailable` with exact scope,
+a bounded error and an explicit positively-unsent flag. An unsent operation stores
+`{ rejected: string }` as a failed outcome; uncertain sends retain unknown state
+and fail the waiting node. Automatic host dispatch and agent-capable Start/Apply
+require capability 2. New daemons adopt capability 1 and legacy owners too; older
+candidates cannot adopt capability-2 owners. Migration **46** retains one exact
+cancellation attempt per huddle agent turn. Production dispatch shares ordinary
+puddlang busy admission, drains through host maintenance and preserves admitted
+turns on daemon shutdown. No new public route or ordinary agent IPC is added.
 
 Application **28.1** adds local/SSH `PUT /api/huddle/:profile/definitions/:id`.
 The body contains an explicit project/worktree, `expected_digest` from inspection,

@@ -94,6 +94,13 @@ export const huddleOwnerRequestSchema = z.discriminatedUnion('t', [
   z.strictObject({ t: z.literal('operation-page'), ...request, after: sequence }),
   z.strictObject({ t: z.literal('operation-claim'), ...request, operationId: z.uuid() }),
   z.strictObject({
+    t: z.literal('operation-unavailable'),
+    ...request,
+    scope: huddleTurnScopeSchema,
+    unsent: z.boolean(),
+    error: z.string().min(1).max(4096),
+  }),
+  z.strictObject({
     t: z.literal('operation-settle'),
     ...request,
     scope: huddleTurnScopeSchema,

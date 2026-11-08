@@ -18,7 +18,7 @@ adoption/projection now observes independent huddle owners alongside ordinary
 runtimes, including across isolated daemon replacement. Pinned production launch
 and exact-owner controls now integrate with session kill/archive. Local/SSH APIs
 now admit saved-source Start/Apply, reviewed Rearm/Run/Interrupt/Stop and bounded
-live-owner history. Native supervision and provider dispatch remain unfinished. Selected-daemon startup checks retained huddle contracts read-only
+live-owner history. Native supervision and full provider lifecycle nodes remain unfinished. Selected-daemon startup checks retained huddle contracts read-only
 before service mutations, while allowing compatible controllers to inspect
 interrupted owners. Offline host removal, purge fencing and release
 collection now recognise huddle ownership and clean shutdown evidence. Host-update preflight, shutdown
@@ -35,8 +35,10 @@ revision detail remain pending. Host-side exact agent-turn admission now shares
 the ordinary dispatcher, with schema-45 huddle caller identities and owner receipt
 retention. The private owner mailbox now connects script attach/ask calls to
 durable intent, single-consumption claims and exact-result settlement, with an
-optional runtime capability. The production daemon dispatch loop and agent nodes
-remain pending; agent-capable graphs are still rejected at Start/Apply.
+optional runtime capability. Production daemon dispatch and Start/Apply now admit
+declared session bindings and attach/ask scripts on operation-capability-2 owners.
+Migration 46 retains exact cancellation intent. Shipped agent nodes, spawn/resume
+and native-provider acceptance remain pending.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals except where explicitly documented
 in acceptance as implemented.
@@ -524,8 +526,8 @@ This requires a new host operation bridge. The host-side exact-turn adapter is
 now implemented under `huddle/operations/turns/`, sharing the ordinary dispatcher
 with separate durable huddle identities and result receipts. Private owner
 transport and script attach/ask queueing now live under `runtime/huddle/operations/`;
-production daemon dispatch/resource admission and spawn/resume integration remain
-pending. Ordinary
+production dispatch and exact session-resource admission now compose these
+through `huddle/operations/dispatch/`. Spawn/resume integration remains pending. Ordinary
 puddlang runner operations still depend on a daemon-owned run record. Extract/reuse their agent
 semantics with an explicit owner caller type and durable invocation keys. During
 daemon absence, owner-local triggers and scripts can continue; operations needing
@@ -704,13 +706,13 @@ enable nested delegation, cross-profile access or unlimited agent budgets.
 
 ## 11. Phased implementation and release gates
 
-Phases 0, 1 and 2 are **in progress**; phases 3–5 are **not started**. Phase 6
+Phases 0–3 are **in progress**; phases 4–5 are **not started**. Phase 6
 has preparatory host maintenance integration, with packaged acceptance pending.
 Phase 1 currently has the private inbox/outbox, node-attempt and exact-operation
 ledger plus durable
 graph routing, isolated script workers, retained revisions/activation and a manual
 scheduler and independent owner process/private control. Production launch/adoption
-and maintenance integration are implemented; the provider bridge and native continuity acceptance remain unfinished. Phase 2 has
+and maintenance integration are implemented; attach/ask dispatch is wired, while full provider lifecycle nodes and native continuity acceptance remain unfinished. Phase 2 has
 inactive creation/opening, sidebar integration and manifest graph editing with
 shared editor drafts and local/SSH manual lifecycle/history APIs; node movement,
 complete settings, stopped-owner history and active-revision detail remain pending.

@@ -6,6 +6,9 @@ import { huddleExecutionBindings } from '../../../src/huddle/execution/bindings.
 import { huddleHostIdentity } from '../../../src/huddle/execution/host.js';
 import { schedulerSnapshot } from '../../helpers/huddle/scheduler.js';
 import { initialisePrivateHome } from '@puddle/shared/node';
+import { agentGraphSnapshot } from '../../helpers/huddle/agent-graph.js';
+import { randomUUID } from 'node:crypto';
+import { encodeHuddleAgentTarget } from '@puddle/shared';
 
 const homes: string[] = [];
 afterEach(() => {
@@ -17,6 +20,35 @@ function home() {
   initialisePrivateHome(path);
   return path;
 }
+
+it('resolves session variables after canonical worktrees and preserves exact agent bindings', () => {
+  const worktree = realpathSync(home());
+  const target = {
+    worktree,
+    projectId: '0123456789',
+    runtimeId: randomUUID(),
+    incarnation: randomUUID(),
+    sessionId: randomUUID(),
+  };
+  const { snapshot } = agentGraphSnapshot('a'.repeat(32), target);
+  const worker = snapshot.definition.nodes.find((node) => node.id === 'worker')!;
+  snapshot.definition.variables = { reviewer: { schema: { type: 'string' }, required: true } };
+  worker.parameters.agent = { kind: 'variable', name: 'reviewer' };
+  const bindings = huddleExecutionBindings(
+    snapshot,
+    { reviewer: target.sessionId },
+    [worktree],
+    (reference, tree) => {
+      expect(reference).toBe(target.sessionId);
+      expect(tree).toBe(worktree);
+      return encodeHuddleAgentTarget(target);
+    },
+  );
+  expect(bindings.worker).toEqual({ worktree, agent: encodeHuddleAgentTarget(target) });
+  expect(() =>
+    huddleExecutionBindings(snapshot, { reviewer: target.sessionId }, [worktree]),
+  ).toThrow('bridge');
+});
 
 it('resolves explicit worktree variables to registered canonical roots and rejects unrelated paths', () => {
   const directory = home();

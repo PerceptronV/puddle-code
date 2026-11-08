@@ -65,7 +65,7 @@ export class HuddleOwner {
         entryPath: realpathSync(workerEntry),
         allowance: memory.allowance,
         operation: (request, invocation, signal) => {
-          if (launch.capabilities.operations !== 1)
+          if (!launch.capabilities.operations)
             throw new Error('Owner has no host-operation capability');
           return this.operations.request(request, invocation, signal);
         },
@@ -177,10 +177,17 @@ export class HuddleOwner {
     if (
       request.t === 'operation-page' ||
       request.t === 'operation-claim' ||
+      request.t === 'operation-unavailable' ||
       request.t === 'operation-settle'
     ) {
-      if (this.memory.launch.capabilities.operations !== 1)
+      if (!this.memory.launch.capabilities.operations)
         throw new Error('Owner has no host-operation capability');
+      if (request.t === 'operation-unavailable') {
+        if (this.memory.launch.capabilities.operations !== 2)
+          throw new Error('Owner cannot accept dispatch failure reports');
+        this.operations.unavailable(request.scope, request.unsent, request.error);
+        return { t: 'accepted', id: request.id };
+      }
       if (request.t === 'operation-page')
         return { t: 'operation-page', id: request.id, page: this.operations.page(request.after) };
       if (request.t === 'operation-claim') {

@@ -60,6 +60,16 @@ export async function launchHuddleOwner(
       throw new ApiError(401, 'upstream_expired', 'Connection authority expired');
   };
   requireAuthority();
+  if (
+    Object.values(options.snapshot.components).some((component) =>
+      component.capabilities.includes('sessions'),
+    ) &&
+    selected.huddle.operations !== 2
+  )
+    throw ApiError.conflict(
+      'huddle_execution_unsupported',
+      'Selected runtime does not support huddle agent dispatch',
+    );
   const session = deps.sessions.get(sessionId);
   if (session.kind !== 'huddle' || session.huddle_id !== options.snapshot.definition.id)
     throw ApiError.conflict(

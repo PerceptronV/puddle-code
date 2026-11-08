@@ -24,11 +24,17 @@ export const huddleAgentOperationSchema = z
     deadline: z.number().int().nonnegative().safe(),
     active: z.boolean(),
     state: z.enum(['prepared', 'dispatched', 'completed', 'failed', 'unknown', 'cancelled']),
-    result: huddleAgentOutcomeSchema.optional(),
+    result: z
+      .union([huddleAgentOutcomeSchema, z.strictObject({ rejected: z.string().min(1).max(4096) })])
+      .optional(),
   })
   .refine((value) => {
-    if (value.state === 'completed') return value.result?.turn.status === 'completed';
-    if (value.state === 'failed') return !!value.result && value.result.turn.status !== 'completed';
+    if (value.state === 'completed')
+      return !!value.result && 'turn' in value.result && value.result.turn.status === 'completed';
+    if (value.state === 'failed')
+      return (
+        !!value.result && ('rejected' in value.result || value.result.turn.status !== 'completed')
+      );
     return value.result === undefined;
   }, 'Operation state differs from its retained outcome');
 export type HuddleAgentOperation = z.infer<typeof huddleAgentOperationSchema>;

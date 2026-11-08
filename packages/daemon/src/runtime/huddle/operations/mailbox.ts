@@ -216,4 +216,14 @@ export class HuddleOperationMailbox {
     else waiting?.reject(new Error(result.turn.error ?? `Agent turn ${result.turn.status}`));
     return result;
   }
+
+  unavailable(scope: HuddleTurnScope, unsent: boolean, error: string) {
+    const before = this.describe(scope.operationId);
+    if (canonicalHuddleJson(scope) !== canonicalHuddleJson(before.scope))
+      throw new Error('Host failure does not match its retained operation');
+    if (unsent) this.ledger.operations.settle(scope.operationId, 'failed', { rejected: error });
+    else this.ledger.operations.unknown(scope.operationId, error);
+    this.changed();
+    this.pending.get(scope.operationId)?.reject(new Error(error));
+  }
 }

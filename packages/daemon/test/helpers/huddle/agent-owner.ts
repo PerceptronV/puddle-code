@@ -14,7 +14,7 @@ import { HuddleRevisionStore } from '../../../src/runtime/huddle/state/revisions
 import { HuddleOwnerClient } from '../../../src/runtime/huddle/transport/client.js';
 import { HuddleTurnStore } from '../../../src/huddle/operations/turns/store.js';
 import { HuddleAgentTurns } from '../../../src/huddle/operations/turns/service.js';
-import { readRuntimeController, runtimeDirectory } from '../../../src/runtime/ownership/storage.js';
+import { runtimeDirectory } from '../../../src/runtime/ownership/storage.js';
 import { launchOwner } from '../runtime-fixture.js';
 import { until } from './controller.js';
 
@@ -76,8 +76,12 @@ export async function agentOwnerFixture(legacy = false) {
       );
     });
     const connect = async () => {
-      client = await HuddleOwnerClient.open(f.home, launch, readRuntimeController(f.home));
-      await f.reconciler.attachHuddle(scope.owner.runtime_id, client);
+      await until(async () => {
+        await f.connections.connectOwner(scope.owner.runtime_id);
+        client = f.connections.getHuddle(scope.owner.runtime_id) ?? undefined;
+        return !!client;
+      });
+      await f.reconciler.attachHuddle(scope.owner.runtime_id, client!);
       return client;
     };
     await connect();
@@ -87,6 +91,7 @@ export async function agentOwnerFixture(legacy = false) {
       launch,
       scope,
       turns,
+      programmeTurns: f.turns,
       close,
       connect,
       get huddle() {

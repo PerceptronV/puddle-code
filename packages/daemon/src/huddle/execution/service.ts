@@ -47,6 +47,7 @@ interface Dependencies {
   controls: HuddleRuntimeControls;
   launcher?: Pick<RuntimeLauncher, 'launchHuddle' | 'checkHuddleAvailable'>;
   storage?: Pick<StorageMonitor, 'assertAdmission'>;
+  agentBinding?: (profile: string, project: string, reference: string, worktree: string) => string;
 }
 
 /** Local/SSH placement authority surrounds every private owner operation. */
@@ -172,7 +173,14 @@ export class HuddleExecutionService {
           );
         let prepared: ReturnType<typeof prepareHuddleActivation>;
         try {
-          const bindings = huddleExecutionBindings(snapshot, input.variables, location.worktrees);
+          const bindings = huddleExecutionBindings(
+            snapshot,
+            input.variables,
+            location.worktrees,
+            this.deps.agentBinding &&
+              ((reference, worktree) =>
+                this.deps.agentBinding!(profile, session.project_id, reference, worktree)),
+          );
           prepared = prepareHuddleActivation(
             snapshot,
             { id: randomUUID(), worktree: location.worktree, variables: input.variables, bindings },
@@ -187,11 +195,18 @@ export class HuddleExecutionService {
         }
         const recheck = () => {
           location.check();
-          const current = huddleExecutionBindings(snapshot, input.variables, location.worktrees);
+          const current = huddleExecutionBindings(
+            snapshot,
+            input.variables,
+            location.worktrees,
+            this.deps.agentBinding &&
+              ((reference, worktree) =>
+                this.deps.agentBinding!(profile, session.project_id, reference, worktree)),
+          );
           if (canonicalHuddleJson(current) !== canonicalHuddleJson(prepared.activation.bindings))
             throw ApiError.conflict(
               'huddle_binding_changed',
-              'A node worktree changed during admission; review the bindings again',
+              'A node resource changed during admission; review the bindings again',
             );
         };
         await this.deps.storage?.assertAdmission([this.deps.home, location.worktree]);
@@ -264,7 +279,18 @@ export class HuddleExecutionService {
       input,
       scope.valid,
       async ({ snapshot, activation }, valid) => {
-        requireHuddleControl(await this.deps.controls.inspect(id, valid), input.target);
+        const state = await this.deps.controls.inspect(id, valid);
+        requireHuddleControl(state, input.target);
+        if (
+          Object.values(snapshot.components).some((component) =>
+            component.capabilities.includes('sessions'),
+          ) &&
+          state.capabilities.operations !== 2
+        )
+          throw ApiError.conflict(
+            'huddle_execution_unsupported',
+            'This owner cannot dispatch agent operations; start with a supporting runtime',
+          );
         scope.check();
         new HuddleRevisionStore(
           this.deps.home,

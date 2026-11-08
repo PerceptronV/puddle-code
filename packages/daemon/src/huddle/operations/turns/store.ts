@@ -25,6 +25,7 @@ interface Mapping {
   segment_id: string;
   expected_ref: string | null;
   receipt: string | null;
+  cancellation_attempted: number;
 }
 
 /** Durable host admission, separate from the owner's node ledger and from daemon-owned programmes. */
@@ -56,7 +57,7 @@ export class HuddleTurnStore {
     const mapping = (): Mapping => {
       const row = this.db
         .prepare(
-          `SELECT intent, runtime_id, turn, session_id, segment_id, expected_ref, receipt
+          `SELECT intent, runtime_id, turn, session_id, segment_id, expected_ref, receipt, cancellation_attempted
         FROM huddle_runtime_turns WHERE owner_runtime_id = ? AND operation_id = ?`,
         )
         .get(owner.runtime_id, scope.operationId) as Mapping | undefined;
@@ -196,6 +197,50 @@ export class HuddleTurnStore {
       target: target.runtimeId,
       request,
       caller,
+      unused: () => {
+        check(false);
+        const exists = this.db
+          .prepare(
+            'SELECT 1 FROM huddle_runtime_turns WHERE owner_runtime_id = ? AND operation_id = ?',
+          )
+          .get(owner.runtime_id, scope.operationId);
+        if (!exists) return true;
+        const row = mapping();
+        return (
+          !row.receipt &&
+          !result(row) &&
+          !this.db
+            .prepare('SELECT 1 FROM runtime_result_charges WHERE runtime_id = ? AND turn = ?')
+            .get(row.runtime_id, row.turn)
+        );
+      },
+      cancellation: () => {
+        check(false);
+        const row = mapping();
+        return {
+          turn: row.turn,
+          placement: { session_id: row.session_id, segment_id: row.segment_id },
+          claim: () =>
+            this.db.transaction(() => {
+              check(false);
+              const current = mapping();
+              const value = result(current);
+              if (
+                current.cancellation_attempted ||
+                current.receipt ||
+                (value && value.status !== 'running')
+              )
+                return false;
+              return (
+                this.db
+                  .prepare(
+                    'UPDATE huddle_runtime_turns SET cancellation_attempted = 1 WHERE owner_runtime_id = ? AND operation_id = ? AND cancellation_attempted = 0',
+                  )
+                  .run(owner.runtime_id, scope.operationId).changes === 1
+              );
+            })(),
+        };
+      },
       observe: () => {
         check(false);
         const row = mapping();

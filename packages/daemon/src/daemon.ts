@@ -106,6 +106,10 @@ import { PuddlangService } from './puddlang/service.js';
 import { PuddlangStore } from './puddlang/store.js';
 import { HuddleService } from './huddle/control/service.js';
 import { HuddleExecutionService } from './huddle/execution/service.js';
+import { resolveHuddleAgent } from './huddle/execution/agents.js';
+import { HuddleAgentDispatcher } from './huddle/operations/dispatch/service.js';
+import { HuddleAgentTurns } from './huddle/operations/turns/service.js';
+import { HuddleTurnStore } from './huddle/operations/turns/store.js';
 import { HuddlePlacements } from './db/stores/huddle/placements.js';
 import type { HostUpdateCheckpointReference } from '@puddle/shared';
 import { HostUpdateCheckpointWriter } from './updates/checkpoints/store.js';
@@ -345,6 +349,12 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       mutex: new KeyedMutex(),
       events,
     });
+    const runtimeProgrammeTurns = new RuntimeProgrammeTurns(
+      runtimes,
+      runtimeConnections,
+      runtimeReconciler,
+      new ProgrammeTurnStore(db),
+    );
     const service = new SessionService({
       runtimes,
       runtimeControls,
@@ -367,12 +377,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
           reply.state.binding.segment_id === current.active_segment_id
         );
       },
-      runtimeProgrammeTurns: new RuntimeProgrammeTurns(
-        runtimes,
-        runtimeConnections,
-        runtimeReconciler,
-        new ProgrammeTurnStore(db),
-      ),
+      runtimeProgrammeTurns,
       storage,
       storagePaths,
       profiles,
@@ -444,6 +449,14 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       launcher: runtimeLauncher,
       changed: (projectId) => service.emit('sessions-changed', { projectIds: [projectId] }),
     });
+    const huddleDispatcher = new HuddleAgentDispatcher({
+      home: paths.home,
+      runtimes,
+      connections: runtimeConnections,
+      reconciler: runtimeReconciler,
+      turns: new HuddleAgentTurns(runtimeProgrammeTurns, new HuddleTurnStore(db)),
+    });
+    failedStartup.push(() => huddleDispatcher.close());
     const huddleExecution = new HuddleExecutionService({
       home: paths.home,
       profiles,
@@ -451,6 +464,14 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       sessions,
       runtimes,
       definitions: huddles,
+      agentBinding: (profile, project, reference, worktree) =>
+        resolveHuddleAgent(
+          { sessions, runtimes, turns: runtimeProgrammeTurns },
+          profile,
+          project,
+          reference,
+          worktree,
+        ),
       controls: runtimeControls.huddles,
       launcher: runtimeLauncher,
       storage,
@@ -701,6 +722,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       upkeep,
       retention,
       programmes: puddlang,
+      huddles: huddleDispatcher,
       compilation,
       catalogue,
       markers: onboarding,
@@ -780,6 +802,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       }),
     });
     failedStartup.push(() => releaseCollection!.close());
+    huddleDispatcher.start();
 
     let stopping: Promise<void> | null = null;
     let shutdownUpdate: string | undefined;
@@ -825,7 +848,9 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
         // after cleanup has taken its inventory of daemon-owned terminals.
         ptys.beginShutdown();
         service.beginShutdown();
+        const huddlesClosed = huddleDispatcher.close();
         stopping = (async () => {
+          await huddlesClosed;
           await collectionClosed;
           await runtimeLauncher?.close();
           runtimeNotifications.close();

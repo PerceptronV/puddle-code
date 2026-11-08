@@ -12,8 +12,72 @@ application 27.0 now includes huddle session identity and migration 43 records
 placements/owner roles. The daemon launcher and lifecycle controls now integrate
 with session kill/archive; migration 44 retains Stop intent. Migration 45 adds
 host-side agent-turn identities; the owner mailbox now has private transport,
-while its production daemon dispatcher remains pending. No user CLI command
-is enabled yet.
+and production daemon dispatch now supports declared attach/ask scripts. Migration
+46 retains exact cancellation attempts. No user CLI command is enabled yet.
+
+## Implemented: automatic agent dispatch and declared session bindings
+
+`huddle/operations/dispatch/` now drives the owner mailbox from the production
+daemon composition. It shares the same `RuntimeProgrammeTurns` instance and
+busy gate as ordinary puddlang.
+Authenticated owner operations must match the immutable runtime identity and a
+captured script component declaring session/worktree resources. The host rechecks
+profile, target incarnation, placement, worktree and Stop/archive constraints at
+dispatch. Scripts receive no host credential.
+
+Start/Apply admit local script components with `sessions` capability and explicit
+`worktree` and `session` resource parameters. Session values are Puddle placement
+UUIDs, supplied literally or through variables. The selected agent must already
+have a supported live runtime in the same project and declared canonical worktree.
+Activation captures its exact runtime/incarnation; later admission rechecks reject
+changed bindings. Busy agents can be selected but refuse concurrent asks. Other
+account/project/provider selectors and spawn/resume/stop operations remain
+unfinished. Agents in distinct registered worktrees can be selected by distinct
+nodes; one node's session resources must share its declared worktree.
+
+Runtime capability **`operations: 2`** adds `operation-unavailable` and retained
+`{ rejected: string }` outcomes for positively unsent asks. Unknown sends remain
+unknown while the waiting node fails; they never become retry permission. New
+controllers can still adopt capability-1 owners and owners without operations;
+automatic dispatch and agent-capable Start/Apply require capability 2. Existing
+local-only graphs remain usable on older huddle owners. Application 28.2, ordinary
+runtime 1.1 and owner/ledger format 1 remain unchanged.
+
+Database migration **46** adds `cancellation_attempted` to the immutable huddle
+turn mapping. Cancellation checks the original placement/segment and consumes
+this intent immediately before one `cancel-turn` send. Replacement dispatchers
+cannot repeat an uncertain cancellation or target a replacement agent. User
+interruption and root deadlines cancel admitted turns; daemon shutdown or
+maintenance suspension preserves them for later observation. The dispatcher
+participates in maintenance pause/drain before runtime connections and projection
+pause, and drains before SQLite closes.
+
+Owner invalidations schedule bounded scans (four concurrent scans, four pages per
+pass). At most 64 operation tasks are retained across the daemon. Pending admitted
+turns observe committed results at 250 ms intervals; settled/idle graphs do not
+poll. Daemon/controller replacement reads consumed operations and retained agent
+results, saves exact outcomes in the live owner, then acknowledges host retention.
+It never resumes a script stack or resends an accepted prompt. Unknown claims
+without host admission remain unresolved until owner failure/deadline handling;
+no absence inference permits another send.
+
+An outcome exceeding the huddle JSON envelope fails the waiting node, retains the
+unknown operation and leaves the full host result unacknowledged. Explicit
+retained-result disposition remains unfinished. Host-side reconstruction after a
+huddle owner crash, packaged/SSH/reboot continuity and real-provider acceptance
+remain separate gates. Shipped agent-node templates, spawn/resume and external
+triggers/readouts are still required by the roadmap.
+
+Verification: **462 tests in 67 files** passed across all shared tests and the
+huddle, puddlang, startup, update-checkpoint/maintenance, migration and ordinary
+programme-turn suites. After tightening lost-settlement handling and adding
+schema-45 migration coverage, **18 focused tests in two files** passed. The new
+process checks cover automatic completion, busy refusal, maintenance admission,
+exact interruption, dispatcher handoff, replacement controller/reconciler
+connections and observation after a lost settlement reply. These use isolated real
+owners with a test provider, not production accounts or native windows.
+Shared/daemon/CLI TypeScript builds, repository ESLint, Prettier and colour-token
+checks passed.
 
 ## Implemented: private owner agent-operation mailbox
 
@@ -26,12 +90,13 @@ incarnation, placement, project and canonical worktree as bounded, inspectable
 puddlang attach field now permits up to 4,096 characters for these references;
 ordinary puddlang attach resolution is unchanged.
 
-The optional **`operations: 1`** huddle capability enables private
+The original optional **`operations: 1`** huddle capability introduced private
 `operation-page`, `operation-claim` and `operation-settle` commands. Existing
 owners without it remain adoptable and retain their original handshake metadata;
 they refuse mailbox commands. Candidate daemons lacking the capability cannot
 adopt owners that require it. Application 28.2, ordinary runtime 1.1, private owner
-contract 1, ledger format 1 and database schema 45 remain unchanged.
+contract 1 and ledger format 1 remain unchanged; the dispatcher above requires
+database schema 46 and operation capability 2.
 
 Ask intent enters the ledger before the controller can claim it. A claim consumes
 the operation and root turn budget before any external send. Repeated claims only
@@ -54,8 +119,8 @@ asks reserve shared owner memory within a 16 MiB/64-request local allowance befo
 recording intent. Agent outcomes must fit the existing 256 KiB huddle JSON value
 limit, including JSON escaping and receipt overhead. A reply fitting the agent's
 raw-text limit may exceed this envelope; it is rejected without truncation or host
-acknowledgement. Production handling of this retained failure remains integration
-work.
+acknowledgement. The dispatcher fails the waiting node and retains this result;
+explicit disposition remains unfinished.
 
 Tests drive a private controller explicitly against real isolated huddle/script
 and test-provider agent processes. They cover durable settlement before host
@@ -63,9 +128,8 @@ acknowledgement, controller reconnect, consumed claims after a lost reply,
 conflicting/late settlement and legacy capability adoption. Unit checks cover
 binding scope, memory refusal, cancellation, single-spend root budgets and bounded
 wire contracts. This is not native-provider or production application acceptance.
-The daemon dispatch loop, resource resolution/admission, spawn/resume operations
-and shipped agent nodes remain pending. Start/Apply still reject `sessions`
-capabilities, so application graphs cannot yet use agent asks.
+The automatic dispatcher and resource admission are described above. Spawn/resume
+operations and shipped agent nodes remain pending.
 
 Verification for this increment: 340 automated tests across 50 files passed
 (shared huddle/installation, daemon huddle/puddlang/startup/checkpoints and ordinary
@@ -77,9 +141,8 @@ outstanding.
 
 `huddle/operations/turns/` now supplies a host-side ask/observe/acknowledge adapter
 for huddle callers. It is an internal building block: the private huddle-owner
-transport is implemented above, while source capability admission, spawn/attach/resume nodes and
-production composition are still pending. Start/Apply continue rejecting
-`sessions` capabilities; no graph can use this adapter through the application yet.
+transport and production composition are implemented above. Shipped spawn/attach/
+resume nodes remain pending; custom scripts can attach to declared sessions.
 
 Migration **45** adds `huddle_runtime_turns`, independently of daemon-owned
 `puddlang_runs`. An immutable admission binds the source owner identity,
@@ -138,10 +201,9 @@ window was used.
 
 This does not establish provider-native or full huddle graph integration, actual
 huddle-owner receipt delivery, packaged daemon replacement, SSH or reboot survival.
-The next bridge increment must durably record owner intent before dispatch,
-revalidate declared bindings, settle/acknowledge outcomes only after owner storage,
-wait through daemon absence within root limits, and reconcile consumed operations
-without replay before enabling agent-capable graphs.
+The mailbox and automatic dispatcher increments above add owner intent, exact
+settlement and consumed-operation observation; their evidence is separate from
+these original host-adapter tests.
 
 ## Implemented: IDE execution controls and live history
 
@@ -225,11 +287,10 @@ explicit Start after clean Stop creates a new runtime.
 
 This slice runs queued manual inputs, local script nodes and built-in result
 readouts. Explicit literal/variable worktree settings resolve to canonical roots
-registered to the definition's project. Agent-operation capabilities, account/
-session/project/agent resource settings and local trigger/readout adapters are
-rejected until their bridges are implemented. This is an implementation limit,
-not the final scope of huddles. Cross-project binding and provider dispatch remain
-required. Scripts retain the trusted-code execution model; these checks are not
+registered to the definition's project. Supporting owners now also admit declared
+session resources and attach/ask scripts. Account/project/provider selectors and
+local trigger/readout adapters remain rejected. Cross-project binding remains
+unfinished. Scripts retain the trusted-code execution model; these checks are not
 an OS sandbox.
 
 Installation event identity is a private `{ format: 1, id: UUID }` record in

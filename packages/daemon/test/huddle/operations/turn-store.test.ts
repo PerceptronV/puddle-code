@@ -25,6 +25,25 @@ function fixture() {
   return { ...f, huddle: scope, store, request, bind, admit: reserve };
 }
 
+it('persists one cancellation attempt across replacement adapters and refuses changed scope', async () => {
+  const f = fixture();
+  try {
+    const bound = f.bind();
+    expect(bound.unused()).toBe(true);
+    f.admit(bound);
+    expect(bound.unused()).toBe(false);
+    expect(bound.cancellation().claim()).toBe(true);
+    const replacement = new HuddleTurnStore(f.db).bind(f.huddle, f.request, () => true);
+    expect(replacement.cancellation().claim()).toBe(false);
+    expect(() => f.bind({ ...f.huddle, activationId: randomUUID() }).cancellation()).toThrow();
+    expect(f.db.prepare('SELECT cancellation_attempted FROM huddle_runtime_turns').get()).toEqual({
+      cancellation_attempted: 1,
+    });
+  } finally {
+    await f.close();
+  }
+});
+
 it.each(['execution', 'owner', 'host'] as const)(
   'bounds %s operation identities without evicting replay protection',
   async (kind) => {
@@ -229,6 +248,32 @@ it('matches restored JSON key order and refuses a mismatched retained native tur
       )
       .run(f.binding.runtime_id, turn);
     expect(() => restored.observe()).toThrow('differs from the admitted');
+  } finally {
+    await f.close();
+  }
+});
+
+it('migrates schema 45 while preserving huddle mappings and receipts with unconsumed cancellation intent', async () => {
+  const f = fixture();
+  try {
+    const bound = f.bind();
+    const turn = f.admit(bound);
+    f.save(turn);
+    bound.acknowledge(bound.observe().receipt!);
+    const file = join(f.home, 'before-huddle-cancellation.sqlite');
+    writeHistoricalDatabase(f.db, file, 45);
+    const migrated = openDatabase(file);
+    try {
+      expect(migrated.pragma('user_version', { simple: true })).toBe(DATABASE_SCHEMA_VERSION);
+      expect(migrated.prepare('SELECT * FROM huddle_runtime_turns').all()).toEqual(
+        f.db.prepare('SELECT * FROM huddle_runtime_turns').all(),
+      );
+      expect(
+        migrated.prepare('SELECT cancellation_attempted FROM huddle_runtime_turns').get(),
+      ).toEqual({ cancellation_attempted: 0 });
+    } finally {
+      migrated.close();
+    }
   } finally {
     await f.close();
   }

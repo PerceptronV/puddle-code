@@ -96,6 +96,25 @@ export class RuntimeProgrammeTurns {
     );
   }
 
+  /** Cancel only the retained placement/turn after consuming caller-owned intent. */
+  async cancelFor(
+    reference: string,
+    caller: RuntimeTurnCaller,
+    placement: RuntimePlacement,
+    turn: number,
+    claim: () => boolean,
+  ) {
+    const current = this.target(reference);
+    caller.checkCancellation(current.id, turn);
+    if (
+      current.placement.session_id !== placement.session_id ||
+      current.placement.segment_id !== placement.segment_id
+    )
+      throw new Error('Agent placement changed before cancellation');
+    // Consume durable cancellation intent immediately before its one exact send.
+    if (claim()) await current.client.request({ t: 'cancel-turn', placement, turn });
+  }
+
   /** All callers share one busy gate and the existing exact-turn provider channel. */
   async askFor(
     reference: string,
