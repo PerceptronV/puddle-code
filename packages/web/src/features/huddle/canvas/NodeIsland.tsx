@@ -119,7 +119,15 @@ export function NodeIsland({
                 type="button"
                 key={port}
                 aria-label={`Input ${node.id}.${port}`}
-                title={problem ?? `Input ${node.id}.${port}`}
+                title={
+                  problem ??
+                  `Input ${node.id}.${port}${contract?.inputs[port]?.scope === 'execution' ? ' · retained for this execution' : ''}`
+                }
+                aria-description={
+                  contract?.inputs[port]?.scope === 'execution'
+                    ? 'Retained for this execution, including feedback rounds'
+                    : undefined
+                }
                 {...wire.input(endpoint)}
                 className={cn(
                   portClass,

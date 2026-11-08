@@ -9,7 +9,7 @@ captured-source script workers, retained revisions/activation and a manual sched
 in an independent owner process with private authenticated control, explicit
 runtime-role metadata and pinned capability checks. Phase 2 has the third session
 kind, immutable application placement and common runtime inventory role, with
-application protocol 28.8. Local/SSH inactive creation, discovery, inspection and
+application protocol 28.9. Local/SSH inactive creation, discovery, inspection and
 placement opening now have sidebar creation and a graph pane with manifest
 editing, shared source/layout drafts, settings, undo and file-conflict review.
 Pointer/touch and keyboard node movement, position settings, pan and fit controls
@@ -60,8 +60,11 @@ completes. Each execution captures its cleanup policy; explicit `retain-owned` l
 its agents running. Application 28.8 adds the editable Spawn agent template and
 project/worktree/provider/account selectors. Runtime metadata now advertises
 `spawns: 1`; older owners remain supported but cannot run spawn graphs. The template
-returns its initial prompt reply and an execution-scoped handle. Handle-input
-template ergonomics, resume/restart and native-provider acceptance remain pending.
+returns its initial prompt reply and an execution-scoped handle. Application 28.9
+adds Prompt spawned agent and Review spawned agent templates. Their explicit
+execution-scoped inputs retain each handle across feedback rounds; two isolated
+agents now complete a spawn-once review loop through these shipped templates.
+Resume/restart and native-provider acceptance remain pending.
 The [usage guide](../huddle.md) describes the implemented slice.
 Phase 4 now has runtime-owned interval, one-off date/time and daily/selected-weekday
 calendar triggers, durable occurrence admission, coalesce/skip/bounded catch-up,
@@ -346,7 +349,13 @@ Graph execution rules must be explicit before building the canvas:
 
 Implemented routing semantics: a completion carries its input activation through
 fan-out; an explicit event emission creates a new activation shared by its fan-out.
-Joins match execution and activation, never latest values. Required inputs gate
+Ordinary joins match execution and activation, never latest values. An explicitly
+`scope: "execution"` input retains one immutable delivery for that execution/node/port.
+It supplies waiting and later activations, including feedback rounds, but never
+starts an activation by itself. A competing delivery fails instead of replacing
+that value. Such ports must be required, use `all` activation and accompany a
+normal required input; feedback cannot target them. Optional runtime
+`executionInputs: 1` gates this contract. Required inputs gate
 admission; optional values arriving later cannot revise the admitted invocation.
 Explicit `any` alternatives each create a separate activation and validate only
 their supplied inputs. A feedback edge creates a new activation; distinct feedback
@@ -785,7 +794,7 @@ shared editor drafts, movable nodes and local/SSH manual lifecycle/history APIs;
 complete settings, stopped-owner history and active-revision detail remain pending.
 The IDE now has reviewed lifecycle controls, manual input and live result inspection,
 plus initial editable prompt/review templates and connection feedback settings;
-phase 3 still needs dynamic-handle templates, resume/restart and provider-native acceptance. Each phase
+phase 3 still needs resume/restart and provider-native acceptance. Each phase
 must update
 `docs/acceptance/huddle.md` with implemented details and evidence, rather than
 leaving the only accurate description in code or marking future phases complete.

@@ -14,6 +14,7 @@ Application 28.5 adds local readout delivery declarations and execution.
 Application 28.6 adds explicit readout observation and the history action.
 Application 28.7 adds local custom trigger workers and opt-in source health.
 Application 28.8 adds Spawn agent authoring and advertises runtime spawn support.
+Application 28.9 adds execution-scoped inputs and spawned-agent prompt/review templates.
 Runtime archives declare their internal huddle-role contracts;
 application 27.0 now includes huddle session identity and migration 43 records
 placements/owner roles. The daemon launcher and lifecycle controls now integrate
@@ -32,6 +33,75 @@ interactive, structured Codex and command-correlated headless controls. Automati
 delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 No user CLI command is enabled yet.
+
+## Implemented: retained execution inputs and spawned-agent feedback
+
+Application **28.9** adds `prompt-spawned-agent` and `review-spawned-agent` to
+inactive template publication. Both materialise editable `node.json`, `run.ts`
+and `prompt.ts` source. Their `agent` input accepts the Spawn output handle and
+requires `scope: "execution"`; `value` remains an ordinary required input.
+Settings declare an explicit worktree and prompt. Source attaches the exact
+execution-owned runtime, verifies the handle's session id and uses the existing
+exact ask bridge. Prompt returns text; Review returns strict `{complete, feedback}`.
+The original selected-session templates remain unchanged. The IDE explains retained
+inputs and gives their sockets an accessible description; the palette gates the
+new templates on 28.9 while keeping older options available on older hosts.
+
+Optional runtime **`executionInputs: 1`** is now advertised and required at host
+launch/Apply and independent owner admission. An older selected runtime rejects
+these graphs before launch; existing owners keep their earlier contracts.
+`state/inputs.ts` retains one immutable delivery/value per execution/node/input
+in the private ledger's `execution-inputs` collection. It shares the existing
+record and byte bounds. `state/joins.ts` composes this with normal join admission:
+
+- A retained input never creates an activation by itself. It supplies existing
+  waiting joins and future activations, including feedback rounds, only in the
+  same execution and captured revision.
+- The first accepted delivery remains immutable. Exact replay is idempotent;
+  another delivery is a conflict even when its value is equal. No latest-value
+  replacement or cross-execution handle cache is introduced.
+- Input pinning, every newly ready join, invocation spending and source emission
+  acknowledgement commit atomically. Budget/storage failure rolls back the entire
+  routing transaction. Reopening the ledger preserves pins and waiting joins.
+- Execution inputs must be required and accompany a normal required input on an
+  `all` component. Optional/`any` variants, output scopes and feedback targeting
+  a retained input are rejected. Ordinary activation matching stays unchanged.
+
+Database 49, ordinary runtime 1.2, remote 5 and owner/ledger versions are unchanged;
+capability admission protects the generic ledger collection extension. No new
+private command or public response field is needed. Private pin rows are not
+exposed through the ordinary execution-history API.
+
+The isolated end-to-end fixture runs the published Spawn, Prompt spawned agent
+and Review spawned agent source in real owner/node/agent fixture processes. It
+creates exactly **two agents**, completes **two review rounds** and **six total
+asks** under `maxAgents: 2` / `maxTurns: 6`, exits on approval, then confirms both
+agents exit on Stop. Handles remain the same in both rounds. The fixture provider
+counts structured reviews separately from startup prompts; no real provider was
+used. Existing selected-session two-agent feedback also passes.
+
+Routing checks cover both input arrival orders, feedback after ledger reopening,
+separate root events, multiple waiting event cohorts, competing deliveries and
+atomic rollback when a late pin would exceed invocation limits. Contract checks
+cover illegal scopes and capability negotiation. Host admission and inactive
+publication checks cover older selected runtime refusal and editable assets.
+
+Verification, 2026-11-08: **347 tests across 62 files passed**, covering shared
+contracts, routing/scheduling, ledger, spawn/ask dispatch, source publication,
+activation and host startup/update compatibility. The new spawned-agent browser
+check and existing selected-session template browser check both passed without
+execution. The new check verifies saved retained-input contracts, explicit
+worktrees, absence of a selected-session field, accessible socket descriptions,
+inspector explanation and hiding the new templates on 28.8. The screenshot was
+reviewed. Shared/daemon/CLI and web TypeScript, changed-source ESLint/formatting,
+semantic colour checks and diff checks passed. Only isolated fixture owners and a
+UI-only preview/headless Chromium were used; no production daemon or native
+provider/desktop was launched.
+
+Remaining: live-provider and distinct-worktree review evidence, resume/restart
+nodes, explicit native completion feedback, authoring assistance, offline recovery
+and the roadmap's platform/packaged acceptance gates. Retained inputs do not add
+owner-crash recovery or permit continuing arbitrary interrupted scripts.
 
 ## Implemented: Spawn agent rollout and captured retention policy
 

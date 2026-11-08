@@ -5,6 +5,7 @@ import {
   HUDDLE_RUNTIME_CAPABILITIES,
   huddleOwnerLaunchSchema,
   type HuddleSpawnOperation,
+  type HuddleRevisionActivation,
 } from '@puddle/shared';
 import { atomicPrivateJson, ipcPath } from '@puddle/shared/node';
 import { huddleSpawnServiceFixture } from './spawn-service.js';
@@ -20,7 +21,10 @@ import type { HuddleDefinitionSnapshot } from '../../../src/huddle/definitions/c
 /** Real independent source/node/agent processes; the test is the explicit private spawn dispatcher. */
 export async function spawnOwnerFixture(
   enabled = true,
-  edit?: (snapshot: HuddleDefinitionSnapshot) => void,
+  edit?: (
+    snapshot: HuddleDefinitionSnapshot,
+    bindings: HuddleRevisionActivation['bindings'],
+  ) => void,
 ) {
   const capabilities = { ...HUDDLE_RUNTIME_CAPABILITIES };
   if (!enabled) delete capabilities.spawns;
@@ -28,7 +32,7 @@ export async function spawnOwnerFixture(
   const binding = f.runtimes.get(f.scope.owner.runtime_id)!;
   const { snapshot, bindings } = spawnGraphSnapshot(binding.huddle_id!, f.request);
   if (edit) {
-    edit(snapshot);
+    edit(snapshot, bindings);
     snapshot.files['huddle.json'] = JSON.stringify(snapshot.definition);
     snapshot.files['nodes/example/node.json'] = JSON.stringify(snapshot.components.worker);
     snapshot.digest = huddleRevisionDigest(snapshot.files, snapshot.components);

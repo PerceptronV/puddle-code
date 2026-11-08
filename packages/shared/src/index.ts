@@ -31,6 +31,10 @@ export {
   agentNodeSource,
 } from './huddle/templates/agents/prompt.js';
 export { spawnAgentComponent, spawnAgentSource } from './huddle/templates/agents/spawn.js';
+export {
+  promptSpawnedAgentComponent,
+  reviewSpawnedAgentComponent,
+} from './huddle/templates/agents/owned.js';
 export * from './api/huddle/execution.js';
 export * from './runtime/huddle/triggers/custom.js';
 export * from './huddle/validation/values.js';
@@ -77,6 +81,7 @@ export * from './runtime/protocol.js';
 export * from './runtime/native-turns.js';
 export * from './runtime/storage.js';
 export * from './runtime/huddle/state.js';
+export * from './runtime/huddle/inputs.js';
 export * from './runtime/huddle/routing.js';
 export * from './runtime/huddle/worker.js';
 export * from './runtime/huddle/revisions.js';

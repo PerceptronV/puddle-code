@@ -35,6 +35,7 @@ and agent editing. Runtime records are kept separately in private Puddle storage
 Use **Add node** to add Run, Result, a time trigger, an agent template or a local
 contract path.
 Prompt and Review templates require application 28.3; Spawn requires 28.8.
+Prompt spawned agent and Review spawned agent require 28.9.
 They immediately publish editable source
 files, then add a reference to the graph draft. **Undo** removes that reference;
 it leaves the published files intact. After a failed reply, inspect the files
@@ -319,9 +320,10 @@ Installing a newer runtime does not restart existing owners.
 
 Custom downstream scripts in the same execution can call
 `puddlang.attach(inputs.agent.runtime_id)` with an explicit matching worktree
-binding. The shipped Prompt/Review templates currently select existing sessions;
-they do not yet accept dynamic handles. A later execution must bind the retained
-session explicitly. Keep Spawn outside a feedback loop unless each iteration is
+binding. **Prompt spawned agent** and **Review spawned agent** expose a required
+`agent` input for this handle; choose an explicit matching worktree and prompt.
+The original Prompt/Review templates continue to select existing sessions.
+A later execution must bind the retained session explicitly. Keep Spawn outside a feedback loop unless each iteration is
 intended to create another agent; normal spawn budgets apply.
 
 Successful executions keep their agents available. With the default
@@ -364,6 +366,46 @@ counts as round one. Other graph/turn/time budgets still apply.
 A direct cycle without an explicit bounded feedback edge is invalid. Two agents
 can talk to each other through the feedback route; removing all feedback edges
 must leave an acyclic graph.
+
+## Create two agents and reuse them in feedback
+
+On application 28.9, add two Spawn agent nodes, Prompt spawned agent, Review
+spawned agent and Result. Give each Spawn explicit resources and an initial prompt.
+Name them `spawn-coder` and `spawn-reviewer`; select the matching worktree on each
+subsequent prompt/review node. Connect:
+
+```text
+run.event → spawn-coder.value
+spawn-coder.completed → spawn-reviewer.value
+spawn-coder.agent → coder.agent
+spawn-reviewer.agent → reviewer.agent
+spawn-reviewer.completed → coder.value
+coder.completed → reviewer.value
+reviewer.completed → result.value
+reviewer.completed → coder.value   [bounded feedback]
+```
+
+Here `coder` uses Prompt spawned agent and `reviewer` uses Review spawned agent.
+Both Spawn nodes perform their configured initial prompts. Choose these prompts
+and the later prompts so the initial task and replies carry the context you want.
+The reviewer returns `{complete, feedback}`. Configure the feedback edge to
+continue while `complete` is false with a finite round limit, as above.
+
+Each `agent` input is retained for **one execution**, including feedback rounds.
+Connect it once. A second delivery to that input is an error, even if it repeats
+the same handle; replay of the exact original delivery is deduplicated. Incoming
+`value` messages still require their own matching activation. Handles arriving
+before or after a value work, and different executions cannot share these inputs.
+The inspector explains retained inputs; custom contracts declare them with
+`"scope": "execution"`. They must be required inputs on an `all` node with at least
+one normal required input. They cannot be feedback destinations or output scopes.
+
+This requires runtime `executionInputs: 1` in addition to spawning/agent-operation
+support. A handle still must belong to this execution and match the declared
+worktree. The graph does not follow a replacement runtime. The two Spawn nodes
+remain outside feedback, so repeated review rounds reuse those two conversations.
+Their initial prompts also consume the shared turn budget. Cleanup follows each
+execution's captured policy described above.
 
 ## Save, activate and run
 

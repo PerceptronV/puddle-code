@@ -171,6 +171,13 @@ export function validateHuddleGraph(
         extra,
       );
     if (edge.feedback) {
+      if (target.scope === 'execution')
+        add(
+          'feedback_execution_input',
+          `${path}/to`,
+          'Feedback cannot replace an execution input',
+          extra,
+        );
       let guard: HuddleValueSchema | undefined = source.schema;
       for (const property of edge.feedback.while.path) guard = guard?.properties?.[property];
       if (guard?.type !== 'boolean')

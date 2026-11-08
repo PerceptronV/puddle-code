@@ -110,6 +110,7 @@ export const huddlePortSchema = z.strictObject({
   title: z.string().max(200).optional(),
   required: z.boolean().default(true),
   emission: z.enum(['completion', 'event']).default('completion'),
+  scope: z.enum(['activation', 'execution']).optional(),
 });
 export type HuddlePort = z.infer<typeof huddlePortSchema>;
 

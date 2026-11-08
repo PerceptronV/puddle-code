@@ -648,8 +648,17 @@ Keep template implementations under `shared/huddle/templates/agents/` and regist
 composition at `agents.ts`. The inspector reuses account queries and read-only
 puddlang context for providers, preserving unavailable selections. Do not silently
 choose an account. Template publication stays inactive; gate Spawn on 28.8 and
-activation on runtime `spawns: 1`. Dynamic-handle template ergonomics, resume/restart
-and native-provider acceptance remain unfinished.
+activation on runtime `spawns: 1`. Application 28.9 adds Prompt spawned agent and
+Review spawned agent templates with `scope: "execution"` handle inputs. Require
+`executionInputs: 1` at host launch/Apply and independent owner admission. Keep
+retained input storage under `runtime/huddle/state/inputs.ts` and join composition
+in `state/joins.ts`; commit pinning, ready-join admission and output acknowledgement
+atomically. A pin never starts an activation or supplies another execution. Never
+replace it with a later value, even an equal value from a different delivery.
+Reject optional/any-only pins and feedback destinations. Preserve existing ordinary
+join semantics. Templates verify the handle session after execution-owned attach;
+worktree declarations remain mandatory. Resume/restart and native-provider
+acceptance remain unfinished.
 Migration 45 adds `huddle_runtime_turns`. Host-side exact asks live under
 `huddle/operations/turns/`, reusing `RuntimeProgrammeTurns.askFor` and the common
 busy gate. Shared ordered allocation/result reservation lives in

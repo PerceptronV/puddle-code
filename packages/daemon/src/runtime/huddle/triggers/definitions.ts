@@ -46,6 +46,11 @@ export function requireHuddleFeatures(
   for (const node of snapshot.definition.nodes) {
     const component = snapshot.components[node.id]!;
     if (
+      Object.values(component.inputs).some((port) => port.scope === 'execution') &&
+      capabilities.executionInputs !== 1
+    )
+      throw new Error('This runtime does not support retained execution inputs');
+    if (
       Object.values(component.parameters).some((parameter) =>
         ['account', 'project', 'agent'].includes(parameter.editor),
       ) &&

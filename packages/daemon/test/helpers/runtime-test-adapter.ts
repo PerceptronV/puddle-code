@@ -14,6 +14,7 @@ import type {
 class FixtureControl implements AgentControl {
   ready = true;
   private count = 0;
+  private reviews = 0;
   private ref: string | undefined;
   private pending: { finish(error?: Error): void } | null = null;
   constructor(private readonly context: LifecycleLaunchContext) {}
@@ -22,6 +23,7 @@ class FixtureControl implements AgentControl {
     signal.throwIfAborted();
     this.ready = false;
     const count = ++this.count;
+    const review = schema ? ++this.reviews : 0;
     atomicPrivateJson(
       join(this.context.account.config_dir, `${this.context.opts.sessionId}.turns.json`),
       { count, prompt, schema },
@@ -36,7 +38,7 @@ class FixtureControl implements AgentControl {
         signal.removeEventListener('abort', abort);
         if (error) reject(error);
         else if (schema && existsSync(join(this.context.account.config_dir, 'test-review-output')))
-          resolve(JSON.stringify({ complete: count >= 2, feedback: `review:${count}:${prompt}` }));
+          resolve(JSON.stringify({ complete: review >= 2, feedback: `review:${count}:${prompt}` }));
         else resolve(`reply:${count}:${prompt}`);
       };
       const timer = setTimeout(

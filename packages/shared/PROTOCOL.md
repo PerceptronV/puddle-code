@@ -1,5 +1,22 @@
 # The puddle communication protocol
 
+Application **28.9** adds `prompt-spawned-agent` and `review-spawned-agent` to the
+existing local component-template request. Optional input `scope: "execution"`
+declares one immutable retained delivery per execution/node/port. Omitted scope
+and explicit `activation` preserve ordinary join matching. Outputs cannot declare
+scope. Execution inputs must be required on an `all` component that also has a
+normal required input, and cannot be feedback destinations.
+
+Optional runtime/daemon `executionInputs: 1` gates launch, Apply, owner admission
+and adoption. Default metadata advertises it; older owners keep their existing
+graphs but reject the new contract before activation. Private `execution-inputs`
+ledger rows retain the exact delivery/value; pinning and readiness fan-out are
+atomic with emission acknowledgement. No IPC command or public response addition
+is needed. Template UI requires 28.9; existing template gates remain unchanged.
+Database 49, ordinary runtime 1.2, remote 5 and huddle owner/ledger versions remain
+unchanged. The private ledger's existing generic collection storage needs no schema
+migration; the capability prevents an older controller adopting the new owner.
+
 Application **28.8** adds `spawn-agent` to local/SSH component-template requests.
 The UI gates this option on 28.8 while retaining Prompt/Review on 28.3. Response
 shapes are unchanged. Runtime/daemon metadata now advertises optional `spawns: 1`

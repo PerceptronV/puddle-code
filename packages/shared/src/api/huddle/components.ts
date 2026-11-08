@@ -49,6 +49,34 @@ export const huddleComponentSchema = z
     dependencies: z.array(huddleRelativePathSchema).max(HUDDLE_LIMITS.files).default([]),
   })
   .superRefine((component, ctx) => {
+    const retained = Object.entries(component.inputs).filter(
+      ([, port]) => port.scope === 'execution',
+    );
+    for (const [name, port] of retained) {
+      if (!port.required || component.activation !== 'all')
+        ctx.addIssue({
+          code: 'custom',
+          path: ['inputs', name, 'scope'],
+          message: 'Execution inputs must be required and use all-input activation',
+        });
+    }
+    if (
+      retained.length &&
+      !Object.values(component.inputs).some((port) => port.required && port.scope !== 'execution')
+    )
+      ctx.addIssue({
+        code: 'custom',
+        path: ['inputs'],
+        message: 'Execution inputs need a required activation input',
+      });
+    for (const [name, port] of Object.entries(component.outputs)) {
+      if (port.scope !== undefined)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['outputs', name, 'scope'],
+          message: 'Input scope cannot be declared on an output',
+        });
+    }
     if (component.category === 'trigger' && component.entry && !component.trigger)
       ctx.addIssue({
         code: 'custom',

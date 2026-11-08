@@ -1,5 +1,6 @@
 import { huddleComponentSchema } from '../../../api/huddle/components.js';
 import { agentNodeParameters } from './prompt.js';
+import { agentHandleValueSchema } from './handle.js';
 
 export const spawnAgentComponent = huddleComponentSchema.parse({
   format: 1,
@@ -12,14 +13,7 @@ export const spawnAgentComponent = huddleComponentSchema.parse({
   inputs: { value: { schema: {} } },
   outputs: {
     completed: { schema: { type: 'string' } },
-    agent: {
-      schema: {
-        type: 'object',
-        properties: { runtime_id: { type: 'string' }, session_id: { type: 'string' } },
-        required: ['runtime_id', 'session_id'],
-        additionalProperties: false,
-      },
-    },
+    agent: { schema: agentHandleValueSchema },
     turn: { schema: { type: 'string' }, emission: 'event', required: false },
   },
   parameters: {

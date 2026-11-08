@@ -1,7 +1,7 @@
 import { dirname, join } from 'node:path';
 import { mkdirSync, readFileSync, realpathSync, writeFileSync } from 'node:fs';
 import { expect, it, vi } from 'vitest';
-import { runtimeReleaseCapabilities } from '@puddle/shared';
+import { huddleComponentSchema, runtimeReleaseCapabilities } from '@puddle/shared';
 import { huddleExecutionFixture } from '../../helpers/huddle/execution.js';
 import { spawnGraphSnapshot } from '../../helpers/huddle/spawn-graph.js';
 import { runtimeTestAdapter } from '../../helpers/runtime-test-adapter.js';
@@ -59,6 +59,31 @@ async function fixture() {
   };
   return { ...f, execution, accounts, account, adapters, graph, save, input, start, enable };
 }
+
+it('rejects retained execution inputs on an older selected runtime before launch', async () => {
+  const f = await fixture();
+  try {
+    const metadata = runtimeReleaseCapabilities('1.2.3');
+    delete metadata.roles.huddle!.executionInputs;
+    writeFileSync(join(f.installed.release, 'RUNTIME_CAPABILITIES.json'), JSON.stringify(metadata));
+    const worker = f.graph.snapshot.components.worker!;
+    f.graph.snapshot.components.worker = huddleComponentSchema.parse({
+      ...worker,
+      inputs: { ...worker.inputs, retained: { schema: {}, scope: 'execution' } },
+    });
+    f.graph.snapshot.definition.edges.push({
+      id: 'retained',
+      from: { node: 'run', port: 'event' },
+      to: { node: 'worker', port: 'retained' },
+    });
+    f.save();
+    await expect(f.start()).rejects.toMatchObject({ code: 'huddle_execution_unsupported' });
+    expect(f.run).not.toHaveBeenCalled();
+    expect(f.runtimes.hasUnreleasedHuddle(f.session.id)).toBe(false);
+  } finally {
+    await f.close();
+  }
+});
 
 it('rejects unavailable and changed resource choices before retaining a launch', async () => {
   const f = await fixture();

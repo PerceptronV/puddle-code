@@ -1361,7 +1361,15 @@ ledger is now composed by the independent huddle process, but not provider dispa
 and isolated crash evidence are tracked in acceptance. Internal graph routing in
 `runtime/huddle/execution/` commits trigger/output fan-out and join admission
 atomically. Joins correlate execution and activation; each explicit event emission
-and feedback iteration creates a separate activation. Feedback checks actual
+and feedback iteration creates a separate activation. Application 28.9 and optional
+`executionInputs: 1` add explicit input `scope: "execution"`: one immutable delivery
+per execution/node/port, retained under private `execution-inputs` records. It
+supplies waiting and future activations but never creates a cohort by itself.
+Competing deliveries fail even if values match; exact replay stays idempotent.
+Pinning and admission of every newly ready join commit with the originating
+emission, including budget/capacity rollback. These ports must be required on an
+`all` component with a normal required input; outputs and feedback destinations
+cannot use this scope. Ordinary joins keep their activation semantics. Feedback checks actual
 boolean exit conditions and finite round limits. Waiting joins and failed nodes
 prevent successful completion. The internal scheduler drives local scripts,
 manual events and result readouts, including cancellation and explicit feedback
@@ -1677,8 +1685,11 @@ headless mode, title and prompt substitution. It formats input before creation,
 then returns the initial reply and an execution-scoped agent handle. Selectors
 reuse ordinary account queries and read-only puddlang context; stale choices stay
 visible and activation remains authoritative. Existing Prompt/Review templates
-still select existing sessions. Resume/restart, dynamic-handle template ergonomics
-and real-provider acceptance remain unfinished. See the [current usage guide](docs/huddle.md).
+still select existing sessions. Application 28.9 adds Prompt spawned agent and
+Review spawned agent templates with retained `agent` inputs, explicit worktrees
+and editable prompts. They attach only an execution-owned runtime and verify its
+session id before asking; the handle stays immutable across feedback rounds.
+Resume/restart and real-provider acceptance remain unfinished. See the [current usage guide](docs/huddle.md).
 Huddle views can move through panes, project layouts and native
 transfers without creating PTYs or owners. Closing a view is independent of Stop.
 Desktop recovery format 4 migrates versions 2/3; `windows.huddles` gates native

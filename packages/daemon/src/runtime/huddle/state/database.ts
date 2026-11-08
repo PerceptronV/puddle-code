@@ -51,6 +51,7 @@ export type HuddleCollection =
   | 'invocations'
   | 'activations'
   | 'joins'
+  | 'execution-inputs'
   | 'graph-starts'
   | 'revision-activations'
   | 'control'

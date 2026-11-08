@@ -315,6 +315,18 @@ function HuddleEditor({ session, focused }: { session: Session; focused: boolean
                   {component?.description && (
                     <p className="mb-4 text-xs text-fg-muted">{component.description}</p>
                   )}
+                  {component &&
+                    Object.values(component.inputs).some((port) => port.scope === 'execution') && (
+                      <p className="mb-4 text-xs text-fg-muted">
+                        Retained inputs:{' '}
+                        {Object.entries(component.inputs)
+                          .filter(([, port]) => port.scope === 'execution')
+                          .map(([name]) => name)
+                          .join(', ')}
+                        . Connect each once; its value is reused for this execution, including
+                        feedback rounds.
+                      </p>
+                    )}
                   {source && (
                     <button
                       type="button"

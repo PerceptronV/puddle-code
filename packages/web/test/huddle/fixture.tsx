@@ -168,6 +168,7 @@ window.fetch = async (input, init) => {
     (!executionSupported ||
       new URLSearchParams(location.search).has('old-templates') ||
       new URLSearchParams(location.search).has('old-spawn') ||
+      new URLSearchParams(location.search).has('old-owned') ||
       new URLSearchParams(location.search).has('old-layout'))
   ) {
     const version = await transport.request(method, path, body).then((response) => response.json());
@@ -177,11 +178,13 @@ window.fetch = async (input, init) => {
         major: 28,
         minor: !executionSupported
           ? 1
-          : new URLSearchParams(location.search).has('old-spawn')
-            ? 7
-            : new URLSearchParams(location.search).has('old-layout')
-              ? 3
-              : 2,
+          : new URLSearchParams(location.search).has('old-owned')
+            ? 8
+            : new URLSearchParams(location.search).has('old-spawn')
+              ? 7
+              : new URLSearchParams(location.search).has('old-layout')
+                ? 3
+                : 2,
       },
     });
   }

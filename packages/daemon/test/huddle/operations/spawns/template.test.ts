@@ -17,7 +17,7 @@ function template(snapshot: HuddleDefinitionSnapshot, prompt = 'Implement {{inpu
 }
 
 it('executes the published Spawn template, returns its reply and handle, then cleans up on Stop', async () => {
-  const f = await spawnDispatcherFixture(template);
+  const f = await spawnDispatcherFixture((snapshot) => template(snapshot));
   try {
     await f.run();
     await expect.poll(() => f.outcome(), { timeout: 15000 }).toEqual(['completed']);

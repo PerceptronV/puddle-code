@@ -133,7 +133,7 @@ function fixture() {
 }
 
 describe('inactive huddle authoring', () => {
-  it.each(['prompt-agent', 'spawn-agent'] as const)(
+  it.each(['prompt-agent', 'spawn-agent', 'prompt-spawned-agent', 'review-spawned-agent'] as const)(
     'materialises editable %s templates without changing the graph, overwriting edits or starting an owner',
     async (template) => {
       const f = fixture();

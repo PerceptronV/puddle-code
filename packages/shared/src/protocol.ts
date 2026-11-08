@@ -362,7 +362,7 @@
 // 28.5: optional local readout delivery declarations in huddle component contracts.
 // 28.6: explicit captured readout observation and supporting history/runtime projections.
 // 28.7: local custom trigger subscription declarations and opt-in source health.
-export const PROTOCOL_VERSION = { major: 28, minor: 8 } as const;
+export const PROTOCOL_VERSION = { major: 28, minor: 9 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

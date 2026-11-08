@@ -13,6 +13,7 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Add Prompt spawned agent and Review spawned agent nodes with explicit worktrees and handles retained across feedback rounds. Explain retained inputs in the inspector and gate the templates on supporting hosts.
 - Add an editable Spawn agent huddle node with explicit project, worktree, provider and account choices, input substitution, session mode/title and reply/handle outputs. Preserve unavailable selections and gate authoring on supporting hosts.
 - Add Session lifecycle huddle nodes with explicit worktrees, optional stopped/archived session selection and event/status filters. Saving remains inactive.
 - Add Git huddle nodes with explicit worktree/repository selection, ref globs, HEAD observation and debounce settings. Saving remains inactive.
@@ -40,6 +41,7 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Retain explicitly scoped huddle inputs once per execution, joining them with later feedback activations without creating new agents or mixing root events. Reject competing deliveries and commit newly ready joins atomically within execution/storage budgets.
 - Advertise huddle spawn support after integrating admission, dispatch, cleanup and authoring. Honor each execution’s captured stop-owned/retain-owned policy across Apply; retained agents stay under ordinary session controls.
 - Clean up exact huddle-owned agents on Interrupt, Stop and execution failure/deadline, retaining cleanup intent across controller loss and lost replies. Keep Stop pending until exit is confirmed and leave attached or replacement agents under their existing lifecycle rules.
 - Resolve huddle account/provider/project resources at Start and Apply, rechecking profile, login, provider support and registered worktrees before dispatch. Reject spawn-resource graphs on unsupported owners without changing their active revision.
