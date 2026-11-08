@@ -97,20 +97,25 @@ export class HuddleOwner {
         this.spawns,
         pending,
       );
-      this.scheduler = new HuddleScheduler(this.ledger, this.revisions, {
-        nodePath: process.execPath,
-        entryPath: realpathSync(workerEntry),
-        allowance: memory.allowance,
-        operation: (request, invocation, signal) => {
-          if (!launch.capabilities.operations)
-            throw new Error('Owner has no host-operation capability');
-          if (request.action.kind === 'operation' && request.action.operation.op === 'spawn') {
-            if (!this.spawns) throw new Error('Owner has no agent-spawn capability');
-            return this.spawns.request(request, invocation, signal);
-          }
-          return this.operations.request(request, invocation, signal);
+      this.scheduler = new HuddleScheduler(
+        this.ledger,
+        this.revisions,
+        {
+          nodePath: process.execPath,
+          entryPath: realpathSync(workerEntry),
+          allowance: memory.allowance,
+          operation: (request, invocation, signal) => {
+            if (!launch.capabilities.operations)
+              throw new Error('Owner has no host-operation capability');
+            if (request.action.kind === 'operation' && request.action.operation.op === 'spawn') {
+              if (!this.spawns) throw new Error('Owner has no agent-spawn capability');
+              return this.spawns.request(request, invocation, signal);
+            }
+            return this.operations.request(request, invocation, signal);
+          },
         },
-      });
+        () => this.persist(),
+      );
       this.timers = new HuddleTimerController(
         this.ledger,
         this.store,
@@ -257,7 +262,11 @@ export class HuddleOwner {
       commandCursor: this.transport.commandCursor,
       control: this.ledger.activations.current(),
       liveWorkers: this.scheduler.hasLiveWorkers || this.custom.hasLiveWorkers,
-      failure: this.failure,
+      failure:
+        this.failure ??
+        (this.spawns?.cleanupPending
+          ? 'Owned-agent cleanup is pending; inspect the spawned sessions'
+          : null),
       ...(launch.capabilities.customTriggers === 1
         ? {
             customTriggers: this.ledger.customTriggers
@@ -348,9 +357,24 @@ export class HuddleOwner {
       request.t === 'spawn-page' ||
       request.t === 'spawn-claim' ||
       request.t === 'spawn-unavailable' ||
+      request.t === 'spawn-cleanup-settle' ||
+      request.t === 'spawn-cleanup-unavailable' ||
       request.t === 'spawn-settle'
     ) {
       if (!this.spawns) throw new Error('Owner has no agent-spawn capability');
+      if (request.t === 'spawn-cleanup-settle') {
+        this.spawns.cleanupSettle(request.scope, request.outcome);
+        return {
+          t: 'spawn-cleaned',
+          id: request.id,
+          operationId: request.scope.operationId,
+          outcome: request.outcome,
+        };
+      }
+      if (request.t === 'spawn-cleanup-unavailable') {
+        this.spawns.cleanupUnavailable(request.scope, request.error);
+        return { t: 'accepted', id: request.id };
+      }
       if (request.t === 'spawn-page')
         return { t: 'spawn-page', id: request.id, page: this.spawns.page(request.after) };
       if (request.t === 'spawn-claim') {
@@ -484,7 +508,8 @@ export class HuddleOwner {
       }
       return state();
     }
-    if (this.failure) throw new Error('Huddle owner needs recovery');
+    if (this.failure || this.spawns?.cleanupPending)
+      throw new Error('Huddle owner needs recovery or owned-agent cleanup');
     if (request.t === 'readout-observe') {
       if (this.memory.launch.capabilities.readoutObservation !== 1)
         throw new Error('Owner has no readout observation capability');
@@ -626,6 +651,8 @@ export class HuddleOwner {
       await this.driving;
       if (this.scheduler.hasLiveWorkers || this.custom.hasLiveWorkers)
         throw new Error('Huddle worker termination remains unknown');
+      this.persist();
+      await this.spawns?.waitForCleanup();
       await this.transport.close();
       this.status = 'exited';
       this.persist();

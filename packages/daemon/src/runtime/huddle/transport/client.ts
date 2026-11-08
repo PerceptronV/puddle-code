@@ -122,10 +122,7 @@ export class HuddleOwnerClient extends EventEmitter {
   }
   request(value: Command): Promise<HuddleOwnerResponse> {
     if (this.closed) return Promise.reject(new RuntimeConnectionLost());
-    if (
-      ['spawn-page', 'spawn-claim', 'spawn-settle', 'spawn-unavailable'].includes(value.t) &&
-      this.state?.capabilities.spawns !== 1
-    )
+    if (value.t.startsWith('spawn-') && this.state?.capabilities.spawns !== 1)
       return Promise.reject(
         new HuddleOwnerRejected('rejected', 'Owner has no agent-spawn capability'),
       );

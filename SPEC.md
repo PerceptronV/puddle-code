@@ -1460,8 +1460,20 @@ project; account labels and implicit current/default selections are unavailable.
 Admission rechecks these choices after asynchronous preparation and before dispatch;
 Apply retains earlier activations' bindings. Launch, Apply and independent owner
 admission reject graphs declaring these resource editors without `spawns: 1`.
-Lifecycle cleanup and user-facing spawn/resume/restart nodes remain unfinished.
-No spawn capability is advertised until those pieces are connected.
+Owned-agent cleanup is now retained separately from readiness under owner ledger
+`spawn-cleanup` records, reserved atomically with each spawn. Successful executions
+retain agents; failed/cancelled executions request their own cleanup, while explicit
+Interrupt/Stop requests all retained owned agents, including completed executions.
+Unconsumed spawns are fenced locally. The shared dispatcher observes each pending
+cleanup through the existing exact-runtime host stop service, then acknowledges
+`spawn-cleanup-settle`; lost replies never grant another stop. Bounded failure
+reports use `spawn-cleanup-unavailable`. Pending cleanup survives controller loss,
+appears in owner failure inspection and blocks rearming. Stop waits for confirmed
+cleanup without occupying the private command queue, then releases owner claims only
+after the ordinary worker/process exit checks. Deadline failure notifies the host
+even while another execution continues. Attached agents keep their existing exact
+ask-cancellation policy. Default metadata still omits the unadvertised spawn gate;
+user-facing spawn/resume/restart nodes and rollout remain unfinished.
 Private immutable revision documents and compare-and-swap activation records
 separate source publication from Apply/arming. Managed executions retain their
 accepted revision, variable values and resource bindings across later Apply.

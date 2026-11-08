@@ -53,8 +53,10 @@ serves private spawn messages behind an unadvertised capability, with reconnect
 and interruption checks. Production dispatch now scans both operation queues,
 observes retained creation across controller replacement and drives the subsequent
 agent prompt. Start/Apply now resolve and recheck explicit account/provider/project
-resources alongside registered worktrees, rejecting unsupported owners. Lifecycle
-cleanup policy, spawn/resume templates and native-provider acceptance remain pending.
+resources alongside registered worktrees, rejecting unsupported owners. Durable
+owned-agent cleanup now handles Interrupt/Stop and failed/deadline executions,
+retains pending cleanup across controller loss and waits for exact exit before Stop
+completes. Spawn rollout/templates, resume/restart and native-provider acceptance remain pending.
 The [usage guide](../huddle.md) describes the implemented slice.
 Phase 4 now has runtime-owned interval, one-off date/time and daily/selected-weekday
 calendar triggers, durable occurrence admission, coalesce/skip/bounded catch-up,
@@ -586,7 +588,8 @@ messages are composed by the owner behind an unadvertised capability. Automatic
 spawn dispatch now shares the daemon operation queue and maintenance gate. Start/Apply
 resolve explicit account ids, matching scripted-turn providers, the source project
 and canonical registered worktrees, with admission rechecks and owner capability
-gates. Cleanup and resume integration remain pending. Ordinary
+gates. Owned-agent cleanup now has separate retained intent/acknowledgements and
+shares the operation dispatcher; resume integration remains pending. Ordinary
 puddlang runner operations still depend on a daemon-owned run record. Extract/reuse their agent
 semantics with an explicit owner caller type and durable invocation keys. During
 daemon absence, owner-local triggers and scripts can continue; operations needing

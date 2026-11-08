@@ -21,12 +21,14 @@ import { HuddleGitSources } from './git.js';
 import { HuddleFiletrees } from './filetrees.js';
 import { HuddleActivations } from './activation.js';
 import { HuddleCustomTriggers } from './custom-triggers.js';
+import { HuddleSpawnCleanup } from './spawn-cleanup.js';
 
 /** Owner-local durable execution authority; application SQLite remains daemon-owned. */
 export class HuddleLedger {
   readonly executions: HuddleExecutions;
   readonly invocations: HuddleInvocations;
   readonly operations: HuddleOperations;
+  readonly spawnCleanup: HuddleSpawnCleanup;
   readonly activations: HuddleActivations;
   readonly intervals: HuddleIntervals;
   readonly schedules: HuddleSchedules;
@@ -46,6 +48,7 @@ export class HuddleLedger {
     this.executions = new HuddleExecutions(this.database);
     this.invocations = new HuddleInvocations(this.database, this.executions);
     this.operations = new HuddleOperations(this.database, this.executions, this.invocations);
+    this.spawnCleanup = new HuddleSpawnCleanup(this.database);
     this.activations = new HuddleActivations(this.database);
     this.customTriggers = new HuddleCustomTriggers(
       this.database,
@@ -125,6 +128,7 @@ export class HuddleLedger {
       // Release the root's terminal-outcome reservation within the same transaction.
       // Subsequent cancellation writes cannot expose a partially stopped graph.
       this.executions.finish(executionId, state, reason);
+      this.spawnCleanup.request(executionId);
       this.scan('operations', { parent: executionId }, (row) => {
         const operation = huddleOperationRecordSchema.parse(JSON.parse(row.body));
         if (operation.state === 'prepared') this.operations.cancelUnsent(operation.id);

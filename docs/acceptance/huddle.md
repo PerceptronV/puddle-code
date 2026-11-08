@@ -32,6 +32,50 @@ delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 No user CLI command is enabled yet.
 
+## Implemented: durable owned-agent lifecycle cleanup
+
+Owner `state/spawn-cleanup.ts` retains cleanup independently of spawn readiness.
+Each spawn reserves a separate record and 32 KiB outcome/error allowance atomically
+with its original operation, so interruption does not need a new record allocation.
+Successful executions retain agents. Execution failure/cancellation/deadline requests
+cleanup for that execution; explicit Interrupt or Stop requests all retained owned
+agents, including agents retained after earlier successful executions. Unconsumed
+spawns and positively refused admission are fenced and confirmed locally.
+
+Spawn pages now expose retained/pending/confirmed cleanup state under the existing
+unadvertised `spawns: 1` contract. `dispatch/cleanup.ts` reuses exact host cancellation,
+with the original runtime identity and one durable stop attempt. It acknowledges
+positive unadmitted/unlaunched/stopped outcomes through `spawn-cleanup-settle`, or
+retains a bounded error through `spawn-cleanup-unavailable`. Lost host replies are
+observed; lost acknowledgement replies cause a fresh owner-ledger read. Neither
+controller replacement nor maintenance alone requests cleanup. Replacement runtimes
+in the original placement are never stopped on the earlier spawn's behalf.
+
+Pending cleanup appears in ordinary owner failure inspection and blocks rearming.
+Stop remains inspectable in `stopping`, awaiting confirmation without occupying its
+private command queue. It closes transport and releases claims only after cleanup
+and existing worker/process exit requirements are satisfied. Interrupt returns once
+node/trigger workers settle; agent cleanup may still be pending and inspectable.
+Deadline failure notifies the host immediately even while another graph runs.
+Attached agents retain their existing exact-ask cancellation rules.
+
+Isolated tests cover completed-agent retention, Interrupt, host Stop and owner
+retirement, deadline cleanup, pending cleanup through dispatcher loss and fresh
+controller connections, interruption before readiness, lost stop replies, lost
+cleanup acknowledgements and ledger reopening. They also check that
+cleanup cannot be falsely confirmed as unadmitted after known readiness. Automatic
+cleanup is now integrated; default metadata still omits spawn support pending its
+user-facing rollout. Native providers, native supervision, SSH/reboot, owner-crash
+recovery and the optional explicit retention policy remain separate acceptance work.
+
+Verification: **211 distinct tests across 38 files** passed across the regression
+run and focused rerun. The initial regression passed 209/210; its remaining older
+handoff fixture closed the dispatcher before cleanup confirmation. That fixture now
+waits for confirmed host Stop, and all eight focused dispatcher/admission checks
+passed. TypeScript for shared/daemon/CLI, scoped ESLint, formatting and diff checks
+passed. Temporary process inspection confirmed no fixture children remained.
+No production daemon, native desktop or real-provider session was used.
+
 ## Implemented: Start/Apply spawn resource admission
 
 `huddle/execution/resources.ts` resolves declared account, provider and project
@@ -50,8 +94,8 @@ Apply, plus independent owner admission/arming, require `spawns: 1` for graphs
 declaring account/provider/project editors. An older owner remains inspectable and
 can execute ordinary scripts; rejected Apply leaves its current activation intact.
 
-The spawn capability remains **unadvertised** pending owned-agent cleanup on
-Interrupt/Stop/deadline. This change adds no public protocol or database version and
+The spawn capability remains **unadvertised** pending user-facing rollout; owned-agent
+cleanup is implemented above. This change adds no public protocol or database version and
 does not enable spawn templates. Runtime-operation admission continues to recheck
 account/provider/placement authority before creating an agent.
 
@@ -94,9 +138,9 @@ observed. Successful graph completion retains its agents. Ended invocations rema
 eligible for late result observation, without starting another script or agent.
 
 This is still gated by the **unadvertised** spawn contract. Owned-agent cleanup
-on Interrupt/Stop/deadline and node templates remain
-required before user-facing spawn support is enabled. Automatic cleanup is not
-implied by the dispatcher; tests explicitly stop their fixture-owned agents. Native
+on Interrupt/Stop/deadline is now integrated above; node templates and rollout remain
+pending. These earlier dispatch tests explicitly stop their fixture-owned agents;
+the separate lifecycle tests exercise automatic cleanup. Native
 providers, supervisor replacement, SSH/reboot and packaged continuity still need
 acceptance.
 
@@ -124,7 +168,7 @@ the owner is connected, without resuming cancelled script bodies.
 
 The proposed optional `spawns: 1` contract requires `operations: 2`. Schemas and
 owner/client gates understand it, but **default runtime and daemon metadata still
-omit it**: owned-agent cleanup must be completed before advertising spawn support. Older
+omit it** pending user-facing rollout; owned-agent cleanup is integrated above. Older
 owners retain their original capabilities and ask messages. The client refuses
 spawn commands locally when unsupported, preserving the connection; the server
 independently enforces its launch capability. Adoption metadata that lacks spawn
@@ -179,7 +223,8 @@ agent ask, then exact cleanup. The source owner is composed in the test process;
 the agent and node workers run as separate child processes. This proves the queue
 and host-service composition, **not** production owner IPC or native-provider
 acceptance. The private owner transport is now implemented as described above;
-Start/Apply resource resolution is also implemented above; lifecycle cleanup remains required before advertising spawn support or enabling templates.
+Start/Apply resource resolution and lifecycle cleanup are also implemented above;
+spawn templates and rollout remain pending.
 This earlier owner-local increment introduced no wire change.
 
 Verification, 2026-11-08: **112 tests in 18 files** passed across huddle operations,

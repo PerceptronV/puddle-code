@@ -55,6 +55,7 @@ export type HuddleCollection =
   | 'revision-activations'
   | 'control'
   | 'operations'
+  | 'spawn-cleanup'
   | 'emissions';
 
 /** One private writer, with transactions covering data, cursors and outcome reservations. */

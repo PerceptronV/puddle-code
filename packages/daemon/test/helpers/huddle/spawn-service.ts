@@ -50,6 +50,8 @@ export function huddleSpawnServiceFixture(
     {
       connected: (id, client) => f.reconciler.attach(id, client),
       missing: (id) => f.reconciler.retire(id),
+      huddleConnected: (id, client) => f.reconciler.attachHuddle(id, client),
+      huddleMissing: (id) => f.reconciler.retire(id),
     },
     f.controller,
   );

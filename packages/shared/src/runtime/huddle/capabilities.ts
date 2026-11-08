@@ -21,7 +21,7 @@ export const huddleRuntimeCapabilitiesSchema = z.strictObject({
   customTriggers: version.optional(),
 });
 export type HuddleRuntimeCapabilities = z.infer<typeof huddleRuntimeCapabilitiesSchema>;
-// Keep spawns unadvertised until owned-agent cleanup is integrated.
+// Spawn transport, resource admission and cleanup are integrated; user-facing rollout follows.
 export const HUDDLE_RUNTIME_CAPABILITIES: Readonly<HuddleRuntimeCapabilities> = Object.freeze({
   owner: 1,
   definition: 1,

@@ -1,6 +1,6 @@
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
-import { spawnOwnerFixture } from '../../../helpers/huddle/spawn-owner.js';
+import { spawnDispatcherFixture as fixture } from '../../../helpers/huddle/spawn-dispatch.js';
 import { HuddleAgentDispatcher } from '../../../../src/huddle/operations/dispatch/service.js';
 import { HuddleAgentSpawns } from '../../../../src/huddle/operations/spawns/service.js';
 import { HuddleAgentTurns } from '../../../../src/huddle/operations/turns/service.js';
@@ -13,47 +13,6 @@ import { RuntimeReconciler } from '../../../../src/runtime/controller/reconcile.
 import { RuntimeProgrammeTurns } from '../../../../src/runtime/controller/programme-turns.js';
 import { RuntimeControls } from '../../../../src/runtime/controller/controls.js';
 import { ProgrammeTurnStore } from '../../../../src/puddlang/runtime-turn-store.js';
-
-async function fixture() {
-  const f = await spawnOwnerFixture();
-  const turns = new HuddleAgentTurns(f.deps.turns, new HuddleTurnStore(f.db));
-  let dispatcher = new HuddleAgentDispatcher({ ...f, turns });
-  dispatcher.start();
-  return {
-    ...f,
-    get dispatcher() {
-      return dispatcher;
-    },
-    replace(spawns = f.spawns) {
-      dispatcher = new HuddleAgentDispatcher({ ...f, turns, spawns });
-      dispatcher.start();
-    },
-    async outcome() {
-      const reply = await f.huddle.request({ t: 'records', collection: 'executions', after: 0 });
-      if (reply.t !== 'records') throw new Error('No execution records');
-      return reply.rows.map((row) => JSON.parse(row.body).state);
-    },
-    async spawnRecord() {
-      const reply = await f.huddle.request({ t: 'spawn-page', after: 0 });
-      if (reply.t !== 'spawn-page') throw new Error('No spawn records');
-      return reply.page.records[0]?.operation;
-    },
-    async close() {
-      await dispatcher.close();
-      for (const row of f.db.prepare('SELECT intent FROM huddle_runtime_spawns').all() as {
-        intent: string;
-      }[]) {
-        const { scope, request } = JSON.parse(row.intent);
-        try {
-          await f.spawns.cancel(scope, request, () => true);
-        } catch {
-          /* Isolated fixture child tracking fences unresolved processes. */
-        }
-      }
-      await f.close();
-    },
-  };
-}
 
 it('automatically creates one agent, returns its handle and completes the next exact prompt', async () => {
   const f = await fixture();
@@ -249,7 +208,7 @@ it('adopts spawn readiness with new controller connections and reconciliation wi
       state: 'stopped',
     });
     await client.request({ t: 'interrupt' });
-    await client.request({ t: 'shutdown' });
+    await controls.huddles.stop(operation.scope.owner.session_id, () => true);
   } finally {
     observe.mockRestore();
     await dispatcher?.close();

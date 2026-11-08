@@ -15,13 +15,23 @@ import type { HuddleOwnerClient } from '../../../src/runtime/huddle/transport/cl
 import { HuddleRevisionStore } from '../../../src/runtime/huddle/state/revisions.js';
 import { runtimeDirectory } from '../../../src/runtime/ownership/storage.js';
 import { huddleRevisionDigest } from '../../../src/huddle/definitions/revision.js';
+import type { HuddleDefinitionSnapshot } from '../../../src/huddle/definitions/capture.js';
 
 /** Real independent source/node/agent processes; the test is the explicit private spawn dispatcher. */
-export async function spawnOwnerFixture(enabled = true) {
+export async function spawnOwnerFixture(
+  enabled = true,
+  edit?: (snapshot: HuddleDefinitionSnapshot) => void,
+) {
   const capabilities = { ...HUDDLE_RUNTIME_CAPABILITIES, ...(enabled ? { spawns: 1 } : {}) };
   const f = huddleSpawnServiceFixture(120_000, capabilities);
   const binding = f.runtimes.get(f.scope.owner.runtime_id)!;
   const { snapshot, bindings } = spawnGraphSnapshot(binding.huddle_id!, f.request);
+  if (edit) {
+    edit(snapshot);
+    snapshot.files['huddle.json'] = JSON.stringify(snapshot.definition);
+    snapshot.files['nodes/example/node.json'] = JSON.stringify(snapshot.components.worker);
+    snapshot.digest = huddleRevisionDigest(snapshot.files, snapshot.components);
+  }
   if (!enabled) {
     // Older owners can run ordinary scripts, but cannot admit spawn resource declarations.
     const worker = snapshot.definition.nodes.find((node) => node.id === 'worker')!;
@@ -68,6 +78,24 @@ export async function spawnOwnerFixture(enabled = true) {
     if (client) {
       try {
         await client.request({ t: 'interrupt' });
+        if (enabled) {
+          let after = 0;
+          for (;;) {
+            const page = await client.request({ t: 'spawn-page', after });
+            if (page.t !== 'spawn-page' || page.page.next === after) break;
+            after = page.page.next;
+            for (const { operation } of page.page.records) {
+              if (operation.cleanup.state !== 'pending') continue;
+              const result = await f.spawns.cancel(operation.scope, operation.request, () => true);
+              if (result.state !== 'pending')
+                await client.request({
+                  t: 'spawn-cleanup-settle',
+                  scope: operation.scope,
+                  outcome: result.state,
+                });
+            }
+          }
+        }
         await client.request({ t: 'shutdown' });
       } catch {
         /* Fixture child tracking fences unresolved processes during teardown. */
@@ -90,7 +118,6 @@ export async function spawnOwnerFixture(enabled = true) {
         client = f.connections.getHuddle(binding.runtime_id) ?? undefined;
         return !!client;
       });
-      await f.reconciler.attachHuddle(binding.runtime_id, client!);
       return client!;
     };
     await connect();

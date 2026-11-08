@@ -23,7 +23,11 @@ import {
 } from './operations/mailbox.js';
 import { huddleTurnScopeSchema } from './operations/agents.js';
 import { huddleSpawnOutcomeSchema, huddleSpawnScopeSchema } from './operations/spawns.js';
-import { huddleSpawnOperationSchema, huddleSpawnPageSchema } from './operations/spawn-mailbox.js';
+import {
+  huddleSpawnOperationSchema,
+  huddleSpawnPageSchema,
+  huddleSpawnCleanupOutcomeSchema,
+} from './operations/spawn-mailbox.js';
 import { huddleCustomTriggerViewSchema, HUDDLE_CUSTOM_TRIGGER_LIMIT } from './triggers/custom.js';
 
 /** Unshipped role contract. No agent/terminal message or retained record changes. */
@@ -152,6 +156,18 @@ export const huddleOwnerRequestSchema = z.discriminatedUnion('t', [
   z.strictObject({ t: z.literal('spawn-page'), ...request, after: sequence }),
   z.strictObject({ t: z.literal('spawn-claim'), ...request, operationId: z.uuid() }),
   z.strictObject({
+    t: z.literal('spawn-cleanup-settle'),
+    ...request,
+    scope: huddleSpawnScopeSchema,
+    outcome: huddleSpawnCleanupOutcomeSchema,
+  }),
+  z.strictObject({
+    t: z.literal('spawn-cleanup-unavailable'),
+    ...request,
+    scope: huddleSpawnScopeSchema,
+    error: z.string().min(1).max(4096),
+  }),
+  z.strictObject({
     t: z.literal('spawn-unavailable'),
     ...request,
     scope: huddleSpawnScopeSchema,
@@ -233,6 +249,12 @@ export const huddleOwnerResponseSchema = z.discriminatedUnion('t', [
   }),
   z.strictObject({ t: z.literal('operation-page'), id: z.uuid(), page: huddleOperationPageSchema }),
   z.strictObject({ t: z.literal('spawn-page'), id: z.uuid(), page: huddleSpawnPageSchema }),
+  z.strictObject({
+    t: z.literal('spawn-cleaned'),
+    id: z.uuid(),
+    operationId: z.uuid(),
+    outcome: huddleSpawnCleanupOutcomeSchema,
+  }),
   z.strictObject({
     t: z.literal('spawn-claim'),
     id: z.uuid(),

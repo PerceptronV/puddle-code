@@ -632,8 +632,14 @@ Start/Apply resource resolution lives in `huddle/execution/resources.ts`. Requir
 explicit account ids, current-profile login, matching declared scripted-turn
 providers and the source project; retain canonical registered worktrees. Recheck
 after asynchronous admission and before dispatch. Graphs declaring account/provider/
-project editors require `spawns: 1` at host and owner admission. Lifecycle cleanup
-and authoring remain pending; do not advertise spawn support yet.
+project editors require `spawns: 1` at host and owner admission. Owner cleanup state
+lives in `runtime/huddle/state/spawn-cleanup.ts`, reserved alongside spawn intent.
+`dispatch/cleanup.ts` observes exact host stops and acknowledges retained outcomes;
+never infer cleanup authority from controller loss or maintenance. Interrupt/Stop
+request all owned agents; failed executions request their own. Stop keeps the owner
+inspectable until cleanup is confirmed, without blocking its command queue. Keep
+unknown cleanup visible and rearming blocked; do not stop a replacement runtime.
+Spawn rollout and authoring remain pending behind the unadvertised capability.
 Migration 45 adds `huddle_runtime_turns`. Host-side exact asks live under
 `huddle/operations/turns/`, reusing `RuntimeProgrammeTurns.askFor` and the common
 busy gate. Shared ordered allocation/result reservation lives in

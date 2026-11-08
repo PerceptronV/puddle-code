@@ -13,6 +13,7 @@ import {
   type HuddleInvocationRecord,
   type HuddleSpawnOutcome,
   type HuddleSpawnScope,
+  type HuddleSpawnCleanupOutcome,
   type HuddleWorkerRequest,
   type RuntimeIdentity,
 } from '@puddle/shared';
@@ -24,6 +25,7 @@ import { huddleSpawnReceipt } from '../../../../huddle/operations/spawns/receipt
 
 /** Owner-local spawn outbox. Only a fresh consumed claim permits host creation. */
 export class HuddleSpawnMailbox {
+  private cleanupWaiter?: { promise: Promise<void>; resolve(): void };
   constructor(
     private readonly identity: RuntimeIdentity,
     private readonly ledger: HuddleLedger,
@@ -102,6 +104,7 @@ export class HuddleSpawnMailbox {
         invocation.state === 'running' &&
         Date.now() < execution.deadline,
       state: operation.state,
+      cleanup: this.ledger.spawnCleanup.get(id),
       ...(operation.result === undefined ? {} : { result: operation.result }),
     });
   }
@@ -137,7 +140,7 @@ export class HuddleSpawnMailbox {
   claim(id: string) {
     const before = this.describe(id);
     if (before.state !== 'prepared') return { dispatch: false, operation: before };
-    if (!before.active || !this.pending.has(id))
+    if (!before.active || !this.pending.has(id) || before.cleanup.state !== 'retained')
       throw new Error('The node is no longer awaiting this spawn');
     this.ledger.operations.dispatch(id);
     this.changed();
@@ -172,6 +175,36 @@ export class HuddleSpawnMailbox {
     else this.ledger.operations.unknown(before.scope.operationId, error);
     this.changed();
     this.pending.reject(before.scope.operationId, new Error(error));
+  }
+
+  get cleanupPending() {
+    return this.ledger.spawnCleanup.pending > 0;
+  }
+  waitForCleanup(): Promise<void> {
+    if (!this.cleanupPending) return Promise.resolve();
+    if (!this.cleanupWaiter) {
+      let resolve!: () => void;
+      const promise = new Promise<void>((done) => {
+        resolve = done;
+      });
+      this.cleanupWaiter = { promise, resolve };
+    }
+    return this.cleanupWaiter.promise;
+  }
+  cleanupSettle(scope: HuddleSpawnScope, outcome: HuddleSpawnCleanupOutcome) {
+    const before = this.scoped(scope);
+    if (before.state === 'completed' && outcome !== 'stopped')
+      throw new Error('A ready agent requires confirmed runtime shutdown');
+    const changed = this.ledger.spawnCleanup.settle(scope.operationId, outcome);
+    if (!this.cleanupPending) {
+      this.cleanupWaiter?.resolve();
+      this.cleanupWaiter = undefined;
+    }
+    if (changed) this.changed();
+  }
+  cleanupUnavailable(scope: HuddleSpawnScope, error: string) {
+    this.scoped(scope);
+    if (this.ledger.spawnCleanup.unavailable(scope.operationId, error)) this.changed();
   }
 
   /** Handles can cross nodes within one execution, never silently cross execution/worktree scope. */

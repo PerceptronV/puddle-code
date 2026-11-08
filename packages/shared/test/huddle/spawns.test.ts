@@ -39,6 +39,7 @@ const operation = {
   },
   deadline: Date.now() + 60000,
   active: true,
+  cleanup: { state: 'retained' },
   state: 'prepared',
 };
 const result = {

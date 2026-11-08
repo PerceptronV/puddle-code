@@ -9,6 +9,7 @@ import {
 import { HuddleStateDatabase, stateJson } from './database.js';
 import { HuddleInvocations } from './invocations.js';
 import { HuddleExecutions } from './executions.js';
+import { HuddleSpawnCleanup } from './spawn-cleanup.js';
 
 const OUTCOME_RESERVATION = HUDDLE_LIMITS.valueBytes + 8192;
 
@@ -52,6 +53,8 @@ export class HuddleOperations {
       if (invocation.state !== 'running')
         throw new Error('Operation requires a running node invocation');
       this.save(operation, OUTCOME_RESERVATION);
+      if (operation.kind === 'spawn')
+        new HuddleSpawnCleanup(this.db).prepare(operation.id, operation.executionId);
       return { record: operation, duplicate: false };
     });
   }

@@ -8,6 +8,14 @@ import {
 } from './spawns.js';
 
 export const huddleSpawnRejectionSchema = z.strictObject({ rejected: z.string().min(1).max(4096) });
+export const huddleSpawnCleanupOutcomeSchema = z.enum(['unadmitted', 'unlaunched', 'stopped']);
+export const huddleSpawnCleanupSchema = z.discriminatedUnion('state', [
+  z.strictObject({ state: z.literal('retained') }),
+  z.strictObject({ state: z.literal('pending'), error: z.string().min(1).max(4096).optional() }),
+  z.strictObject({ state: z.literal('confirmed'), outcome: huddleSpawnCleanupOutcomeSchema }),
+]);
+export type HuddleSpawnCleanup = z.infer<typeof huddleSpawnCleanupSchema>;
+export type HuddleSpawnCleanupOutcome = z.infer<typeof huddleSpawnCleanupOutcomeSchema>;
 
 /** Internal owner queue contract. Transport support is negotiated separately. */
 export const huddleSpawnOperationSchema = z
@@ -17,6 +25,7 @@ export const huddleSpawnOperationSchema = z
     request: huddleSpawnRequestSchema,
     deadline: z.number().int().nonnegative().safe(),
     active: z.boolean(),
+    cleanup: huddleSpawnCleanupSchema,
     state: z.enum(['prepared', 'dispatched', 'completed', 'failed', 'unknown', 'cancelled']),
     result: z.union([huddleSpawnOutcomeSchema, huddleSpawnRejectionSchema]).optional(),
   })

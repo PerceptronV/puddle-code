@@ -23,6 +23,7 @@ export class HuddleScheduler {
     private readonly ledger: HuddleLedger,
     revisions: HuddleRevisionController,
     options: HuddleAttemptOptions,
+    private readonly changed: () => void = () => {},
   ) {
     this.contexts = new HuddleExecutionContexts(ledger, revisions, options.allowance);
     this.attempts = new HuddleAttempts(
@@ -57,6 +58,7 @@ export class HuddleScheduler {
   async halt(intent: 'stopped' | 'interrupted', reason: string): Promise<void> {
     const current = this.ledger.activations.current();
     this.ledger.activations.setIntent(current.generation, intent, current.autoStart);
+    this.ledger.spawnCleanup.request();
     this.attempts.cancelAll(reason);
     for (const execution of this.executions()) {
       this.attempts.cancel(execution.id, reason);
@@ -66,6 +68,7 @@ export class HuddleScheduler {
         reason.slice(0, 4096),
       );
     }
+    if (this.ledger.spawnCleanup.pending) this.changed();
     await this.drain();
   }
 
@@ -191,5 +194,6 @@ export class HuddleScheduler {
     const reason = (error instanceof Error ? error.message : String(error)).slice(0, 4096);
     this.attempts.cancel(id, reason);
     this.ledger.interrupt(id, 'failed', reason);
+    if (this.ledger.spawnCleanup.pending) this.changed();
   }
 }

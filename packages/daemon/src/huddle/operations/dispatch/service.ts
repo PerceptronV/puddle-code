@@ -10,6 +10,7 @@ import type { HuddleAgentSpawns } from '../spawns/service.js';
 import type { HuddleDispatchTask } from './context.js';
 import { executeHuddleAsk } from './turns.js';
 import { executeHuddleSpawn } from './spawns.js';
+import { cleanupHuddleSpawn } from './cleanup.js';
 
 type Task =
   | ({ kind: 'ask' } & HuddleDispatchTask<HuddleAgentOperation>)
@@ -152,9 +153,12 @@ export class HuddleAgentDispatcher {
               continue;
             }
             if (
-              operation.state === 'cancelled' ||
-              (operation.result && 'rejected' in operation.result) ||
-              (task.kind === 'spawn' && operation.state === 'completed')
+              (task.kind !== 'spawn' || task.operation.cleanup.state !== 'pending') &&
+              (operation.state === 'cancelled' ||
+                (operation.result && 'rejected' in operation.result) ||
+                (task.kind === 'spawn' &&
+                  (operation.state === 'completed' ||
+                    task.operation.cleanup.state === 'confirmed')))
             )
               continue;
             if (this.tasks >= 64) {
@@ -233,7 +237,14 @@ export class HuddleAgentDispatcher {
     };
     try {
       if (task.kind === 'ask') await executeHuddleAsk({ ...context, task }, this.deps.turns);
-      else if (this.deps.spawns) await executeHuddleSpawn({ ...context, task }, this.deps.spawns);
+      else if (this.deps.spawns) {
+        const cleanupPending = () => task.operation.cleanup.state === 'pending';
+        if (cleanupPending()) await cleanupHuddleSpawn({ ...context, task }, this.deps.spawns);
+        else {
+          await executeHuddleSpawn({ ...context, task }, this.deps.spawns);
+          if (this.current(entry) && cleanupPending()) entry.changed();
+        }
+      }
     } finally {
       clearTimeout(timer);
     }
