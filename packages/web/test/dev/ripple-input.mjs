@@ -47,9 +47,28 @@ try {
       'default split leaves input native',
     );
     const textarea = await page.locator('.xterm-helper-textarea').elementHandle();
-    await boundary(0);
+    const handle = await page.getByRole('separator', { name: 'Native CLI boundary' }).boundingBox();
+    const pane = await page.locator('.puddle-terminal-ripple').boundingBox();
+    await page.mouse.move(handle.x + handle.width / 2, handle.y + handle.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(handle.x + handle.width / 2, pane.y + pane.height - 1, { steps: 8 });
+    await page.mouse.up();
     const projection = page.getByRole('group', { name: 'Live terminal input' });
     await projection.waitFor();
+    const coverage = await page.evaluate(() => {
+      const reader = document.querySelector('.ripple').getBoundingClientRect();
+      const screen = document.querySelector('.xterm-screen').getBoundingClientRect();
+      const pane = document.querySelector('.puddle-terminal-ripple').getBoundingClientRect();
+      return {
+        left: reader.left - screen.left,
+        right: screen.right - reader.right,
+        bottom: pane.bottom - reader.bottom,
+      };
+    });
+    assert.ok(
+      coverage.left <= 0 && coverage.right <= 0 && Math.abs(coverage.bottom) < 1,
+      `full coverage must not expose native cells beside projected input: ${JSON.stringify(coverage)}`,
+    );
     assert.ok((await projection.innerText()).includes(draft), 'draft Markdown stays literal');
     assert.equal(await projection.locator('strong').count(), 0);
     assert.ok((await projection.innerText()).includes('continuation <literal>'));

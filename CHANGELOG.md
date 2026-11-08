@@ -17,4 +17,5 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
+- Cover the native terminal's leftmost column in Ripple so prompt markers and input do not appear twice when the handle is dragged to the bottom, on desktop and mobile.
 - Refresh cached website favicons, installed web app icons and notification icons to use the new Puddle logo set.

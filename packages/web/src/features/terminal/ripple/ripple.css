@@ -14,7 +14,7 @@
 
 .ripple {
   position: absolute;
-  inset: 0 var(--ripple-gutter) auto;
+  inset: 0 var(--ripple-gutter) auto 0;
   z-index: 2;
   --ripple-grip-width: 1rem;
   background: var(--bg-base);
