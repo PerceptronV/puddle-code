@@ -45,6 +45,8 @@ import { restoredCockpitBounds, type DisplayGeometry } from './window-bounds.js'
 import { readX11Workspace, restoreX11Workspace } from './x11-workspace.js';
 import { refreshNavigation } from './refresh-navigation.js';
 import { hostUpdateApprovals } from './host-updates/approval.js';
+import { WindowEffects } from './windows/effects/coordination.js';
+import { registerWindowEffectsIpc } from './windows/effects/ipc.js';
 import { DesktopNotifications } from './notifications.js';
 import { HostConnections, type HostConnection } from './windows/hosts/connections.js';
 import { DesktopWindowState } from './windows/persistence/state.js';
@@ -107,6 +109,7 @@ const connections = new HostConnections<RunningCockpit, ShellWindow>(
 );
 const shells = connections.hosts;
 const notifications = new Map<number, DesktopNotifications>();
+const hostNotifications = new Map<string, DesktopNotifications>();
 // Include saved targets whose reconnect is still pending or failed. An empty
 // live-shell map during startup must not erase the previous window set.
 const rememberedWindows = new Map<string, ReopenWindow>();
@@ -119,6 +122,27 @@ let restoringWindows = true;
 let windowStateLoaded = false;
 let windowState: DesktopWindowState | null = null;
 const windowCommands = new WindowCommands();
+const windowEffects = new WindowEffects(
+  () =>
+    [...shells.values()].flatMap((host) =>
+      [...host.windows.values()]
+        .filter(({ identity, win }) => !win.isDestroyed() && windowCommands.available(identity.id))
+        .map(({ identity, win }) => ({
+          id: identity.id,
+          host: host.target,
+          kind: identity.kind,
+          focused: win.isFocused(),
+        })),
+    ),
+  (id, status) => {
+    for (const host of shells.values()) {
+      const window = host.windows.get(id);
+      if (window && !window.win.isDestroyed())
+        window.win.webContents.send('puddle:window-effects-changed', status);
+    }
+  },
+);
+
 const windowNavigations = new WindowNavigations();
 const windowDrags = new WindowDrags({
   context: (id) => {
@@ -443,8 +467,11 @@ async function reloadWindow(win: BrowserWindow, ignoreCache = false): Promise<vo
   }
 }
 
-function preferredWindow(host: Shell | undefined): BrowserWindow | undefined {
-  const windows = [...(host?.windows.values() ?? [])].filter(({ win }) => !win.isDestroyed());
+function preferredWindow(host: Shell | undefined, readyOnly = false): BrowserWindow | undefined {
+  const windows = [...(host?.windows.values() ?? [])].filter(
+    ({ identity, win }) =>
+      !win.isDestroyed() && (!readyOnly || windowCommands.available(identity.id)),
+  );
   return (
     windows.find(({ win }) => win.isFocused?.()) ??
     windows.find(({ identity }) => identity.kind === 'host') ??
@@ -522,25 +549,35 @@ function createWindow(
     win.show();
   }
 
-  const delivery = new DesktopNotifications(win, () => raise(win));
+  let delivery = hostNotifications.get(target);
+  if (!delivery) {
+    delivery = new DesktopNotifications(() => preferredWindow(shells.get(target), true), raise);
+    hostNotifications.set(target, delivery);
+  }
   const contentsId = win.webContents.id;
   notifications.set(contentsId, delivery);
   win.on('closed', () => {
-    delivery.close();
     notifications.delete(contentsId);
+    if (![...(shells.get(target)?.windows.values() ?? [])].some(({ win }) => !win.isDestroyed())) {
+      hostNotifications.get(target)?.close();
+      hostNotifications.delete(target);
+    }
     windowCommands.disconnected(identity.id);
+    windowEffects.publish();
     windowDrags.disconnected(identity.id);
     pendingPaneFocus.delete(identity.id);
     windowTransfers.disconnected(identity.id);
   });
   win.webContents.on('render-process-gone', () => {
     windowCommands.disconnected(identity.id);
+    windowEffects.publish();
     windowDrags.disconnected(identity.id);
     windowTransfers.disconnected(identity.id);
   });
   win.webContents.on('did-start-navigation', (_event, _url, inPlace, mainFrame) => {
     if (mainFrame && !inPlace && windowCommands.available(identity.id)) {
       windowCommands.disconnected(identity.id);
+      windowEffects.publish();
       windowDrags.disconnected(identity.id);
       windowTransfers.disconnected(identity.id);
     }
@@ -903,6 +940,7 @@ function windowContext(event: IpcMainInvokeEvent) {
   throw new Error('Window is unavailable');
 }
 
+registerWindowEffectsIpc(ipcMain, windowContext, windowEffects);
 registerWindowStateIpc({
   ipc: ipcMain,
   context: windowContext,
@@ -954,6 +992,7 @@ ipcMain.handle('puddle:window-ready', (event) => {
   windowCommands.ready(owner.identity.id, (command) =>
     event.sender.send('puddle:window-command', command),
   );
+  windowEffects.publish();
   const projectCommand = pendingProjectCommands.get(owner.identity.id);
   if (projectCommand) {
     pendingProjectCommands.delete(owner.identity.id);
@@ -990,13 +1029,13 @@ ipcMain.handle('puddle:window-reply', (event, reply: unknown) => {
 });
 
 ipcMain.handle('puddle:notification-status', (event) => {
-  if (event.senderFrame !== event.sender.mainFrame) throw new Error('Invalid notification sender');
+  windowContext(event);
   const delivery = notifications.get(event.sender.id);
   if (!delivery) throw new Error('Notification window is unavailable');
   return delivery.status();
 });
 ipcMain.handle('puddle:notification-show', (event, request: unknown) => {
-  if (event.senderFrame !== event.sender.mainFrame) throw new Error('Invalid notification sender');
+  windowContext(event);
   const delivery = notifications.get(event.sender.id);
   if (!delivery) throw new Error('Notification window is unavailable');
   return delivery.show(request);

@@ -1,5 +1,22 @@
 # The puddle communication protocol
 
+Application **26.21** adds optional private native host-effect ownership and
+notification claims. Only registered same-origin main frames can use them; main
+chooses eligible windows from their existing host connection. One window runs
+automatic host-update offers/polling, preferring a host window and handing over
+to a detached window when needed. One app-wide owner presents desktop-update
+offers, retaining ordinary React-remount dismissal state. Attention events are
+claimed once per host,
+preferring its focused renderer so existing recent-interaction suppression still
+applies. Claims are bounded and uncertain replies never authorise another sound
+or notification. Legacy status-only events have a short duplicate-delivery window;
+modern unique event ids remain consumed until bounded eviction. Notification
+objects live with the host's window set and route clicks through a surviving
+window, resolving the target project's actual profile, preferring an existing
+detached session pane, then using normal native project routing. Older shells
+omit the capability and keep existing behaviour.
+No daemon/runtime/remote message or recovery format changes.
+
 Application **26.20** adds optional private desktop layout apply/observation
 capabilities and a bounded renderer planning command/reply. Only a host window
 can apply a profile/project arrangement. Main matches logical slots within its
@@ -10,7 +27,7 @@ sealing/planning also records a cancellation. A new destination which acquired l
 edits during cancellation remains as a durable recovery window. Layout mode belongs
 to the restored native working set; applying it does not rewrite client preferences.
 New seeds and explicit preference changes still use the existing conversion.
-The named-layout popover's coordinated save/load integration remains pending.
+The named-layout popover now uses coordinated save/load.
 Recovery format 3, saved arrangement version 1 and daemon/runtime/remote operations
 are unchanged.
 

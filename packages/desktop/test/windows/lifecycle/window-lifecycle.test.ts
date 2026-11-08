@@ -13,6 +13,7 @@ const mocks = vi.hoisted(() => ({
   startLocal: vi.fn(),
   connectRemote: vi.fn(),
   loadNativeKeyboard: vi.fn(),
+  closeNotifications: vi.fn(),
 }));
 
 // These tests simulate macOS inside a Node process on every CI platform. The
@@ -49,7 +50,7 @@ vi.mock('../../../src/ssh-askpass.js', () => ({
 }));
 vi.mock('../../../src/notifications.js', () => ({
   DesktopNotifications: class {
-    close() {}
+    close = mocks.closeNotifications;
   },
 }));
 vi.mock('electron', async () => {
@@ -77,6 +78,7 @@ vi.mock('electron', async () => {
     focus = vi.fn();
     restore = vi.fn();
     isMinimized = () => false;
+    isFocused = () => false;
     getTitle = () => 'Host window';
     reload() {
       this.webContents.emit('did-start-navigation', {}, this.currentUrl, false, true);
@@ -411,7 +413,10 @@ function renderer(win: BrowserWindow) {
   handler('puddle:window-ready')(event);
   return {
     lastCommand: () =>
-      vi.mocked(win.webContents.send).mock.calls.at(-1)![1] as {
+      vi
+        .mocked(win.webContents.send)
+        .mock.calls.filter(([channel]) => channel === 'puddle:window-command')
+        .at(-1)![1] as {
         id: string;
         kind: string;
       },
@@ -419,6 +424,24 @@ function renderer(win: BrowserWindow) {
     write: (request: unknown) => handler('puddle:window-write')(event, request),
   };
 }
+
+it('retains host notification delivery until its last independent native window closes', async () => {
+  saveReopenWindows(file(), [
+    { target: 'local', window: { kind: 'host', id: 'host' } },
+    {
+      target: 'local',
+      window: { kind: 'pane', id: 'pane', profileId: 'aaaaaaaaaa', projectId: 'bbbbbbbbbb' },
+    },
+  ]);
+  await boot();
+  const [host, pane] = BrowserWindow.getAllWindows();
+  host!.destroy();
+  await flush();
+  expect(mocks.closeNotifications).not.toHaveBeenCalled();
+  pane!.destroy();
+  await flush();
+  expect(mocks.closeNotifications).toHaveBeenCalledOnce();
+});
 
 it('holds explicit closure and its connection until the renderer has saved', async () => {
   const connection = cockpit();

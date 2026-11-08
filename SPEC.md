@@ -2319,6 +2319,26 @@ is open. Select the same profile in the host before returning. Native reload
 respects saved active editor tabs instead of replaying the last session binding;
 explicit native session/notification activation is consumed once.
 
+Application 26.21 coordinates native host-wide effects through the registered
+window set (`windows/effects/`). One ready window owns automatic host-update offers
+and their polling; a host window is preferred, with a detached successor after
+closure, crash or renderer navigation. Explicit Settings views retain their own
+status observation. One app-wide window owns the desktop self-update offer.
+Losing ownership dismisses that window's offer; ordinary React remounts retain
+existing offers and their dismissal state. No extra GitHub poller is introduced.
+
+Attention events claim one delivery decision per host, including optional sound.
+The native focused renderer is preferred so the existing recent-terminal-input
+policy is evaluated in the relevant window; otherwise the host or a surviving
+detached window decides. Modern event ids are consumed in a bounded 2048-entry
+ledger; legacy status-only events use a two-second duplicate-delivery window.
+Lost claim replies never fall back to uncoordinated delivery. Native notification
+objects live with the host's window set, survive closing their original window,
+and route clicks through a surviving window. The renderer resolves the target
+project's actual profile, focuses an existing detached session pane when present,
+and otherwise uses the shared project-window router. IPC uses the existing exact
+origin/main-frame boundary. Browser/older-shell notification behaviour is unchanged.
+
 The native shell now separates one host cockpit connection from its native
 window records (`desktop/src/windows/`). Its `hosts/`, `persistence/`, `lifecycle/`
 and `transfers/` directories separate connection management, durable state,

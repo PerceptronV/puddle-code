@@ -22,6 +22,9 @@ import { remotePushReady } from '../../lib/notifications/remote-notification-sta
 import { api } from '../../lib/transport/api';
 import { fetchAllSessions, hostLabel, useHostInfo } from '../../lib/queries/queries';
 import { wsManager } from '../../lib/transport/ws';
+import { claimWindowNotification } from '../windows/effects/notifications';
+import { openNativeNotification } from '../windows/navigation/notification';
+import { toastError } from '../../lib/transport/errors';
 
 /** The profile's notification prefs (SPEC §11); delivery defaults mirror the settings tab. */
 const DEFAULT_PREFS = notificationPreferencesSchema.parse({});
@@ -111,9 +114,14 @@ export function useWaitingNotifications(): void {
     () =>
       onNotificationTarget((target) => {
         if (!target.host)
-          void navigate(`/project/${target.project}/session/${target.session}`, {
-            state: { notificationSession: target.session },
-          });
+          void openNativeNotification(target)
+            .then((handled) => {
+              if (!handled)
+                void navigate(`/project/${target.project}/session/${target.session}`, {
+                  state: { notificationSession: target.session },
+                });
+            })
+            .catch(toastError);
       }),
     [navigate],
   );
@@ -159,8 +167,19 @@ export function useAgentNotifications(
 
     let active = true;
     const deliver = async (
-      event: Pick<AgentNotification, 'session' | 'reason' | 'content'> & { id?: string },
+      event: Pick<AgentNotification, 'session' | 'reason' | 'content'> & {
+        id?: string;
+        activity?: string | null;
+      },
     ) => {
+      if (
+        !(await claimWindowNotification(
+          event.id ?? `${event.session}:${event.activity ?? 'waiting'}`,
+          !event.id,
+        ))
+      )
+        return;
+      if (!active) return;
       let session = findSession(qc, event.session);
       if (!session) {
         try {
@@ -247,7 +266,11 @@ export function useAgentNotifications(
             (version.protocol.major === 22 && version.protocol.minor >= 3)
           )
             return;
-          return deliver({ session: event.session, reason: 'waiting_input' });
+          return deliver({
+            session: event.session,
+            reason: 'waiting_input',
+            activity: event.last_activity_at,
+          });
         })
         .catch(() => {});
     });

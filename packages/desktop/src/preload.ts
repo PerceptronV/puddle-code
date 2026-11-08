@@ -13,6 +13,16 @@ import { contextBridge, ipcRenderer } from 'electron';
 contextBridge.exposeInMainWorld('puddleDesktop', {
   windows: {
     version: 1,
+    effects: {
+      status: () => ipcRenderer.invoke('puddle:window-effects-status'),
+      claimNotification: (request: unknown) =>
+        ipcRenderer.invoke('puddle:window-notification-claim', request),
+      onChanged: (callback: (status: unknown) => void) => {
+        const handler = (_event: unknown, status: unknown) => callback(status);
+        ipcRenderer.on('puddle:window-effects-changed', handler);
+        return () => ipcRenderer.removeListener('puddle:window-effects-changed', handler);
+      },
+    },
     context: () => ipcRenderer.invoke('puddle:window-context'),
     reload: () => ipcRenderer.invoke('puddle:window-reload'),
     read: (profileId: string) => ipcRenderer.invoke('puddle:window-read', { profileId }),

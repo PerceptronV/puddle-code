@@ -26,10 +26,14 @@ export class DesktopNotifications {
   private closed = false;
 
   constructor(
-    private readonly win: BrowserWindow,
-    private readonly raise: () => void,
+    private readonly destination: BrowserWindow | (() => BrowserWindow | undefined),
+    private readonly raise: (win: BrowserWindow) => void,
     private readonly platform: NodeJS.Platform = process.platform,
   ) {}
+
+  private window(): BrowserWindow | undefined {
+    return typeof this.destination === 'function' ? this.destination() : this.destination;
+  }
 
   status(): NotificationDelivery {
     return Notification.isSupported()
@@ -39,7 +43,8 @@ export class DesktopNotifications {
 
   async show(value: unknown): Promise<NotificationDelivery> {
     const request = desktopNotificationRequestSchema.parse(value);
-    if (this.closed || this.win.isDestroyed())
+    const destination = this.window();
+    if (this.closed || !destination || destination.isDestroyed())
       return { state: 'failed', message: 'The notification window has closed.' };
     if (!Notification.isSupported()) return this.status();
     this.active.get(request.id)?.close();
@@ -89,11 +94,12 @@ export class DesktopNotifications {
           if (this.active.get(request.id) === current) this.active.delete(request.id);
         });
         current.on('click', () => {
-          if (this.closed || this.win.isDestroyed()) return;
-          this.raise();
+          const win = this.window();
+          if (this.closed || !win || win.isDestroyed()) return;
+          this.raise(win);
           if (request.target)
-            this.win.webContents.send('puddle:notification-click', request.id, request.target);
-          else this.win.webContents.send('puddle:notification-click', request.id);
+            win.webContents.send('puddle:notification-click', request.id, request.target);
+          else win.webContents.send('puddle:notification-click', request.id);
           current.close();
         });
         current.show();

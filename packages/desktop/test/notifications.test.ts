@@ -52,6 +52,28 @@ it('waits for the native result and focuses the originating window on click', as
   expect(win.webContents.send).toHaveBeenCalledWith('puddle:notification-click', request.id);
 });
 
+it('routes an existing host notification through a surviving detached window', async () => {
+  const other = {
+    isDestroyed: () => false,
+    webContents: { send: vi.fn() },
+  } as unknown as BrowserWindow;
+  let current = win;
+  delivery = new DesktopNotifications(() => current, raise);
+  const target = { project: '0123456789', session: randomUUID() };
+  const result = delivery.show({ ...request, target });
+  instances[0].emit('show');
+  await result;
+  current = other;
+  instances[0].emit('click');
+  expect(raise).toHaveBeenCalledWith(other);
+  expect(other.webContents.send).toHaveBeenCalledWith(
+    'puddle:notification-click',
+    request.id,
+    target,
+  );
+  expect(win.webContents.send).not.toHaveBeenCalled();
+});
+
 it('delivers the host/project heading, session subtitle and preview as separate macOS fields', async () => {
   delivery = new DesktopNotifications(win, raise, 'darwin');
   const sent = delivery.show({

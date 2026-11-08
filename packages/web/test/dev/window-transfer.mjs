@@ -8,6 +8,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { chromium, expect } from '@playwright/test';
+import { checkWindowEffects, checkDetachedEffectOwner } from './windows/effects/coordination.mjs';
 import { checkCatalogueLayouts } from './windows/arrangements/catalogue.mjs';
 import { checkArrangementHandshake } from './windows/arrangements/handshake.mjs';
 import { checkArrangementApply, checkArrangementMode } from './windows/arrangements/apply.mjs';
@@ -17,7 +18,7 @@ const directory = await mkdtemp(join(tmpdir(), 'puddle-live-window-'));
 const implementation = join(directory, 'implementation.mjs');
 await build({
   stdin: {
-    contents: `export { DesktopWindowState } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/persistence/state.ts'))};\nexport { WindowTransfers } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers/coordinator.ts'))};\nexport { WindowCommands } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/lifecycle/commands.ts'))};\nexport { WindowDrags } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers/drags.ts'))};\nexport { ProjectWindows } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/projects.ts'))};\nexport { WindowLayoutApply } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/arrangements/apply.ts'))};\nexport { WindowLayoutCapture } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/arrangements/capture.ts'))};`,
+    contents: `export { DesktopWindowState } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/persistence/state.ts'))};\nexport { WindowTransfers } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers/coordinator.ts'))};\nexport { WindowCommands } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/lifecycle/commands.ts'))};\nexport { WindowDrags } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers/drags.ts'))};\nexport { ProjectWindows } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/projects.ts'))};\nexport { WindowLayoutApply } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/arrangements/apply.ts'))};\nexport { WindowLayoutCapture } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/arrangements/capture.ts'))};\nexport { WindowEffects } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/effects/coordination.ts'))};`,
     resolveDir: root,
   },
   bundle: true,
@@ -34,6 +35,7 @@ const {
   ProjectWindows,
   WindowLayoutApply,
   WindowLayoutCapture,
+  WindowEffects,
 } = await import(pathToFileURL(implementation).href);
 const commands = new WindowCommands();
 const mode = process.env.WINDOW_TRANSFER_KIND ?? 'pane';
@@ -49,6 +51,31 @@ const records = new Map();
 const pages = new Map();
 const errors = [];
 const trace = [];
+let effectFocus = 'host';
+const effects = new WindowEffects(
+  () =>
+    [...records.values()]
+      .filter(
+        (record) =>
+          !pages.get(record.window.id)?.isClosed() && commands.available(record.window.id),
+      )
+      .map((record) => ({
+        id: record.window.id,
+        host: record.target,
+        kind: record.window.kind,
+        focused: record.window.id === effectFocus,
+      })),
+  (id, status) => {
+    void pages
+      .get(id)
+      ?.evaluate(
+        (value) => window.windowEffectsListeners?.forEach((listener) => listener(value)),
+        status,
+      )
+      .catch(() => {});
+  },
+);
+
 const drags = new WindowDrags({
   context: (id) => {
     const record = records.get(id);
@@ -162,8 +189,18 @@ async function openPage(record) {
     if (request.isNavigationRequest() && request.frame() === page.mainFrame())
       commands.disconnected(id);
   });
+  page.on('close', () => {
+    commands.disconnected(id);
+    effects.publish();
+  });
   page.on('pageerror', (error) => errors.push(error.message));
   await page.exposeBinding('windowRequest', async (_source, method, request) => {
+    if (method === 'effects-status') return effects.status(id);
+    if (method === 'effects-claim') return effects.claimNotification(id, request);
+    if (method === 'effects-focus') {
+      effectFocus = id;
+      return;
+    }
     if (method === 'context')
       return {
         identity: record.window,
@@ -180,6 +217,7 @@ async function openPage(record) {
             errors.push(error.message);
           });
       });
+      effects.publish();
       const command = pendingProjectCommands.get(id);
       if (command) {
         pendingProjectCommands.delete(id);
@@ -229,104 +267,141 @@ async function openPage(record) {
     if (method === 'preparePane') return coordinator.preparePane(id, request);
     return coordinator[method](id, request);
   });
-  await page.addInitScript((mode) => {
-    window.puddleDesktop = {
-      raiseWindow() {},
-      closeWindow: () => window.windowRequest('close'),
-      isFullScreen: async () => false,
-      windows: {
-        version: 1,
-        layouts: Object.fromEntries(
-          ['capture', 'apply', 'observe'].map((method) => [
-            method,
-            (request) => window.windowRequest(`layout-${method}`, request),
-          ]),
-        ),
-        ...(mode === 'project'
-          ? {
-              projects: Object.fromEntries(
-                ['prepare', 'focus', 'route'].map((method) => [
-                  method,
-                  (request) => window.windowRequest(`project-${method}`, request),
-                ]),
-              ),
-            }
-          : {}),
-        lifecycle: {
-          ready: () => window.windowRequest('ready'),
-          onCommand: (callback) => {
-            window.receiveWindowCommand = callback;
-            return () => {};
-          },
-          reply: (request) => window.windowRequest('reply', request),
+  await page.addInitScript(
+    ({ mode, effectsCheck }) => {
+      window.notificationDeliveries = [];
+      window.notificationSounds = 0;
+      const Audio = window.AudioContext;
+      window.AudioContext = class extends Audio {
+        constructor(...args) {
+          super(...args);
+          window.notificationSounds++;
+        }
+      };
+      window.puddleDesktop = {
+        raiseWindow() {},
+        updateReady: async () => (effectsCheck ? '0.4.999' : null),
+        onUpdateReady: () => {
+          window.desktopUpdateObservers = (window.desktopUpdateObservers ?? 0) + 1;
+          return () => {
+            window.desktopUpdateObservers--;
+          };
         },
-        context: () => window.windowRequest('context'),
-        reload: () => window.windowRequest('reload'),
-        read: async (profileId) => {
-          const existing = await window.windowRequest('read', profileId);
-          if (existing) return existing;
-          const { state, sessions } = await import('/src/dev/preview/data.ts');
-          const { tabRefKey } = await import('/src/features/workspace/layout/layout-tree.ts');
-          const ref =
-            mode === 'session'
-              ? { type: 'terminal', session: sessions[0].id }
-              : {
-                  type: 'editor',
-                  tab: { session: sessions[0].id, path: 'README.md', view: 'source' },
-                };
-          return window.windowRequest('seed', {
-            profileId,
-            revision: 0,
-            content: {
-              snapshot: {
-                ...state.ui_state,
-                layout_mode: 'project',
-                project_layouts: {
-                  [sessions[0].project_id]: {
-                    layout_tree: {
-                      kind: 'leaf',
-                      id: 'fixture-pane',
-                      tabs: [ref],
-                      activeKey: tabRefKey(ref),
-                      previewKey: null,
-                    },
-                    active_session: null,
-                    layout_ref: null,
-                  },
-                },
-                explorer_pin: sessions[0].id,
-                layout_tree: null,
-              },
-              buffers: [],
-              views: {},
+        notificationTargets: true,
+        notificationStatus: async () => ({ state: 'shown', message: null }),
+        showNotification: async (request) => {
+          window.notificationDeliveries.push(request);
+          return { state: 'shown', message: null };
+        },
+        onNotificationClick: (callback) => {
+          window.notificationClickListeners ??= new Set();
+          window.notificationClickListeners.add(callback);
+          window.notificationClick = (...args) =>
+            window.notificationClickListeners.forEach((listener) => listener(...args));
+          return () => window.notificationClickListeners.delete(callback);
+        },
+        closeWindow: () => window.windowRequest('close'),
+        isFullScreen: async () => false,
+        windows: {
+          version: 1,
+          effects: {
+            status: () => window.windowRequest('effects-status'),
+            claimNotification: (request) => window.windowRequest('effects-claim', request),
+            onChanged: (callback) => {
+              window.windowEffectsListeners ??= new Set();
+              window.windowEffectsListeners.add(callback);
+              return () => window.windowEffectsListeners.delete(callback);
             },
-          });
+          },
+          layouts: Object.fromEntries(
+            ['capture', 'apply', 'observe'].map((method) => [
+              method,
+              (request) => window.windowRequest(`layout-${method}`, request),
+            ]),
+          ),
+          projects: Object.fromEntries(
+            ['prepare', 'focus', 'route'].map((method) => [
+              method,
+              (request) => window.windowRequest(`project-${method}`, request),
+            ]),
+          ),
+          lifecycle: {
+            ready: () => window.windowRequest('ready'),
+            onCommand: (callback) => {
+              window.receiveWindowCommand = callback;
+              return () => {};
+            },
+            reply: (request) => window.windowRequest('reply', request),
+          },
+          context: () => window.windowRequest('context'),
+          reload: () => window.windowRequest('reload'),
+          read: async (profileId) => {
+            const existing = await window.windowRequest('read', profileId);
+            if (existing) return existing;
+            const { state, sessions } = await import('/src/dev/preview/data.ts');
+            const { tabRefKey } = await import('/src/features/workspace/layout/layout-tree.ts');
+            const ref =
+              mode === 'session'
+                ? { type: 'terminal', session: sessions[0].id }
+                : {
+                    type: 'editor',
+                    tab: { session: sessions[0].id, path: 'README.md', view: 'source' },
+                  };
+            return window.windowRequest('seed', {
+              profileId,
+              revision: 0,
+              content: {
+                snapshot: {
+                  ...state.ui_state,
+                  layout_mode: 'project',
+                  project_layouts: {
+                    [sessions[0].project_id]: {
+                      layout_tree: {
+                        kind: 'leaf',
+                        id: 'fixture-pane',
+                        tabs: [ref],
+                        activeKey: tabRefKey(ref),
+                        previewKey: null,
+                      },
+                      active_session: null,
+                      layout_ref: null,
+                    },
+                  },
+                  explorer_pin: sessions[0].id,
+                  layout_tree: null,
+                },
+                buffers: [],
+                views: {},
+              },
+            });
+          },
+          write: (request) => window.windowRequest('write', request),
+          transfers: Object.fromEntries(
+            [
+              'preparePane',
+              'prepareDock',
+              'retire',
+              'dockTargets',
+              'beginPaneDrag',
+              'dropPane',
+              'beginTabDrag',
+              'dropTab',
+              'prepareTabDock',
+              'beginProjectDrag',
+              'dropProject',
+              'prepareProjectDock',
+              'accept',
+              'commit',
+              'observe',
+              'cancel',
+              'focusPane',
+            ].map((method) => [method, (request) => window.windowRequest(method, request)]),
+          ),
         },
-        write: (request) => window.windowRequest('write', request),
-        transfers: Object.fromEntries(
-          [
-            'preparePane',
-            'prepareDock',
-            'retire',
-            'dockTargets',
-            'beginPaneDrag',
-            'dropPane',
-            'beginTabDrag',
-            'dropTab',
-            'prepareTabDock',
-            'beginProjectDrag',
-            'dropProject',
-            'prepareProjectDock',
-            'accept',
-            'commit',
-            'observe',
-            'cancel',
-            'focusPane',
-          ].map((method) => [method, (request) => window.windowRequest(method, request)]),
-        ),
-      },
-    };
-  }, mode);
+      };
+    },
+    { mode, effectsCheck: process.env.WINDOW_EFFECTS === '1' },
+  );
   await page.goto(new URL(record.route ?? '/', preview).href);
 }
 
@@ -337,8 +412,10 @@ try {
     .locator(mode === 'session' ? '.xterm' : '[data-editor-surface] .monaco-editor')
     .first()
     .waitFor();
-  const closeNotes = source.getByRole('button', { name: 'Close', exact: true });
-  if (await closeNotes.isVisible().catch(() => false)) await closeNotes.click();
+  const closeNotes = source
+    .locator('[data-release-notes]')
+    .getByRole('button', { name: 'Close', exact: true });
+  await closeNotes.click();
   const sourceProfile = await source.evaluate(
     async () => (await import('/src/dev/preview/data.ts')).profile.id,
   );
@@ -426,6 +503,8 @@ try {
   }
   await expect(target.getByRole('group', { name: 'Workspace controls' })).toHaveCount(0);
   const profile = destination.window.profileId;
+  if (process.env.WINDOW_EFFECTS === '1')
+    await checkWindowEffects({ source, target, profileId: profile, focused: () => focused });
   if (process.env.WINDOW_LAYOUT_CATALOGUE === '1')
     await checkCatalogueLayouts({
       state,
@@ -772,6 +851,7 @@ try {
     records.delete('host');
     state.syncOpenWindows([...records.values()]);
     await source.close();
+    if (process.env.WINDOW_EFFECTS === '1') await checkDetachedEffectOwner(target);
     // Exercise the native reload capability immediately after an edit, before
     // its ordinary 250ms persistence timer can provide accidental coverage.
     const latest = 'Latest unsaved edit checkpointed before native reload';

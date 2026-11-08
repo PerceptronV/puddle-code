@@ -238,6 +238,21 @@ verification; pending items are not support claims.
   saves adopt the name without reapplying their tree; browser loading retains
   its existing single-tree behaviour.
 
+- Native host effects now have main-process ownership (`windows/effects/`,
+  application 26.21). One ready renderer runs each host's automatic update offers
+  and polling; one renderer presents the app-wide desktop-update offer. A detached
+  successor takes over when the host renderer closes, reloads or crashes. Explicit
+  Settings views still observe status independently. Offer dismissal survives
+  ordinary React remounts; losing ownership removes the former owner's toast.
+- Notification delivery and sound share one bounded host claim, selected in the
+  focused native renderer when available so recent terminal interaction still
+  controls focused-delivery suppression. Modern event ids are consumed until
+  bounded eviction; legacy status-only events have a two-second duplicate window.
+  Lost replies suppress delivery rather than producing an uncoordinated duplicate.
+  Native notifications belong to the host window set and survive closing their
+  original window. Click routing resolves the target project's profile, prefers
+  an existing detached session pane, then uses shared project-window routing.
+
 Native OS acceptance and the remaining full-roadmap audits are still
 pending. Pane/project detachment and menu return do not deliver the whole roadmap. Undo-stack transfer
 is not implemented; restored editors use
@@ -511,6 +526,31 @@ start any real daemon from a plain shell, never from a coding-agent session.
 - These checks do not establish Electron titlebar/focus behaviour, native OS
   dragging, Command-Q/restart recovery, live PTY continuity or resource overhead.
   Those checks and the remaining cross-window effects audit are still required.
+
+### Native host effects — 2026-11-07
+
+- 292 focused tests passed across 45 files covering desktop window lifecycle,
+  host-effect election/claims/IPC, notification lifetime/click routing, renderer
+  notification policy, update queries and existing window arrangements/transfers.
+- Shared declarations rebuilt; desktop/web TypeScript and targeted lint checks
+  passed. Private bridge capability is application 26.21; persisted window and
+  named-arrangement versions remain unchanged.
+- UI-only Chromium with real election, notification hooks and transfer coordinator:
+  `WINDOW_TRANSFER_KIND=session WINDOW_EFFECTS=1
+  PREVIEW_URL=http://127.0.0.1:5186/ node test/dev/window-transfer.mjs` from
+  `packages/web` passed. A synthetic host-update operation produced repeated reads
+  only in the elected window; its detached successor started reading after the
+  host closed. The synthetic desktop-update offer appeared only in its elected
+  window and survived unmount/remount. Shared attention events produced one sound
+  and notification, retained consumed ids across focus changes, respected recent
+  terminal-input suppression and focused the existing detached session on click.
+  Independent session-window reload also passed afterward. The existing native
+  Layouts catalogue plus project drag-return/reload preview regression passed.
+- This fixture stubs OS notification delivery and uses an isolated preview socket;
+  it neither sends real notifications nor starts a daemon. OS Notification Centre,
+  click delivery during an app restart, native focus/drag and live process
+  continuity still require the native acceptance below. Cross-profile routing and
+  host isolation currently have focused unit evidence, not native OS evidence.
 
 ## Required acceptance before completion
 

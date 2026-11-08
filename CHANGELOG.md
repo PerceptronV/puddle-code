@@ -24,6 +24,7 @@ Past releases: see docs/changelogs/.
 
 #### Changed
 
+- Coordinate native notification sounds/delivery and update offers across windows, retain notifications when their original window closes, and route clicks to the correct profile or detached session (application protocol 26.21).
 - Save, duplicate and load native window arrangements through the host Layouts popover, including project saves from the dashboard; preserve mounted editors when saving and observe uncertain loads without redispatch.
 - Coordinate native arrangement application with scoped window matching, draft-preserving plans, atomic ownership and cancellation recovery; retain each restored window's layout mode without changing client preferences (application protocol 26.20; native OS acceptance remains in progress).
 - Stage native layout participants through the reused workspace/dashboard, verify mounted revisions and preserve drafts on cancellation (application protocol 26.19; named-window apply coordination and menu integration remain in progress).
