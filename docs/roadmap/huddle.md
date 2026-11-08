@@ -769,9 +769,12 @@ a digest; it is not live execution admission. Inactive create/open and core
 runtime/start/apply/run/interrupt/resume/stop/history/readout-observation tools
 now reuse the same host services, exact reviewed source digests and owner targets.
 Failed mutations are observation-only until the user decides a next action; no
-tool implicitly refreshes targets or retries. Standalone schema/type assets,
-richer integration templates and offline history
-remain to be shipped; this UI action does not complete the authoring phase.
+tool implicitly refreshes targets or retries. `pudl huddle authoring [asset-path]`
+and `huddle_authoring` now expose a client-bundled kit: structural JSON Schemas,
+generated wrapper types, editable transform/pull-feed/report components, example
+graphs and fake fixtures. Kit reads need no host or source mutation; the reported
+client protocol is not target-host capability evidence. Real-provider authoring,
+richer integrations, managed secrets and offline history remain unfinished.
 
 Let users select any eligible account in the current profile to create or modify
 a huddle through an ordinary managed agent. The authoring agent is distinct from
@@ -812,7 +815,7 @@ enable nested delegation, cross-profile access or unlimited agent budgets.
 
 ## 11. Phased implementation and release gates
 
-Phases 0–4 are **in progress**; phase 5 has window integration and IDE authoring assistance, with standalone authoring resources and offline history unfinished. Phase 6
+Phases 0–4 are **in progress**; phase 5 has window integration, IDE authoring assistance and a standalone authoring kit, with provider-backed authoring acceptance and offline history unfinished. Phase 6
 has preparatory host maintenance integration, with packaged acceptance pending.
 Phase 1 currently has the private inbox/outbox, node-attempt and exact-operation
 ledger plus durable

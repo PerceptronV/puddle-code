@@ -705,7 +705,13 @@ live in `shared/api/huddle/tools/`, split into source, execution and placement c
 Preserve exact reviewed digests/targets/event ids in JSON requests; never refresh,
 retry or fall back after failed mutations. Resume maps to rearm. Keep source scope
 explicit and runtime scope bound to the immutable placement. See
-`docs/huddle/authoring.md`; standalone schema/types remain unfinished. Placement tools live in
+`docs/huddle/authoring.md`. Client-bundled schemas/types/templates/fixtures live in
+`shared/huddle/authoring/`; `pudl huddle authoring [asset-path]` reads them before
+opening any host connection. `huddle_authoring` serves the same client-labelled kit
+over MCP without host capability claims. Never interpret asset names as filesystem
+paths or write source during a kit read. Generate SDK declarations using
+`scripts/build-huddle-types.mjs`; keep its drift/type-check and fake-adapter tests.
+Structural schemas do not replace source/graph/runtime validation. Placement tools live in
 `cli/src/huddle/placement/`: verify kind/profile through the scoped huddle runtime
 route before calling the ordinary session GET/archive/unarchive routes. UUID,
 project/profile and definition worktree are immutable placement identity. Archive

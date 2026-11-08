@@ -1690,6 +1690,18 @@ Review spawned agent templates with retained `agent` inputs, explicit worktrees
 and editable prompts. They attach only an execution-owned runtime and verify its
 session id before asking; the handle stays immutable across feedback rounds.
 Resume/restart and real-provider acceptance remain unfinished. See the [current usage guide](docs/huddle.md).
+The client-bundled authoring kit under `shared/huddle/authoring/` supplies structural
+JSON Schemas, generated SDK declarations, editable script/trigger/readout examples
+and fake integration fixtures. `pudl huddle authoring [asset-path]` lists/reads these
+without opening a host connection or writing files; `huddle_authoring` exposes the
+same data over an existing MCP connection even when host huddle tools are unavailable.
+Exact inventory names select assets, never filesystem paths. Replies label the
+bundled client's application version, not a connected host's support. Source/runtime
+validation remains authoritative: editor schemas omit nonrepresentable refinements.
+`scripts/build-huddle-types.mjs` derives standalone declarations from the actual SDK;
+tests check generation drift, type-check templates, capture example graphs and run
+mocked adapters through production contract boundaries. No protocol version changes.
+
 The IDE's **Edit with agent** action under `web/features/huddle/authoring/` uses
 ordinary session creation with an explicitly selected current-profile account,
 the huddle's exact joined worktree, an initial task/context prompt and permission

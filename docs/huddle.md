@@ -1,5 +1,9 @@
 # Huddles: current usage
 
+For custom components, use the [packaged authoring kit](huddle/authoring.md#packaged-authoring-kit):
+`pudl huddle authoring` lists schemas, wrapper types, templates and fake fixtures;
+an exact asset path reads its content without activating or changing a huddle.
+
 Huddles are project orchestration graphs powered by puddlang. This guide describes
 the implemented local/SSH workflow. The [roadmap](roadmap/huddle.md) covers the full
 design; [acceptance](acceptance/huddle.md) records verified behaviour and remaining

@@ -12,6 +12,9 @@ import {
   huddleMcpTools,
   huddleExecutionMcpTools,
   huddlePlacementMcpTools,
+  huddleAuthoringMcpTool,
+  huddleAuthoringRequestSchema,
+  readHuddleAuthoring,
 } from '@puddle/shared';
 import type { PuddlangClient } from './client.js';
 import { callHuddleTool } from '../huddle/mcp.js';
@@ -76,6 +79,7 @@ export async function serveMcp(
       reply({
         tools: [
           ...puddlangMcpTools,
+          huddleAuthoringMcpTool,
           ...(client.huddles?.supported ? huddleMcpTools : []),
           ...executionTools(client.huddles?.execution),
           ...placementTools(client.huddles?.placement),
@@ -95,7 +99,9 @@ export async function serveMcp(
     try {
       const args = call.data.arguments ?? {};
       let result: unknown;
-      if (huddleMcpTools.some((tool) => tool.name === call.data.name)) {
+      if (call.data.name === huddleAuthoringMcpTool.name) {
+        result = readHuddleAuthoring(huddleAuthoringRequestSchema.parse(args).path);
+      } else if (huddleMcpTools.some((tool) => tool.name === call.data.name)) {
         result = await callHuddleTool(client.huddles, call.data.name, args);
       } else if (huddleExecutionMcpTools.some((tool) => tool.name === call.data.name)) {
         result = await callHuddleExecutionTool(client.huddles?.execution, call.data.name, args);

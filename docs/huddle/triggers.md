@@ -174,7 +174,9 @@ export default HuddleTrigger({
 
 The example bounds response bytes, page size and request time. Adapt those limits
 to the service and retain them in production adapters. Put credentials outside
-graph/source files. Managed integration-secret references and authoring skills remain unfinished.
+graph/source files. The [authoring kit](authoring.md#packaged-authoring-kit) ships an
+editable version with fake fixtures and generated wrapper types. Managed
+integration-secret references remain unfinished.
 
 ## Resource and compatibility limits
 

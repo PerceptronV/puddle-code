@@ -13,6 +13,15 @@ has been installed in the account's home directory.
 
 ## Source and contracts
 
+When available, `pudl huddle authoring` lists bundled schemas, wrapper types,
+editable templates and fake fixtures; `pudl huddle authoring README.md` explains
+them, and an exact listed path reads one asset as JSON `{path, content, ...}`.
+This command is local and takes no host/profile/worktree flags. MCP exposes the
+same kit as `huddle_authoring` with optional `path`. Assets identify the bundled
+client protocol, not target-host support. Read relevant templates before adapting
+them; validate the resulting saved graph on the selected host. Kit reads neither
+write files nor execute the examples.
+
 - Each worktree contains independent `.puddle/huddle/<32-lowercase-hex-id>/`
   directories. Keep the directory id and `huddle.json` id equal. Names may change;
   do not rename the directory or alter other huddles to perform an ordinary edit.

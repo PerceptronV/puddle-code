@@ -1,5 +1,14 @@
 # The puddle communication protocol
 
+Client-local `pudl huddle authoring [asset-path]` and stdio MCP `huddle_authoring`
+now list/read the bundled authoring kit. MCP takes strict `{path?: string}`;
+an exact inventory name selects a schema, declaration, template or fixture.
+Replies label `format: 1`, `application` (the bundled client protocol), and
+`source: "bundled-client"`, plus `files: [{path, bytes}]` or `{path, content}`.
+The CLI performs no connection setup; MCP reads require no host capability and
+perform no host calls. Source validation/activation remain separate. No HTTP/WS,
+application/runtime/remote protocol, database or owner-ledger format changes.
+
 Application **28.10** adds local/SSH read-only
 `POST /api/huddle/:profile/sessions/:sid/revision` and `/diff`.
 Both take an exact `target`; diff additionally requires `expected_digest` from

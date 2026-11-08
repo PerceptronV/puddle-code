@@ -148,3 +148,5 @@ export * from './huddle/components/filetree.js';
 export * from './huddle/components/git.js';
 export * from './huddle/components/session.js';
 export * from './huddle/components/completion.js';
+export * from './huddle/authoring/bundle.js';
+export * from './api/huddle/tools/authoring.js';

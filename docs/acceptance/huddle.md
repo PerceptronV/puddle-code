@@ -34,6 +34,54 @@ delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## Implemented: packaged authoring schemas, types and extension fixtures
+
+`pudl huddle authoring [asset-path]` now lists or reads a client-bundled kit before
+opening any daemon/SSH connection. Matching MCP tool `huddle_authoring` takes
+`{}` or `{path}` on an existing MCP connection and makes no host calls. Replies
+label the bundled application version and `source: "bundled-client"`; they do not
+claim target-host support. Exact inventory names select data, never filesystem
+paths. Reads do not write project files, import adapters, create sessions or
+activate graphs. No HTTP/WS or versioned runtime/storage contracts change.
+
+The kit contains four structural JSON Schemas, standalone generated wrapper types,
+editable transform/pull-feed/report components, two graph examples and fake event,
+gap, confirmation and transform fixtures. Schemas preserve optional source fields
+and reference the supported recursive port/parameter subset. Nonrepresentable
+refinements remain enforced by normal source/graph/runtime validation. Associate
+schemas in editor settings; strict source documents do not accept `$schema`.
+`scripts/build-huddle-types.mjs` derives types from real wrapper/context/agent
+contracts and supports `--check`. The standalone declarations use zod 4 for
+structured asks; authors need that development dependency when type-checking.
+
+The examples use the normal manifest/dependency closure. Pull-feed emission is
+acknowledged before cursor progress, gap reporting stops polling, and close aborts
+pending I/O and clears timers. Requests and response bytes are bounded. Report
+requires an explicit confirmed receipt; errors, oversized/invalid or lost replies
+remain unknown with no retry. Its idempotency header does not change the declared
+non-idempotent support policy. Credentials and real-service semantics must be
+supplied separately. The bundled skill routes authoring agents to these assets.
+
+Verification: **93/93 tests in eight files passed** with one Vitest worker,
+covering authoring assets, current CLI/MCP source/placement/execution/review tools
+and programme MCP regression. New tests compare generated declarations with the
+current SDK, verify public type compatibility and type-check every template;
+capture both example graphs through production source validation; run templates
+through real wrapper/contract boundaries with fake network responses; and cover
+acknowledgement ordering, gaps, refused admission, pending-I/O cancellation,
+confirmed/unknown delivery and oversized replies. Kit reads reject unknown paths
+and scope fields; MCP kit access makes no host calls on unsupported connections.
+Shared/daemon/CLI and web TypeScript, changed-source ESLint/formatting, declaration
+drift checks and bundled skill validation pass. Production web/CLI builds pass.
+The packaged CLI lists and reads all 20 assets with an unavailable daemon home,
+rejects traversal and connection/worktree flags, and advertises the command in
+help. The copied frontend contains the updated authoring skill. No production
+daemon, native desktop, external service or real provider was used.
+Remaining: real-provider authoring and integration acceptance, managed secrets,
+offline history/recovery, agent restart/native feedback, graph save/view persistence
+and remaining platform/packaged lifecycle acceptance. Earlier authoring-asset
+remaining-work notes below are superseded by this increment.
+
 ## Implemented: active revision inspection and saved-source review
 
 Application **28.10** exposes local/SSH read-only `revision` and `diff` POST routes
@@ -3191,7 +3239,7 @@ lifecycle and live-history APIs with IDE controls. Next complete retained/offlin
 history, complete provider lifecycle coverage, host resource accounting and
 lifecycle fencing. Active-revision/source review is now implemented above. Finish settings,
 additional integration adapters, provider-backed lifecycle nodes,
-standalone authoring schema/type assets, component fixtures and packaged integration.
+managed integration secrets, real-service adapters and packaged integration.
 
 All live provider, SSH, native window, supervisor, complete owner crash/reboot, trigger cadence,
 readout reconciliation, permission/takeover, persistence/retention and installation

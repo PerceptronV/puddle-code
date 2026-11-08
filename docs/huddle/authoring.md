@@ -1,5 +1,40 @@
 # Edit a huddle with an agent
 
+## Packaged authoring kit
+
+`pudl huddle authoring` lists bundled schemas, TypeScript declarations, editable
+script/trigger/readout templates, two example graphs and fake integration fixtures.
+Read one exact listed path with `pudl huddle authoring README.md` or
+`pudl huddle authoring types/puddlang-huddle.d.ts`. Output is JSON: the listing has
+`files: [{path, bytes}]`; a selected asset has `path` and `content`. Both include
+`format`, `application` and `source: "bundled-client"`. Extract `content` to a file
+only when you intend to add it to your project. No asset command writes files.
+
+This command needs no running daemon and accepts no host/profile/project/worktree
+options. Matching MCP tool `huddle_authoring` takes `{}` or `{path}` and reads the
+same client-bundled kit on an existing MCP connection. The reported application
+version identifies the kit, not the target host's capabilities. Read that host's
+metadata and validate the saved graph there before execution.
+
+Keep the four `schemas/` files together and associate them through editor settings;
+format-1 documents reject an inline `$schema` field. The schemas describe structure,
+not runtime cross-field/path/byte limits, binding or graph validation. Include
+`types/puddlang-huddle.d.ts` in a strict TypeScript project with ES2023/DOM libraries
+and zod 4 as a development dependency. Worker imports still use pinned helpers;
+do not install a runtime package named puddlang. Maintainers regenerate declarations
+with `node scripts/build-huddle-types.mjs`; `--check` detects stale generated output.
+
+Copy relevant `templates/` directories to the selected huddle's `nodes/` paths.
+The manual example needs only the transform; the feed/report example needs all
+three components and explicit endpoint variables. Replace fixture graph ids with
+the selected huddle id. Create new ids with the normal huddle creation command.
+The feed assumes a bounded cursor API; the report requires an explicit confirmed
+receipt and treats missing/invalid replies as unknown. Adapt these assumptions to
+the real service before activation. Fake fixtures exercise contracts, not live
+integration behavior. Credentials and managed secret resolution are not included.
+
+## Account-selected editing
+
 Open the huddle and choose **Edit with agent**. Select an account and describe the
 change. **Start authoring agent** creates an ordinary coding session in the exact
 project worktree shown in the dialog, then opens its session tab. The initial

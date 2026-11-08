@@ -5,6 +5,7 @@ import {
   huddleToolExecutionCommandSchema,
   huddleExecutionToolSchemas,
   huddleToolPlacementCommandSchema,
+  huddleAuthoringRequestSchema,
   type HuddleLocation,
   type HuddleOpen,
   type HuddleCreate,
@@ -14,6 +15,7 @@ import {
 import type { HuddleClient } from './client.js';
 
 export const huddleHelp = `  pudl huddle list --project ID --worktree /absolute/host/worktree
+  pudl huddle authoring [asset-path]
   pudl huddle inspect <huddle-id> --project ID --worktree /absolute/host/worktree
   pudl huddle validate <huddle-id> --project ID --worktree /absolute/host/worktree
   pudl huddle create --name NAME --project ID --worktree /absolute/host/worktree
@@ -25,7 +27,10 @@ export const huddleHelp = `  pudl huddle list --project ID --worktree /absolute/
   pudl huddle revision|diff <session-id> --request JSON
 
 Connection: --host user@host --profile name-or-id
-All paths refer to the selected execution host. Output is JSON. Validation exits
+Authoring lists the bundled-client kit, or reads one exact listed asset as JSON.
+It needs no daemon, accepts no connection/scope options, and writes no files.
+Source paths refer to the selected execution host; authoring names select kit assets.
+Output is JSON. Validation exits
 1 for graph errors; source/connection errors go to stderr and also exit 1.
 Create/open save source/placements without activation; open returns session.id.
 Runtime commands use that placement's declared worktree. Start/Apply require an
@@ -44,6 +49,7 @@ to read exact retained/before-and-after text; otherwise get the change inventory
 `;
 
 export type HuddleCommand =
+  | { action: 'authoring'; input: { path?: string } }
   | { action: 'list'; input: HuddleLocation }
   | { action: 'inspect' | 'validate' | 'open'; input: HuddleOpen }
   | { action: 'create'; input: HuddleCreate }
@@ -56,6 +62,14 @@ export function parseHuddleCommand(
   options: { project?: string; worktree?: string; name?: string; request?: string },
 ): HuddleCommand {
   const [action, id] = args;
+  if (action === 'authoring') {
+    if (args.length > 2 || Object.values(options).some((value) => value !== undefined))
+      throw new Error(huddleHelp);
+    return {
+      action,
+      input: huddleAuthoringRequestSchema.parse(id === undefined ? {} : { path: id }),
+    };
+  }
   if (action === 'session' || action === 'archive' || action === 'unarchive') {
     if (args.length !== 2 || Object.values(options).some((value) => value !== undefined))
       throw new Error(huddleHelp);
@@ -101,6 +115,8 @@ export async function runHuddleCommand(
   command: HuddleCommand,
   print: (value: unknown) => void,
 ): Promise<number> {
+  if (command.action === 'authoring')
+    throw new Error('Authoring assets are read without a host connection');
   if (command.action === 'list') print(await client.list(command.input));
   else if (command.action === 'inspect') print(await client.inspect(command.input));
   else if (command.action === 'open') print(await client.open(command.input));

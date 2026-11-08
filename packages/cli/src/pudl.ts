@@ -9,6 +9,7 @@ import {
   puddlangOutcomeRequestSchema,
   puddlangOutcomeOperationSchema,
   PROTOCOL_VERSION,
+  readHuddleAuthoring,
 } from '@puddle/shared';
 import { connectPuddlang } from './puddlang/client.js';
 import { serveMcp } from './puddlang/mcp.js';
@@ -26,6 +27,7 @@ const help = `pudl — Puddle's Ultimate Domain Language (puddlang)
   pudl mcp
 
   pudl huddle list|inspect|validate [huddle-id] --project ID --worktree ABSOLUTE_ROOT
+  pudl huddle authoring [asset-path]
   pudl huddle runtime|start|apply|run|interrupt|resume|stop|history <session-id> [--request JSON]
   pudl huddle --help
 
@@ -33,7 +35,8 @@ Connection: --host user@host --profile name-or-id
 Run options: --id UUID --account agent=label-or-id (repeatable)
              --max-turns 50 --max-agents 8 --timeout-ms 3600000
 
-Requires a running daemon with application protocol major ${PROTOCOL_VERSION.major}.
+Host commands require a running daemon with application protocol major ${PROTOCOL_VERSION.major}.
+Huddle authoring lists/reads client-bundled assets without a daemon connection.
 Programme runs also require a supported agent on that host.
 Outcome controls require protocol 26.1+. Read/discard explicitly releases retained
 outcomes for later reclamation; it never resumes the programme or replays a prompt.
@@ -106,6 +109,12 @@ async function main(): Promise<void> {
   )
     throw new Error(huddleHelp);
   const huddle = command === 'huddle' ? parseHuddleCommand(positionals.slice(1), values) : null;
+  if (huddle?.action === 'authoring') {
+    if (values.host !== undefined || values.profile !== undefined)
+      throw new Error('Authoring reads bundled-client assets; omit --host and --profile');
+    process.stdout.write(JSON.stringify(readHuddleAuthoring(huddle.input.path), null, 2) + '\n');
+    return;
+  }
   if (command !== 'outcome' && (values.read || values.discard || values.fingerprint))
     throw new Error(help);
   const disposition =

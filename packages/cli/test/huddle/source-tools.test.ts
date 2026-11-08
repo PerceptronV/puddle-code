@@ -205,7 +205,9 @@ it('does not advertise or dispatch huddle tools on unsupported MCP connections',
   expect(
     replies
       .find((r) => r.id === 2)
-      .result.tools.some((t: { name: string }) => t.name.startsWith('huddle_')),
+      .result.tools.some(
+        (t: { name: string }) => t.name.startsWith('huddle_') && t.name !== 'huddle_authoring',
+      ),
   ).toBe(false);
   expect(replies.find((r) => r.id === 3).result.isError).toBe(true);
   expect(fetch).not.toHaveBeenCalled();
