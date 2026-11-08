@@ -14,6 +14,7 @@ import {
   SquareTerminal,
   UserRoundCog,
   Info,
+  AppWindow,
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { liveConversationTarget, toastError } from '../../../lib/transport/errors';
@@ -68,6 +69,7 @@ import { browserTransport } from '../../../lib/transport/browser-transport';
 import { RuntimeDialog } from './runtime/RuntimeDialog';
 import { useCurrentProfileId } from '../../profile/profile-store';
 import { sessionLifecycle } from './lifecycle';
+import { useOpenTabWindow } from '../../windows/use-window-transfer';
 
 /**
  * The shared lifecycle-menu model for one session: which actions apply, the
@@ -89,6 +91,7 @@ export interface SessionMenu {
   /** Kill straight away — no confirmation (the conversation stays resumable). */
   kill: () => void;
   openRename: () => void;
+  openWindow?: () => void;
   inspectRuntime?: () => void;
   /** Confirm-then-clear the session's captured env (SPEC §4). */
   openClearEnv: () => void;
@@ -141,6 +144,7 @@ const contextKit: MenuKit = {
 export function useSessionMenu(
   session: Session,
   onArchived?: (id: string) => void,
+  paneId?: string,
 ): { menu: SessionMenu; dialogs: ReactNode } {
   const resume = useSessionAction('resume');
   const kill = useSessionAction('kill');
@@ -153,6 +157,10 @@ export function useSessionMenu(
   const createSession = useCreateSession();
   const navigate = useNavigate();
   const profileId = useCurrentProfileId();
+  const openWindow = useOpenTabWindow(
+    { type: 'terminal', session: session.id },
+    { projectId: session.project_id, paneId },
+  );
   const accounts = useAccounts(profileId ?? undefined);
   const settings = useProfileSettings(profileId ?? undefined);
   const [confirm, setConfirm] = useState<'clear-env' | null>(null);
@@ -196,6 +204,7 @@ export function useSessionMenu(
 
   const menu: SessionMenu = {
     session,
+    ...(openWindow && session.status !== 'archived' ? { openWindow } : {}),
     ...(runtimeInspection ? { inspectRuntime: () => setRuntimeOpen(true) } : {}),
     ...sessionLifecycle(session),
     canMigrate,
@@ -451,6 +460,11 @@ function SessionMenuItems({ kit, menu }: { kit: MenuKit; menu: SessionMenu }) {
   const { session } = menu;
   return (
     <>
+      {menu.openWindow && (
+        <Item onSelect={menu.openWindow}>
+          <AppWindow /> Open session in window
+        </Item>
+      )}
       <Item onSelect={menu.openRename}>
         <Pencil /> Rename
       </Item>
@@ -614,17 +628,19 @@ export function SessionActionsEllipsis({ menu }: { menu: SessionMenu }) {
  */
 export function SessionContextMenu({
   session,
+  paneId,
   onArchived,
   batch,
   children,
 }: {
   session: Session;
+  paneId?: string;
   onArchived?: (id: string) => void;
   /** Present only when this trigger belongs to a multi-session selection. */
   batch?: SessionBatchMenu;
   children: React.ReactElement | ((menu: SessionMenu) => React.ReactElement);
 }) {
-  const { menu, dialogs } = useSessionMenu(session, onArchived);
+  const { menu, dialogs } = useSessionMenu(session, onArchived, paneId);
   return (
     <>
       <ContextMenu>

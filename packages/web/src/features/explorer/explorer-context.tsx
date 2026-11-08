@@ -25,6 +25,7 @@ export type EditingState =
 /** The reactive tree view and its semantic actions, provided once by `ExplorerProvider`. */
 export interface ExplorerCtx {
   sid: string;
+  projectId: string;
   /**
    * Absolute path every row is relative to: the session's worktree, or the
    * browse `root` when the tree is showing a directory above it (SPEC §8).
@@ -205,6 +206,7 @@ function ExplorerScope({
 
   const value: ExplorerCtx = {
     sid,
+    projectId: session.project_id,
     rootPath,
     root,
     readOnly,

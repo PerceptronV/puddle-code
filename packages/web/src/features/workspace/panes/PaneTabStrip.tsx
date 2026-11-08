@@ -40,6 +40,7 @@ import { TabTooltipBody } from './TabTooltip';
 import { tabRefKey } from '../layout/layout-tree';
 import { useDropIndicator } from '../layout/TilingDnd';
 import { PaneWindowContextMenu } from '../../windows/PaneWindowContextMenu';
+import { TabWindowContextMenu } from '../../windows/TabWindowContextMenu';
 
 // The 7.2rem floor leaves a clickable title beside the three hover controls a stopped
 // session can show (resume, archive and close). Controls overlay the right edge
@@ -651,7 +652,11 @@ function PaneTab({
   if (tab.type === 'terminal' && session) {
     return (
       <Tooltip>
-        <SessionContextMenu session={session} onArchived={() => onArchived(tab.session)}>
+        <SessionContextMenu
+          session={session}
+          paneId={leafId}
+          onArchived={() => onArchived(tab.session)}
+        >
           <TooltipTrigger asChild>{body}</TooltipTrigger>
         </SessionContextMenu>
         {tooltip}
@@ -667,6 +672,8 @@ function PaneTab({
       <Tooltip open={renaming || settingsOpen ? false : undefined}>
         <FileTabContextMenu
           tab={tab.tab}
+          paneId={leafId}
+          projectId={fileSession?.project_id}
           directory={fileDirectory}
           onReveal={onRevealFile}
           onCompilationSettings={compilable ? onOpenCompilationSettings : undefined}
@@ -681,7 +688,9 @@ function PaneTab({
   }
   return (
     <Tooltip open={settingsOpen ? false : undefined}>
-      <TooltipTrigger asChild>{body}</TooltipTrigger>
+      <TabWindowContextMenu tab={tab} paneId={leafId}>
+        <TooltipTrigger asChild>{body}</TooltipTrigger>
+      </TabWindowContextMenu>
       {tooltip}
     </Tooltip>
   );

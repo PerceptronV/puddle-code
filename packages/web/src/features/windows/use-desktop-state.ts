@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
-import { uiStateSnapshotSchema } from '@puddle/shared';
+import { uiStateSnapshotSchema, desktopTabKey } from '@puddle/shared';
 import { desktopBridge } from '../../lib/desktop';
 import { fetchProfileState, putProfileState } from '../../lib/queries/queries';
 import { debounce } from '../../lib/debounce';
@@ -11,6 +11,7 @@ import { DesktopWorkingSet } from './working-set';
 import { desktopProfileSeed } from './profile-seed';
 import { registerRendererLifecycle } from './renderer-lifecycle';
 import { fenceWindowInteraction } from './interaction-fence';
+import { allLeaves, focusTab, tabRefKey } from '../workspace/layout/layout-tree';
 
 const workingSets = new Map<string, DesktopWorkingSet>();
 const empty = uiStateSnapshotSchema.parse({});
@@ -30,6 +31,20 @@ export async function registerDesktopWindowLifecycle(): Promise<void> {
     (active) =>
       fenceWindowInteraction(active || [...workingSets.values()].some((owner) => owner.locked())),
     toastError,
+    async ({ profileId, ref }) => {
+      const owner = desktopWorkingSet(profileId);
+      if (!owner) throw new Error('Window working set is unavailable');
+      await owner.load(async () => {
+        throw new Error('Window working set is unavailable');
+      });
+      const tree = owner.get().layout_tree;
+      const key = desktopTabKey(ref);
+      const leaf =
+        tree && allLeaves(tree).find((leaf) => leaf.tabs.some((tab) => desktopTabKey(tab) === key));
+      const tab = leaf?.tabs.find((tab) => desktopTabKey(tab) === key);
+      if (!tree || !leaf || !tab) throw new Error('The tab is no longer in this window');
+      owner.update({ layout_tree: focusTab(tree, leaf.id, tabRefKey(tab)) });
+    },
   );
 }
 

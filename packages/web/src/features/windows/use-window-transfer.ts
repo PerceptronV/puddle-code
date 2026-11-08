@@ -1,10 +1,50 @@
 import { useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router';
+import type { TabRef } from '@puddle/shared';
 import { desktopBridge } from '../../lib/desktop';
 import { toastError } from '../../lib/transport/errors';
 import { desktopWindowContext } from './window-context';
 import { desktopWorkingSet } from './use-desktop-state';
 import { fenceWindowInteraction } from './interaction-fence';
-import { transferPane } from './pane-transfer';
+import { transferPane, transferTab } from './pane-transfer';
+import { useCurrentProfileId } from '../profile/profile-store';
+import { fetchProfileState } from '../../lib/queries/queries';
+import { uiStateSnapshotSchema } from '@puddle/shared';
+
+/** The native action is absent on browsers and shells without tab-window support. */
+export function useOpenTabWindow(
+  ref: TabRef | null,
+  options: { projectId?: string; paneId?: string } = {},
+): (() => void) | undefined {
+  const { id: currentProject } = useParams();
+  const navigate = useNavigate();
+  const profileId = useCurrentProfileId();
+  const projectId = options.projectId ?? currentProject;
+  const bridge = desktopBridge()?.windows?.transfers;
+  if (!bridge?.focusPane || !ref || !projectId || !profileId) return undefined;
+  const sourceRoute = currentProject ? `/project/${currentProject}` : '/';
+  return () => {
+    void (async () => {
+      if (await bridge.focusPane!({ profileId, ref })) return;
+      const owner = desktopWorkingSet(profileId);
+      if (!owner) throw new Error('Native window state is unavailable');
+      await owner.load(
+        async () =>
+          (await fetchProfileState(profileId))?.ui_state ?? uiStateSnapshotSchema.parse({}),
+      );
+      await transferTab(
+        owner,
+        bridge,
+        projectId,
+        ref,
+        fenceWindowInteraction,
+        options.paneId,
+        sourceRoute,
+      );
+      await navigate(sourceRoute, { replace: true });
+    })().catch(toastError);
+  };
+}
 
 export async function openPaneWindow(
   profileId: string,

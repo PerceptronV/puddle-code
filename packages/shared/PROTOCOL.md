@@ -1,5 +1,12 @@
 # The puddle communication protocol
 
+Application **26.9** adds private desktop lookup and activation of a file/session
+in an existing pane window. Lookup is bounded to the caller's host/profile and
+activation uses the registered renderer's correlated command channel. File and
+session windows reuse the existing pane handoff; the optional source route keeps
+cross-project opens from changing the source's project. No daemon operation,
+runtime identity or remote grant changes.
+
 Application **26.8** adds the optional private desktop lifecycle and pane-transfer
 bridges. Bounded checkpoint/resume commands retain exact-window replies. A pane
 destination stages read-only content, then the source confirms its unchanged

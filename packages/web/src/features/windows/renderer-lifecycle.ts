@@ -1,4 +1,8 @@
-import { desktopWindowCommandSchema, type DesktopWindowLifecycleBridge } from '@puddle/shared';
+import {
+  desktopWindowCommandSchema,
+  type DesktopWindowLifecycleBridge,
+  type DesktopPaneFocus,
+} from '@puddle/shared';
 
 interface WorkingSetCheckpoint {
   checkpoint(): Promise<void>;
@@ -11,6 +15,7 @@ export async function registerRendererLifecycle(
   workingSets: () => Iterable<WorkingSetCheckpoint>,
   fence: (active: boolean) => void,
   reportError: (error: unknown) => void,
+  activate?: (request: DesktopPaneFocus) => Promise<void>,
 ): Promise<() => void> {
   let queue = Promise.resolve();
   const unsubscribe = bridge.onCommand((value) => {
@@ -26,6 +31,9 @@ export async function registerRendererLifecycle(
             );
             const failure = results.find((result) => result.status === 'rejected');
             if (failure?.status === 'rejected') throw failure.reason;
+          } else if (command.kind === 'activate-tab') {
+            if (!activate) throw new Error('This window cannot activate the requested tab');
+            await activate(command);
           } else {
             for (const workingSet of workingSets()) workingSet.resume();
             fence(false);

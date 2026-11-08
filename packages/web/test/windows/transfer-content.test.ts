@@ -1,7 +1,7 @@
 import { expect, it } from 'vitest';
 import { uiStateSnapshotSchema, type DesktopWorkspaceContent, type TabRef } from '@puddle/shared';
 import { makeLeaf, flattenTabs, tabRefKey } from '../../src/features/workspace/layout/layout-tree';
-import { detachPaneContent } from '../../src/features/windows/transfer-content';
+import { detachPaneContent, detachTabContent } from '../../src/features/windows/transfer-content';
 
 const session = '00000000-0000-4000-8000-000000000001';
 const editor = (path: string): TabRef => ({ type: 'editor', tab: { session, path } });
@@ -73,4 +73,61 @@ it('rejects a stale pane selection without altering the captured workspace', () 
   const original = structuredClone(input);
   expect(() => detachPaneContent(input, '1234567890', 'removed-pane')).toThrow('pane has changed');
   expect(input).toEqual(original);
+});
+
+it('moves the selected file view while preserving other tabs and a dirty duplicate view', () => {
+  const selected = makeLeaf([editor('stay.ts'), editor('move.ts')]);
+  const duplicate = makeLeaf([editor('move.ts')]);
+  const snapshot = uiStateSnapshotSchema.parse({
+    layout_tree: {
+      kind: 'split',
+      id: 'row',
+      direction: 'row',
+      children: [selected, duplicate],
+      sizes: [50, 50],
+    },
+  });
+  const result = detachTabContent(
+    { snapshot, buffers: [draft('move.ts')], views: {} },
+    '1234567890',
+    editor('move.ts'),
+    selected.id,
+  );
+  expect(flattenTabs(result.source.snapshot.layout_tree!)).toEqual([
+    editor('stay.ts'),
+    editor('move.ts'),
+  ]);
+  expect(flattenTabs(result.destination.snapshot.layout_tree!)).toEqual([editor('move.ts')]);
+  expect(result.destination.snapshot.layout_tree?.id).toBe(selected.id);
+  expect(result.source.buffers).toEqual(result.destination.buffers);
+});
+
+it('opens an unopened file without moving unrelated source tabs or drafts', () => {
+  const source: DesktopWorkspaceContent = {
+    snapshot: uiStateSnapshotSchema.parse({ layout_tree: makeLeaf([editor('stay.ts')]) }),
+    buffers: [draft('stay.ts')],
+    views: {},
+  };
+  const result = detachTabContent(source, '1234567890', editor('new.ts'));
+  expect(result.source).toEqual(source);
+  expect(flattenTabs(result.destination.snapshot.layout_tree!)).toEqual([editor('new.ts')]);
+  expect(result.destination.buffers).toEqual([]);
+});
+
+it('moves a parked session from its own project slice without changing the visible project', () => {
+  const terminal: TabRef = { type: 'terminal', session };
+  const snapshot = uiStateSnapshotSchema.parse({
+    layout_mode: 'project',
+    project_layouts: {
+      '1234567890': { layout_tree: makeLeaf([editor('stay.ts')]) },
+      abcdef1234: { layout_tree: makeLeaf([terminal]), active_session: session },
+    },
+  });
+  const result = detachTabContent({ snapshot, buffers: [], views: {} }, 'abcdef1234', terminal);
+  expect(result.source.snapshot.project_layouts['1234567890']).toEqual(
+    snapshot.project_layouts['1234567890'],
+  );
+  expect(result.source.snapshot.project_layouts['abcdef1234']?.active_session).toBeNull();
+  expect(result.destination.snapshot.active_session).toBe(session);
+  expect(flattenTabs(result.destination.snapshot.layout_tree!)).toEqual([terminal]);
 });

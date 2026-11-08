@@ -336,7 +336,8 @@
 // 26.6: optional six-digit hex project colours alongside the existing preset keys.
 // 26.7: private desktop window identities, revisioned working sets and transfer records.
 // 26.8: private desktop lifecycle checkpoints and staged pane-window handoff.
-export const PROTOCOL_VERSION = { major: 26, minor: 8 } as const;
+// 26.9: private desktop tab-window lookup and exact-window tab activation.
+export const PROTOCOL_VERSION = { major: 26, minor: 9 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

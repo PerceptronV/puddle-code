@@ -15,6 +15,9 @@ import {
   desktopWindowTransferSchema,
   desktopWorkspaceVersionSchema,
   uiStateSnapshotSchema,
+  desktopTabKey,
+  type TabRef,
+  type LayoutNode,
   type DesktopProfileSeed,
   type DesktopWindowTransfer,
   type DesktopWorkspaceContent,
@@ -255,6 +258,29 @@ export class DesktopWindowState {
       return { revision: staged.destinationRevision, content: staged.destinationContent };
     }
     return this.read(id, profile);
+  }
+
+  findPane(sourceId: string, profile: string, ref: TabRef): string | null {
+    this.assertProfile(sourceId, profile);
+    const target = this.entry(sourceId).record.target;
+    const key = desktopTabKey(ref);
+    const contains = (tree: LayoutNode | null): boolean =>
+      !!tree &&
+      (tree.kind === 'leaf'
+        ? tree.tabs.some((tab) => desktopTabKey(tab) === key)
+        : tree.children.some(contains));
+    for (const [id, entry] of Object.entries(this.state.entries)) {
+      const identity = entry.record.window;
+      if (
+        entry.open &&
+        entry.record.target === target &&
+        identity?.kind === 'pane' &&
+        identity.profileId === profile &&
+        contains(entry.workspaces[profile]?.content.snapshot.layout_tree ?? null)
+      )
+        return id;
+    }
+    return null;
   }
 
   transferParty(id: string, windowId: string): 'source' | 'destination' | null {

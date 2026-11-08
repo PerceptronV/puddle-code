@@ -6,6 +6,8 @@ import { createRequire } from 'node:module';
 import {
   PROTOCOL_VERSION,
   desktopWindowRouteSchema,
+  desktopPaneFocusSchema,
+  type DesktopPaneFocus,
   type DesktopWindowIdentity,
 } from '@puddle/shared';
 import {
@@ -105,6 +107,7 @@ let restoringWindows = true;
 let windowStateLoaded = false;
 let windowState: DesktopWindowState | null = null;
 const windowCommands = new WindowCommands();
+const pendingPaneFocus = new Map<string, DesktopPaneFocus>();
 const checkpoints = new Map<string, Promise<void>>();
 const windowTransfers = new WindowTransfers({
   state: () => {
@@ -336,6 +339,7 @@ function createWindow(
     delivery.close();
     notifications.delete(contentsId);
     windowCommands.disconnected(identity.id);
+    pendingPaneFocus.delete(identity.id);
     windowTransfers.disconnected(identity.id);
   });
   win.webContents.on('render-process-gone', () => {
@@ -685,6 +689,28 @@ ipcMain.handle('puddle:window-ready', (event) => {
   windowCommands.ready(owner.identity.id, (command) =>
     event.sender.send('puddle:window-command', command),
   );
+  const focus = pendingPaneFocus.get(owner.identity.id);
+  if (focus) {
+    pendingPaneFocus.delete(owner.identity.id);
+    void windowCommands
+      .request(owner.identity.id, 'activate-tab', focus)
+      .catch((error) => logger.warn(errorText(error)));
+  }
+});
+ipcMain.handle('puddle:window-focus-pane', async (event, value: unknown) => {
+  const owner = windowContext(event);
+  const request = desktopPaneFocusSchema.parse(value);
+  if (!windowState || quitting || quitPending) throw new Error('Window state is unavailable');
+  const id = windowState.findPane(owner.identity.id, request.profileId, request.ref);
+  if (!id) return false;
+  const window = [...shells.values()]
+    .flatMap((host) => [...host.windows.values()])
+    .find((window) => window.identity.id === id);
+  if (!window || window.win.isDestroyed()) return false;
+  raise(window.win);
+  if (windowCommands.available(id)) await windowCommands.request(id, 'activate-tab', request);
+  else pendingPaneFocus.set(id, request);
+  return true;
 });
 ipcMain.handle('puddle:window-reply', (event, reply: unknown) => {
   const owner = windowContext(event);

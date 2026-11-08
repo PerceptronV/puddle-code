@@ -34,6 +34,7 @@ import {
 import { basename, dirOf, joinAbsolutePath } from './explorer-paths';
 import { FileMenuItems } from './FileMenuItems';
 import { useExplorerFs } from './use-explorer-fs';
+import { useOpenTabWindow } from '../windows/use-window-transfer';
 
 /**
  * A path-backed editor tab's file-tree menu. It deliberately uses the same menu
@@ -42,6 +43,8 @@ import { useExplorerFs } from './use-explorer-fs';
  */
 export function FileTabContextMenu({
   tab,
+  paneId,
+  projectId,
   directory,
   onReveal,
   onCompilationSettings,
@@ -50,6 +53,8 @@ export function FileTabContextMenu({
   children,
 }: {
   tab: EditorTab;
+  paneId?: string;
+  projectId?: string;
   /** Absolute root `tab.path` is relative to (worktree path or external root). */
   directory: string;
   onReveal: () => void;
@@ -60,6 +65,7 @@ export function FileTabContextMenu({
   children: ReactNode;
 }) {
   const host = useHostInfo();
+  const openWindow = useOpenTabWindow({ type: 'editor', tab }, { paneId, projectId });
   const protocol = useDaemonVersion().data?.protocol;
   const clipboard = useExplorerClipboard();
   const fs = useExplorerFs(tab.session, tab.root, directory);
@@ -114,6 +120,7 @@ export function FileTabContextMenu({
             onCopyPath={() => copyPath(false)}
             onCopyRelativePath={() => copyPath(true)}
             onReveal={onReveal}
+            onOpenWindow={openWindow}
             onCompilationSettings={onCompilationSettings}
             onRename={onRename}
             onDelete={() => setDeleting(true)}

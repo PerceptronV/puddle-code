@@ -22,6 +22,7 @@ contextBridge.exposeInMainWorld('puddleDesktop', {
       cancel: (request: unknown) => ipcRenderer.invoke('puddle:window-transfer-cancel', request),
       observe: (request: unknown) => ipcRenderer.invoke('puddle:window-transfer-observe', request),
       accept: (request: unknown) => ipcRenderer.invoke('puddle:window-transfer-accept', request),
+      focusPane: (request: unknown) => ipcRenderer.invoke('puddle:window-focus-pane', request),
     },
     lifecycle: {
       ready: () => ipcRenderer.invoke('puddle:window-ready'),

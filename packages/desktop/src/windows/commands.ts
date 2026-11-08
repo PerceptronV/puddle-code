@@ -1,5 +1,10 @@
 import { randomUUID } from 'node:crypto';
-import { desktopWindowCommandReplySchema, type DesktopWindowCommand } from '@puddle/shared';
+import {
+  desktopWindowCommandReplySchema,
+  desktopWindowCommandSchema,
+  type DesktopWindowCommand,
+  type DesktopPaneFocus,
+} from '@puddle/shared';
 
 interface Pending {
   windowId: string;
@@ -24,7 +29,11 @@ export class WindowCommands {
     return this.renderers.has(windowId);
   }
 
-  request(windowId: string, kind: DesktopWindowCommand['kind']): Promise<void> {
+  request(
+    windowId: string,
+    kind: DesktopWindowCommand['kind'],
+    payload?: DesktopPaneFocus,
+  ): Promise<void> {
     const send = this.renderers.get(windowId);
     if (!send) return Promise.reject(new Error('Window renderer is unavailable'));
     const id = randomUUID();
@@ -35,7 +44,7 @@ export class WindowCommands {
       }, this.timeoutMs);
       this.pending.set(id, { windowId, resolve, reject, timer });
       try {
-        send({ id, kind });
+        send(desktopWindowCommandSchema.parse({ id, kind, ...payload }));
       } catch (error) {
         clearTimeout(timer);
         this.pending.delete(id);

@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { profileId, projectId } from './api/common.js';
-import { uiStateSnapshotSchema } from './api/workspace/ui-state.js';
+import { uiStateSnapshotSchema, tabRefSchema, type TabRef } from './api/workspace/ui-state.js';
 
 /** Private desktop IPC/persistence identity; never selects a host transport. */
 export const desktopWindowIdSchema = z
@@ -130,6 +130,7 @@ export const desktopPaneDetachSchema = z.object({
   revision: z.number().int().nonnegative(),
   source: desktopWorkspaceContentSchema,
   destination: desktopWorkspaceContentSchema,
+  sourceRoute: desktopWindowRouteSchema.optional(),
 });
 export type DesktopPaneDetach = z.infer<typeof desktopPaneDetachSchema>;
 export const desktopTransferReferenceSchema = z.object({ id: desktopWindowIdSchema, profileId });
@@ -147,12 +148,38 @@ export interface DesktopWindowTransfersBridge {
   observe(request: DesktopTransferReference): Promise<DesktopTransferObservation>;
   /** Resolves only when the source has confirmed the handoff. */
   accept(request: DesktopTransferReference): Promise<DesktopWorkspaceVersion>;
+  focusPane?(request: DesktopPaneFocus): Promise<boolean>;
 }
 
-export const desktopWindowCommandSchema = z.object({
-  id: desktopWindowIdSchema,
-  kind: z.enum(['checkpoint', 'resume']),
-});
+export const desktopPaneFocusSchema = z.object({ profileId, ref: tabRefSchema });
+export type DesktopPaneFocus = z.infer<typeof desktopPaneFocusSchema>;
+
+/** Window lookup includes a following preview's actual target, not just its slot name. */
+export function desktopTabKey(ref: TabRef): string {
+  if (ref.type === 'terminal') return JSON.stringify(['terminal', ref.session]);
+  const tab = ref.tab;
+  return JSON.stringify([
+    'editor',
+    tab.kind ?? 'file',
+    tab.session,
+    tab.path,
+    tab.root ?? null,
+    tab.sha ?? null,
+    tab.git_area ?? null,
+    tab.view === 'linked' || tab.view === 'locked' ? tab.view : null,
+  ]);
+}
+
+export const desktopWindowCommandSchema = z.discriminatedUnion('kind', [
+  z.object({ id: desktopWindowIdSchema, kind: z.literal('checkpoint') }),
+  z.object({ id: desktopWindowIdSchema, kind: z.literal('resume') }),
+  z.object({
+    id: desktopWindowIdSchema,
+    kind: z.literal('activate-tab'),
+    profileId,
+    ref: tabRefSchema,
+  }),
+]);
 export type DesktopWindowCommand = z.infer<typeof desktopWindowCommandSchema>;
 export const desktopWindowCommandReplySchema = z.object({
   id: desktopWindowIdSchema,

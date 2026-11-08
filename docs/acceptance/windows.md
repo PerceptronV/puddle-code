@@ -52,9 +52,17 @@ verification; pending items are not support claims.
   in source recovery and is persisted. Application protocol 26.8 carries the
   capability-detected private lifecycle/transfer bridge.
 
-Individual file/session context actions, project detachment and redirects, docking,
-and named window arrangements are still pending. Whole-pane detachment alone does
-not deliver the roadmap. Undo-stack transfer is not implemented; restored editors use
+- File-tree rows, editor tabs (including untitled/diff/preview tabs), and the
+  shared session menu now open individual items in pane windows. An existing
+  source view moves; unopened items create a view. Other duplicate views retain
+  their dirty state. A same-host/profile pane that already contains the item is
+  raised and its tab activated. Session moves retain the original session id.
+  Cross-project actions preserve the source route. The private lookup/activation
+  capability is application protocol 26.9.
+
+Project detachment and redirects, docking, and named window arrangements are still
+pending. Pane detachment alone does not deliver the roadmap. Undo-stack transfer
+is not implemented; restored editors use
 new Monaco models with recovered text.
 
 ## Verification record
@@ -106,6 +114,15 @@ To repeat the integrated check, run the UI-only preview, then
 The script builds the desktop state/transfer modules into an isolated temporary
 directory and cleans up its browser and state afterwards. It never calls host
 bootstrap or starts a daemon.
+
+The same integrated check now accepts `WINDOW_TRANSFER_KIND=file` and
+`WINDOW_TRANSFER_KIND=session`. Both passed against the UI-only preview; the file
+case additionally repeats its open action and verifies reuse of the existing
+window, while the session case checks the unchanged terminal session reference
+and removal of the source terminal. This increment also passed 113 focused
+desktop/window/explorer tests across 19 files, the 18 shared API contract tests,
+desktop/web TypeScript checks and targeted ESLint. Untitled, diff and preview
+menu wiring is implemented; their integrated transfer acceptance remains pending.
 
 Native acceptance has not run. Use an isolated UI preview for desktop interaction;
 start any real daemon from a plain shell, never from a coding-agent session.

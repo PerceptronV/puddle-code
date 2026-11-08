@@ -1,10 +1,12 @@
-import type { DesktopWorkspaceContent, LayoutNode, UiStateSnapshot } from '@puddle/shared';
+import type { DesktopWorkspaceContent, LayoutNode, UiStateSnapshot, TabRef } from '@puddle/shared';
 import {
   findLeaf,
   flattenTabs,
   makeLeaf,
   normalise,
   tabRefKey,
+  allLeaves,
+  closeTab,
 } from '../workspace/layout/layout-tree';
 import { scopedSnapshot } from '../workspace/layout/project-layout';
 import { windowBufferKey } from './content-state';
@@ -69,7 +71,85 @@ export function detachPaneContent(
     active_session: active?.type === 'terminal' ? active.session : null,
     layout_ref: null,
   };
-  const moved = bufferKeys(pane);
+  return partitionContent(content, source, destination);
+}
+
+/** Move the clicked view when present, or open an unopened file/session in a new pane. */
+export function detachTabContent(
+  content: DesktopWorkspaceContent,
+  projectId: string,
+  ref: TabRef,
+  paneId?: string,
+): { source: DesktopWorkspaceContent; destination: DesktopWorkspaceContent } {
+  const base = content.snapshot;
+  const key = tabRefKey(ref);
+  const scopes =
+    base.layout_mode === 'project'
+      ? [projectId, ...Object.keys(base.project_layouts).filter((id) => id !== projectId)].map(
+          (id) => ({ id, snapshot: scopedSnapshot(base, id) }),
+        )
+      : [{ id: projectId, snapshot: base }];
+  const match = scopes
+    .flatMap((scope) =>
+      (scope.snapshot.layout_tree ? allLeaves(scope.snapshot.layout_tree) : [])
+        .filter(
+          (leaf) =>
+            (!paneId || paneId === leaf.id) && leaf.tabs.some((tab) => tabRefKey(tab) === key),
+        )
+        .map((leaf) => ({ scope, leaf })),
+    )
+    .at(0);
+  if (paneId && !match) throw new Error('The tab has changed; try opening it again');
+  const actual = match?.leaf.tabs.find((tab) => tabRefKey(tab) === key) ?? ref;
+  const pane = makeLeaf([actual]);
+  // View-state keys are pane-local. The two renderers may temporarily share a
+  // pane id; docking reassigns colliding ids when joining their trees.
+  if (match) pane.id = match.leaf.id;
+  let source = base;
+  if (match) {
+    const remaining = closeTab(match.scope.snapshot.layout_tree!, match.leaf.id, key);
+    const active = match.scope.snapshot.active_session;
+    const active_session =
+      active &&
+      flattenTabs(remaining).some((tab) => tab.type === 'terminal' && tab.session === active)
+        ? active
+        : null;
+    source =
+      base.layout_mode === 'project'
+        ? {
+            ...base,
+            project_layouts: {
+              ...base.project_layouts,
+              [match.scope.id]: {
+                ...base.project_layouts[match.scope.id]!,
+                layout_tree: remaining,
+                active_session,
+              },
+            },
+          }
+        : { ...base, layout_tree: remaining, active_session };
+  }
+  const scoped = base.layout_mode === 'project' ? scopedSnapshot(base, projectId) : base;
+  const destination: UiStateSnapshot = {
+    ...scoped,
+    layout_mode: 'profile',
+    project_layouts: {},
+    layout_tree: pane,
+    session_tabs: [],
+    editor_tabs: [],
+    active_editor_tab: null,
+    layout_ref: null,
+    active_session: actual.type === 'terminal' ? actual.session : null,
+  };
+  return partitionContent(content, source, destination);
+}
+
+function partitionContent(
+  content: DesktopWorkspaceContent,
+  source: UiStateSnapshot,
+  destination: UiStateSnapshot,
+) {
+  const moved = bufferKeys(destination.layout_tree);
   const retained = bufferKeys(source.layout_mode === 'project' ? null : source.layout_tree);
   if (source.layout_mode === 'project') {
     for (const slice of Object.values(source.project_layouts)) {

@@ -27,6 +27,7 @@ import {
 import { FileTypeIcon, FolderIcon } from './file-icons';
 import { FileMenuItems } from './FileMenuItems';
 import { folderStatus, gitDecoration } from './git-decoration';
+import { useOpenTabWindow } from '../windows/use-window-transfer';
 
 const INDENT_PX = 16;
 
@@ -130,6 +131,18 @@ export function TreeNode({
 }) {
   const ex = useExplorer();
   const isDir = entry.type === 'dir';
+  const openWindow = useOpenTabWindow(
+    isDir
+      ? null
+      : {
+          type: 'editor',
+          tab:
+            ex.root === undefined
+              ? { session: ex.sid, path }
+              : { kind: 'external', session: ex.sid, path, root: ex.root },
+        },
+    { projectId: ex.projectId },
+  );
   const isOpen = isDir && ex.expanded.has(path);
   const isDropTarget = isDir && ex.dropTarget === path;
   const isActive = !isDir && path === ex.activePath;
@@ -320,6 +333,7 @@ export function TreeNode({
             absolutePath={joinAbsolutePath(ex.rootPath, path)}
             readOnly={ex.readOnly}
             canPaste={ex.canPaste}
+            onOpenWindow={openWindow}
             onCut={() => ex.cut(targets)}
             onCopy={() => ex.copy(targets)}
             onPaste={() => ex.paste(pasteDir)}

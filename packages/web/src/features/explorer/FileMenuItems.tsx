@@ -21,6 +21,7 @@ export function FileMenuItems({
   onCopyPath,
   onCopyRelativePath,
   onReveal,
+  onOpenWindow,
   onCompilationSettings,
   onRename,
   onDelete,
@@ -36,6 +37,7 @@ export function FileMenuItems({
   onCopyRelativePath: () => void;
   /** Tab-only: the tree row is already revealed by definition. */
   onReveal?: () => void;
+  onOpenWindow?: () => void;
   /** Compilable-file-only: edit this file's project-scoped command slots. */
   onCompilationSettings?: () => void;
   onRename: () => void;
@@ -44,6 +46,9 @@ export function FileMenuItems({
 }) {
   return (
     <>
+      {onOpenWindow && (
+        <ContextMenuItem onSelect={onOpenWindow}>Open file in window</ContextMenuItem>
+      )}
       {!readOnly && (
         <>
           <ContextMenuItem onSelect={onCut}>

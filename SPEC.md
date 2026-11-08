@@ -2311,9 +2311,17 @@ Unexpected dirty edits arriving after confirmation remain open in the source for
 review and are checkpointed as additional recovery state. A whole-pane move does
 not close the source native window or stop its sessions.
 
+Application 26.9 adds file/session context-menu actions using the same pane handoff.
+An existing source view moves; an unopened item starts in a new pane. Other source
+views keep their dirty buffers. A matching detached pane on the same host/profile
+is raised and its requested tab activated instead of creating another window.
+Tree rows and path-backed tabs share the existing file menu; other editor tabs
+receive the native action without unrelated file-system actions. Session opens
+keep the same session reference and do not launch or restart a runtime.
+
 The shared workspace can render full host, headerless project, and pane-only
-presentations; detached windows use native title bars. Individual file/session
-actions, project detachment, docking, project redirects, and
+presentations; detached windows use native title bars. Project detachment,
+docking, project redirects, and
 named window arrangements remain in progress. See
 `docs/roadmap/windows.md` for the full contract and `docs/acceptance/windows.md`
 for implemented behaviour and verified scope. These foundations do not yet

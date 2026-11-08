@@ -32,8 +32,8 @@ import {
 } from '../src/index.js';
 
 describe('shared API schemas', () => {
-  it('declares protocol 26.8 for desktop pane handoff', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 26, minor: 8 });
+  it('declares protocol 26.9 for desktop tab windows', () => {
+    expect(PROTOCOL_VERSION).toEqual({ major: 26, minor: 9 });
   });
 
   it('accepts headless mode and rejects the previous scripted name', () => {

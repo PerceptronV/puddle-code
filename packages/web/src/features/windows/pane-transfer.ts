@@ -1,6 +1,11 @@
-import type { DesktopWindowTransfersBridge, DesktopWorkspaceVersion } from '@puddle/shared';
+import type {
+  DesktopWindowTransfersBridge,
+  DesktopWorkspaceVersion,
+  DesktopWorkspaceContent,
+  TabRef,
+} from '@puddle/shared';
 import type { DesktopWorkingSet } from './working-set';
-import { detachPaneContent } from './transfer-content';
+import { detachPaneContent, detachTabContent } from './transfer-content';
 
 /** No live model moves between renderers. Transfer its captured working set, then remount. */
 export async function transferPane(
@@ -9,6 +14,45 @@ export async function transferPane(
   projectId: string,
   paneId: string,
   fence: (active: boolean) => void,
+): Promise<void> {
+  return transferContent(
+    owner,
+    bridge,
+    projectId,
+    (content) => detachPaneContent(content, projectId, paneId),
+    fence,
+  );
+}
+
+export function transferTab(
+  owner: DesktopWorkingSet,
+  bridge: DesktopWindowTransfersBridge,
+  projectId: string,
+  ref: TabRef,
+  fence: (active: boolean) => void,
+  paneId?: string,
+  sourceRoute?: string,
+): Promise<void> {
+  return transferContent(
+    owner,
+    bridge,
+    projectId,
+    (content) => detachTabContent(content, projectId, ref, paneId),
+    fence,
+    sourceRoute,
+  );
+}
+
+async function transferContent(
+  owner: DesktopWorkingSet,
+  bridge: DesktopWindowTransfersBridge,
+  projectId: string,
+  project: (content: DesktopWorkspaceContent) => {
+    source: DesktopWorkspaceContent;
+    destination: DesktopWorkspaceContent;
+  },
+  fence: (active: boolean) => void,
+  sourceRoute?: string,
 ): Promise<void> {
   if (!owner.loaded() || owner.locked()) throw new Error('The workspace is not ready to detach');
   const reference = { id: crypto.randomUUID(), profileId: owner.profileId };
@@ -19,8 +63,14 @@ export async function transferPane(
   fence(true);
   try {
     captured = await owner.freeze();
-    const content = detachPaneContent(captured.content, projectId, paneId);
-    await bridge.preparePane({ ...reference, projectId, revision: captured.revision, ...content });
+    const content = project(captured.content);
+    await bridge.preparePane({
+      ...reference,
+      projectId,
+      revision: captured.revision,
+      ...content,
+      ...(sourceRoute ? { sourceRoute } : {}),
+    });
     if (!owner.matchesCapture(captured))
       throw new Error('The pane changed while opening its window; please try again');
     await adopt(await bridge.commit(reference));

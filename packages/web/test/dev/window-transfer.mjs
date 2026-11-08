@@ -14,7 +14,7 @@ const directory = await mkdtemp(join(tmpdir(), 'puddle-live-window-'));
 const implementation = join(directory, 'implementation.mjs');
 await build({
   stdin: {
-    contents: `export { DesktopWindowState } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/state.ts'))};\nexport { WindowTransfers } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers.ts'))};`,
+    contents: `export { DesktopWindowState } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/state.ts'))};\nexport { WindowTransfers } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers.ts'))};\nexport { WindowCommands } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/commands.ts'))};`,
     resolveDir: root,
   },
   bundle: true,
@@ -23,7 +23,13 @@ await build({
   outfile: implementation,
   alias: { '@puddle/shared': resolve(root, 'packages/shared/src/index.ts') },
 });
-const { DesktopWindowState, WindowTransfers } = await import(pathToFileURL(implementation).href);
+const { DesktopWindowState, WindowTransfers, WindowCommands } = await import(
+  pathToFileURL(implementation).href
+);
+const commands = new WindowCommands();
+const mode = process.env.WINDOW_TRANSFER_KIND ?? 'pane';
+assert.ok(['pane', 'file', 'session'].includes(mode));
+let focused = 0;
 const state = new DesktopWindowState(join(directory, 'windows.json'));
 const browser = await chromium.launch({ headless: true });
 const context = await browser.newContext({ viewport: { width: 1200, height: 800 } });
@@ -53,28 +59,52 @@ async function openPage(record) {
   await page.exposeBinding('windowRequest', async (_source, method, request) => {
     if (method === 'context')
       return { identity: record.window, hostId: 'host', stagingTransfer: state.staging(id)?.id };
+    if (method === 'ready')
+      return commands.ready(id, (command) => {
+        void page.evaluate((value) => window.receiveWindowCommand(value), command);
+      });
+    if (method === 'reply') return commands.reply(id, request);
+    if (method === 'focusPane') {
+      const target = state.findPane(id, request.profileId, request.ref);
+      if (!target || !pages.has(target)) return false;
+      focused++;
+      await pages.get(target).bringToFront();
+      await commands.request(target, 'activate-tab', request);
+      return true;
+    }
     if (method === 'read') return state.readPresentation(id, request);
     if (method === 'write' || method === 'seed')
       return state.write(id, request.profileId, request.revision, request.content);
     if (method === 'preparePane') return coordinator.preparePane(id, request);
     return coordinator[method](id, request);
   });
-  await page.addInitScript(() => {
+  await page.addInitScript((mode) => {
     window.puddleDesktop = {
       raiseWindow() {},
       isFullScreen: async () => false,
       windows: {
         version: 1,
+        lifecycle: {
+          ready: () => window.windowRequest('ready'),
+          onCommand: (callback) => {
+            window.receiveWindowCommand = callback;
+            return () => {};
+          },
+          reply: (request) => window.windowRequest('reply', request),
+        },
         context: () => window.windowRequest('context'),
         read: async (profileId) => {
           const existing = await window.windowRequest('read', profileId);
           if (existing) return existing;
           const { state, sessions } = await import('/src/dev/preview/data.ts');
           const { tabRefKey } = await import('/src/features/workspace/layout/layout-tree.ts');
-          const ref = {
-            type: 'editor',
-            tab: { session: sessions[0].id, path: 'README.md', view: 'source' },
-          };
+          const ref =
+            mode === 'session'
+              ? { type: 'terminal', session: sessions[0].id }
+              : {
+                  type: 'editor',
+                  tab: { session: sessions[0].id, path: 'README.md', view: 'source' },
+                };
           return window.windowRequest('seed', {
             profileId,
             revision: 0,
@@ -99,35 +129,42 @@ async function openPage(record) {
         },
         write: (request) => window.windowRequest('write', request),
         transfers: Object.fromEntries(
-          ['preparePane', 'accept', 'commit', 'observe', 'cancel'].map((method) => [
+          ['preparePane', 'accept', 'commit', 'observe', 'cancel', 'focusPane'].map((method) => [
             method,
             (request) => window.windowRequest(method, request),
           ]),
         ),
       },
     };
-  });
+  }, mode);
   await page.goto(new URL(record.route ?? '/', preview).href);
 }
 
 try {
   await openPage({ target: 'local', window: { id: 'host', kind: 'host' } });
   const source = pages.get('host');
-  await source.locator('[data-editor-surface] .monaco-editor').waitFor();
+  await source
+    .locator(mode === 'session' ? '.xterm' : '[data-editor-surface] .monaco-editor')
+    .first()
+    .waitFor();
   const closeNotes = source.getByRole('button', { name: 'Close', exact: true });
   if (await closeNotes.isVisible().catch(() => false)) await closeNotes.click();
-  await source.evaluate(async () => {
-    const { monaco } = await import('/src/features/editor/monaco/monaco-setup.ts');
-    monaco.editor
-      .getModels()
-      .find((model) => model.uri.scheme === 'puddle')
-      .setValue('Unsaved text moved through the real coordinator');
-  });
-  await source
-    .locator('[data-pane-drag-handle]')
-    .first()
-    .dispatchEvent('contextmenu', { button: 2 });
-  await source.getByRole('menuitem', { name: 'Open pane in window', exact: true }).click();
+  if (mode !== 'session')
+    await source.evaluate(async () => {
+      const { monaco } = await import('/src/features/editor/monaco/monaco-setup.ts');
+      monaco.editor
+        .getModels()
+        .find((model) => model.uri.scheme === 'puddle')
+        .setValue('Unsaved text moved through the real coordinator');
+    });
+  const trigger =
+    mode === 'file'
+      ? source.locator('[data-path="README.md"]').first()
+      : mode === 'session'
+        ? source.locator('[data-pane-tab]').first()
+        : source.locator('[data-pane-drag-handle]').first();
+  await trigger.dispatchEvent('contextmenu', { button: 2 });
+  await source.getByRole('menuitem', { name: `Open ${mode} in window`, exact: true }).click();
   await expect
     .poll(() => [...records.values()].filter((record) => record.window.kind === 'pane').length)
     .toBe(1);
@@ -135,6 +172,10 @@ try {
   await expect.poll(() => pages.has(destination.window.id)).toBe(true);
   const target = pages.get(destination.window.id);
   const checkText = async (page) => {
+    if (mode === 'session') {
+      await page.locator('.xterm').first().waitFor();
+      return;
+    }
     await page.locator('[data-editor-surface] .monaco-editor').waitFor();
     await page.waitForFunction(async () => {
       const { monaco } = await import('/src/features/editor/monaco/monaco-setup.ts');
@@ -146,13 +187,33 @@ try {
   await checkText(target);
   await expect.poll(() => state.openWindows().length).toBe(2);
   await expect(source.locator('[data-editor-surface] .monaco-editor')).toHaveCount(0);
+  if (mode === 'session') {
+    await expect(source.locator('.xterm')).toHaveCount(0);
+    const original = await target.evaluate(
+      async () => (await import('/src/dev/preview/data.ts')).sessions[0].id,
+    );
+    const tree = state.read(destination.window.id, destination.window.profileId).content.snapshot
+      .layout_tree;
+    assert.equal(tree.kind, 'leaf');
+    assert.deepEqual(tree.tabs, [{ type: 'terminal', session: original }]);
+  }
   await expect(target.getByRole('group', { name: 'Workspace controls' })).toHaveCount(0);
   const profile = destination.window.profileId;
   assert.equal(state.read('host', profile).content.buffers.length, 0);
-  assert.equal(
-    state.read(destination.window.id, profile).content.buffers[0].content,
-    'Unsaved text moved through the real coordinator',
-  );
+  if (mode !== 'session')
+    assert.equal(
+      state.read(destination.window.id, profile).content.buffers[0].content,
+      'Unsaved text moved through the real coordinator',
+    );
+  if (mode === 'file') {
+    await source
+      .locator('[data-path="README.md"]')
+      .first()
+      .dispatchEvent('contextmenu', { button: 2 });
+    await source.getByRole('menuitem', { name: 'Open file in window', exact: true }).click();
+    await expect.poll(() => focused).toBe(1);
+    assert.equal(records.size, 2);
+  }
   records.delete('host');
   state.syncOpenWindows([...records.values()]);
   await source.close();
@@ -160,9 +221,7 @@ try {
   await checkText(target);
   await target.screenshot({ path: '/tmp/puddle-live-pane-transfer.png' });
   assert.deepEqual(errors, []);
-  console.log(
-    'Live pane handoff, source retirement, dirty text, and independent pane reload pass.',
-  );
+  console.log(`Live ${mode} handoff, source view removal, and independent pane reload pass.`);
 } finally {
   await browser.close();
   await rm(directory, { recursive: true, force: true });

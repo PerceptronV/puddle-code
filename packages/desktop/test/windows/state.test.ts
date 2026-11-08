@@ -54,6 +54,35 @@ afterEach(() => {
 });
 
 describe('durable desktop working sets and acknowledged transfers', () => {
+  it('finds an existing pane only on the same host and profile', () => {
+    const { store } = setup();
+    const ref = {
+      type: 'editor' as const,
+      tab: { session: '00000000-0000-4000-8000-000000000001', path: 'a.ts' },
+    };
+    store.syncOpenWindows([
+      source,
+      destination,
+      { target: 'other-host', window: { kind: 'host', id: 'other' } },
+    ]);
+    store.write('destination', profile, 0, {
+      ...content(),
+      snapshot: uiStateSnapshotSchema.parse({
+        layout_tree: {
+          kind: 'leaf',
+          id: 'leaf',
+          tabs: [ref],
+          activeKey: null,
+        },
+      }),
+    });
+    expect(store.findPane('source', profile, ref)).toBe('destination');
+    expect(store.findPane('other', profile, ref)).toBeNull();
+    expect(store.findPane('source', '0000000000', ref)).toBeNull();
+    expect(
+      store.findPane('source', profile, { ...ref, tab: { ...ref.tab, root: '/different' } }),
+    ).toBeNull();
+  });
   it('migrates target-only reopen state and retains working sets across close/reopen', () => {
     const { file } = setup();
     saveReopenWindows(file, [{ target: 'user@host' }]);

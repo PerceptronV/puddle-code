@@ -50,7 +50,6 @@ export class WindowTransfers {
 
   preparePane(sourceId: string, request: DesktopPaneDetach): Promise<void> {
     const source = this.dependencies.record(sourceId);
-    if (source.window?.kind === 'pane') throw new Error('This pane is already in its own window');
     if (
       request.destination.snapshot.layout_tree?.kind !== 'leaf' ||
       request.destination.snapshot.layout_mode !== 'profile' ||
@@ -78,7 +77,7 @@ export class WindowTransfers {
       sourceContent: request.source,
       destinationContent: request.destination,
       closeSource: false,
-      sourceRoute: `/project/${request.projectId}`,
+      sourceRoute: request.sourceRoute ?? `/project/${request.projectId}`,
     });
     const pending: LiveTransfer = {
       transfer,
