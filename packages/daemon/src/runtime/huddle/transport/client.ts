@@ -122,6 +122,13 @@ export class HuddleOwnerClient extends EventEmitter {
   }
   request(value: Command): Promise<HuddleOwnerResponse> {
     if (this.closed) return Promise.reject(new RuntimeConnectionLost());
+    if (
+      ['spawn-page', 'spawn-claim', 'spawn-settle', 'spawn-unavailable'].includes(value.t) &&
+      this.state?.capabilities.spawns !== 1
+    )
+      return Promise.reject(
+        new HuddleOwnerRejected('rejected', 'Owner has no agent-spawn capability'),
+      );
     if (this.pending.size >= RUNTIME_LIMITS.pendingRequests)
       return Promise.reject(new Error('Too many huddle requests'));
     const request = huddleOwnerRequestSchema.parse({

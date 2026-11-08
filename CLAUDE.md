@@ -619,8 +619,11 @@ live under `runtime/huddle/operations/spawns/`; share bounded waits with asks th
 `operations/pending.ts`. Require declared resolved account/provider/project/worktree
 resources; save verified readiness before returning execution-scoped handles.
 A completed spawn can feed later attach/ask nodes only in the same execution and
-explicit worktree. Preserve captured choices across Apply. Private spawn transport,
-production dispatch, Start/Apply resolution, lifecycle cleanup and authoring remain
+explicit worktree. Preserve captured choices across Apply. The independent owner
+now serves separate `spawn-*` IPC through its existing authenticated queue. Both
+client and owner gate it on optional `spawns: 1` (requires `operations: 2`), which
+remains absent from default build metadata. Keep older ask messages unchanged.
+Production dispatch, Start/Apply resolution, lifecycle cleanup and authoring remain
 pending; do not advertise spawn support yet.
 Migration 45 adds `huddle_runtime_turns`. Host-side exact asks live under
 `huddle/operations/turns/`, reusing `RuntimeProgrammeTurns.askFor` and the common

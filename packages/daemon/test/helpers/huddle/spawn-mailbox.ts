@@ -3,20 +3,18 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
-  huddleComponentSchema,
   huddleEventSchema,
   type HuddleInvocationRecord,
   type HuddleWorkerRequest,
   type RuntimeIdentity,
 } from '@puddle/shared';
-import { schedulerSnapshot } from './scheduler.js';
+import { spawnGraphSnapshot } from './spawn-graph.js';
 import { HuddleLedger } from '../../../src/runtime/huddle/state/ledger.js';
 import { HuddleRevisionStore } from '../../../src/runtime/huddle/state/revisions.js';
 import { HuddleRevisionController } from '../../../src/runtime/huddle/control/revisions.js';
 import { HuddlePendingOperations } from '../../../src/runtime/huddle/operations/pending.js';
 import { HuddleSpawnMailbox } from '../../../src/runtime/huddle/operations/spawns/mailbox.js';
 import { HuddleOperationMailbox } from '../../../src/runtime/huddle/operations/mailbox.js';
-import { huddleRevisionDigest } from '../../../src/huddle/definitions/revision.js';
 import type { RuntimeByteAllowance } from '../../../src/runtime/resources/budget.js';
 
 export function spawnMailboxFixture(
@@ -48,39 +46,13 @@ export function spawnMailboxFixture(
     runtimeId: identity.runtime_id,
   };
   let ledger = new HuddleLedger(home, ledgerIdentity);
-  const snapshot = schedulerSnapshot(
-    ledgerIdentity.huddleId,
-    `import { HuddleNode } from 'puddlang/huddle';
-export default HuddleNode({contract:'./node.json', async run({bindings, puddlang}) {
-  const agent = await puddlang.spawn({account:bindings.account, agent:bindings.provider,
-    project:bindings.project, worktree:bindings.worktree, mode:'headless', title:'Spawn fixture'});
-  return {completed: await agent.ask('Review the graph')};
-}});`,
-  );
-  snapshot.components.worker = huddleComponentSchema.parse({
-    ...snapshot.components.worker,
-    capabilities: ['sessions'],
-    parameters: Object.fromEntries(
-      ['worktree', 'account', 'project', 'provider'].map((name) => [
-        name,
-        { schema: { type: 'string' }, editor: name === 'provider' ? 'agent' : name },
-      ]),
-    ),
-  });
-  const bindings = {
+  const { snapshot, bindings: resolved } = spawnGraphSnapshot(ledgerIdentity.huddleId, {
+    projectId: identity.project_id,
     worktree: identity.canonical_worktree_path,
-    account: String(input?.accountId ?? 1),
-    provider: input?.agent ?? 'runtime-test',
-    project: identity.project_id,
-  };
-  snapshot.definition.nodes.find((node) => node.id === 'worker')!.parameters = Object.fromEntries(
-    Object.entries(bindings).map(([key, value]) => [key, { kind: 'literal', value }]),
-  );
-  snapshot.definition.execution.maxAgents = 2;
-  snapshot.definition.execution.concurrency = 2;
-  snapshot.files['nodes/example/node.json'] = JSON.stringify(snapshot.components.worker);
-  snapshot.files['huddle.json'] = JSON.stringify(snapshot.definition);
-  snapshot.digest = huddleRevisionDigest(snapshot.files, snapshot.components);
+    accountId: input?.accountId ?? 1,
+    agent: input?.agent ?? 'runtime-test',
+  });
+  const bindings = resolved.worker;
   const revisions = new HuddleRevisionStore(home, identity.runtime_id, ledgerIdentity.huddleId);
   let controller = new HuddleRevisionController(ledger, revisions);
   const activation = controller.apply(

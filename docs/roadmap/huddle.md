@@ -48,8 +48,10 @@ undispatched spawns are excluded from automatic boot resume. Migration 49 and th
 host spawn service now retain exact readiness outcomes and consume one guarded
 cleanup attempt. The owner-local spawn outbox now retains single-consumption claims
 and returns execution-scoped handles after durable readiness settlement; isolated
-node/agent workers verify spawn-to-ask composition. Private spawn transport,
-production dispatch, Start/Apply resource resolution, lifecycle cleanup policy,
+node/agent workers verify spawn-to-ask composition. The independent owner now
+serves private spawn messages behind an unadvertised capability, with reconnect
+and interruption checks. Production dispatch, Start/Apply resource resolution,
+lifecycle cleanup policy,
 spawn/resume templates and native-provider acceptance remain pending. The [usage guide](../huddle.md) describes the implemented slice.
 Phase 4 now has runtime-owned interval, one-off date/time and daily/selected-weekday
 calendar triggers, durable occurrence admission, coalesce/skip/bounded catch-up,
@@ -576,8 +578,9 @@ with separate durable huddle identities and result receipts. Private owner
 transport and script attach/ask queueing now live under `runtime/huddle/operations/`;
 production dispatch and exact session-resource admission now compose these
 through `huddle/operations/dispatch/`. The owner spawn outbox and execution-owned
-handles now live under `runtime/huddle/operations/spawns/`; production spawn
-transport/dispatch, cleanup and resume integration remain pending. Ordinary
+handles now live under `runtime/huddle/operations/spawns/`; separate private spawn
+messages are composed by the owner behind an unadvertised capability. Automatic
+spawn dispatch, cleanup and resume integration remain pending. Ordinary
 puddlang runner operations still depend on a daemon-owned run record. Extract/reuse their agent
 semantics with an explicit owner caller type and durable invocation keys. During
 daemon absence, owner-local triggers and scripts can continue; operations needing

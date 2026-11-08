@@ -30,6 +30,8 @@ import { HuddleGitController } from './triggers/git/controller.js';
 import { HuddleFiletreeController } from './triggers/filetree/controller.js';
 import { requireHuddleFeatures } from './triggers/definitions.js';
 import { HuddleOperationMailbox } from './operations/mailbox.js';
+import { HuddlePendingOperations } from './operations/pending.js';
+import { HuddleSpawnMailbox } from './operations/spawns/mailbox.js';
 import { HuddleCustomTriggerController } from './triggers/custom/controller.js';
 
 /** One independent graph owner. It never opens the application's database or creates a PTY. */
@@ -40,6 +42,7 @@ export class HuddleOwner {
   private readonly scheduler: HuddleScheduler;
   private readonly transport: HuddleOwnerServer;
   private readonly operations: HuddleOperationMailbox;
+  private readonly spawns?: HuddleSpawnMailbox;
   private readonly timers: HuddleTimerController;
   private readonly filetrees: HuddleFiletreeController;
   private readonly git: HuddleGitController;
@@ -72,12 +75,27 @@ export class HuddleOwner {
         memory.allowance,
       );
       this.revisions = new HuddleRevisionController(this.ledger, this.store);
+      const pending = new HuddlePendingOperations(
+        this.ledger,
+        () => this.persist(),
+        memory.allowance,
+      );
+      if (launch.capabilities.spawns === 1)
+        this.spawns = new HuddleSpawnMailbox(
+          launch.identity,
+          this.ledger,
+          this.revisions,
+          () => this.persist(),
+          pending,
+        );
       this.operations = new HuddleOperationMailbox(
         launch.identity,
         this.ledger,
         this.revisions,
         () => this.persist(),
         memory.allowance,
+        this.spawns,
+        pending,
       );
       this.scheduler = new HuddleScheduler(this.ledger, this.revisions, {
         nodePath: process.execPath,
@@ -86,6 +104,10 @@ export class HuddleOwner {
         operation: (request, invocation, signal) => {
           if (!launch.capabilities.operations)
             throw new Error('Owner has no host-operation capability');
+          if (request.action.kind === 'operation' && request.action.operation.op === 'spawn') {
+            if (!this.spawns) throw new Error('Owner has no agent-spawn capability');
+            return this.spawns.request(request, invocation, signal);
+          }
           return this.operations.request(request, invocation, signal);
         },
       });
@@ -320,6 +342,31 @@ export class HuddleOwner {
             ({ slot: _slot, ...source }) => source,
           ),
         },
+      };
+    }
+    if (
+      request.t === 'spawn-page' ||
+      request.t === 'spawn-claim' ||
+      request.t === 'spawn-unavailable' ||
+      request.t === 'spawn-settle'
+    ) {
+      if (!this.spawns) throw new Error('Owner has no agent-spawn capability');
+      if (request.t === 'spawn-page')
+        return { t: 'spawn-page', id: request.id, page: this.spawns.page(request.after) };
+      if (request.t === 'spawn-claim') {
+        if (this.stopping || this.interrupting || this.failure)
+          throw new Error('Huddle cannot dispatch spawns during a lifecycle change');
+        return { t: 'spawn-claim', id: request.id, ...this.spawns.claim(request.operationId) };
+      }
+      if (request.t === 'spawn-unavailable') {
+        this.spawns.unavailable(request.scope, request.unsent, request.error);
+        return { t: 'accepted', id: request.id };
+      }
+      return {
+        t: 'spawn-settled',
+        id: request.id,
+        operationId: request.scope.operationId,
+        result: this.spawns.settle(request.scope, request.result),
       };
     }
     if (

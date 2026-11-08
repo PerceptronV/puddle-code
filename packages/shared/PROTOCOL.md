@@ -1,26 +1,30 @@
 # The puddle communication protocol
 
-Internal `runtime/huddle/operations/spawn-mailbox.ts` now defines bounded spawn
-outbox records/pages, exact scope and state/result consistency for owner-local
-composition. Existing ask schemas are unchanged. These spawn contracts are not
-yet carried by private owner IPC or HTTP and advertise no capability; application
-28.7, ordinary runtime 1.2, remote 5, database 49 and huddle owner/ledger versions
-remain unchanged. Production transport and lifecycle cleanup must be integrated
-before enabling spawn support.
+Private owner IPC now carries the bounded spawn outbox contracts through separate
+`spawn-page`, `spawn-claim`, `spawn-settle` and `spawn-unavailable` commands and
+`spawn-page`, `spawn-claim`, `spawn-settled` replies. Existing ask schemas are unchanged.
+Both client and owner require optional `spawns: 1`, which requires `operations: 2`.
+This contract is understood but remains **unadvertised in default runtime/daemon
+metadata** until automatic host dispatch, resource admission and lifecycle cleanup
+are connected. Unsupported owners are rejected locally before writing a spawn
+command; the owner independently checks its launch capability. Existing strict
+older-owner state/launch shapes remain unchanged when the optional capability is
+absent. No public HTTP/WS addition: application 28.7, ordinary runtime 1.2, remote 5,
+database 49 and huddle owner/ledger versions remain unchanged.
 
 Database **49** adds retained huddle spawn readiness outcomes (bounded to 32 KiB)
 and consumed cleanup attempts. The internal `huddleSpawnOutcomeSchema` binds an
 exact agent target and receipt. These records support host observation after lost
-replies; they are not yet sent through owner IPC/HTTP and introduce no application,
-runtime or remote wire change. No spawn capability is advertised yet.
+replies. They now also participate in the gated private owner protocol above;
+there is no public HTTP addition. No spawn capability is advertised yet.
 
 Database **48** adds private host huddle spawn mappings. Internal
 `runtime/huddle/operations/spawns.ts` defines exact owner/execution/invocation
 scope and resolved creation settings for the host admission foundation. These
-schemas are not yet carried by owner IPC or HTTP. No application/runtime/remote
-wire shape or huddle capability changes in this slice; spawn dispatch remains
-unavailable pending mailbox and cleanup integration. Selected-daemon database
-compatibility uses the existing migration-version gate.
+schemas now also participate in the gated private owner protocol above. The
+original admission slice changed no wire shapes; production spawn dispatch remains
+unavailable pending automatic dispatch, resource admission and cleanup integration.
+Selected-daemon database compatibility uses the existing migration-version gate.
 
 Application **28.7** adds optional local trigger manifest policy
 `trigger: { resume: 'continue' | 'fresh' }`, required for local trigger entries.

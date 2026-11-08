@@ -2,7 +2,7 @@ import { dirname, join } from 'node:path';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { vi } from 'vitest';
-import { runtimeSupervisorSchema } from '@puddle/shared';
+import { runtimeSupervisorSchema, type HuddleRuntimeCapabilities } from '@puddle/shared';
 import { runtimeDatabase } from '../runtime-database.js';
 import { bundleDir, children, environment } from '../runtime-fixture.js';
 import { huddleTurnScope } from './agent-turns.js';
@@ -29,12 +29,15 @@ import { KeyedMutex } from '../../../src/git/mutex.js';
 import type { CompilationCommandRunner } from '../../../src/compilation/process.js';
 
 /** Real session/launcher/agent processes; a synthetic source huddle supplies private caller authority. */
-export function huddleSpawnServiceFixture(timeout = 120_000) {
+export function huddleSpawnServiceFixture(
+  timeout = 120_000,
+  capabilities?: HuddleRuntimeCapabilities,
+) {
   const f = runtimeDatabase('headless');
   f.runtimes.finish(f.binding.runtime_id, 'exited', () =>
     f.sessions.setStatus(f.session.id, 'exited'),
   );
-  const { target: _, ...scope } = huddleTurnScope(f);
+  const { target: _, ...scope } = huddleTurnScope(f, capabilities);
   sh(f.home, 'init', '-b', 'main');
   const accounts = new AccountStore(f.db);
   accounts.setLoggedIn(f.account!.id, true);

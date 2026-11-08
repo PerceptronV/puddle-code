@@ -8,6 +8,7 @@ export const huddleRuntimeCapabilitiesSchema = z.strictObject({
   component: version,
   ledger: version,
   operations: version.optional(),
+  spawns: version.optional(),
   timers: version.optional(),
   calendar: version.optional(),
   filetree: version.optional(),
@@ -20,6 +21,7 @@ export const huddleRuntimeCapabilitiesSchema = z.strictObject({
   customTriggers: version.optional(),
 });
 export type HuddleRuntimeCapabilities = z.infer<typeof huddleRuntimeCapabilitiesSchema>;
+// Keep spawns unadvertised until automatic dispatch, resource admission and owned-agent cleanup are integrated.
 export const HUDDLE_RUNTIME_CAPABILITIES: Readonly<HuddleRuntimeCapabilities> = Object.freeze({
   owner: 1,
   definition: 1,
@@ -46,6 +48,8 @@ export function supportsHuddleRuntime(value: unknown): value is HuddleRuntimeCap
       (key) => parsed.data[key] === HUDDLE_RUNTIME_CAPABILITIES[key],
     ) &&
     (parsed.data.operations === undefined || [1, 2].includes(parsed.data.operations)) &&
+    (parsed.data.spawns === undefined ||
+      (parsed.data.spawns === 1 && parsed.data.operations === 2)) &&
     (parsed.data.timers === undefined || parsed.data.timers === 1) &&
     (parsed.data.calendar === undefined || parsed.data.calendar === 1) &&
     (parsed.data.filetree === undefined || parsed.data.filetree === 1) &&

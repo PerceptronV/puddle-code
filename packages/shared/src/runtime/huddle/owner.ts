@@ -22,6 +22,8 @@ import {
   huddleOperationPageSchema,
 } from './operations/mailbox.js';
 import { huddleTurnScopeSchema } from './operations/agents.js';
+import { huddleSpawnOutcomeSchema, huddleSpawnScopeSchema } from './operations/spawns.js';
+import { huddleSpawnOperationSchema, huddleSpawnPageSchema } from './operations/spawn-mailbox.js';
 import { huddleCustomTriggerViewSchema, HUDDLE_CUSTOM_TRIGGER_LIMIT } from './triggers/custom.js';
 
 /** Unshipped role contract. No agent/terminal message or retained record changes. */
@@ -147,6 +149,21 @@ export const huddleOwnerRequestSchema = z.discriminatedUnion('t', [
     error: z.string().min(1).max(4096),
   }),
   z.strictObject({ t: z.literal('operation-page'), ...request, after: sequence }),
+  z.strictObject({ t: z.literal('spawn-page'), ...request, after: sequence }),
+  z.strictObject({ t: z.literal('spawn-claim'), ...request, operationId: z.uuid() }),
+  z.strictObject({
+    t: z.literal('spawn-unavailable'),
+    ...request,
+    scope: huddleSpawnScopeSchema,
+    unsent: z.boolean(),
+    error: z.string().min(1).max(4096),
+  }),
+  z.strictObject({
+    t: z.literal('spawn-settle'),
+    ...request,
+    scope: huddleSpawnScopeSchema,
+    result: huddleSpawnOutcomeSchema,
+  }),
   z.strictObject({ t: z.literal('operation-claim'), ...request, operationId: z.uuid() }),
   z.strictObject({
     t: z.literal('operation-unavailable'),
@@ -215,6 +232,19 @@ export const huddleOwnerResponseSchema = z.discriminatedUnion('t', [
     sources: z.array(huddleSessionSourceSchema).max(HUDDLE_SESSION_SOURCE_LIMIT),
   }),
   z.strictObject({ t: z.literal('operation-page'), id: z.uuid(), page: huddleOperationPageSchema }),
+  z.strictObject({ t: z.literal('spawn-page'), id: z.uuid(), page: huddleSpawnPageSchema }),
+  z.strictObject({
+    t: z.literal('spawn-claim'),
+    id: z.uuid(),
+    dispatch: z.boolean(),
+    operation: huddleSpawnOperationSchema,
+  }),
+  z.strictObject({
+    t: z.literal('spawn-settled'),
+    id: z.uuid(),
+    operationId: z.uuid(),
+    result: huddleSpawnOutcomeSchema,
+  }),
   z.strictObject({
     t: z.literal('operation-claim'),
     id: z.uuid(),

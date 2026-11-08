@@ -32,6 +32,44 @@ delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 No user CLI command is enabled yet.
 
+## Implemented: private spawn transport in the independent owner
+
+The independent huddle process now composes the spawn outbox and shares pending
+worker admission with attach/ask. Authenticated owner IPC adds separate
+`spawn-page`, `spawn-claim`, `spawn-settle` and `spawn-unavailable` commands, leaving
+the existing ask contracts unchanged. Replies carry bounded pages, exact claimed
+intent or the durably saved readiness receipt. The normal private controller
+identity/epoch, command sequence, frame and queue bounds apply. Claiming is blocked
+during lifecycle changes or owner failure; late settlement remains available while
+the owner is connected, without resuming cancelled script bodies.
+
+The proposed optional `spawns: 1` contract requires `operations: 2`. Schemas and
+owner/client gates understand it, but **default runtime and daemon metadata still
+omit it**: production automatic dispatch, Start/Apply resource resolution and
+owned-agent cleanup must be completed before advertising spawn support. Older
+owners retain their original capabilities and ask messages. The client refuses
+spawn commands locally when unsupported, preserving the connection; the server
+independently enforces its launch capability. Adoption metadata that lacks spawn
+support cannot claim compatibility with a spawn-requiring owner. Application 28.7,
+ordinary runtime 1.2, remote 5, database 49 and owner/ledger versions are unchanged.
+
+The new integration launches an actual independent huddle owner, node workers and
+agent runtimes with the test adapter/fake supervisor. Its explicit test controller
+drives the private spawn protocol and host service. It covers a lost creation reply,
+reconnection, saved readiness, one subsequent agent prompt and graph completion;
+lost claims without dispatch; claimed versus unclaimed work on Interrupt; late
+settlement without script continuation; exact scope/receipt refusal; unknown versus
+definite failure; and older-owner capability rejection. Agent cleanup in these
+checks is explicit test-controller work, not evidence of implemented automatic
+lifecycle cleanup. Real-provider/native-supervisor/SSH/reboot acceptance remains open.
+
+Verification, 2026-11-08: all **201 tests in 37 files** passed across shared huddle
+contracts, host/owner operations, update compatibility, owner processes/releases,
+launch, adoption, controls, history and removal. This includes the five new real
+owner spawn cases and three shared contract checks. Shared/daemon/CLI TypeScript,
+scoped ESLint, formatting and diff checks passed. No production daemon, native UI
+or real-provider sessions were used.
+
 ## Implemented: owner spawn outbox and execution-scoped handles
 
 `runtime/huddle/operations/spawns/` now validates script spawn requests against the
@@ -62,11 +100,10 @@ creation reply, host-service replacement/observation, handle return and one real
 agent ask, then exact cleanup. The source owner is composed in the test process;
 the agent and node workers run as separate child processes. This proves the queue
 and host-service composition, **not** production owner IPC or native-provider
-acceptance. Private spawn transport, automatic production dispatch, resource
-resolution on Start/Apply and lifecycle cleanup remain required before advertising
-spawn support or enabling templates. No public/owner wire contract or capability
-changes in this increment; application 28.7, runtime 1.2, remote 5, database 49 and
-huddle owner/ledger versions remain unchanged.
+acceptance. The private owner transport is now implemented as described above;
+automatic production dispatch, resource resolution on Start/Apply and lifecycle
+cleanup remain required before advertising spawn support or enabling templates.
+This earlier owner-local increment introduced no wire change.
 
 Verification, 2026-11-08: **112 tests in 18 files** passed across huddle operations,
 owner scheduler/ledger and session creation, including the real worker spawn-to-ask
@@ -109,8 +146,8 @@ in the original placement remains untouched. A readiness timeout or controller
 loss alone does not issue cleanup; the future owner dispatcher must apply the
 execution's explicit cancellation/retention policy.
 
-This service is not yet exposed through production huddle owner transport. The
-owner-local queue and dynamic handle composition above are implemented; automatic
+The service now has owner-local queue, dynamic handle and private transport
+composition verified above; automatic
 dispatch, lifecycle cleanup policy and node templates remain pending before spawn
 support can be advertised. There is no new network message, capability or
 application protocol bump in this slice; application 28.7, ordinary runtime 1.2,

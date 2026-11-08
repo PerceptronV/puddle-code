@@ -1435,9 +1435,17 @@ can feed later attach/ask invocations with matching worktree/session declaration
 other executions need explicit session bindings. Ask and spawn waits share bounded
 memory/cancellation through `operations/pending.ts`. Existing executions retain their
 original activation across Apply. These components are verified together with real
-isolated node/agent workers, but private spawn transport, production dispatch,
-Start/Apply resource resolution, lifecycle cleanup and user-facing spawn/resume/restart
-nodes remain unfinished. No spawn capability is advertised yet.
+isolated node/agent workers. The independent owner now serves separate private
+`spawn-page`, `spawn-claim`, `spawn-settle` and `spawn-unavailable` messages through
+the same authenticated controller connection and bounded sequenced request queue.
+Client and server require the proposed optional `spawns: 1` contract, which also
+requires `operations: 2`; default runtime/daemon metadata still omit it. Existing
+ask messages and older-owner capabilities are unchanged. Lifecycle changes fence
+new claims while retained late results remain settleable without continuing scripts.
+Real owner/node/agent process tests cover disconnect/reconnect and lost replies.
+Automatic spawn dispatch, Start/Apply resource resolution, lifecycle cleanup and
+user-facing spawn/resume/restart nodes remain unfinished. No spawn capability is
+advertised until those pieces are connected.
 Private immutable revision documents and compare-and-swap activation records
 separate source publication from Apply/arming. Managed executions retain their
 accepted revision, variable values and resource bindings across later Apply.
