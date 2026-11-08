@@ -34,7 +34,12 @@ interface WindowState {
   version: 2;
   entries: Record<
     string,
-    { record: ReopenWindow; open: boolean; workspaces: Record<string, DesktopWorkspaceVersion> }
+    {
+      record: ReopenWindow;
+      open: boolean;
+      returnedProject?: boolean;
+      workspaces: Record<string, DesktopWorkspaceVersion>;
+    }
   >;
   pending: Record<string, DesktopWindowTransfer>;
   outcomes: Record<
@@ -139,6 +144,13 @@ export class DesktopWindowState {
       this.state = { ...parsed, entries };
       for (const [id, entry] of Object.entries(this.state.entries)) {
         if (id !== reopenWindowId(entry.record)) throw new Error('Saved window identity mismatch');
+        if (
+          entry.returnedProject &&
+          (entry.open ||
+            entry.record.window?.kind !== 'project' ||
+            !entry.workspaces[entry.record.window.profileId])
+        )
+          throw new Error('Invalid returned project state');
       }
       this.validatePending();
     } else {
@@ -218,6 +230,8 @@ export class DesktopWindowState {
     for (const record of parsed) {
       const id = reopenWindowId(record);
       const previous = next.entries[id];
+      if (previous?.returnedProject)
+        throw new Error('Reopen the returned project before registering its window');
       if (
         previous &&
         (previous.record.target !== record.target ||
@@ -241,6 +255,62 @@ export class DesktopWindowState {
   read(id: string, profile: string): DesktopWorkspaceVersion | null {
     this.assertProfile(id, profile);
     return structuredClone(this.entry(id).workspaces[profile] ?? null);
+  }
+
+  projectWindow(sourceId: string, profile: string, project: string) {
+    this.assertProfile(sourceId, profile);
+    const target = this.entry(sourceId).record.target;
+    const entry = Object.values(this.state.entries).find((entry) => {
+      const identity = entry.record.window;
+      return (
+        entry.record.target === target &&
+        identity?.kind === 'project' &&
+        identity.profileId === profile &&
+        identity.projectId === project &&
+        (entry.open || entry.returnedProject || this.staging(identity.id))
+      );
+    });
+    return entry
+      ? structuredClone({
+          record: entry.record,
+          open: entry.open,
+          returned: !!entry.returnedProject,
+        })
+      : null;
+  }
+
+  returnedProject(id: string) {
+    const entry = this.entry(id);
+    const identity = entry.record.window;
+    const version = identity?.kind === 'project' ? entry.workspaces[identity.profileId] : undefined;
+    return identity?.kind === 'project' && entry.returnedProject && !entry.open && version
+      ? structuredClone({ record: entry.record, identity, version })
+      : null;
+  }
+
+  closeProject(id: string, revision: number): void {
+    this.assertUnlocked(id);
+    const entry = this.entry(id);
+    const identity = entry.record.window;
+    if (identity?.kind !== 'project')
+      throw new Error('Only project windows can return a workspace');
+    this.assertRevision(id, identity.profileId, revision);
+    if (!entry.workspaces[identity.profileId]) throw new Error('Project workspace is unavailable');
+    const next = structuredClone(this.state);
+    next.entries[id]!.open = false;
+    next.entries[id]!.returnedProject = true;
+    this.publish(next);
+  }
+
+  reopenProject(id: string): ReopenWindow {
+    this.assertUnlocked(id);
+    const returned = this.returnedProject(id);
+    if (!returned) throw new Error('The returned project is unavailable');
+    const next = structuredClone(this.state);
+    next.entries[id]!.open = true;
+    delete next.entries[id]!.returnedProject;
+    this.publish(next);
+    return returned.record;
   }
 
   staging(id: string): Transfer | null {
@@ -311,7 +381,7 @@ export class DesktopWindowState {
       detached: entries.flatMap((entry) => {
         const identity = entry.record.window;
         const workspace = entry.workspaces[profile];
-        return entry.open &&
+        return (entry.open || entry.returnedProject) &&
           identity &&
           identity.kind !== 'host' &&
           identity.profileId === profile &&
@@ -329,6 +399,7 @@ export class DesktopWindowState {
     content: DesktopWorkspaceContent,
   ): DesktopWorkspaceVersion {
     this.assertUnlocked(id);
+    if (this.entry(id).returnedProject) throw new Error('The returned project is closed');
     this.assertRevision(id, profile, revision);
     serialise(content);
     const version = desktopWorkspaceVersionSchema.parse({ revision: revision + 1, content });
@@ -354,6 +425,11 @@ export class DesktopWindowState {
     const identity = destination.window;
     if (identity && identity.kind !== 'host' && identity.profileId !== input.profileId)
       throw new Error('Cannot transfer between profiles');
+    if (identity?.kind === 'project') {
+      const existing = this.projectWindow(input.sourceId, input.profileId, identity.projectId);
+      if (existing && reopenWindowId(existing.record) !== destinationId)
+        throw new Error('This project already has a window');
+    }
     const previous = this.state.entries[destinationId];
     if (previous) {
       if (
@@ -413,6 +489,7 @@ export class DesktopWindowState {
     };
     next.entries[transfer.sourceId]!.open =
       !transfer.closeSource && this.entry(transfer.sourceId).open;
+    if (transfer.closeSource) delete next.entries[transfer.sourceId]!.returnedProject;
     if (transfer.sourceRoute) next.entries[transfer.sourceId]!.record.route = transfer.sourceRoute;
     next.entries[transfer.destinationId]!.workspaces[transfer.profileId] = {
       revision: transfer.destinationRevision + 1,

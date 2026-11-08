@@ -13,6 +13,10 @@ const destination: ReopenWindow = {
   target: 'local',
   window: { id: 'destination', kind: 'pane', profileId: profile, projectId: project },
 };
+const projectWindow: ReopenWindow = {
+  target: 'local',
+  window: { id: 'project-window', kind: 'project', profileId: profile, projectId: project },
+};
 const homes: string[] = [];
 function setup() {
   const home = mkdtempSync(join(tmpdir(), 'puddle-window-state-'));
@@ -54,6 +58,74 @@ afterEach(() => {
 });
 
 describe('durable desktop working sets and acknowledged transfers', () => {
+  it('retains a closed project without a host window and returns it in the combined seed', () => {
+    const { store, file } = setup();
+    store.syncOpenWindows([source, projectWindow]);
+    store.write('project-window', profile, 0, content('latest project draft'));
+    expect(() => store.closeProject('project-window', 0)).toThrow('state changed');
+    store.closeProject('project-window', 1);
+    store.syncOpenWindows([]);
+    const restored = new DesktopWindowState(file);
+    expect(restored.openWindows()).toEqual([]);
+    expect(loadReopenWindows(file)).toEqual([]);
+    expect(restored.returnedProject('project-window')?.version.content.buffers).toEqual(
+      content('latest project draft').buffers,
+    );
+    expect(restored.projectWindow('source', profile, project)).toMatchObject({
+      open: false,
+      returned: true,
+    });
+    expect(restored.seed('source', profile).detached).toHaveLength(1);
+    expect(() => restored.write('project-window', profile, 1, content('stale write'))).toThrow(
+      'closed',
+    );
+    expect(() => restored.syncOpenWindows([projectWindow])).toThrow('Reopen');
+    expect(restored.reopenProject('project-window')).toEqual(projectWindow);
+    restored.syncOpenWindows([projectWindow]);
+    expect(restored.returnedProject('project-window')).toBeNull();
+    expect(restored.read('project-window', profile)?.content.buffers).toEqual(
+      content('latest project draft').buffers,
+    );
+  });
+
+  it('keeps quit-style open projects distinct from explicit return and validates project ownership', () => {
+    const { store, file } = setup();
+    store.syncOpenWindows([
+      projectWindow,
+      { target: 'other-host', window: { kind: 'host', id: 'other-host' } },
+    ]);
+    store.write('project-window', profile, 0, content('draft'));
+    const restored = new DesktopWindowState(file);
+    expect(restored.openWindows()).toContainEqual(projectWindow);
+    expect(restored.returnedProject('project-window')).toBeNull();
+    expect(restored.projectWindow('source', profile, project)).toMatchObject({
+      open: true,
+      returned: false,
+    });
+    expect(restored.projectWindow('source', '0000000000', project)).toBeNull();
+    expect(restored.projectWindow('other-host', profile, project)).toBeNull();
+    expect(() => restored.closeProject('source', 0)).toThrow('Only project windows');
+  });
+
+  it('refuses a second dedicated project owner, including while the first is staged or returned', () => {
+    const { store } = setup();
+    store.write('source', profile, 0, content('unsaved'));
+    prepare(store, { destination: projectWindow });
+    const second = { ...projectWindow, window: { ...projectWindow.window!, id: 'second-project' } };
+    const sibling: ReopenWindow = {
+      target: 'local',
+      window: { kind: 'pane', id: 'sibling', profileId: profile, projectId: project },
+    };
+    store.syncOpenWindows([source, sibling]);
+    store.write('sibling', profile, 0, content());
+    const duplicate = () =>
+      prepare(store, { id: 'duplicate', sourceId: 'sibling', destination: second });
+    expect(duplicate).toThrow('already has a window');
+    store.commit('transfer', 'project-window');
+    expect(duplicate).toThrow('already has a window');
+    store.closeProject('project-window', 1);
+    expect(duplicate).toThrow('already has a window');
+  });
   it('finds an existing pane only on the same host and profile', () => {
     const { store } = setup();
     const ref = {

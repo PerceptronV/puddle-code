@@ -5,6 +5,7 @@ import {
 } from '@puddle/shared';
 import type { DesktopWorkingSet } from './working-set';
 import { dockPaneContent, dockTabContent } from './dock-content';
+import { returnProjectContent } from './project-content';
 
 interface Pending {
   id: string;
@@ -15,6 +16,7 @@ interface Pending {
   planned: DesktopWorkspaceVersion;
   staged?: DesktopWorkspaceVersion;
   route: string;
+  destinationRoute: string;
 }
 
 /** Destination half of a move into an existing window; independent of React/Monaco. */
@@ -37,7 +39,12 @@ export class DestinationTransfer {
   async command(
     command: DesktopWindowTransferCommand,
   ): Promise<DesktopWorkspaceVersion | undefined> {
-    if (command.kind === 'plan-pane' || command.kind === 'plan-tab') return this.plan(command);
+    if (
+      command.kind === 'plan-pane' ||
+      command.kind === 'plan-tab' ||
+      command.kind === 'plan-project'
+    )
+      return this.plan(command);
     const pending = this.pending;
     if (!pending) {
       if (command.kind === 'cancel-window') return;
@@ -79,12 +86,15 @@ export class DestinationTransfer {
     pending.owner.stage(staged);
     pending.staged = staged;
     this.environment.staging(pending.id);
-    this.environment.navigate(`/project/${pending.projectId}`);
+    this.environment.navigate(pending.destinationRoute);
     this.environment.suspend(false);
   }
 
   private async plan(
-    command: Extract<DesktopWindowTransferCommand, { kind: 'plan-pane' | 'plan-tab' }>,
+    command: Extract<
+      DesktopWindowTransferCommand,
+      { kind: 'plan-pane' | 'plan-tab' | 'plan-project' }
+    >,
   ) {
     if (this.pending) throw new Error('This window is already receiving a transfer');
     if (this.environment.activeProfile() !== command.profileId)
@@ -99,19 +109,21 @@ export class DestinationTransfer {
       const planned = desktopWorkspaceVersionSchema.parse({
         revision: original.revision,
         content:
-          command.kind === 'plan-pane'
-            ? dockPaneContent(
-                original.content,
-                command.content,
-                command.projectId,
-                command.placement,
-              )
-            : dockTabContent(
-                original.content,
-                command.content,
-                command.projectId,
-                command.placement,
-              ),
+          command.kind === 'plan-project'
+            ? returnProjectContent(original.content, command.content, command.projectId)
+            : command.kind === 'plan-pane'
+              ? dockPaneContent(
+                  original.content,
+                  command.content,
+                  command.projectId,
+                  command.placement,
+                )
+              : dockTabContent(
+                  original.content,
+                  command.content,
+                  command.projectId,
+                  command.placement,
+                ),
       });
       this.pending = {
         id: command.transferId,
@@ -121,6 +133,10 @@ export class DestinationTransfer {
         original,
         planned,
         route: this.environment.route(),
+        destinationRoute:
+          command.kind === 'plan-project'
+            ? (command.route ?? `/project/${command.projectId}`)
+            : `/project/${command.projectId}`,
       };
       return planned;
     } catch (error) {

@@ -73,7 +73,7 @@ export function detachPaneContent(
     active_session: active?.type === 'terminal' ? active.session : null,
     layout_ref: null,
   };
-  return partitionContent(content, source, destination, projectId);
+  return partitionWindowContent(content, source, destination, projectId);
 }
 
 /** Move the clicked view when present, or open an unopened file/session in a new pane. */
@@ -145,10 +145,10 @@ export function detachTabContent(
     layout_ref: null,
     active_session: actual.type === 'terminal' ? actual.session : null,
   };
-  return partitionContent(content, source, destination, match?.scope.id ?? projectId);
+  return partitionWindowContent(content, source, destination, match?.scope.id ?? projectId);
 }
 
-function partitionContent(
+export function partitionWindowContent(
   content: DesktopWorkspaceContent,
   source: UiStateSnapshot,
   destination: UiStateSnapshot,

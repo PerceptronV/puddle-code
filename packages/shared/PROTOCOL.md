@@ -1,5 +1,14 @@
 # The puddle communication protocol
 
+Application **26.14** adds a private project merge-planning command and an optional
+returned-project flag in desktop working-set records. A closed project's retained
+revision can join the existing destination acknowledgement flow without a live
+source renderer. These are preparatory internals: project menus, navigation and
+native close integration are not yet exposed. No daemon, runtime or remote
+operation changes. Older records omit the flag; pane/tab capabilities retain their
+existing behaviour. Older shells must not be relied on to consume returned-project
+records, although the workspace and draft fields remain readable.
+
 Application **26.13** adds optional native file/session drag registration, source
 commands and tab merge planning through the existing window handoff. A destination
 may be a pane, project or host window on the same host/profile. Tab placements add

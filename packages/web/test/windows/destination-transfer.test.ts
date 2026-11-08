@@ -120,6 +120,19 @@ it('rolls a staged destination back without retiring its existing window or keep
   expect(f.environment.suspend).toHaveBeenLastCalledWith(false);
 });
 
+it('stages a returned project through the same controller and retains its requested session route', async () => {
+  const f = await setup();
+  const route = `/project/${projectId}/session/${session}`;
+  const planned = (await f.destination.command({ ...f.plan, kind: 'plan-project', route }))!;
+  f.present(planned);
+  await f.destination.command(f.stage);
+  expect(f.environment.navigate).toHaveBeenLastCalledWith(route);
+  expect(f.content.capture().buffers).toEqual([draft('incoming')]);
+  expect(f.owner.locked()).toBe(true);
+  await f.destination.committed('move', { ...planned, revision: planned.revision + 1 });
+  expect(f.owner.locked()).toBe(false);
+});
+
 it('rejects dirty conflicts and leaves the destination editable with its own text', async () => {
   const f = await setup();
   f.content.restore({ snapshot: f.owner.get(), buffers: [draft('existing edits')], views: {} });

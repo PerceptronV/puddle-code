@@ -84,6 +84,8 @@ export const desktopWindowStateSchema = z.object({
     z.object({
       record: z.unknown(),
       open: z.boolean(),
+      /** Explicit project closure retains its workspace for the next host visit. */
+      returnedProject: z.boolean().optional(),
       workspaces: z.record(profileId, desktopWorkspaceVersionSchema),
     }),
   ),
@@ -262,6 +264,14 @@ export function desktopTabKey(ref: TabRef): string {
 }
 
 export const desktopWindowTransferCommandSchema = z.discriminatedUnion('kind', [
+  z.object({
+    kind: z.literal('plan-project'),
+    transferId: desktopWindowIdSchema,
+    profileId,
+    projectId,
+    content: desktopWorkspaceContentSchema,
+    route: desktopWindowRouteSchema.optional(),
+  }),
   z.object({
     kind: z.literal('plan-tab'),
     transferId: desktopWindowIdSchema,

@@ -32,8 +32,8 @@ import {
 } from '../src/index.js';
 
 describe('shared API schemas', () => {
-  it('declares protocol 26.13 for desktop tab dragging', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 26, minor: 13 });
+  it('declares protocol 26.14 for desktop project transfer planning', () => {
+    expect(PROTOCOL_VERSION).toEqual({ major: 26, minor: 14 });
   });
 
   it('accepts headless mode and rejects the previous scripted name', () => {

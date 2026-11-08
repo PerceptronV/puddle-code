@@ -113,6 +113,22 @@ verification; pending items are not support claims.
   native window/host/profile scope; another window cannot treat those references
   as local operations. Cross-window tab offers alone enter the transfer coordinator.
 
+- The project handoff foundation now has a pure extraction/return projection and
+  a private `plan-project` destination command (application 26.14). Project-based
+  layouts move the selected tree intact, including mixed-project tabs. Profile-wide
+  layouts partition by session ownership; untitled files follow the current
+  project, and unknown sessions remain with the source. Return preserves other
+  workspace trees, duplicate editor views, remapped view positions and sidebar
+  state. Conflicting dirty text rejects the merge; orphaned incoming drafts become
+  visible recovery tabs.
+- The durable store now distinguishes a returned project from an open project.
+  Returned records remain outside native reopen state but inside the combined
+  profile seed. The coordinator can restore one into a host renderer using the
+  existing staged handoff, without a live source renderer. Commit consumes the
+  return record atomically; cancellation or interrupted preparation retains it.
+  Reopening preserves its exact workspace. These are preparatory code paths:
+  project menus, navigation redirects and native close events do not call them yet.
+
 Project detachment and redirects, named window arrangements, and native OS
 acceptance are still pending. Return to a project presentation is supported by
 the coordinator, but the project-window creation action is not yet implemented.
@@ -237,6 +253,17 @@ second tab, verifying that it moves instead of leaving an extra copy. Whole-pane
 drag return and the ordinary browser drag regression both passed again. Cross-window
 payload forwarding still uses the synthetic native bridge; OS and live runtime
 acceptance have not been inferred from these checks.
+
+The project-handoff foundation passed 260 tests across 27 desktop lifecycle/window,
+web window/layout and shared-contract files. Desktop/web TypeScript, targeted
+ESLint and whitespace checks passed. New tests cover complete and mixed-project
+extraction, independent dirty duplicates, unknown sessions, returned-project lookup
+and restart state, duplicate owners, source reopening during planning, destination
+failure and commit persistence failure. The existing destination controller also
+stages and accepts a project with its requested session route. No new project UI
+or native close integration was exercised, and no native acceptance is implied.
+Before exposing the project action, complete navigation/close coordination and
+check layout-mode changes against inactive historical project slices.
 
 Native acceptance has not run. Use an isolated UI preview for desktop interaction;
 start any real daemon from a plain shell, never from a coding-agent session.

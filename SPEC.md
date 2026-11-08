@@ -2277,6 +2277,18 @@ On macOS the native app role is explicitly named **Puddle**, not its scoped npm 
 
 ### Desktop window ownership (implementation in progress)
 
+Application 26.14 adds the preparatory project extraction/return projection and
+private destination planning command. A durable returned-project record retains
+the closed workspace outside the native reopen set and remains in the combined
+profile seed. A host destination can accept that exact revision through the same
+staged handoff, with no live source renderer. Cancellation retains the return
+record; commit consumes it atomically. Project-based layouts move the selected
+tree intact; profile-wide layouts partition tabs by session ownership, with
+untitled drafts following the current project and unknown sessions remaining in
+the source. Returning merges with other host work, preserves duplicate editors,
+remaps pane/view identities and rejects conflicting dirty text. Project menus,
+navigation redirection and native close/dock integration remain unfinished.
+
 The native shell now separates one host cockpit connection from its native
 window records (`desktop/src/windows/`). Connection establishment and refresh
 are shared per target; only closing the final associated window retires that

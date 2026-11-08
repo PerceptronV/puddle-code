@@ -16,7 +16,7 @@ import {
   type DropEdge,
 } from '../workspace/layout/layout-tree';
 import { scopedSnapshot } from '../workspace/layout/project-layout';
-import { windowBufferKey } from './content-state';
+import { mergeWindowBuffers } from './merge-buffers';
 import { transferPaneViews } from './transfer-views';
 
 /**
@@ -61,17 +61,7 @@ function dockContent(
   if (move.kind === 'tab' && pane.tabs.length !== 1)
     throw new Error('A tab drop requires exactly one tab');
 
-  const buffers = new Map(destination.buffers.map((buffer) => [windowBufferKey(buffer), buffer]));
-  for (const buffer of incoming.buffers) {
-    const key = windowBufferKey(buffer);
-    const previous = buffers.get(key);
-    if (
-      previous &&
-      (previous.content !== buffer.content || previous.baseMtimeMs !== buffer.baseMtimeMs)
-    )
-      throw new Error(`Both windows have different unsaved edits to ${buffer.path}`);
-    buffers.set(key, buffer);
-  }
+  const buffers = mergeWindowBuffers(destination, incoming);
 
   const base = destination.snapshot;
   const scoped = base.layout_mode === 'project' ? scopedSnapshot(base, projectId) : base;
@@ -156,7 +146,7 @@ function dockContent(
 
   return {
     snapshot,
-    buffers: [...buffers.values()],
+    buffers,
     views: {
       ...destination.views,
       ...transferPaneViews(

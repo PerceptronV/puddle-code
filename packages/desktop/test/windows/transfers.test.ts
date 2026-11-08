@@ -85,6 +85,152 @@ it('rolls back a destination launch failure without removing source drafts', asy
   expect(dismiss).toHaveBeenCalledOnce();
 });
 
+it('opens an entire project through the same two-party acknowledgement and refuses duplicate owners', async () => {
+  const { state, transfers, destinationId, open } = setup();
+  const prepared = transfers.prepareProject('source', request);
+  expect(open.mock.calls[0]![0].window?.kind).toBe('project');
+  expect(state.projectWindow('source', profileId, request.projectId)?.open).toBe(false);
+  expect(() => transfers.prepareProject('source', { ...request, id: 'duplicate' })).toThrow(
+    'already has a window',
+  );
+  const accepted = transfers.accept(destinationId(), request);
+  await prepared;
+  expect(state.outcome('move')).toBe('prepared');
+  transfers.commit('source', request);
+  await accepted;
+  expect(state.openWindows().find((record) => record.window?.id === 'source')?.route).toBe('/');
+});
+
+function returnedProject() {
+  const home = mkdtempSync(join(tmpdir(), 'puddle-project-return-'));
+  homes.push(home);
+  const file = join(home, 'state.json');
+  const state = new DesktopWindowState(file);
+  const source: ReopenWindow = {
+    target: 'local',
+    window: { kind: 'project', id: 'closed-project', profileId, projectId: request.projectId },
+  };
+  const destination: ReopenWindow = {
+    target: 'local',
+    window: { kind: 'host', id: 'host' },
+    route: '/',
+  };
+  state.syncOpenWindows([source, destination]);
+  state.write('closed-project', profileId, 0, request.destination);
+  state.write('host', profileId, 0, request.source);
+  state.closeProject('closed-project', 1);
+  state.syncOpenWindows([destination]);
+  const command = vi.fn(async (_id: string, command: DesktopWindowTransferCommand) =>
+    command.kind === 'plan-project' ? { revision: 1, content: request.destination } : undefined,
+  );
+  const transfers = new WindowTransfers({
+    state: () => state,
+    record: (id) => {
+      if (id !== 'host') throw new Error('No live source renderer');
+      return destination;
+    },
+    open: vi.fn(),
+    dismiss: vi.fn(),
+    report: vi.fn(),
+    command,
+    timeoutMs: 1000,
+  });
+  const pending = async () => {
+    await vi.waitFor(() => expect(state.staging('host')).not.toBeNull());
+    return { id: state.staging('host')!.id, profileId };
+  };
+  return { state, file, transfers, command, pending };
+}
+
+it('returns a closed project using its durable capture without requiring a live source window', async () => {
+  const f = returnedProject();
+  const route = `/project/${request.projectId}/session/00000000-0000-4000-8000-000000000001`;
+  const prepared = f.transfers.restoreProject('closed-project', 'host', profileId, route);
+  const reference = await f.pending();
+  expect(f.transfers.busy('closed-project')).toBe(true);
+  expect(f.state.returnedProject('closed-project')?.version.revision).toBe(1);
+  expect(() => f.state.reopenProject('closed-project')).toThrow('transfer is pending');
+  const accepted = await f.transfers.accept('host', reference);
+  await prepared;
+  expect(accepted.content).toEqual(request.destination);
+  expect(f.state.outcome(reference.id)).toBe('committed');
+  expect(f.state.read('closed-project', profileId)?.content.buffers).toEqual([]);
+  expect(f.state.returnedProject('closed-project')).toBeNull();
+  expect(f.state.openWindows()).toEqual([
+    { target: 'local', window: { kind: 'host', id: 'host' }, route },
+  ]);
+  expect(f.transfers.busy('closed-project')).toBe(false);
+  expect((await f.transfers.accept('host', reference)).revision).toBe(2);
+  expect(
+    f.command.mock.calls.filter(([, command]) => command.kind === 'plan-project'),
+  ).toHaveLength(1);
+});
+
+it('retains the closed project after a destination failure and across interrupted preparation recovery', async () => {
+  const f = returnedProject();
+  const prepared = f.transfers.restoreProject(
+    'closed-project',
+    'host',
+    profileId,
+    `/project/${request.projectId}`,
+  );
+  const reference = await f.pending();
+  const recovered = new DesktopWindowState(f.file);
+  recovered.recoverPending();
+  expect(recovered.returnedProject('closed-project')?.version.content).toEqual(request.destination);
+  expect(recovered.read('host', profileId)?.content).toEqual(request.source);
+  f.transfers.disconnected('host');
+  await expect(prepared).rejects.toThrow('disconnected');
+  expect(f.state.returnedProject('closed-project')?.version.content).toEqual(request.destination);
+  expect(f.state.outcome(reference.id)).toBe('cancelled');
+  expect(f.command).toHaveBeenCalledWith('host', {
+    kind: 'cancel-window',
+    transferId: reference.id,
+    profileId,
+  });
+});
+
+it('rechecks the closed source after planning and does not move a project reopened in the meantime', async () => {
+  const f = returnedProject();
+  let complete!: (value: { revision: number; content: typeof request.destination }) => void;
+  f.command.mockImplementationOnce(
+    () =>
+      new Promise((resolve) => {
+        complete = resolve;
+      }),
+  );
+  const prepared = f.transfers.restoreProject(
+    'closed-project',
+    'host',
+    profileId,
+    `/project/${request.projectId}`,
+  );
+  f.state.reopenProject('closed-project');
+  complete({ revision: 1, content: request.destination });
+  await expect(prepared).rejects.toThrow('returned project changed');
+  expect(f.state.read('host', profileId)?.content).toEqual(request.source);
+  expect(f.state.read('closed-project', profileId)?.content).toEqual(request.destination);
+});
+
+it('leaves the returned project recoverable if committing its destination fails', async () => {
+  const f = returnedProject();
+  const prepared = f.transfers.restoreProject(
+    'closed-project',
+    'host',
+    profileId,
+    `/project/${request.projectId}`,
+  );
+  const reference = await f.pending();
+  vi.spyOn(f.state, 'commit').mockImplementationOnce(() => {
+    throw new Error('disk full');
+  });
+  await expect(f.transfers.accept('host', reference)).rejects.toThrow('disk full');
+  await expect(prepared).rejects.toThrow('disk full');
+  expect(f.state.returnedProject('closed-project')?.version.content).toEqual(request.destination);
+  expect(f.state.read('host', profileId)?.content).toEqual(request.source);
+  expect(f.state.outcome(reference.id)).toBe('cancelled');
+});
+
 it('cancels a prepared destination if the source disappears before committing', async () => {
   const { state, transfers, destinationId } = setup();
   const prepared = transfers.preparePane('source', request);

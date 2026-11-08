@@ -16,6 +16,7 @@ import {
   type DesktopWorkspaceVersion,
   type DesktopWindowTransferCommand,
   type DesktopTransferRetire,
+  uiStateSnapshotSchema,
 } from '@puddle/shared';
 import type { ReopenWindow } from '../reopen.js';
 import type { DesktopWindowState } from './state.js';
@@ -38,7 +39,12 @@ interface LiveTransfer {
   committed: ReturnType<typeof deferred<DesktopWorkspaceVersion>>;
   timer: ReturnType<typeof setTimeout>;
   existingDestination: boolean;
+  autoConfirm: boolean;
 }
+type ExistingMove =
+  | { kind: 'pane'; request: DesktopPaneDock }
+  | { kind: 'tab'; request: DesktopTabDock }
+  | { kind: 'project'; request: DesktopPaneDetach & { destinationId: string; route?: string } };
 interface Planning {
   sourceId: string;
   destinationId: string;
@@ -52,6 +58,18 @@ export class WindowTransfers {
   private readonly live = new Map<string, LiveTransfer>();
   private readonly planning = new Map<string, Planning>();
   private readonly restoring = new Set<string>();
+
+  busy(id: string): boolean {
+    return (
+      this.restoring.has(id) ||
+      [...this.planning.values()].some(
+        (plan) => plan.sourceId === id || plan.destinationId === id,
+      ) ||
+      [...this.live.values()].some(
+        ({ transfer }) => transfer.sourceId === id || transfer.destinationId === id,
+      )
+    );
+  }
 
   presentationPending(windowId: string): boolean {
     return (
@@ -116,6 +134,71 @@ export class WindowTransfers {
     return pending.ready.promise;
   }
 
+  prepareProject(sourceId: string, request: DesktopPaneDetach): Promise<void> {
+    const source = this.dependencies.record(sourceId);
+    if (source.window?.kind !== 'host') throw new Error('Open projects from a host window');
+    if (this.dependencies.state().projectWindow(sourceId, request.profileId, request.projectId))
+      throw new Error('This project already has a window');
+    if (
+      request.destination.snapshot.layout_mode !== 'profile' ||
+      !request.destination.snapshot.layout_tree
+    )
+      throw new Error('A project window requires an isolated workspace');
+    if (Object.keys(request.destination.snapshot.project_layouts).length)
+      throw new Error('A project window cannot retain other project slices');
+    const destination: ReopenWindow = {
+      target: source.target,
+      window: {
+        kind: 'project',
+        id: `project-${randomUUID()}`,
+        profileId: request.profileId,
+        projectId: request.projectId,
+      },
+      route: `/project/${request.projectId}`,
+    };
+    const transfer = this.dependencies.state().prepare({
+      id: request.id,
+      sourceId,
+      destination,
+      profileId: request.profileId,
+      sourceRevision: request.revision,
+      destinationRevision: 0,
+      sourceContent: request.source,
+      destinationContent: request.destination,
+      closeSource: false,
+      sourceRoute: request.sourceRoute ?? '/',
+    });
+    const pending = this.start(transfer, false);
+    void this.dependencies
+      .open(destination)
+      .catch((error: unknown) => this.fail(request.id, error));
+    return pending.ready.promise;
+  }
+
+  restoreProject(
+    sourceId: string,
+    destinationId: string,
+    profileId: string,
+    route: string,
+  ): Promise<void> {
+    const returned = this.dependencies.state().returnedProject(sourceId);
+    if (!returned || returned.identity.profileId !== profileId)
+      throw new Error('The returned project is unavailable');
+    return this.prepareExisting(sourceId, {
+      kind: 'project',
+      request: {
+        id: randomUUID(),
+        profileId,
+        projectId: returned.identity.projectId,
+        revision: returned.version.revision,
+        destinationId,
+        route,
+        source: { snapshot: uiStateSnapshotSchema.parse({}), buffers: [], views: {} },
+        destination: returned.version.content,
+      },
+    });
+  }
+
   prepareDock(sourceId: string, request: DesktopPaneDock): Promise<void> {
     return this.prepareExisting(sourceId, { kind: 'pane', request });
   }
@@ -124,12 +207,13 @@ export class WindowTransfers {
     return this.prepareExisting(sourceId, { kind: 'tab', request });
   }
 
-  private prepareExisting(
-    sourceId: string,
-    move: { kind: 'pane'; request: DesktopPaneDock } | { kind: 'tab'; request: DesktopTabDock },
-  ): Promise<void> {
+  private prepareExisting(sourceId: string, move: ExistingMove): Promise<void> {
     const { request } = move;
-    const source = this.dependencies.record(sourceId);
+    const source =
+      move.kind === 'project'
+        ? this.dependencies.state().returnedProject(sourceId)?.record
+        : this.dependencies.record(sourceId);
+    if (!source) throw new Error('The returned project is unavailable');
     const destination = this.dependencies.record(request.destinationId);
     if (
       (move.kind === 'pane' &&
@@ -137,6 +221,8 @@ export class WindowTransfers {
       sourceId === request.destinationId
     )
       throw new Error('Return a detached pane to a host or project window');
+    if (move.kind === 'project' && destination.window?.kind !== 'host')
+      throw new Error('Return projects to a host window');
     if (source.target !== destination.target) throw new Error('Cannot transfer between hosts');
     if (
       (source.window?.kind !== 'host' && source.window?.profileId !== request.profileId) ||
@@ -148,14 +234,8 @@ export class WindowTransfers {
       throw new Error('Transfer already recorded; inspect its outcome');
     if (state.read(sourceId, request.profileId)?.revision !== request.revision)
       throw new Error('Source workspace changed');
-    for (const plan of this.planning.values()) {
-      if (
-        [plan.sourceId, plan.destinationId].some(
-          (id) => id === sourceId || id === request.destinationId,
-        )
-      )
-        throw new Error('A window transfer is already being prepared');
-    }
+    if (this.busy(sourceId) || this.busy(request.destinationId))
+      throw new Error('A window transfer is already being prepared');
     if (!this.dependencies.command) throw new Error('Docking is unavailable');
     const plan: Planning = {
       sourceId,
@@ -169,7 +249,7 @@ export class WindowTransfers {
   }
 
   private async planDock(
-    move: { kind: 'pane'; request: DesktopPaneDock } | { kind: 'tab'; request: DesktopTabDock },
+    move: ExistingMove,
     destination: ReopenWindow,
     plan: Planning,
   ): Promise<void> {
@@ -177,7 +257,9 @@ export class WindowTransfers {
     const projectId =
       destination.window && destination.window.kind !== 'host'
         ? destination.window.projectId
-        : (request.destinationProjectId ?? request.projectId);
+        : 'destinationProjectId' in request
+          ? (request.destinationProjectId ?? request.projectId)
+          : request.projectId;
     try {
       const common = {
         transferId: request.id,
@@ -187,13 +269,19 @@ export class WindowTransfers {
       };
       const planned = await this.dependencies.command!(
         plan.destinationId,
-        move.kind === 'pane'
-          ? { ...common, kind: 'plan-pane', placement: move.request.placement }
-          : { ...common, kind: 'plan-tab', placement: move.request.placement },
+        move.kind === 'project'
+          ? { ...common, kind: 'plan-project', route: move.request.route }
+          : move.kind === 'pane'
+            ? { ...common, kind: 'plan-pane', placement: move.request.placement }
+            : { ...common, kind: 'plan-tab', placement: move.request.placement },
       );
       if (plan.cancelled || !planned) throw new Error('The destination plan was cancelled');
       // Recheck both live registrations after the asynchronous destination capture.
-      this.dependencies.record(plan.sourceId);
+      if (move.kind === 'project') {
+        const returned = this.dependencies.state().returnedProject(plan.sourceId);
+        if (!returned || returned.version.revision !== request.revision)
+          throw new Error('The returned project changed');
+      } else this.dependencies.record(plan.sourceId);
       this.dependencies.record(plan.destinationId);
       const transfer = this.dependencies.state().prepare({
         id: request.id,
@@ -204,11 +292,15 @@ export class WindowTransfers {
         destinationRevision: planned.revision,
         sourceContent: request.source,
         destinationContent: planned.content,
-        closeSource: false,
+        closeSource: move.kind === 'project',
         sourceRoute: request.sourceRoute,
-        destinationRoute: `/project/${projectId}`,
+        destinationRoute:
+          move.kind === 'project'
+            ? (move.request.route ?? `/project/${projectId}`)
+            : `/project/${projectId}`,
       });
       const pending = this.start(transfer, true);
+      pending.autoConfirm = move.kind === 'project';
       this.planning.delete(request.id);
       plan.finished.resolve();
       void this.dependencies.command!(plan.destinationId, {
@@ -240,6 +332,7 @@ export class WindowTransfers {
     const pending: LiveTransfer = {
       transfer,
       existingDestination,
+      autoConfirm: false,
       accepted: false,
       ready: deferred<void>(),
       committed: deferred<DesktopWorkspaceVersion>(),
@@ -259,6 +352,14 @@ export class WindowTransfers {
     const pending = this.live.get(request.id);
     if (!pending) throw new Error('Transfer is no longer pending');
     pending.accepted = true;
+    if (pending.autoConfirm) {
+      try {
+        this.commit(pending.transfer.sourceId, request);
+      } catch (error) {
+        this.fail(request.id, error);
+        return pending.committed.promise;
+      }
+    }
     pending.ready.resolve();
     return pending.committed.promise;
   }
