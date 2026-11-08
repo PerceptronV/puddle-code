@@ -255,8 +255,10 @@ it('retains progress within a generation and requires fresh explicit intent to c
   expect(base.ledger.page('executions')).toHaveLength(1);
 });
 
-it('does not publish the unfinished trigger in the creation catalogue', () => {
-  expect(coreHuddleComponents.has(`${completionHuddleTrigger.id}@1`)).toBe(false);
+it('publishes the exact completion contract in the shared creation catalogue', () => {
+  expect(coreHuddleComponents.get(`${completionHuddleTrigger.id}@1`)).toEqual(
+    completionHuddleTrigger,
+  );
 });
 
 it('routes an admitted completion into the captured graph once after reopening the ledger', () => {

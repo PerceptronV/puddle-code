@@ -557,7 +557,7 @@ Failed binding must keep later asks unavailable. Codex source observation lives 
 Its owner uses trusted in-process lifecycle delivery and per-frame observation progress
 to keep segment scope ordered through batched native messages and capacity retries.
 Legacy loopback delivery cannot advertise this source. Huddle completion-node delivery
-remains unfinished. Inspect provider availability as well as protocol support.
+inspects provider availability as well as protocol support.
 Application 27.0 adds the closed `huddle` session kind. Migration 43 and
 `db/stores/huddle/placements.ts` retain one immutable placement per
 project/canonical worktree/definition. The common runtime inventory records its
@@ -706,8 +706,8 @@ before reviewed Arm/Apply; reconnect resumes retained cursors. Commit each page 
 its admitted roots together, re-observe after lost replies, and fail visibly on gaps.
 Stale generation/cursor requests must not fail a newer activation. Participate in
 maintenance drain and recheck exact owner/project/worktree scope before delivery.
-The separate native-turn source now feeds privately admitted completion nodes;
-public editor enablement and richer source health remain unfinished. No new public route.
+The separate native-turn source feeds Turn completed nodes; richer source health
+remains unfinished. No new public route.
 The completion admission core lives in owner `state/completions.ts`, with contracts
 in shared `runtime/huddle/triggers/completions.ts` and binding resolution in owner
 `triggers/completions/`. Pin runtime incarnation, selected placement, native segment
@@ -718,8 +718,8 @@ deduplication. Optional `completionEvents: 1` now gates private source/page/unav
 requests and Arm/Apply baselines. Validate baselines before changing intent; reject
 stale sources before failing a current subscription. Charge subscription and page
 workspace separately, release on Stop/Interrupt/failure, and fence asynchronous
-refresh continuations by lifecycle epoch. The scheduler and feature gate share
-`runtime/huddle/components/`. Optional `completionPlans: 1` gates read-only retained
+refresh continuations by lifecycle epoch. The scheduler, feature gate, source capture
+and editor share `coreHuddleComponents`. Optional `completionPlans: 1` gates read-only retained
 or proposed activation plans. Keep host target validation and baseline capture under
 `huddle/triggers/completions/`; inspect native owners before/after durable reads,
 recheck authority and exact targets after awaits and before one lifecycle send.
@@ -731,8 +731,9 @@ Use one active-subscription host timer, at most four concurrent owner scans and
 four page passes; inactive huddles add no polling. Retry disconnected, refused or
 undurable observations with bounded backoff; confirmed identity changes/gaps fail
 the exact subscription without rebasing. Maintenance fences and drains before
-runtime observation closes. The public creation catalogue excludes completion
-nodes until editor enablement is connected.
+runtime observation closes. Completion nodes are in the public catalogue; host
+launch/Apply requires both event and plan capabilities. Resolve targets as observed
+live agents with explicit worktrees, without requiring an automated ask bridge.
 Oversized JSON envelopes fail without truncating replies.
 Optional `git: 1` adds owner-local ref/HEAD observation under `triggers/git/`.
 Group refs and metadata watches by canonical common directory; retain distinct

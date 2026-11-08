@@ -312,6 +312,9 @@ function HuddleEditor({ session, focused }: { session: Session; focused: boolean
                   <p className="mb-4 text-xs text-fg-muted">
                     {node.id} · {component?.category ?? 'Unresolved'}
                   </p>
+                  {component?.description && (
+                    <p className="mb-4 text-xs text-fg-muted">{component.description}</p>
+                  )}
                   {source && (
                     <button
                       type="button"

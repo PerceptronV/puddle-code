@@ -2,6 +2,7 @@ import { realpathSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import {
   sessionHuddleTrigger,
+  completionHuddleTrigger,
   resolveHuddleParameters,
   resolveHuddleVariables,
   type HuddleStart,
@@ -16,7 +17,7 @@ export function huddleExecutionBindings(
   variables: HuddleStart['variables'],
   worktrees: string[],
   agent?: (reference: string, worktree: string) => string,
-  observeSession?: (reference: string, worktree: string) => string,
+  observeSession?: (reference: string, worktree: string, kind: 'any' | 'agent') => string,
 ) {
   resolveHuddleVariables(snapshot.definition, variables);
   const bindings: HuddleRevisionActivation['bindings'] = {};
@@ -27,8 +28,15 @@ export function huddleExecutionBindings(
     unsupported('This runtime supports queued trigger inputs only');
   for (const node of snapshot.definition.nodes) {
     const component = snapshot.components[node.id]!;
-    const observing = node.source.kind === 'builtin' && component.id === sessionHuddleTrigger.id;
-    const resolveSession = observing ? observeSession : agent;
+    const completion =
+      node.source.kind === 'builtin' && component.id === completionHuddleTrigger.id;
+    const observing =
+      completion || (node.source.kind === 'builtin' && component.id === sessionHuddleTrigger.id);
+    const resolveSession = observing
+      ? observeSession &&
+        ((reference: string, worktree: string) =>
+          observeSession(reference, worktree, completion ? 'agent' : 'any'))
+      : agent;
     if (node.source.kind === 'local' && component.category !== 'script')
       unsupported('Custom trigger and readout adapters are not available yet');
     if (component.capabilities.includes('sessions') && !observing && !agent)

@@ -1487,8 +1487,10 @@ controls and Arm/Apply baselines. Validate targets before lifecycle mutation;
 stale sources reject before the current-source failure path. Subscriptions and
 admission workspace use managed memory, and lifecycle changes fence asynchronous
 refresh continuations. The owner scheduler shares its captured component catalogue
-with feature validation. The public creation catalogue still excludes completion
-nodes. Optional `completionPlans: 1` adds read-only plans for retained or proposed
+with feature validation, source capture and the editor through `coreHuddleComponents`.
+Turn completed nodes expose required worktree/live-agent settings; binding admission
+uses observation authority without requiring an automated ask bridge. Optional
+`completionPlans: 1` adds read-only plans for retained or proposed
 activations, allowing Resume to use current settings. Host controls capture baselines
 after queued review, checking exact owner/project/worktree/native identity and
 runtime/provider source support before and after read-only inspection. Recheck all
@@ -1500,8 +1502,9 @@ require fresh cursor observation; disconnects, refused reads and pending writes
 retry with bounded backoff, while confirmed identity changes/gaps fail visibly.
 One active-subscription host tick, four concurrent owner scans and four page passes
 bound polling; stopped huddles do not poll and idle native heads omit page reads.
-Maintenance fences and drains delivery before runtime observation stops. Editor
-controls and same-execution native feedback remain unfinished.
+Maintenance fences and drains delivery before runtime observation stops. Host
+launch/Apply requires both completion capabilities; older event-only owners retain
+their existing private protocol. Explicit same-execution native feedback remains unfinished.
 The runtime entry point selects a separate huddle owner from a strict private launch
 record. It reuses runtime/memory claims, host grants and lifetime checks; consumes
 launch intent once; and provides bounded authenticated controller commands.

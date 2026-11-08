@@ -1,12 +1,12 @@
 import { setImmediate } from 'node:timers/promises';
 import {
   canonicalHuddleJson,
+  coreHuddleComponents,
   huddleEmissionRecordSchema,
   huddleExecutionRecordSchema,
   huddleInvocationRecordSchema,
   type HuddleExecutionRecord,
 } from '@puddle/shared';
-import { runtimeHuddleComponents } from '../components/catalogue.js';
 import { HuddleRevisionController } from '../control/revisions.js';
 import { HuddleLedger } from '../state/ledger.js';
 import { HuddleAttempts, type HuddleAttemptOptions } from './attempts.js';
@@ -106,7 +106,7 @@ export class HuddleScheduler {
               if (component.category !== 'script')
                 throw new Error('This owner does not yet execute local trigger/readout adapters');
             } else {
-              const builtin = runtimeHuddleComponents.get(
+              const builtin = coreHuddleComponents.get(
                 `${node.source.component}@${node.source.version}`,
               );
               if (

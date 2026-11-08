@@ -1,6 +1,4 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, writeFileSync } from 'node:fs';
-import { dirname, join } from 'node:path';
 import { Hono } from 'hono';
 import { vi } from 'vitest';
 import { HuddleService } from '../../../src/huddle/control/service.js';
@@ -15,14 +13,9 @@ import { huddleExecutionRoutes } from '../../../src/http/routes/execution/huddle
 import { ApiError } from '../../../src/http/errors.js';
 import { huddleLaunchFixture } from './launch.js';
 
-export async function huddleExecutionFixture() {
-  const f = await huddleLaunchFixture();
+export async function huddleExecutionFixture(native?: 'interactive') {
+  const f = await huddleLaunchFixture(false, native);
   execFileSync('git', ['init', '-b', 'main', f.home], { stdio: 'ignore' });
-  const root = join(f.home, '.puddle', 'huddle', f.session.huddle_id!);
-  for (const [name, content] of Object.entries(f.options.snapshot.files)) {
-    mkdirSync(dirname(join(root, name)), { recursive: true });
-    writeFileSync(join(root, name), content);
-  }
   const repos = new RepoStore(f.db);
   const projects = new ProjectStore(f.db);
   const worktrees = new WorktreeManager({
@@ -83,7 +76,6 @@ export async function huddleExecutionFixture() {
     );
   return {
     ...f,
-    root,
     app,
     projects,
     definitions,

@@ -60,17 +60,17 @@ exact outcomes and originating ask/huddle identities across controller disconnec
 Headless observations use exact command-correlated keys, successful native results
 plus exit evidence, and immutable ask attribution. Interactive Codex now retains
 exact native turn ids, including external turns and events preceding RPC replies,
-with ordered in-process identity delivery. Automatic delivery now feeds privately
-admitted completion nodes from durable source cursors, with bounded active polling,
+with ordered in-process identity delivery. The Turn completed node is now available
+in the editor with explicit worktree/live-agent settings. Automatic delivery feeds
+completion nodes from durable source cursors, with bounded active polling,
 maintenance fencing and reconnect catch-up. An internal completion subscription ledger pins exact targets,
 validates contiguous durable native pages and atomically admits external completions
 with their cursors. Optional `completionEvents: 1` now connects the ledger to private
 owner lifecycle/delivery controls and captured script execution. Automated/unknown
 completions are suppressed. Optional `completionPlans: 1` now supports read-only
 retained/proposed activation plans and host capture of exact durable agent baselines
-after queued review. Editor enablement and explicit
-same-execution native feedback remain unfinished.
-Broader recurrence rules, exact native completion subscriptions, a richer trigger health/backlog
+after queued review. Explicit same-execution native feedback remains unfinished.
+Broader recurrence rules, a richer trigger health/backlog
 inspector and custom trigger/readout workers remain unfinished.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals except where explicitly documented

@@ -1,4 +1,4 @@
-import { requireHuddleFeatures } from '../triggers/definitions.js';
+import { requireHuddleHostFeatures } from '../triggers/definitions.js';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { realpathSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -72,7 +72,7 @@ export async function launchHuddleOwner(
       'Selected runtime does not support huddle agent dispatch',
     );
   try {
-    requireHuddleFeatures(options.snapshot, selected.huddle);
+    requireHuddleHostFeatures(options.snapshot, selected.huddle);
   } catch (error) {
     throw ApiError.conflict(
       'huddle_execution_unsupported',

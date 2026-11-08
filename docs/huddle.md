@@ -4,9 +4,9 @@ Huddles are project orchestration graphs powered by puddlang. This guide describ
 the implemented local/SSH workflow. The [roadmap](roadmap/huddle.md) covers the full
 design; [acceptance](acceptance/huddle.md) records verified behaviour and remaining
 work. Interval, calendar and one-off date triggers are available on supporting
-runtimes. Filetree, Git and session lifecycle/status observation are also available.
-Exact native turn-completion subscriptions, agent spawn/resume nodes and authoring
-CLI/skills remain unfinished. Native provider, supervisor and reboot acceptance is pending.
+runtimes. Filetree, Git, session lifecycle/status and exact external turn-completion
+observation are also available. Agent spawn/resume nodes, explicit native feedback
+and authoring CLI/skills remain unfinished. Native provider, supervisor and reboot acceptance is pending.
 
 ## Create and edit
 
@@ -234,6 +234,35 @@ Unrelated activity can expire a cursor too. Retention loss, missing resources an
 admission failure surface as an owner failure; inspect the cause and explicitly
 Stop/Start to establish a new baseline. Richer source health remains unfinished.
 This node requires runtime capability `sessionEvents: 1`.
+
+## React to an agent completing a turn
+
+Add **Turn completed**, choose an explicit **Worktree** and a running **Agent**, and
+connect its `event` output to a script or Result. The inspector explains the node's
+behaviour. Saving a graph does not subscribe or start an agent.
+
+**Start**, **Resume** and armed **Apply** establish a fresh baseline in the selected
+agent's native history. Successful turns started outside automation after that
+baseline emit their exact reply, native turn/conversation ids, session, runtime,
+segment and worktree. Started, failed, interrupted, automated and unknown-origin
+turns do not start graph executions. Use Prompt/Review result outputs for the
+two-agent workflow below; those preserve the original execution's feedback limits.
+
+The selected agent must already have a connected runtime and a bound native
+conversation with exact turn observation support. Busy agents can be observed.
+Runtime protocol 1.2 and provider availability are checked at arming; huddle owners
+need `completionEvents: 1` and `completionPlans: 1`. Older runtimes still support
+their existing sessions and graphs. No agent is prompted or restarted to enable a
+subscription, and a huddle supports at most eight completion sources.
+
+A frontend disconnect does not stop observation. While the daemon is disconnected,
+the agent runtime retains bounded observations; reconnection catches up from the
+huddle's saved cursor. A missed reply to delivery does not repeat an admitted
+execution. Native history retains at most 128 records and 2 MiB, so sufficiently
+long disconnections can produce an explicit gap. Conversation/runtime replacement
+and history gaps stop the subscription visibly instead of following another agent
+or skipping unseen replies. Inspect the failure and explicitly re-arm when ready
+to accept a fresh baseline. Resume excludes turns completed during interruption.
 
 ## Prompt existing agents
 

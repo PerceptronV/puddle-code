@@ -1,5 +1,6 @@
 import {
   canonicalHuddleJson,
+  coreHuddleComponents,
   intervalHuddleTrigger,
   calendarHuddleTrigger,
   dateHuddleTrigger,
@@ -14,7 +15,6 @@ import {
   type HuddleRuntimeCapabilities,
 } from '@puddle/shared';
 import type { HuddleDefinitionSnapshot } from '../../../huddle/definitions/capture.js';
-import { runtimeHuddleComponents } from '../components/catalogue.js';
 
 export function intervalDefinitions(
   snapshot: HuddleDefinitionSnapshot,
@@ -58,7 +58,7 @@ export function requireHuddleFeatures(
       throw new Error('This runtime does not support huddle completion subscriptions');
     if (component.id === gitHuddleTrigger.id && capabilities.git !== 1)
       throw new Error('This runtime does not support huddle Git triggers');
-    const expected = runtimeHuddleComponents.get(`${node.source.component}@${node.source.version}`);
+    const expected = coreHuddleComponents.get(`${node.source.component}@${node.source.version}`);
     if (
       !expected ||
       canonicalHuddleJson(JSON.parse(JSON.stringify(expected))) !==
@@ -73,4 +73,20 @@ export function requireHuddleFeatures(
     )
       throw new Error('This runtime does not support huddle calendar/date triggers');
   }
+}
+
+/** Host launch/Apply also needs a read-only plan to capture baselines after queued review. */
+export function requireHuddleHostFeatures(
+  snapshot: HuddleDefinitionSnapshot,
+  capabilities: HuddleRuntimeCapabilities,
+) {
+  requireHuddleFeatures(snapshot, capabilities);
+  if (
+    capabilities.completionPlans !== 1 &&
+    snapshot.definition.nodes.some(
+      (node) =>
+        node.source.kind === 'builtin' && node.source.component === completionHuddleTrigger.id,
+    )
+  )
+    throw new Error('This runtime does not support huddle completion baseline plans');
 }

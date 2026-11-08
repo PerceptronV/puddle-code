@@ -25,9 +25,48 @@ now delivers them to independent owners through durable subscriptions; Session
 lifecycle nodes and stopped/archived session selectors are available in the IDE.
 Runtime protocol 1.2 now retains an independent native-turn source for hook-based
 interactive, structured Codex and command-correlated headless controls. Automatic
-delivery into privately admitted completion nodes is implemented; public editor
-enablement and bounded native feedback remain pending.
+delivery and the Turn completed node's editor settings are implemented; explicit
+bounded native feedback remains pending.
 No user CLI command is enabled yet.
+
+## Implemented: completion node authoring and public execution
+
+`puddle.trigger.turn-completed@1` now belongs to the shared built-in catalogue used
+by source capture, the editor and owner execution. The temporary private catalogue
+has been removed. Add node exposes **Turn completed**; its inspector uses existing
+explicit worktree/live-agent selectors and displays the component description.
+Terminal, archived and huddle placements are excluded. Saving never arms the graph.
+
+Host binding resolution treats this source as observation, so no automated ask
+bridge or idle-agent control readiness is needed. Before launching or applying a
+completion graph, host admission requires both completion-event and read-only plan
+capabilities. Existing event-only owners retain their private protocol compatibility;
+ordinary agent/terminal sessions and other graph features are unchanged. Arming
+still verifies a connected exact native source and provider availability.
+No new public route, database migration or protocol version is introduced.
+
+An isolated integration now exercises the actual authoring inspection and HTTP
+Start/Interrupt/Resume/Stop handlers with a staged huddle release, a separate
+hook-based fixture agent owner, native source journal, real application database,
+reconciliation and completion dispatcher. It verifies both missing-capability
+launch refusals before dispatch, exact reply routing through a captured script,
+and exclusion of paused native history on Resume. Provider signals are simulated;
+this is not installed-provider or native-supervisor acceptance.
+
+Headless Chromium verifies adding the node, required empty worktree/agent fields,
+live-agent choices, exclusion of an archived terminal, the description, and saving
+literal bindings without executing a lifecycle command. See
+`packages/web/test/huddle/completions.browser.mjs` and
+`packages/daemon/test/huddle/triggers/completions/execution.test.ts`.
+
+Verification: **176 tests passed across 38 files** for shared contracts, huddle
+authoring/control/lifecycle, completion and session dispatch, and web graph helpers.
+The completion editor headless check passed against the UI-only preview.
+Shared/daemon/CLI TypeScript builds, web typechecking, repository ESLint/Prettier,
+semantic colour/contrast and diff checks passed. The staged-release test requires
+current shared build output; its initial stale-build failure was resolved by
+building that output before rerunning. The final regression run also includes the
+updated catalogue expectation and project source files in the launch fixture.
 
 ## Implemented: automatic native completion delivery
 
@@ -66,7 +105,8 @@ owner lifecycle and legacy capability gates. Integration uses real isolated hudd
 owner processes and the real native journal with a controlled native transport.
 Shared/daemon/CLI TypeScript builds and repository ESLint, Prettier and diff checks passed.
 It does not establish real-provider, native-service, SSH or reboot acceptance.
-The public catalogue/editor and same-execution native feedback remain unfinished.
+Public catalogue/editor enablement is covered above; same-execution native feedback
+remains unfinished.
 
 ## Implemented: host completion baseline capture
 
@@ -96,9 +136,8 @@ All captured targets receive another synchronous check before the lifecycle send
 a lost read never authorises a mutation or retry. Public capture failures return a
 bounded conflict without exposing private filesystem errors.
 
-Automatic native-event dispatch is covered by the later milestone above; editor
-enablement remains unfinished and the public creation catalogue still excludes
-completion nodes. The reader supports retained page reads, preserving explicit gaps
+Automatic native-event dispatch and editor enablement are covered by the later
+milestones above. The reader supports retained page reads, preserving explicit gaps
 without rebasing. Tests use controlled native observation clients plus real isolated huddle
 owners; they do not establish live provider, native supervisor or reboot acceptance.
 
@@ -133,13 +172,12 @@ deliveries cannot poison newer subscriptions. A genuine current gap or unavailab
 source stops automatic admission visibly. Owner refresh continuations check their
 lifecycle epoch after asynchronous scans before enabling subscriptions.
 
-The scheduler and feature gate share the owner component catalogue in
-`runtime/huddle/components/`. This includes the completion contract, while the
-public creation catalogue still excludes it. A successful external completion now
+The scheduler and feature gate share the completion contract (now in the public
+`coreHuddleComponents` catalogue after the later enablement milestone). A successful external completion
 drives a captured script through an independently running owner when supplied by
 the private controller. The subsequent host capture milestone above adds target
-validation and queued baseline capture. Automatic native-source delivery, editor
-enablement and bounded native feedback opt-in remain unfinished. Delivery must never
+validation and queued baseline capture. Automatic native-source delivery and editor
+enablement are covered above; bounded native feedback opt-in remains unfinished. Delivery must never
 admit pages whose persistence is pending. The existing ask-result feedback template
 is unchanged.
 
@@ -185,13 +223,13 @@ native reply within its own 256 KiB text limit can still be refused; it is never
 silently truncated. Reopening the ledger retains progress, and graph start retains
 its existing single-admission semantics after a lost acknowledgement.
 
-This is an internal admission core, **not an enabled completion trigger**.
-`puddle.trigger.turn-completed@1` is exported for composition but excluded from
-the creation catalogue. The subsequent owner protocol milestone above adds private
+This milestone established the internal admission core; the later milestones above
+enable `puddle.trigger.turn-completed@1` in the creation catalogue.
+The subsequent owner protocol milestone above adds private
 delivery/lifecycle/resource admission without a protocol/database version change.
 Host-authorised baseline capture and live target/provider availability checks are
-covered by the subsequent milestones above, including automatic delivery. Editor
-settings and explicit bounded native feedback routing remain unfinished; the
+covered by the subsequent milestones above, including automatic delivery and editor
+settings. Explicit bounded native feedback routing remains unfinished; the
 admission-core tests do not establish those missing paths.
 
 Verification: **97 tests passed across 17 files**, including 16 new completion
@@ -247,8 +285,8 @@ in six Codex control, buffering, signal, bridge and owner files** passed again.
 Shared/daemon/CLI TypeScript, repository ESLint, formatting and diff checks passed,
 with scoped checks repeated for the final edits.
 
-Huddle completion subscriptions/delivery, their editor controls and live provider,
-SSH and reboot acceptance remain pending.
+Huddle completion subscriptions/delivery and editor controls are covered by the
+later milestones above. Live provider, SSH and reboot acceptance remain pending.
 
 ## Implemented: headless native turn observation
 
@@ -282,14 +320,14 @@ observation and independent-owner recheck passed **41 tests in four files**, inc
 failed-binding admission, oversized native identities and observer failure isolation.
 Shared/daemon/CLI TypeScript, repository ESLint, formatting and diff checks passed.
 
-Huddle completion subscriptions/delivery and their
-editor controls remain pending. Application/runtime/remote protocol versions and
+Huddle completion subscriptions/delivery and editor controls are covered above.
+Application/runtime/remote protocol versions and
 database/ledger formats are unchanged by this provider integration.
 
 ## Implemented: native turn source retention
 
-This is the source foundation for selected-agent completion triggers; it does not
-yet enable a **Puddle turn completed** node. Agent/terminal runtime protocol **1.2**
+This milestone established the source foundation for selected-agent completion
+triggers; the later milestones above enable **Turn completed**. Agent/terminal runtime protocol **1.2**
 adds private `native-turns` reads and optional source status/provider availability.
 Application 28.4, database 47, remote protocol 5 and huddle owner/ledger contracts
 remain unchanged. No new unsolicited ordinary-runtime event is introduced, and

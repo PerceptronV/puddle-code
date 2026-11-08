@@ -43,7 +43,8 @@ cancelled/unanswered asks cannot become external input. Source buffers are bound
 separately from essential asks, with gaps and unknown attribution on loss. Trusted
 in-process identity delivery preserves event/segment ordering inside native batches;
 legacy loopback delivery remains available but does not advertise this observation path.
-Automatic huddle completion-node delivery and native-provider acceptance remain pending.
+Automatic huddle completion-node delivery is implemented below; native-provider
+acceptance remains pending.
 
 Internal huddle completion subscription schemas now live in
 `runtime/huddle/triggers/completions.ts`. Eight sources pin exact runtime identity,
@@ -63,9 +64,11 @@ retained activation, including while interrupted. Its bounded response identifie
 generation/activation/revision and at most eight explicit node/session/worktree
 selections. Host controls capture durable native baselines only after queued review,
 rechecking target and caller authority after reads and immediately before dispatch.
-Older completion-event owners receive no new plan request. The component remains
-absent from the public creation catalogue; automatic delivery and editor enablement
-remain unfinished. Existing
+Older completion-event owners receive no new plan request. The component is now
+in the public creation catalogue. Host launch/Apply requires both capabilities;
+existing event-only owners keep their supported private protocol. Automatic
+delivery reads retained owner cursors and retries transient observation failures
+without rebasing. The editor exposes explicit worktree/live-agent settings. Existing
 application/runtime/remote and huddle owner/ledger versions remain unchanged.
 
 Database **47** retains bounded host session observations. Optional private huddle
@@ -83,7 +86,7 @@ replay history; epoch mismatch, expired retention and ahead cursors report gaps.
 Rows are bounded to 8 KiB and 4,096 sequence positions; pages to 64 rows and 128 KiB.
 Readers must supply previously authorised profile/project/worktree scope. Status
 observations are not exact native turn completions. The separate native source above
-is not yet connected to a huddle completion trigger.
+supplies the Turn completed trigger.
 
 Private `session-sources`, `session-events` and `session-unavailable` messages are
 gated on the capability. Up to eight `session-sources` ledger slots retain exact

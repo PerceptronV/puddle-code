@@ -2,7 +2,7 @@ import { RUNTIME_PROTOCOL_VERSION } from '@puddle/shared';
 import { randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
-import { constants, copyFileSync, cpSync, writeFileSync } from 'node:fs';
+import { constants, copyFileSync, cpSync, mkdirSync, writeFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
@@ -20,6 +20,7 @@ import { runtimeRelease } from '../runtime-release.js';
 import { bundleDir, children, environment } from '../runtime-fixture.js';
 import { schedulerSnapshot } from './scheduler.js';
 import { HuddleSessionFeed } from '../../../src/huddle/triggers/sessions/feed.js';
+import { HuddleCompletionBaselines } from '../../../src/huddle/triggers/completions/baselines.js';
 
 const source = `import {HuddleNode} from 'puddlang/huddle'; import fs from 'node:fs';
 export default HuddleNode({contract:'./node.json', async run({inputs}) {
@@ -27,9 +28,9 @@ fs.appendFileSync(inputs.value + '/entered', 'x');
 while(!fs.existsSync(inputs.value + '/release')) await new Promise(r => setTimeout(r, 10));
 return {completed: 42}; }});`;
 
-export async function huddleLaunchFixture(loseDispatchReply = false) {
-  const f = runtimeDatabase();
-  f.runtimes.finish(f.binding.runtime_id, 'exited', () => {});
+export async function huddleLaunchFixture(loseDispatchReply = false, native?: 'interactive') {
+  const f = runtimeDatabase(native);
+  if (!native) f.runtimes.finish(f.binding.runtime_id, 'exited', () => {});
   const installed = runtimeRelease(
     f.home,
     '1.2.3',
@@ -100,8 +101,12 @@ export async function huddleLaunchFixture(loseDispatchReply = false) {
     },
     { installed: true, kind: 'launchd', run },
   );
-  const controls = new RuntimeControls(f.runtimes, connections, f.reconciler, () =>
-    new HuddleSessionFeed(f.db).checkpoint(),
+  const controls = new RuntimeControls(
+    f.runtimes,
+    connections,
+    f.reconciler,
+    () => new HuddleSessionFeed(f.db).checkpoint(),
+    new HuddleCompletionBaselines({ ...f, connections, projects: new ProjectStore(f.db) }).capture,
   );
   const options = {
     snapshot: schedulerSnapshot(huddleId, source),
@@ -110,8 +115,14 @@ export async function huddleLaunchFixture(loseDispatchReply = false) {
     bindings: {},
     authorised: () => true,
   };
+  const root = join(f.home, '.puddle', 'huddle', huddleId);
+  for (const [name, content] of Object.entries(options.snapshot.files)) {
+    mkdirSync(dirname(join(root, name)), { recursive: true });
+    writeFileSync(join(root, name), content);
+  }
   return {
     ...f,
+    root,
     session,
     installed,
     connections,

@@ -8,7 +8,8 @@ import { schedulerSnapshot } from '../../helpers/huddle/scheduler.js';
 import { initialisePrivateHome } from '@puddle/shared/node';
 import { agentGraphSnapshot } from '../../helpers/huddle/agent-graph.js';
 import { randomUUID } from 'node:crypto';
-import { encodeHuddleAgentTarget } from '@puddle/shared';
+import { completionHuddleTrigger, encodeHuddleAgentTarget } from '@puddle/shared';
+import { withTrigger } from '../../helpers/huddle/trigger.js';
 
 const homes: string[] = [];
 afterEach(() => {
@@ -20,6 +21,26 @@ function home() {
   initialisePrivateHome(path);
   return path;
 }
+
+it('resolves completion targets as observed agents without requiring an automated ask bridge', () => {
+  const worktree = realpathSync(home()),
+    session = randomUUID();
+  const snapshot = withTrigger(schedulerSnapshot('a'.repeat(32), ''), completionHuddleTrigger, {
+    worktree,
+    session,
+  });
+  const bindings = huddleExecutionBindings(
+    snapshot,
+    {},
+    [worktree],
+    undefined,
+    (reference, root, kind) => {
+      expect([reference, root, kind]).toEqual([session, worktree, 'agent']);
+      return reference;
+    },
+  );
+  expect(bindings.run).toEqual({ worktree, session });
+});
 
 it('resolves session variables after canonical worktrees and preserves exact agent bindings', () => {
   const worktree = realpathSync(home());

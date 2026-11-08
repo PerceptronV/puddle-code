@@ -1,5 +1,5 @@
 import { realpathSync } from 'node:fs';
-import { requireHuddleFeatures } from '../../runtime/huddle/triggers/definitions.js';
+import { requireHuddleHostFeatures } from '../../runtime/huddle/triggers/definitions.js';
 import { randomUUID } from 'node:crypto';
 import {
   huddleStartSchema,
@@ -173,16 +173,21 @@ export class HuddleExecutionService {
             'huddle_source_changed',
             'Saved huddle source changed; inspect it before starting or applying',
           );
-        const observeSession = (reference: string, worktree: string) => {
+        const observeSession = (reference: string, worktree: string, kind: 'any' | 'agent') => {
           const selected = this.deps.sessions.get(reference);
           if (
             selected.project_id !== session.project_id ||
             selected.kind === 'huddle' ||
+            (kind === 'agent' &&
+              (selected.kind !== 'agent' ||
+                ['archived', 'exited', 'interrupted'].includes(selected.status))) ||
             realpathSync(selected.worktree_path) !== worktree
           )
             throw ApiError.conflict(
               'huddle_session_unavailable',
-              'Choose an agent or terminal in the declared project/worktree',
+              kind === 'agent'
+                ? 'Choose a running agent in the declared project/worktree'
+                : 'Choose an agent or terminal in the declared project/worktree',
             );
           return selected.id;
         };
@@ -310,7 +315,7 @@ export class HuddleExecutionService {
             'This owner cannot dispatch agent operations; start with a supporting runtime',
           );
         try {
-          requireHuddleFeatures(snapshot, state.capabilities);
+          requireHuddleHostFeatures(snapshot, state.capabilities);
         } catch (error) {
           throw ApiError.conflict(
             'huddle_execution_unsupported',
