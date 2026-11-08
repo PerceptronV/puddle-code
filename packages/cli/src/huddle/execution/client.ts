@@ -5,6 +5,7 @@ import {
   huddleStoppedSchema,
   huddleHistoryPageSchema,
   huddleReadoutObserveAcceptedSchema,
+  parseHuddleReview,
   supportsApplicationFeature,
   type HuddleToolExecutionCommand,
 } from '@puddle/shared';
@@ -14,6 +15,7 @@ export class HuddleExecutionClient {
   readonly supported: boolean;
   readonly readoutObservation: boolean;
   readonly customTriggers: boolean;
+  readonly revisionReview: boolean;
   constructor(
     private readonly request: (path: string, body?: unknown) => Promise<unknown>,
     protocol?: { major: number; minor: number },
@@ -21,12 +23,21 @@ export class HuddleExecutionClient {
     this.supported = supportsApplicationFeature(protocol, { major: 28, minor: 2 });
     this.readoutObservation = supportsApplicationFeature(protocol, { major: 28, minor: 6 });
     this.customTriggers = supportsApplicationFeature(protocol, { major: 28, minor: 7 });
+    this.revisionReview = supportsApplicationFeature(protocol, { major: 28, minor: 10 });
   }
   async execute(raw: HuddleToolExecutionCommand) {
     if (!this.supported)
       throw new Error('Huddle runtime tools require compatible daemon protocol 28.2 or newer');
     const command = huddleToolExecutionCommandSchema.parse(raw);
     const path = `/sessions/${command.session_id}`;
+    if (command.action === 'revision' || command.action === 'diff') {
+      if (!this.revisionReview)
+        throw new Error('Huddle revision review requires daemon protocol 28.10 or newer');
+      return parseHuddleReview(
+        command.request,
+        await this.request(`${path}/${command.action}`, command.request),
+      );
+    }
     if (command.action === 'runtime') {
       const query = new URLSearchParams();
       if (this.readoutObservation) query.set('include_readout_observation', 'true');

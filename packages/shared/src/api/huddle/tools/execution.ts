@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { sessionId } from '../../common.js';
 import { huddleJsonSchema, HUDDLE_LIMITS } from '../values.js';
+import { huddleRevisionReviewSchema, huddleDiffReviewSchema } from '../review.js';
 import {
   huddleStartSchema,
   huddleApplySchema,
@@ -14,6 +15,8 @@ const session = { session_id: sessionId };
 /** All mutations carry reviewed values. Tools must never resolve a newer target implicitly. */
 export const huddleExecutionToolSchemas = {
   runtime: z.strictObject(session),
+  revision: z.strictObject({ ...session, request: huddleRevisionReviewSchema }),
+  diff: z.strictObject({ ...session, request: huddleDiffReviewSchema }),
   start: z.strictObject({ ...session, request: huddleStartSchema }),
   apply: z.strictObject({ ...session, request: huddleApplySchema }),
   run: z.strictObject({ ...session, request: huddleRunSchema }),
@@ -25,6 +28,8 @@ export const huddleExecutionToolSchemas = {
 };
 export const huddleToolExecutionCommandSchema = z.discriminatedUnion('action', [
   huddleExecutionToolSchemas.runtime.extend({ action: z.literal('runtime') }),
+  huddleExecutionToolSchemas.revision.extend({ action: z.literal('revision') }),
+  huddleExecutionToolSchemas.diff.extend({ action: z.literal('diff') }),
   huddleExecutionToolSchemas.start.extend({ action: z.literal('start') }),
   huddleExecutionToolSchemas.apply.extend({ action: z.literal('apply') }),
   huddleExecutionToolSchemas.run.extend({ action: z.literal('run') }),
@@ -37,6 +42,16 @@ export const huddleToolExecutionCommandSchema = z.discriminatedUnion('action', [
 export type HuddleToolExecutionCommand = z.infer<typeof huddleToolExecutionCommandSchema>;
 
 const definitions = [
+  [
+    'revision',
+    'Inspect the exact active huddle revision, variables, resolved bindings and source/contract inventory. Supply the inspected target, optionally entry {kind: file|component, path} for retained text. Works without saved source while the owner is connected. Does not execute, save or apply.',
+    true,
+  ],
+  [
+    'diff',
+    'Compare saved source against the exact active huddle revision. Supply reviewed target and expected_digest from source inspection; optional entry {kind: file|component, path} returns before/after text. Reports changes to scripts and resolved contracts as well as graph/layout files. No execution or Apply; stale targets/digests fail without automatic refresh.',
+    true,
+  ],
   [
     'runtime',
     'Inspect the huddle placement and its exact connected owner target. Includes readout support and custom-trigger health on supporting hosts. Does not start or adopt an owner.',

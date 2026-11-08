@@ -79,22 +79,47 @@ export class HuddleRevisionStore {
   }
 
   read(revision: string): HuddleDefinitionSnapshot {
-    const path = this.path(revision);
-    privatePath(path);
-    const size = lstatSync(path).size;
-    if (size > this.limits.recordBytes) throw new Error('Huddle revision record capacity exceeded');
-    const release = this.allowance?.reserve(8 * size + 64 * 1024);
-    if (this.allowance && !release)
-      throw new Error('Host memory admission is unavailable for huddle source');
-    try {
-      // A replacement/growing file cannot exceed the admitted read workspace.
-      return restoreHuddleDefinition(readPrivateJson(path, size), this.huddleId);
-    } finally {
-      release?.();
-    }
+    return readRetainedHuddleRevision(
+      this.home,
+      this.runtimeId,
+      this.huddleId,
+      revision,
+      this.limits.recordBytes,
+      this.allowance,
+    );
   }
 
   private path(revision: string) {
     return join(this.directory, `${huddleRevisionSchema.parse(revision)}.json`);
+  }
+}
+
+/** Observe existing source without creating directories or publishing a revision. */
+export function readRetainedHuddleRevision(
+  home: string,
+  runtimeId: string,
+  huddleId: string,
+  revision: string,
+  recordBytes: number = HUDDLE_REVISION_LIMITS.recordBytes,
+  allowance?: RuntimeByteAllowance,
+): HuddleDefinitionSnapshot {
+  const directory = join(runtimeDirectory(home, runtimeId), 'huddle-revisions');
+  privatePath(directory, true);
+  const path = join(directory, `${huddleRevisionSchema.parse(revision)}.json`);
+  privatePath(path);
+  const size = lstatSync(path).size;
+  if (size > Math.min(recordBytes, HUDDLE_REVISION_LIMITS.recordBytes))
+    throw new Error('Huddle revision record capacity exceeded');
+  const release = allowance?.reserve(8 * size + 64 * 1024);
+  if (allowance && !release)
+    throw new Error('Host memory admission is unavailable for huddle source');
+  try {
+    // A replacement/growing file cannot exceed the admitted read workspace.
+    const snapshot = restoreHuddleDefinition(readPrivateJson(path, size), huddleId);
+    if (snapshot.digest !== revision)
+      throw new Error('Retained huddle revision differs from its requested digest');
+    return snapshot;
+  } finally {
+    release?.();
   }
 }

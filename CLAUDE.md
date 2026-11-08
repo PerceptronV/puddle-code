@@ -599,8 +599,7 @@ an inspected saved digest. Rearm retains the current activation. Public schemas
 explicitly project owner/ledger data; never return private launch evidence or
 operation inputs/targets. Recheck declared worktree bindings after async admission.
 The installation event id in `huddle-host.json` is not authority. Full agent lifecycle
-bridges, offline readout reconciliation, stopped-owner history and active revision
-detail remain pending; unsupported execution is rejected before launch.
+bridges, offline readout reconciliation and stopped-owner history remain pending; unsupported execution is rejected before launch.
 Migration 48 adds `huddle_runtime_spawns`; host admission lives under
 `huddle/operations/spawns/`. The private `sessions/creation/caller.ts` hooks record
 placement and exact runtime consumption inside existing store transactions. Never
@@ -706,7 +705,7 @@ live in `shared/api/huddle/tools/`, split into source, execution and placement c
 Preserve exact reviewed digests/targets/event ids in JSON requests; never refresh,
 retry or fall back after failed mutations. Resume maps to rearm. Keep source scope
 explicit and runtime scope bound to the immutable placement. See
-`docs/huddle/authoring.md`; standalone schema/types and diff tools remain unfinished. Placement tools live in
+`docs/huddle/authoring.md`; standalone schema/types remain unfinished. Placement tools live in
 `cli/src/huddle/placement/`: verify kind/profile through the scoped huddle runtime
 route before calling the ordinary session GET/archive/unarchive routes. UUID,
 project/profile and definition worktree are immutable placement identity. Archive
@@ -733,6 +732,17 @@ queue mutations on reconnect. Explicit runtime/history inspection clears the
 review barrier after a failure; failed observation leaves it intact. Poll only
 focused runtime/visible history pages and stop polling after errors. Do not infer
 that saved source is the active revision, or that acceptance means completion.
+Application 28.10 adds active revision and saved-source diff under
+`huddle/execution/review/` and web `huddle/execution/review/`. Keep exact target,
+saved digest and selected entry across read/Apply; reject substitutions. The
+private `state/readers/activation.ts` opens only an existing ledger-1 database
+read-only, bounds SQL text before materialisation and verifies identity/control.
+It must never obtain the writer claim, create/migrate a ledger or publish a source
+revision. Recheck owner/authority after saved capture and serialise review workspaces
+with bounded waiting requests. Existing capable owners need no new IPC or capability.
+History and huddle review share `diff/ReadOnlyDiff.tsx`; keep models private to each
+mounted viewer and detach before disposal. Retained-only review must work without
+project source, and source comparison must not import project modules.
 Manifest graph editing uses the shared `huddle.json` editor model, existing conditional file
 saves/drafts/conflicts and undo history. `tabHoldsFile` recognises manifest ownership
 for window transfers, close review, arrangements and model retention. Keep source

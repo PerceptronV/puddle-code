@@ -1,5 +1,8 @@
 import {
   huddleJsonSchema,
+  huddleReviewSchema,
+  canonicalHuddleJson,
+  type HuddleJson,
   type HuddleDocument,
   type HuddleRuntimeInspection,
   type HuddleHistoryPage,
@@ -9,6 +12,7 @@ import {
 export function huddleRuntimeFixture(document: () => HuddleDocument) {
   let owner: HuddleRuntimeInspection['owner'] = null;
   let active: HuddleDocument | null = null;
+  let variables: HuddleJson = {};
   let lose: string | null = null;
   let release: (() => void) | null = null;
   let held: Promise<void> | null = null;
@@ -138,10 +142,80 @@ export function huddleRuntimeFixture(document: () => HuddleDocument) {
         }
         return Response.json({ accepted: true, operation_id: operation.id });
       }
+      if (action === 'revision' || action === 'diff') {
+        if (!active || !current) return fail('huddle_unavailable');
+        const saved = action === 'diff' ? document() : null;
+        if (saved && body?.expected_digest !== saved.digest) return fail('huddle_source_changed');
+        const entries = [];
+        let content;
+        const selected = body?.entry as { kind: string; path: string } | undefined;
+        const fingerprint = async (value: string | undefined) => {
+          if (value === undefined) return null;
+          const bytes = new TextEncoder().encode(value);
+          const digest = [...new Uint8Array(await crypto.subtle.digest('SHA-256', bytes))]
+            .map((byte) => byte.toString(16).padStart(2, '0'))
+            .join('');
+          return { bytes: bytes.length, digest };
+        };
+        for (const kind of ['file', 'component'] as const) {
+          const values = (d: HuddleDocument | null): Record<string, string> =>
+            !d
+              ? {}
+              : kind === 'file'
+                ? {
+                    'huddle.json': JSON.stringify(d.definition, null, 2),
+                    ...(d.layout ? { 'layout.json': JSON.stringify(d.layout, null, 2) } : {}),
+                  }
+                : Object.fromEntries(
+                    Object.entries(d.components).map(([key, value]) => [
+                      key,
+                      canonicalHuddleJson(value as unknown as HuddleJson),
+                    ]),
+                  );
+          const a = values(active),
+            b = values(saved);
+          for (const path of [...new Set([...Object.keys(a), ...Object.keys(b)])].sort()) {
+            const entry = { kind, path };
+            entries.push({
+              entry,
+              before: await fingerprint(a[path]),
+              after: await fingerprint(b[path]),
+              change: !saved
+                ? 'retained'
+                : a[path] === b[path]
+                  ? 'unchanged'
+                  : a[path] === undefined
+                    ? 'added'
+                    : b[path] === undefined
+                      ? 'removed'
+                      : 'modified',
+            });
+            if (selected?.kind === kind && selected.path === path)
+              content = { entry, before: a[path] ?? null, after: b[path] ?? null };
+          }
+        }
+        return Response.json(
+          huddleReviewSchema.parse({
+            target: current.target,
+            active: {
+              id: current.target.activationId,
+              revision: active.digest,
+              worktree: '/preview/puddle',
+              variables,
+              bindings: {},
+              appliedAt: 1,
+            },
+            saved: saved ? { digest: saved.digest, diagnostics: saved.diagnostics } : null,
+            entries,
+            ...(content ? { content } : {}),
+          }),
+        );
+      }
       if (action === 'start' || action === 'apply') {
         if (body?.expected_digest !== document().digest) return fail('huddle_source_changed');
         if (action === 'start' && owner) return fail('huddle_owned');
         active = structuredClone(document());
+        variables = huddleJsonSchema.parse(body?.variables);
         owner = {
           connected: true,
           target: {

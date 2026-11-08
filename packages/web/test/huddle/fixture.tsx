@@ -170,6 +170,7 @@ window.fetch = async (input, init) => {
   if (
     path === '/api/version' &&
     (!executionSupported ||
+      new URLSearchParams(location.search).has('old-review') ||
       new URLSearchParams(location.search).has('old-templates') ||
       new URLSearchParams(location.search).has('old-spawn') ||
       new URLSearchParams(location.search).has('old-owned') ||
@@ -182,13 +183,15 @@ window.fetch = async (input, init) => {
         major: 28,
         minor: !executionSupported
           ? 1
-          : new URLSearchParams(location.search).has('old-owned')
-            ? 8
-            : new URLSearchParams(location.search).has('old-spawn')
-              ? 7
-              : new URLSearchParams(location.search).has('old-layout')
-                ? 3
-                : 2,
+          : new URLSearchParams(location.search).has('old-review')
+            ? 9
+            : new URLSearchParams(location.search).has('old-owned')
+              ? 8
+              : new URLSearchParams(location.search).has('old-spawn')
+                ? 7
+                : new URLSearchParams(location.search).has('old-layout')
+                  ? 3
+                  : 2,
       },
     });
   }

@@ -9,6 +9,11 @@ import {
   huddleRunSchema,
   huddleLifecycleCommandSchema,
   huddleHistoryRequestSchema,
+  huddleRevisionReviewSchema,
+  huddleDiffReviewSchema,
+  huddleReviewSchema,
+  type HuddleRevisionReview,
+  type HuddleDiffReview,
   huddleExecutionViewSchema,
   huddleInvocationViewSchema,
   huddleOperationViewSchema,
@@ -31,7 +36,14 @@ import {
   huddleControlTarget,
   requireHuddleControl,
 } from '../../runtime/huddle/controller/observations.js';
-import { HuddleRevisionStore } from '../../runtime/huddle/state/revisions.js';
+import {
+  HuddleRevisionStore,
+  readRetainedHuddleRevision,
+} from '../../runtime/huddle/state/revisions.js';
+import { readHuddleActivation } from '../../runtime/huddle/state/readers/activation.js';
+import { compareHuddleRevisions } from './review/compare.js';
+import type { HuddleDefinitionSnapshot } from '../definitions/capture.js';
+import { KeyedMutex } from '../../git/mutex.js';
 import { prepareHuddleActivation } from '../../runtime/huddle/control/revisions.js';
 import type { StorageMonitor } from '../../storage/monitor.js';
 import type { HuddleService } from '../control/service.js';
@@ -57,6 +69,8 @@ interface Dependencies extends HuddleResourceStores {
 
 /** Local/SSH placement authority surrounds every private owner operation. */
 export class HuddleExecutionService {
+  private readonly reviewQueue = new KeyedMutex();
+  private pendingReviews = 0;
   constructor(private readonly deps: Dependencies) {}
 
   private scope(profile: string, id: string, authority: Authority, admitting = false) {
@@ -438,6 +452,103 @@ export class HuddleExecutionService {
         }),
       })),
     };
+  }
+
+  reviewRevision(profile: string, id: string, raw: HuddleRevisionReview, authority: Authority) {
+    return this.review(profile, id, huddleRevisionReviewSchema.parse(raw), authority);
+  }
+
+  reviewDiff(profile: string, id: string, raw: HuddleDiffReview, authority: Authority) {
+    const { expected_digest, ...input } = huddleDiffReviewSchema.parse(raw);
+    return this.review(profile, id, input, authority, expected_digest);
+  }
+
+  private review(
+    profile: string,
+    id: string,
+    input: HuddleRevisionReview,
+    authority: Authority,
+    savedDigest?: string,
+  ) {
+    // One bounded source workspace per controller; waiting callers hold no bundles.
+    if (this.pendingReviews >= 8)
+      throw ApiError.conflict('huddle_review_busy', 'Too many pending revision reviews');
+    this.pendingReviews++;
+    return this.reviewQueue
+      .run('source', () => this.inspectRevision(profile, id, input, authority, savedDigest))
+      .finally(() => {
+        this.pendingReviews--;
+      });
+  }
+
+  private async inspectRevision(
+    profile: string,
+    id: string,
+    input: HuddleRevisionReview,
+    authority: Authority,
+    savedDigest?: string,
+  ) {
+    const scope = this.scope(profile, id, authority);
+    const state = await this.deps.controls.inspect(id, scope.valid);
+    requireHuddleControl(state, input.target);
+    scope.check();
+    let active: HuddleDefinitionSnapshot;
+    let activation: ReturnType<typeof readHuddleActivation>;
+    try {
+      activation = readHuddleActivation(this.deps.home, state);
+      active = readRetainedHuddleRevision(
+        this.deps.home,
+        input.target.runtimeId,
+        scope.session.huddle_id!,
+        activation.revision,
+      );
+    } catch {
+      throw ApiError.conflict(
+        'huddle_revision_unavailable',
+        'The active revision could not be verified; inspect the runtime again',
+      );
+    }
+    const finish = async (saved?: HuddleDefinitionSnapshot) => {
+      if (saved && saved.digest !== savedDigest)
+        throw ApiError.conflict(
+          'huddle_source_changed',
+          'Saved source changed; inspect its digest before comparing again',
+        );
+      let comparison: ReturnType<typeof compareHuddleRevisions>;
+      try {
+        comparison = compareHuddleRevisions(active, saved, input.entry);
+      } catch {
+        throw ApiError.badRequest(
+          'huddle_review_entry_missing',
+          'Choose an entry in the reviewed source closure',
+        );
+      }
+      const current = await this.deps.controls.inspect(id, scope.valid);
+      requireHuddleControl(current, input.target);
+      scope.check();
+      return huddleReviewSchema.parse({
+        target: input.target,
+        active: activation,
+        saved: saved ? { digest: saved.digest, diagnostics: saved.diagnostics } : null,
+        ...comparison,
+      });
+    };
+    if (!savedDigest) return finish();
+    return this.deps.definitions.withSnapshot(
+      profile,
+      {
+        project_id: scope.session.project_id,
+        worktree: scope.session.worktree_path,
+        huddle_id: scope.session.huddle_id!,
+      },
+      scope.valid,
+      async (saved, location) => {
+        location.check();
+        const review = await finish(saved);
+        location.check();
+        return review;
+      },
+    );
   }
 
   async observeReadout(

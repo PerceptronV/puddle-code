@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Inspect retained huddle source and bindings and compare saved files/contracts before Apply, through the IDE and CLI/MCP (application 28.10); preserve reviewed targets/digests, support missing project source and keep all review operations read-only.
+
 - Inspect huddle session status and archive/unarchive placements through CLI/MCP, sharing sidebar shutdown and cleanup semantics; verify profile/kind before dispatch and leave restored huddles stopped.
 
 - Create/open inactive huddles and inspect, start, apply, run, interrupt, resume, stop and read their history through CLI/MCP tools. Require reviewed JSON requests and preserve exact targets without automatic mutation retries; expose readout observation on supporting hosts.

@@ -32,8 +32,8 @@ import {
 } from '../src/index.js';
 
 describe('shared API schemas', () => {
-  it('declares protocol 28.9 for retained huddle input templates', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 28, minor: 9 });
+  it('declares protocol 28.10 for huddle revision review', () => {
+    expect(PROTOCOL_VERSION).toEqual({ major: 28, minor: 10 });
   });
 
   it('accepts headless mode and rejects the previous scripted name', () => {

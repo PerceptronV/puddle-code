@@ -10,6 +10,8 @@ import { huddleHistory, type HuddleCommand } from './api';
 import { CommandDialog, type CommandReview } from './CommandDialog';
 import { HistoryDialog } from './HistoryDialog';
 import { TriggerHealth } from './TriggerHealth';
+import { reviewHuddleRevision, useHuddleReviewSupported } from './review/api';
+import { RevisionDialog } from './review/RevisionDialog';
 import {
   historyKey,
   useHuddleCommands,
@@ -42,11 +44,13 @@ export function ExecutionControls({
   locked: boolean;
 }) {
   const supported = useHuddleExecutionSupported();
+  const reviewSupported = useHuddleReviewSupported();
   const runtime = useHuddleRuntime(profile, session.id, focused);
   const source = useHuddleDocument(profile, session);
   const commands = useHuddleCommands(profile, session.id);
   const cache = useQueryClient();
   const [review, setReview] = useState<CommandReview | null>(null);
+  const [revisionTarget, setRevisionTarget] = useState<HuddleCommandTarget | null>(null);
   const [history, setHistory] = useState<{
     owner: ReturnType<typeof ownerIdentity>;
     execution?: string;
@@ -86,7 +90,16 @@ export function ExecutionControls({
       if (kind === 'start') {
         if (!document) throw new Error('Saved source is unavailable');
         setReview({ kind, document });
-      } else if (active?.connected) setReview({ kind, document, target: active.target });
+      } else if (active?.connected) {
+        const comparison =
+          kind === 'apply' && reviewSupported && document
+            ? await reviewHuddleRevision(profile, session.id, {
+                target: active.target,
+                expected_digest: document.digest,
+              })
+            : undefined;
+        setReview({ kind, document, target: active.target, ...(comparison ? { comparison } : {}) });
+      }
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Cannot inspect huddle');
     } finally {
@@ -173,6 +186,16 @@ export function ExecutionControls({
           )}
           {current && (
             <>
+              {reviewSupported && (
+                <button
+                  type="button"
+                  className={graphActionClass}
+                  disabled={busy || !current.target.activationId}
+                  onClick={() => setRevisionTarget(current.target)}
+                >
+                  Active revision
+                </button>
+              )}
               <button
                 type="button"
                 className={graphActionClass}
@@ -272,12 +295,23 @@ export function ExecutionControls({
       {review && (
         <CommandDialog
           review={review}
+          profile={profile}
+          session={session.id}
           worktree={session.worktree_path}
           blocked={blocked}
           pending={commands.status.pending}
           error={commands.status.error}
           send={send}
           onClose={() => setReview(null)}
+        />
+      )}
+      {revisionTarget && (
+        <RevisionDialog
+          profile={profile}
+          session={session.id}
+          target={revisionTarget}
+          stale={unavailable || !current || !sameTarget(current.target, revisionTarget)}
+          onClose={() => setRevisionTarget(null)}
         />
       )}
       {history && (

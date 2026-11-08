@@ -14,6 +14,10 @@ through `pudl huddle` and MCP. Placement inspection and archive/unarchive also
 share the ordinary session lifecycle; unarchive leaves the huddle stopped. **Edit with agent**
 supplies a bundled huddle skill to a selected authoring account. Native provider,
 supervisor and reboot acceptance is pending.
+Application 28.10 adds **Active revision** for retained source/bindings and a
+saved-versus-active comparison before **Apply saved**. The corresponding
+`pudl huddle revision|diff` and MCP tools are documented in the
+[authoring guide](huddle/authoring.md#review-active-source-and-saved-changes).
 
 ## Create and edit
 

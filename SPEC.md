@@ -1731,7 +1731,28 @@ cleanup policy, then hide the placement. It does not target a reviewed runtime
 incarnation. Unarchive leaves the huddle stopped and does not restore a missing
 worktree or archived project. Failed mutation replies require explicit session/runtime
 inspection; no automatic retry or fallback occurs. No HTTP/WS or version change
-is introduced. Schema/type bundles and graph diff remain pending.
+is introduced. Schema/type bundles remain pending.
+Application 28.10 adds exact active revision/source/binding inspection and
+saved-source comparison through `POST .../revision` and `POST .../diff` under the
+existing local/SSH huddle session scope. Input contains the reviewed owner target;
+diff also binds the saved digest. Optional entry selection returns one exact file
+or canonical resolved contract; the overview returns change categories, hashes
+and byte counts. `huddle/execution/review/` compares data without loading modules.
+`runtime/huddle/state/readers/` checks ledger-1 identity/control/activation through
+a bounded read-only SQLite transaction; retained-source reads create no directories
+or records. One controller review workspace and eight queued/in-progress requests
+bound capture concurrency. The existing repository lock surrounds saved capture,
+and final owner/authority checks reject lifecycle changes while reading. A missing
+project definition still permits retained source inspection on a connected owner.
+No runtime/ledger capability or version change is needed.
+The IDE's Active revision dialogue shows retained source and resolved bindings.
+Apply review includes saved-versus-active files/contracts on supporting hosts and
+seeds variables from the actual activation. It retains the reviewed target/digest
+through submission. Shared read-only Monaco diff composition under
+`web/features/diff/ReadOnlyDiff.tsx` serves history and huddle review, with private
+models per mounted viewer and explicit detach/disposal. Old hosts keep their
+existing Apply flow. CLI/MCP expose the same revision/diff observations; no read
+can save source, arm triggers, replace a failed target or publish a revision.
 Huddle views can move through panes, project layouts and native
 transfers without creating PTYs or owners. Closing a view is independent of Stop.
 Desktop recovery format 4 migrates versions 2/3; `windows.huddles` gates native
@@ -1795,7 +1816,8 @@ local trigger adapters require their declared capabilities before launch. Custom
 supporting runtime and captured delivery policy. Missing source blocks new work but
 not inspection or Stop. The event host id persists in private `huddle-host.json`
 and grants no authority. Public history omits private ledger keys and operation
-inputs/targets; stopped-owner history and active-revision details remain pending.
+inputs/targets; stopped-owner history remains pending. Active-revision inspection
+and comparison are described above.
 Remote profile leases and the connector deny these APIs. The local/SSH IDE gates
 execution on application 28.2 and the shell's huddle capability. Its action tray
 separates saved-source Start/Apply with explicit JSON variables from manual Run

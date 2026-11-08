@@ -9,7 +9,7 @@ captured-source script workers, retained revisions/activation and a manual sched
 in an independent owner process with private authenticated control, explicit
 runtime-role metadata and pinned capability checks. Phase 2 has the third session
 kind, immutable application placement and common runtime inventory role, with
-application protocol 28.9. Local/SSH inactive creation, discovery, inspection and
+application protocol 28.10. Local/SSH inactive creation, discovery, inspection and
 placement opening now have sidebar creation and a graph pane with manifest
 editing, shared source/layout drafts, settings, undo and file-conflict review.
 Pointer/touch and keyboard node movement, position settings, pan and fit controls
@@ -32,8 +32,10 @@ digest save integration and retained graph view state remain unfinished.
 Internal queued Apply/Arm/Run/Interrupt now require the inspected owner and
 activation, preventing stale views from dispatching against a replacement.
 Bounded live-owner history reads validate execution/node/operation records;
-application 28.2 exposes explicit public projections. Stopped-owner history, active
-revision detail remain pending. Host-side exact agent-turn admission now shares
+application 28.2 exposes explicit public projections. Stopped-owner history remains pending. Application 28.10 now exposes exact active
+revision/source/binding inspection and saved-versus-active comparison through the
+IDE, CLI and MCP. Retained inspection works after project source deletion while
+the owner remains connected. Host-side exact agent-turn admission now shares
 the ordinary dispatcher, with schema-45 huddle caller identities and owner receipt
 retention. The private owner mailbox now connects script attach/ask calls to
 durable intent, single-consumption claims and exact-result settlement, with an
@@ -768,7 +770,7 @@ runtime/start/apply/run/interrupt/resume/stop/history/readout-observation tools
 now reuse the same host services, exact reviewed source digests and owner targets.
 Failed mutations are observation-only until the user decides a next action; no
 tool implicitly refreshes targets or retries. Standalone schema/type assets,
-richer integration templates and the remaining CLI/MCP parity
+richer integration templates and offline history
 remain to be shipped; this UI action does not complete the authoring phase.
 
 Let users select any eligible account in the current profile to create or modify
@@ -791,7 +793,10 @@ this replaces the proposed directory-only form. Core runtime controls are expose
 with `--request JSON` (MCP: `{session_id, request}`). Placement observation and
 archive/unarchive are also available through CLI/MCP, reusing normal session
 lifecycle after a host-side profile/kind check. Archive stops the current owner;
-unarchive leaves the placement stopped. Source/active-revision diff remains pending.
+unarchive leaves the placement stopped. Application 28.10 adds `revision` and
+`diff` tools: an explicit owner target, reviewed saved digest for comparison and
+optional source/contract entry selection. The IDE includes Active revision and
+shows this comparison before Apply; it never substitutes a newer digest.
 Validation returns stable node/port/path diagnostics and supports fixture-based
 contract checks without arming live triggers or contacting providers. Source
 inspection must not evaluate custom modules. Executing component tests is a
@@ -807,7 +812,7 @@ enable nested delegation, cross-profile access or unlimited agent budgets.
 
 ## 11. Phased implementation and release gates
 
-Phases 0–4 are **in progress**; phase 5 has window integration and IDE authoring assistance, with authoring resources and CLI/MCP parity unfinished. Phase 6
+Phases 0–4 are **in progress**; phase 5 has window integration and IDE authoring assistance, with standalone authoring resources and offline history unfinished. Phase 6
 has preparatory host maintenance integration, with packaged acceptance pending.
 Phase 1 currently has the private inbox/outbox, node-attempt and exact-operation
 ledger plus durable
@@ -816,7 +821,8 @@ scheduler and independent owner process/private control. Production launch/adopt
 and maintenance integration are implemented; attach/ask dispatch is wired, while full provider lifecycle nodes and native continuity acceptance remain unfinished. Phase 2 has
 inactive creation/opening, sidebar integration and manifest graph editing with
 shared editor drafts, movable nodes and local/SSH manual lifecycle/history APIs;
-complete settings, stopped-owner history and active-revision detail remain pending.
+active-revision details and saved-source comparison are implemented; complete
+settings and stopped-owner history remain pending.
 The IDE now has reviewed lifecycle controls, manual input and live result inspection,
 plus initial editable prompt/review templates and connection feedback settings;
 phase 3 still needs resume/restart and provider-native acceptance. Each phase

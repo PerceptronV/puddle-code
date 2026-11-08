@@ -22,6 +22,7 @@ export const huddleHelp = `  pudl huddle list --project ID --worktree /absolute/
   pudl huddle session|archive|unarchive <session-id>
   pudl huddle start|apply|run|interrupt|resume|stop <session-id> --request JSON
   pudl huddle history|observe-readout <session-id> --request JSON
+  pudl huddle revision|diff <session-id> --request JSON
 
 Connection: --host user@host --profile name-or-id
 All paths refer to the selected execution host. Output is JSON. Validation exits
@@ -37,6 +38,9 @@ Never retry a failed mutation automatically: inspect runtime/history first.
 Archive stops the placement's current owner before hiding it; it is not bound to
 a reviewed runtime target. Unarchive leaves it stopped. Neither deletes source
 or worktrees. Use session to inspect archive status, including after lost replies.
+Revision requires target; diff also requires expected_digest from saved source.
+Both are read-only (host 28.10+). Add entry: {kind: "file"|"component", path: "..."}
+to read exact retained/before-and-after text; otherwise get the change inventory.
 `;
 
 export type HuddleCommand =

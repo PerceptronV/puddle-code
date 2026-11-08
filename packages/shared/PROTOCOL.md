@@ -1,5 +1,35 @@
 # The puddle communication protocol
 
+Application **28.10** adds local/SSH read-only
+`POST /api/huddle/:profile/sessions/:sid/revision` and `/diff`.
+Both take an exact `target`; diff additionally requires `expected_digest` from
+saved-source inspection. Optional `entry: {kind: 'file' | 'component', path}`
+selects one retained source file or resolved node contract. The response projects
+`target`, `active: {id, revision, worktree, variables, bindings, appliedAt}`,
+`saved: {digest, diagnostics} | null`, and a bounded `entries` inventory with
+before/after SHA-256/byte counts and retained/unchanged/added/removed/modified status.
+Optional `content` contains the selected entry's before/after text (null for an
+absent side). Source bytes stay exact; resolved contracts use canonical JSON.
+No modules execute, revisions publish, source saves or activation occur.
+
+The controller verifies a bounded read-only snapshot of existing ledger-1 identity,
+control and activation records, then reads the verified retained revision. It
+creates no ledger/revision directories and performs no migrations. One review
+workspace runs at a time, with at most eight pending reviews. Saved capture uses
+the existing registered worktree/repository lock; authority and the full owner
+control target are rechecked after asynchronous work. Source deletion does not
+block retained-only inspection. Stopped/disconnected owners remain unavailable.
+Inventory size is bounded by both source closures; selected text cannot exceed
+the existing 32 MiB retained record bound (ordinary source files remain 256 KiB).
+
+CLI `pudl huddle revision|diff SESSION_ID --request JSON` and MCP
+`huddle_revision|huddle_diff` (`{session_id, request}`) gate at 28.10 and advertise
+read-only behaviour. Clients reject substituted targets/digests/selected entries.
+The IDE gates Active revision and Apply comparison at the same floor, preserving
+older hosts' existing Apply flow. Existing runtime inspection shapes and all
+ordinary runtime (1.2), remote (5), database (49), owner and ledger versions remain
+unchanged; no new owner capability is required.
+
 CLI/MCP placement tools now expose `huddle_session`, `huddle_archive` and
 `huddle_unarchive` with strict `{session_id}` arguments under
 `api/huddle/tools/placement.ts`. The CLI spelling is `pudl huddle

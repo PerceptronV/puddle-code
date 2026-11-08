@@ -1,5 +1,11 @@
 import { useId, useState } from 'react';
-import { manualHuddleTrigger, type HuddleCommandTarget, type HuddleDocument } from '@puddle/shared';
+import {
+  manualHuddleTrigger,
+  type HuddleCommandTarget,
+  type HuddleDocument,
+  type HuddleReview,
+} from '@puddle/shared';
+import { RevisionDetails } from './review/RevisionDetails';
 import {
   Dialog,
   DialogContent,
@@ -16,10 +22,17 @@ import type { HuddleCommand } from './api';
 
 export type CommandReview =
   | { kind: 'start'; document: HuddleDocument }
-  | { kind: 'apply' | 'run'; document?: HuddleDocument; target: HuddleCommandTarget };
+  | {
+      kind: 'apply' | 'run';
+      document?: HuddleDocument;
+      target: HuddleCommandTarget;
+      comparison?: HuddleReview;
+    };
 
 export function CommandDialog({
   review,
+  profile,
+  session,
   worktree,
   blocked,
   pending,
@@ -28,6 +41,8 @@ export function CommandDialog({
   onClose,
 }: {
   review: CommandReview;
+  profile: string;
+  session: string;
   worktree: string;
   blocked: string | null;
   pending: boolean;
@@ -45,9 +60,11 @@ export function CommandDialog({
   const [text, setText] = useState(() =>
     review.kind === 'run'
       ? 'null'
-      : review.document
-        ? initialHuddleVariables(review.document.definition)
-        : '{}',
+      : review.kind === 'apply' && review.comparison
+        ? JSON.stringify(review.comparison.active.variables, null, 2)
+        : review.document
+          ? initialHuddleVariables(review.document.definition)
+          : '{}',
   );
   const [failure, setFailure] = useState<string | null>(null);
   const running = review.kind === 'run';
@@ -96,7 +113,10 @@ export function CommandDialog({
         if (!open && !pending) onClose();
       }}
     >
-      <DialogContent showCloseButton={!pending}>
+      <DialogContent
+        showCloseButton={!pending}
+        wide={review.kind === 'apply' && !!review.comparison}
+      >
         <DialogTitle>{title}</DialogTitle>
         <DialogDescription>
           {running
@@ -116,6 +136,9 @@ export function CommandDialog({
               </p>
             ))}
           </div>
+        )}
+        {review.kind === 'apply' && review.comparison && (
+          <RevisionDetails profile={profile} session={session} review={review.comparison} />
         )}
         <form
           className="flex flex-col gap-4"

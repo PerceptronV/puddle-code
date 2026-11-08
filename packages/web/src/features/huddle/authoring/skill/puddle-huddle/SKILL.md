@@ -130,6 +130,15 @@ Apply and Resume can arm triggers immediately. Resume rearms the graph, not an
 agent session or interrupted script. Tool availability does not grant execution
 authority beyond the user's task.
 
+On application 28.10+, `revision SESSION_ID --request JSON` reads retained active
+source/bindings with `{target}`; `diff` additionally requires the saved
+`expected_digest`. Add `entry: {kind: "file" | "component", path: "..."}` for one
+file or resolved node contract. These reads never apply or execute. Use the exact
+returned target/digest for an authorised Apply; stale review requires explicit
+inspection again. Retained-only inspection works without project source while the
+owner is connected. MCP equivalents are `huddle_revision|diff` with
+`{session_id, request}`.
+
 For requested placement management, `session SESSION_ID` reads archive status;
 `archive SESSION_ID` stops the current owner and hides the placement, while
 `unarchive SESSION_ID` leaves it stopped. These use the placement's declared scope

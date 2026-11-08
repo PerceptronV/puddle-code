@@ -85,8 +85,7 @@ normal report with `valid: false`; malformed calls and unavailable source are MC
 tool errors. This does not automatically configure MCP for authoring accounts.
 
 For custom extensions, see [triggers](triggers.md) and [readouts](readouts.md).
-Standalone JSON Schema/type bundles, component fixtures and graph diff
-remain pending. The originally proposed directory-only validation command is superseded by the explicit scope above.
+Standalone JSON Schema/type bundles and component fixtures remain pending. The originally proposed directory-only validation command is superseded by the explicit scope above.
 
 ## Create, open and control a huddle
 
@@ -186,3 +185,36 @@ MCP equivalents are `huddle_session`, `huddle_archive` and `huddle_unarchive`, e
 with strict `{session_id}` arguments. Only `huddle_session` is read-only. After a
 failed archive/unarchive reply, use `session` and `runtime` to inspect what happened
 before deciding on another action; the tools never retry or fall back automatically.
+
+
+## Review active source and saved changes
+
+On application 28.10+, `pudl huddle revision SESSION_ID --request JSON` inspects
+the connected owner's retained revision. Supply `{ "target": ... }` using
+`runtime`'s exact `owner.target`. The reply contains actual variables, resolved
+node bindings, worktree and application time, plus the captured source/contract
+inventory. This works even if the project definition has been deleted.
+
+`pudl huddle diff SESSION_ID --request JSON` compares that activation with saved
+source. Supply the same `target` and `expected_digest` from source `inspect`.
+The inventory marks each entry `added`, `removed`, `modified` or `unchanged` and
+includes SHA-256 hashes and UTF-8 byte counts for each present side. Retained-only
+inspection marks entries `retained`. Layout and scripts are included; contracts
+also appear by node id so resolved built-in changes are visible.
+
+To read one entry, add `"entry": {"kind": "file", "path": "huddle.json"}` or
+`"entry": {"kind": "component", "path": "NODE_ID"}` to the same request.
+`content.before` is active text; `content.after` is saved text for diff, with null
+for an absent side. Source text is exact; resolved contracts use canonical JSON.
+No component module is imported. Stale source/activation requests fail; review
+again explicitly rather than silently replacing the digest or target.
+MCP equivalents are `huddle_revision` and `huddle_diff`, with strict
+`{session_id, request}` arguments and read-only annotations.
+
+The IDE exposes **Active revision** independently of editable source. On supporting
+hosts, **Apply saved** shows the same comparison and seeds variables from the
+actual activation. File/contract selection opens a read-only Monaco comparison.
+The subsequent Apply still requires the reviewed target and saved digest; viewing
+the comparison does not apply it. Unsaved edits are excluded. Older hosts retain
+the existing Apply controls without comparison. These observations currently
+require a connected owner; offline/stopped-owner review remains unfinished.

@@ -69,6 +69,21 @@ describe('immutable huddle source publication', () => {
     expect(() => bounded.store.read(bounded.snapshot.digest)).toThrow();
   });
 
+  it('rejects a valid revision stored under another requested digest', () => {
+    const { f, store, snapshot, file } = setup();
+    store.publish(snapshot);
+    const other = revisionFixture(f, 'Different retained source');
+    store.publish(other);
+    writeFileSync(
+      file,
+      readFileSync(
+        join(f.home, 'runtimes', f.identity.runtimeId, 'huddle-revisions', `${other.digest}.json`),
+      ),
+    );
+    expect(() => store.read(snapshot.digest)).toThrow('requested digest');
+    expect(store.read(other.digest).definition.name).toBe('Different retained source');
+  });
+
   it('restores metadata without loading code and rejects missing or extra captured dependencies', () => {
     const { f, store, snapshot } = setup();
     snapshot.definition.nodes[1]!.source = { kind: 'local', manifest: './nodes/result/node.json' };
