@@ -1,5 +1,20 @@
 # The puddle communication protocol
 
+Application **28.3** adds local/SSH
+`POST /api/huddle/:profile/definitions/:id/components`. Its strict body contains
+`project_id`, `worktree`, `template` (`prompt-agent` or `review-agent`) and a
+`component` directory key. It returns `{ manifest, component }` after materialising
+ordinary `node.json`, `run.ts` and `prompt.ts` files in that huddle's
+`nodes/<component>/`. The request uses existing project/worktree authority and
+storage admission; remote profile leases remain denied. Identical existing files
+may be retained and missing files filled; different existing source is never
+overwritten. Publication is separate from graph editing and activation. A lost
+reply requires source inspection; clients never automatically retry. Partial
+publication can leave unreferenced source files. The editor resolves saved local
+contracts through existing worktree file reads. Agent templates use the existing
+`operations: 2` execution capability; no runtime contract, database migration or
+remote protocol change accompanies this application addition.
+
 Application **28.2** adds local/SSH huddle execution under
 `/api/huddle/:profile/sessions/:sid`: GET `runtime`; POST `start`, `apply`, `rearm`,
 `run`, `interrupt`, `stop` and `history`. The placement supplies its immutable

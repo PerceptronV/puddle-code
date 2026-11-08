@@ -1,6 +1,9 @@
-import { useId, useState } from 'react';
+import { useId, useState, useRef, useLayoutEffect } from 'react';
 import {
   coreHuddleComponents,
+  huddleAgentTemplates,
+  huddleNodeSchema,
+  type Session,
   huddleRelativePathSchema,
   type HuddleDefinition,
   type HuddleDocument,
@@ -8,17 +11,32 @@ import {
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { addGraphNode, nextGraphId } from '../documents/graph-edits';
+import { useHuddleTemplates } from '../documents/templates';
+import { Feedback } from './Feedback';
 
 export const graphActionClass =
   'rounded-md px-2 py-1 text-xs text-fg hover:bg-elevated disabled:opacity-50';
 export type EditGraph = (update: (graph: HuddleDefinition) => HuddleDefinition) => void;
 
 /** The list alternative is also a keyboard/touch path to node and wire authoring. */
-export function AddNode({ edit }: { edit: EditGraph }) {
+export function AddNode({
+  edit,
+  profile,
+  session,
+}: {
+  edit: EditGraph;
+  profile?: string;
+  session: Session;
+}) {
   const id = useId();
   const [search, setSearch] = useState('');
   const [manifest, setManifest] = useState('');
   const local = huddleRelativePathSchema.safeParse(manifest);
+  const template = useHuddleTemplates(profile, session);
+  const latestEdit = useRef(edit);
+  useLayoutEffect(() => {
+    latestEdit.current = edit;
+  }, [edit]);
   return (
     <div className="flex flex-col gap-3 p-4" aria-label="Add node">
       <Label htmlFor={`${id}-search`}>Find a node</Label>
@@ -50,6 +68,54 @@ export function AddNode({ edit }: { edit: EditGraph }) {
             Add {component.title}
           </button>
         ))}
+      {template.supported &&
+        huddleAgentTemplates
+          .filter(({ component }) =>
+            `${component.title} ${component.category}`.toLowerCase().includes(search.toLowerCase()),
+          )
+          .map((item) => (
+            <button
+              type="button"
+              key={item.template}
+              className={`${graphActionClass} text-left`}
+              disabled={template.isPending}
+              onClick={() => {
+                const component = `${item.template}-${crypto.randomUUID().replaceAll('-', '')}`;
+                template.mutate(
+                  { template: item.template, component },
+                  {
+                    onSuccess: (installed) => {
+                      latestEdit.current((graph) => ({
+                        ...graph,
+                        nodes: [
+                          ...graph.nodes,
+                          huddleNodeSchema.parse({
+                            id: nextGraphId(graph.nodes, item.template),
+                            source: { kind: 'local', manifest: installed.manifest },
+                            parameters: Object.fromEntries(
+                              Object.entries(installed.component.parameters).flatMap(
+                                ([name, parameter]) =>
+                                  parameter.default === undefined
+                                    ? []
+                                    : [[name, { kind: 'literal', value: parameter.default }]],
+                              ),
+                            ),
+                          }),
+                        ],
+                      }));
+                    },
+                  },
+                );
+              }}
+            >
+              Add {item.component.title}
+            </button>
+          ))}
+      {template.error && (
+        <p className="text-xs text-fg-muted">
+          {template.error.message}. Inspect the component files before trying again.
+        </p>
+      )}
       <Label htmlFor={`${id}-local`}>Local component contract</Label>
       <Input
         id={`${id}-local`}
@@ -69,8 +135,8 @@ export function AddNode({ edit }: { edit: EditGraph }) {
         Add local node
       </button>
       <p className="text-xs text-fg-muted">
-        Paths are relative to this huddle directory. Save and refresh to inspect a newly referenced
-        contract.
+        Paths are relative to this huddle directory. Agent-node templates create editable source
+        files.
       </p>
     </div>
   );
@@ -140,10 +206,15 @@ export function Connections({ graph, edit }: { graph: HuddleDocument; edit: Edit
         Connect
       </button>
       {graph.definition.edges.map((edge) => (
-        <div key={edge.id} className="flex items-center gap-2 text-xs">
+        <div key={edge.id} className="flex flex-col gap-2 py-2 text-xs">
           <span className="min-w-0 flex-1 break-words">
             {edge.from.node}.{edge.from.port} → {edge.to.node}.{edge.to.port}
           </span>
+          <Feedback
+            edge={edge}
+            schema={graph.components[edge.from.node]?.outputs[edge.from.port]?.schema}
+            edit={edit}
+          />
           <button
             type="button"
             className={graphActionClass}

@@ -9,6 +9,8 @@ import {
   huddleOpenedSchema,
   huddleOpenSchema,
   huddleSaveSchema,
+  huddleInstallTemplateSchema,
+  huddleInstalledTemplateSchema,
   HUDDLE_LIMITS,
 } from '@puddle/shared';
 import type { HuddleService } from '../../../../huddle/control/service.js';
@@ -65,6 +67,19 @@ export function huddleAuthoringRoutes(service: HuddleService): Hono {
       return c.json(
         huddleOpenedSchema.parse(
           await service.open(hexIdParam(c, 'profile'), input, requestAuthority(c)),
+        ),
+      );
+    })
+    .post('/:profile/definitions/:id/components', async (c) => {
+      const body = await parseBody(c, huddleInstallTemplateSchema.omit({ huddle_id: true }));
+      const input = huddleInstallTemplateSchema.safeParse({
+        ...body,
+        huddle_id: c.req.param('id'),
+      });
+      if (!input.success) throw ApiError.badRequest('invalid_location', 'Choose a valid huddle id');
+      return c.json(
+        huddleInstalledTemplateSchema.parse(
+          await service.installTemplate(hexIdParam(c, 'profile'), input.data, requestAuthority(c)),
         ),
       );
     })

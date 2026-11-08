@@ -1415,6 +1415,20 @@ and ordinary editor source links. Manifest graph edits now share the source file
 Monaco model, drafts, undo, conditional saves and conflict review. Node creation,
 connection selectors, deletion, parameter bindings and appearance controls are
 available; node movement and complete settings remain unfinished.
+Application 28.3 adds editable Prompt agent and Review agent templates under
+`shared/huddle/templates/`, published by `daemon/huddle/templates/` as local
+`nodes/<component>/{node.json,run.ts,prompt.ts}` source. Template creation checks
+registered worktree/authority/storage and never overwrites differing files or
+starts execution. The IDE adds the local reference to its shared graph draft;
+undoing that reference leaves published source intact. Saved local contracts resolve
+through existing worktree file queries, including for unsaved graph references.
+Worktree and agent settings offer registered project resources and variable bindings;
+prompt settings support `{{input}}` and own-property `{{input.field}}` substitution.
+Prompt agent returns text; Review agent returns strict `{complete, feedback}` data.
+Both expose optional turn-completion event ports. Connection settings can declare
+a boolean feedback condition and finite round limit. These templates use existing
+live-agent attach/ask admission; spawn/resume and real-provider acceptance remain
+unfinished. See the [current usage guide](docs/huddle.md).
 Huddle views can move through panes, project layouts and native
 transfers without creating PTYs or owners. Closing a view is independent of Stop.
 Desktop recovery format 4 migrates versions 2/3; `windows.huddles` gates native

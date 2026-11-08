@@ -18,6 +18,7 @@ import {
   releaseModel,
 } from '../../editor/buffers/buffer-store';
 import { comparisonLocksBuffer } from '../../editor/conflicts/conflict-store';
+import { useLocalHuddleComponents } from './local-components';
 
 /** Graph and JSON views edit one recoverable model with the existing save/conflict policy. */
 export function useGraphBuffer(
@@ -46,6 +47,7 @@ export function useGraphBuffer(
       return { error: error instanceof Error ? error.message : 'Invalid huddle definition' };
     }
   }, [text, session.huddle_id]);
+  const local = useLocalHuddleComponents(session, parsed.definition);
   const graph = useMemo<HuddleDocument | undefined>(() => {
     const definition = parsed.definition;
     if (!definition) return;
@@ -55,9 +57,11 @@ export function useGraphBuffer(
         const component =
           node.source.kind === 'builtin'
             ? coreHuddleComponents.get(`${node.source.component}@${node.source.version}`)
-            : JSON.stringify(original?.source) === JSON.stringify(node.source)
-              ? captured?.components[node.id]
-              : undefined;
+            : Object.hasOwn(local, node.source.manifest)
+              ? local[node.source.manifest]
+              : JSON.stringify(original?.source) === JSON.stringify(node.source)
+                ? captured?.components[node.id]
+                : undefined;
         return component ? [[node.id, component]] : [];
       }),
     );
@@ -68,7 +72,7 @@ export function useGraphBuffer(
       ...(captured?.layout ? { layout: captured.layout } : {}),
       diagnostics: validateHuddleGraph(definition, new Map(Object.entries(components))),
     };
-  }, [parsed, captured]);
+  }, [parsed, captured, local]);
   const locked = buffer.status !== 'ready' || comparisonLocksBuffer(buffer.conflict);
   const edit = (update: (definition: HuddleDefinition) => HuddleDefinition) => {
     const model = buffer.model;

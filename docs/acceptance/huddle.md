@@ -7,6 +7,7 @@ and graph panes. Manifest editing now shares ordinary editor drafts, undo and
 conflict review; layout editing remains unfinished. The IDE now includes reviewed
 manual execution controls and live history.
 Application 28.2 exposes local/SSH manual execution and live-owner history APIs.
+Application 28.3 adds editable agent templates and feedback settings.
 Runtime archives declare their internal huddle-role contracts;
 application 27.0 now includes huddle session identity and migration 43 records
 placements/owner roles. The daemon launcher and lifecycle controls now integrate
@@ -14,6 +15,59 @@ with session kill/archive; migration 44 retains Stop intent. Migration 45 adds
 host-side agent-turn identities; the owner mailbox now has private transport,
 and production daemon dispatch now supports declared attach/ask scripts. Migration
 46 retains exact cancellation attempts. No user CLI command is enabled yet.
+
+## Implemented: editable agent templates and feedback settings
+
+Application **28.3** adds strict local/SSH template publication under
+`POST /api/huddle/:profile/definitions/:id/components`. Source assets live in
+`shared/huddle/templates/`; `daemon/huddle/templates/` publishes `node.json`,
+`run.ts` and `prompt.ts` under the chosen `nodes/<component>/`. Existing project,
+worktree, request authority and storage admission apply. Publication checks ordinary
+directories and files, uses exclusive writes, retains identical files and refuses
+different user source. Partial identical publication may be completed by an explicit
+same-key request. It does not change the graph, create an owner or send a prompt.
+Lost replies and graph insertion failures can leave unreferenced source; the UI
+does not retry automatically or delete these files on graph Undo.
+
+The IDE adds Prompt agent and Review agent templates as local graph nodes, with
+explicit prompt defaults. Saved local contracts resolve through ordinary worktree
+file queries even before graph save, and invalid settled reads do not reuse stale
+captured contracts. Worktree/session selectors use existing project resource queries;
+variable bindings remain available. Literal worktrees filter agent choices, while
+activation still validates exact live ownership. Prompt fields accept multiline text
+and `{{input}}` / `{{input.field}}` substitution with own-property lookup; missing
+fields and UTF-8 expansions above 128 KiB fail before agent dispatch. Prompt agent
+returns text, Review agent returns
+strict `{complete: boolean, feedback: string}`. Both emit an optional `turn` event
+after the ask completes, separately from their returned `completed` output.
+
+Connection settings expose declared boolean output fields, expected boolean value
+and finite round limit for feedback edges. The default is five rounds, continuing
+while the first selected boolean field is false. Limits are failures on exhaustion,
+not implicit approval. These nodes use existing operation-capability-2 attach/ask;
+runtime contracts, ledger format and database schema are unchanged. Spawn/resume,
+account selection for launching new agents, external triggers and native-provider
+acceptance remain pending. See the [usage guide](../huddle.md).
+
+Verification in this increment includes service/HTTP checks for scope, revocation,
+symlink escape refusal, strict inputs, identical publication, edited-file preservation
+and inactive authoring. A real isolated owner/worker test runs both shipped templates
+against two separate test-adapter agent owners: each takes two turns, exact reply
+content feeds the next prompt, four test-adapter turn results are consumed once, and the
+root completes when the second review approves. This establishes the full runtime
+path with a fake provider, not acceptance against a live external provider.
+Headless browser checks create both templates, select distinct sessions, edit the
+prompt, connect feedback, save the graph and open generated source in Monaco without
+any execution request. Additional browser checks verify visible effective prompt
+defaults after Clear, saved invalid contracts becoming unresolved, normalized source
+paths in Monaco and hiding templates on application-28.2 hosts.
+
+The final shared/huddle, daemon huddle/puddlang/programme-turn and web huddle suite
+passed **328 tests in 53 files**. The template, existing editing and existing
+execution-control headless browser scripts passed against the UI-only preview.
+Shared/daemon/web/CLI TypeScript builds, repository ESLint/Prettier, semantic-colour
+checks and `git diff --check` passed. No production daemon, external provider,
+native interactive window or installed service was used for these checks.
 
 ## Implemented: automatic agent dispatch and declared session bindings
 

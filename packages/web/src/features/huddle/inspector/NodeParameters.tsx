@@ -6,22 +6,33 @@ import {
   type HuddleDefinition,
   type HuddleNodeDefinition,
   type HuddleParameter,
+  type Session,
 } from '@puddle/shared';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { graphActionClass, type EditGraph } from './GraphEditing';
+import { useNodeResourceOptions, type NodeResourceOptions } from './resources';
 
 export function NodeParameters({
   node,
   component,
   variables,
   edit,
+  session,
 }: {
   node: HuddleNodeDefinition;
   component?: HuddleComponent;
   variables: HuddleDefinition['variables'];
   edit: EditGraph;
+  session: Session;
 }) {
+  const resources = useNodeResourceOptions(
+    session,
+    node,
+    Object.values(component?.parameters ?? {}).some((parameter) =>
+      ['worktree', 'session'].includes(parameter.editor),
+    ),
+  );
   const set = (name: string, binding: HuddleBinding | undefined) =>
     edit((graph) => ({
       ...graph,
@@ -42,9 +53,13 @@ export function NodeParameters({
           parameter={parameter}
           binding={node.parameters[name]}
           variables={variables}
+          resources={resources}
           set={(binding) => set(name, binding)}
         />
       ))}
+      {resources.error && (
+        <p className="text-xs text-fg-muted">Resource choices: {resources.error}</p>
+      )}
       {!component && (
         <pre className="whitespace-pre-wrap break-words text-xs">
           {JSON.stringify(node.parameters, null, 2)}
@@ -63,16 +78,19 @@ function Parameter({
   binding,
   variables,
   set,
+  resources,
 }: {
   name: string;
   parameter: HuddleParameter;
   binding?: HuddleBinding;
   variables: HuddleDefinition['variables'];
   set(binding: HuddleBinding | undefined): void;
+  resources: NodeResourceOptions;
 }) {
   const id = useId();
   const [kind, setKind] = useState(binding?.kind ?? 'literal');
-  const value = binding?.kind === 'literal' ? binding.value : undefined;
+  const value =
+    binding?.kind === 'literal' ? binding.value : binding ? undefined : parameter.default;
   const textValue = parameter.schema.type === 'string';
   const [text, setText] = useState(
     binding?.kind === 'variable'
@@ -93,6 +111,12 @@ function Parameter({
   } catch {
     /* Keep partially entered JSON local until Apply. */
   }
+  const choices =
+    parameter.editor === 'worktree'
+      ? resources.worktrees
+      : parameter.editor === 'session'
+        ? resources.sessions
+        : undefined;
   return (
     <div className="flex flex-col gap-2" role="group" aria-label={parameter.title ?? name}>
       <Label htmlFor={id}>
@@ -125,6 +149,33 @@ function Parameter({
             </option>
           ))}
         </select>
+      ) : choices ? (
+        <select
+          id={id}
+          value={text}
+          className="rounded-md bg-surface p-1 text-sm"
+          onChange={(event) => setText(event.target.value)}
+        >
+          <option value="">
+            Choose {parameter.editor === 'session' ? 'agent session' : 'worktree'}
+          </option>
+          {text && !choices.some((choice) => choice.value === text) && (
+            <option value={text}>{text} · unavailable</option>
+          )}
+          {choices.map((choice) => (
+            <option value={choice.value} key={choice.value}>
+              {choice.label}
+            </option>
+          ))}
+        </select>
+      ) : parameter.editor === 'prompt' ? (
+        <textarea
+          id={id}
+          value={text}
+          rows={5}
+          className="min-h-24 w-full resize-y rounded-md bg-surface p-2 text-sm text-fg outline-none focus-visible:ring-1 focus-visible:ring-ring"
+          onChange={(event) => setText(event.target.value)}
+        />
       ) : parameter.schema.type === 'boolean' ? (
         <select
           id={id}

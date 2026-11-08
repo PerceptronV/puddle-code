@@ -606,8 +606,17 @@ adds explicit unsent/unknown failures; only supporting owners admit agent graphs
 the declared project/worktree. Recheck bindings before activation. Migration 46
 persists one cancellation attempt before its exact send. Pause/drain this dispatcher
 before connections/projection; shutdown preserves admitted agent turns. Never
-redispatch consumed operations during adoption. Spawn/resume and shipped agent
-nodes remain unfinished.
+redispatch consumed operations during adoption. Spawn/resume remains unfinished.
+Application 28.3 adds local/SSH component template publication. Keep editable agent
+template assets in `shared/huddle/templates/`, publication in `daemon/huddle/templates/`
+and graph insertion in the web document/inspector layer. Template publication never
+changes the graph or starts an owner, and never overwrites differing user source.
+Lost replies require source inspection. Prompt/review nodes declare worktree and
+agent settings and use existing attach/ask; they require operation capability 2 at
+activation. The inspector shares ordinary worktree-file queries for saved local
+contracts; unresolved/invalid contracts must not silently fall back to stale captured
+settings once the read settles. Resource choices come from existing project/worktree
+queries; server activation still resolves exact bindings. See `docs/huddle.md`.
 Migration 44 persists Stop consumption before sending
 shutdown; repeat observation cannot send another Stop. The existing kill/archive
 paths delegate to these controls and refuse unresolved owner cleanup. Keep huddle
@@ -634,7 +643,7 @@ saves/drafts/conflicts and undo history. `tabHoldsFile` recognises manifest owne
 for window transfers, close review, arrangements and model retention. Keep source
 holders when a graph closes, and retain a source tab when its session is archived.
 The save registry retains every mounted holder. Node movement, full resource
-settings, live component observation and retained huddle view state remain unfinished.
+settings beyond worktree/session selection, external component observation and retained huddle view state remain unfinished.
 Application 28.1 adds revision-checked `PUT /api/huddle/:profile/definitions/:id`:
 one manifest/layout publication per request, under the repository mutation lock.
 `huddle/definitions/save.ts` stages, rechecks captured source/authority and renames

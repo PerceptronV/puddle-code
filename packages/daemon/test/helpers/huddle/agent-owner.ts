@@ -5,7 +5,9 @@ import {
   HUDDLE_RUNTIME_CAPABILITIES,
   huddleOwnerLaunchSchema,
   type HuddleAgentOperation,
+  type HuddleRevisionActivation,
 } from '@puddle/shared';
+import type { HuddleDefinitionSnapshot } from '../../../src/huddle/definitions/capture.js';
 import { atomicPrivateJson, ipcPath } from '@puddle/shared/node';
 import { programmeOwnerFixture } from '../runtime/programme-owner.js';
 import { huddleTurnScope } from './agent-turns.js';
@@ -19,13 +21,24 @@ import { launchOwner } from '../runtime-fixture.js';
 import { until } from './controller.js';
 
 /** Real isolated huddle/script/agent owners; the test explicitly drives the private operation controller. */
-export async function agentOwnerFixture(legacy = false) {
+export async function agentOwnerFixture(
+  legacy = false,
+  graph?: (
+    fixture: Awaited<ReturnType<typeof programmeOwnerFixture>>,
+    scope: ReturnType<typeof huddleTurnScope>,
+  ) => Promise<{
+    snapshot: HuddleDefinitionSnapshot;
+    bindings: HuddleRevisionActivation['bindings'];
+  }>,
+) {
   const f = await programmeOwnerFixture();
   const capabilities = { ...HUDDLE_RUNTIME_CAPABILITIES };
   if (legacy) delete capabilities.operations;
   const scope = huddleTurnScope(f, capabilities);
   const binding = f.runtimes.get(scope.owner.runtime_id)!;
-  const { snapshot, bindings } = agentGraphSnapshot(binding.huddle_id!, scope.target);
+  const { snapshot, bindings } = graph
+    ? await graph(f, scope)
+    : agentGraphSnapshot(binding.huddle_id!, scope.target);
   const launch = huddleOwnerLaunchSchema.parse({
     format: 1,
     role: 'huddle',

@@ -5,6 +5,8 @@ import {
   huddleLocationSchema,
   huddleOpenSchema,
   huddleSaveSchema,
+  huddleInstallTemplateSchema,
+  type HuddleInstallTemplate,
   type HuddleCreate,
   type HuddleLocation,
   type HuddleOpen,
@@ -26,6 +28,7 @@ import { captureHuddleDefinition, type HuddleDefinitionSnapshot } from '../defin
 import { createHuddleDefinition } from '../definitions/create.js';
 import { saveHuddleDefinition } from '../definitions/save.js';
 import { discoverHuddleDefinitions } from '../definitions/discovery.js';
+import { installHuddleTemplate } from '../templates/install.js';
 import { coreHuddleComponents } from '@puddle/shared';
 
 interface Dependencies {
@@ -161,6 +164,16 @@ export class HuddleService {
       const saved = await this.capture(location.worktree, input.huddle_id);
       location.check();
       return this.document(saved);
+    });
+  }
+
+  installTemplate(profile: string, raw: HuddleInstallTemplate, authority: () => boolean) {
+    const input = huddleInstallTemplateSchema.parse(raw);
+    return this.atLocation(profile, input, authority, async (location) => {
+      await this.capture(location.worktree, input.huddle_id);
+      await this.deps.storage?.assertAdmission([location.worktree]);
+      location.check();
+      return installHuddleTemplate(location.worktree, input, location.check);
     });
   }
 

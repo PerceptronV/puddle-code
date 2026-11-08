@@ -39,7 +39,16 @@ function HuddleEditor({ session, focused }: { session: Session; focused: boolean
   const node = graph?.definition.nodes.find((node) => node.id === selected);
   const component = node && graph?.components[node.id];
   const source = node?.source.kind === 'local' ? node.source.manifest : null;
-  const openSource = (file: string) => openFile(session.id, prefix + file);
+  // Contract paths permit ./; editor model identities must use one spelling.
+  const openSource = (file: string) =>
+    openFile(
+      session.id,
+      prefix +
+        file
+          .split('/')
+          .filter((part) => part !== '.')
+          .join('/'),
+    );
   const actionClass = 'rounded-md px-2 py-1 text-xs text-fg hover:bg-elevated disabled:opacity-50';
   return (
     <section className="flex size-full min-h-0 flex-col text-fg" aria-label="Huddle editor">
@@ -164,7 +173,7 @@ function HuddleEditor({ session, focused }: { session: Session; focused: boolean
           )}
           {(adding || connecting) && (
             <div className="flex max-h-64 shrink-0 gap-4 overflow-auto">
-              {adding && <AddNode edit={edit} />}
+              {adding && <AddNode edit={edit} profile={profile} session={session} />}
               {connecting && <Connections graph={graph} edit={edit} />}
             </div>
           )}
@@ -256,6 +265,7 @@ function HuddleEditor({ session, focused }: { session: Session; focused: boolean
                     node={node}
                     component={component}
                     variables={graph.definition.variables}
+                    session={session}
                     edit={edit}
                   />
                   <NodeAppearance node={node} component={component} edit={edit} />

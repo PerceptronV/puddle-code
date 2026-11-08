@@ -9,7 +9,7 @@ captured-source script workers, retained revisions/activation and a manual sched
 in an independent owner process with private authenticated control, explicit
 runtime-role metadata and pinned capability checks. Phase 2 has the third session
 kind, immutable application placement and common runtime inventory role, with
-application protocol 28.2. Local/SSH inactive creation, discovery, inspection and
+application protocol 28.3. Local/SSH inactive creation, discovery, inspection and
 placement opening now have sidebar creation and a graph pane with manifest
 editing, shared source drafts, settings, undo and file-conflict review. Node
 movement and full visual editing remain unfinished. The IDE now exposes saved-source
@@ -37,8 +37,11 @@ retention. The private owner mailbox now connects script attach/ask calls to
 durable intent, single-consumption claims and exact-result settlement, with an
 optional runtime capability. Production daemon dispatch and Start/Apply now admit
 declared session bindings and attach/ask scripts on operation-capability-2 owners.
-Migration 46 retains exact cancellation intent. Shipped agent nodes, spawn/resume
-and native-provider acceptance remain pending.
+Migration 46 retains exact cancellation intent. Editable Prompt agent and Review
+agent templates now materialise project-local source, with worktree/session selectors,
+prompt substitution and bounded feedback settings. An isolated two-agent test verifies
+reply exchange and approval exit; spawn/resume and native-provider acceptance remain
+pending. The [usage guide](../huddle.md) describes the implemented slice.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals except where explicitly documented
 in acceptance as implemented.
@@ -716,7 +719,9 @@ and maintenance integration are implemented; attach/ask dispatch is wired, while
 inactive creation/opening, sidebar integration and manifest graph editing with
 shared editor drafts and local/SSH manual lifecycle/history APIs; node movement,
 complete settings, stopped-owner history and active-revision detail remain pending.
-The IDE now has reviewed lifecycle controls, manual input and live result inspection. Each phase
+The IDE now has reviewed lifecycle controls, manual input and live result inspection,
+plus initial editable prompt/review templates and connection feedback settings;
+phase 3 still needs spawn/resume and provider-native acceptance. Each phase
 must update
 `docs/acceptance/huddle.md` with implemented details and evidence, rather than
 leaving the only accurate description in code or marking future phases complete.

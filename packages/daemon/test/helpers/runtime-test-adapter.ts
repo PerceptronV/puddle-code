@@ -32,6 +32,8 @@ class FixtureControl implements AgentControl {
         clearTimeout(timer);
         signal.removeEventListener('abort', abort);
         if (error) reject(error);
+        else if (schema && existsSync(join(this.context.account.config_dir, 'test-review-output')))
+          resolve(JSON.stringify({ complete: count >= 2, feedback: `review:${count}:${prompt}` }));
         else resolve(`reply:${count}:${prompt}`);
       };
       const timer = setTimeout(

@@ -9,12 +9,26 @@ import {
   huddleDefinitionSchema,
   huddleDocumentSchema,
   huddleComponentSchema,
+  huddleAgentTemplateFiles,
   sessionSchema,
 } from '@puddle/shared';
 import { profile, project, sessions } from '../../src/dev/preview/data';
 import { huddleRuntimeFixture } from './runtime';
 
 const fixture = mountWorkspaceFixture();
+if (new URLSearchParams(location.search).has('agent-templates')) {
+  for (const [index, title] of ['Coder', 'Reviewer'].entries())
+    fixture.addSession(
+      sessionSchema.parse({
+        ...sessions[0],
+        id: `00000000-0000-4000-8000-00000000000${index + 5}`,
+        title,
+        kind: 'agent',
+        agent_type: 'claude',
+        status: 'waiting_input',
+      }),
+    );
+}
 const transport = browserTransport()!;
 installBrowserTransport(null);
 profileStore.set(profile.id);
@@ -111,6 +125,12 @@ let blank: typeof document | undefined;
 const disk = new Map<string, { content: string; mtime: number }>([
   [savedId, { content: JSON.stringify(document.definition, null, 2), mtime: 1 }],
 ]);
+const components = new Map<string, { content: string; mtime: number }>([
+  [
+    `.puddle/huddle/${savedId}/nodes/review/node.json`,
+    { content: JSON.stringify(reviewer), mtime: 1 },
+  ],
+]);
 let available = true;
 const runtime = huddleRuntimeFixture(() => document);
 let executionSupported = !new URLSearchParams(location.search).has('old-execution');
@@ -129,9 +149,15 @@ window.fetch = async (input, init) => {
   const path = url.pathname;
   requests.push({ method, path, body });
   const prefix = `/api/huddle/${profile.id}`;
-  if (path === '/api/version' && !executionSupported) {
+  if (
+    path === '/api/version' &&
+    (!executionSupported || new URLSearchParams(location.search).has('old-templates'))
+  ) {
     const version = await transport.request(method, path, body).then((response) => response.json());
-    return Response.json({ ...version, protocol: { major: 28, minor: 1 } });
+    return Response.json({
+      ...version,
+      protocol: { major: 28, minor: executionSupported ? 2 : 1 },
+    });
   }
   const execution = path.match(new RegExp(`^${prefix}/sessions/([^/]+)/([^/]+)$`));
   if (execution) return runtime.request(execution[1]!, execution[2]!, body);
@@ -152,6 +178,17 @@ window.fetch = async (input, init) => {
     );
   if (path === `${prefix}/definitions/${savedId}`) return Response.json(document);
   if (path === `${prefix}/definitions/${createdId}`) return Response.json(blank);
+  const install = path.match(new RegExp(`^${prefix}/definitions/([^/]+)/components$`));
+  if (install && method === 'POST') {
+    const template = huddleAgentTemplateFiles(body.template);
+    const root = `.puddle/huddle/${install[1]}/nodes/${body.component}`;
+    for (const [name, content] of Object.entries(template.files))
+      components.set(`${root}/${name}`, { content, mtime: 1 });
+    return Response.json({
+      manifest: `nodes/${body.component}/node.json`,
+      component: template.component,
+    });
+  }
   if (path === `${prefix}/definitions` && method === 'POST') {
     if (!available)
       return Response.json(
@@ -189,8 +226,15 @@ window.fetch = async (input, init) => {
     return Response.json({ created: false, session: saved, document });
   }
   if (path.endsWith('/file') && url.searchParams.get('path')?.startsWith('.puddle/huddle/')) {
-    const id = url.searchParams.get('path')!.split('/')[2]!;
-    const file = disk.get(id)!;
+    const filename = url.searchParams.get('path')!.replaceAll('/./', '/');
+    const id = filename.split('/')[2]!;
+    const definition = filename === `.puddle/huddle/${id}/huddle.json`;
+    const file = definition ? disk.get(id) : components.get(filename);
+    if (!file)
+      return Response.json(
+        { error: { code: 'not_found', message: 'File not found' } },
+        { status: 404 },
+      );
     if (method === 'PUT') {
       if (body.expected_mtime_ms !== undefined && body.expected_mtime_ms !== file.mtime)
         return Response.json(
@@ -199,12 +243,19 @@ window.fetch = async (input, init) => {
         );
       file.content = body.content;
       file.mtime++;
-      const target = id === savedId ? document : blank!;
-      target.definition = huddleDefinitionSchema.parse(JSON.parse(file.content));
-      target.digest = (++revision).toString(16).padStart(64, '0');
-      for (const node of target.definition.nodes) {
-        if (node.source.kind === 'local' && node.source.manifest === 'nodes/review/node.json')
-          target.components[node.id] = reviewer;
+      if (definition) {
+        const target = id === savedId ? document : blank!;
+        target.definition = huddleDefinitionSchema.parse(JSON.parse(file.content));
+        target.digest = (++revision).toString(16).padStart(64, '0');
+        for (const node of target.definition.nodes) {
+          if (node.source.kind === 'local') {
+            const component = components.get(`.puddle/huddle/${id}/${node.source.manifest}`);
+            if (component)
+              target.components[node.id] = huddleComponentSchema.parse(
+                JSON.parse(component.content),
+              );
+          }
+        }
       }
     }
     return Response.json({
@@ -226,6 +277,7 @@ Object.assign(window, {
     saved: saved.id,
     project: project.id,
     source: () => JSON.parse(disk.get(savedId)!.content),
+    componentFiles: () => Object.fromEntries(components),
     externalEdit: (name: string) => {
       const file = disk.get(savedId)!;
       const value = JSON.parse(file.content);

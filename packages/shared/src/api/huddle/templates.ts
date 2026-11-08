@@ -1,0 +1,14 @@
+import { z } from 'zod';
+import { huddleOpenSchema } from './authoring.js';
+import { huddleComponentSchema } from './components.js';
+import { huddleKeySchema, huddleRelativePathSchema } from './values.js';
+
+export const huddleInstallTemplateSchema = huddleOpenSchema.extend({
+  template: z.enum(['prompt-agent', 'review-agent']),
+  component: huddleKeySchema,
+});
+export type HuddleInstallTemplate = z.infer<typeof huddleInstallTemplateSchema>;
+export const huddleInstalledTemplateSchema = z.strictObject({
+  manifest: huddleRelativePathSchema,
+  component: huddleComponentSchema,
+});

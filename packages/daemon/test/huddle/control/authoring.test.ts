@@ -128,6 +128,58 @@ function fixture() {
 }
 
 describe('inactive huddle authoring', () => {
+  it('materialises editable agent templates without changing the graph, overwriting edits or starting an owner', async () => {
+    const f = fixture();
+    const opened = await f.create();
+    const input = {
+      ...f.location,
+      huddle_id: opened.session.huddle_id!,
+      template: 'prompt-agent' as const,
+      component: 'coder',
+    };
+    const installed = await f.service.installTemplate(f.profile.id, input, f.authority);
+    expect(installed.manifest).toBe('nodes/coder/node.json');
+    const root = join(f.worktree, '.puddle/huddle', input.huddle_id);
+    expect(readFileSync(join(root, 'nodes/coder/run.ts'), 'utf8')).toContain('HuddleNode');
+    expect(await f.service.installTemplate(f.profile.id, input, f.authority)).toEqual(installed);
+    expect(
+      (
+        await f.service.inspect(
+          f.profile.id,
+          { ...f.location, huddle_id: input.huddle_id },
+          f.authority,
+        )
+      ).digest,
+    ).toBe(opened.document.digest);
+    writeFileSync(join(root, 'nodes/coder/run.ts'), '// user edit');
+    await expect(f.service.installTemplate(f.profile.id, input, f.authority)).rejects.toMatchObject(
+      { code: 'huddle_component_exists' },
+    );
+    expect(readFileSync(join(root, 'nodes/coder/run.ts'), 'utf8')).toBe('// user edit');
+    expect(f.db.prepare('SELECT * FROM runtime_bindings').all()).toEqual([]);
+  });
+
+  it('refuses template path escapes and revocation before publication', async () => {
+    const f = fixture();
+    const opened = await f.create();
+    const root = join(f.worktree, '.puddle/huddle', opened.session.huddle_id!);
+    symlinkSync(f.home, join(root, 'nodes'));
+    const input = {
+      ...f.location,
+      huddle_id: opened.session.huddle_id!,
+      template: 'review-agent' as const,
+      component: 'reviewer',
+    };
+    await expect(f.service.installTemplate(f.profile.id, input, f.authority)).rejects.toThrow();
+    expect(existsSync(join(f.home, 'reviewer'))).toBe(false);
+    rmSync(join(root, 'nodes'));
+    f.storage.assertAdmission.mockImplementationOnce(async () => {
+      f.revoke();
+    });
+    await expect(f.service.installTemplate(f.profile.id, input, f.authority)).rejects.toThrow();
+    expect(existsSync(join(root, 'nodes'))).toBe(false);
+  });
+
   it('creates multiple random definitions and one stopped placement each without launching anything', async () => {
     const f = fixture();
     const first = huddleOpenedSchema.parse(await f.create());
@@ -288,14 +340,18 @@ describe('inactive huddle authoring', () => {
         f.authority,
       ),
     ]);
-    expect(outcomes.map((item) => item.status)).toEqual(['fulfilled', 'rejected']);
-    expect(outcomes[1]).toMatchObject({ reason: { code: 'huddle_source_changed' } });
+    expect(outcomes.map((item) => item.status).sort()).toEqual(['fulfilled', 'rejected']);
+    expect(outcomes.find((item) => item.status === 'rejected')).toMatchObject({
+      reason: { code: 'huddle_source_changed' },
+    });
     const document = await f.service.inspect(
       f.profile.id,
       { ...f.location, huddle_id: input.huddle_id },
       f.authority,
     );
-    expect(document.definition.name).toBe('Edited');
+    expect(document.definition.name).toBe(
+      outcomes[0]!.status === 'fulfilled' ? 'Edited' : 'Other window',
+    );
     expect(document.digest).not.toBe(input.expected_digest);
     expect(f.checkHuddleAvailable).not.toHaveBeenCalled();
     expect(f.db.prepare('SELECT * FROM runtime_bindings').all()).toEqual([]);
@@ -410,6 +466,20 @@ describe('inactive huddle authoring', () => {
     const response = await post(f.input);
     expect(response.status).toBe(201);
     const opened = huddleOpenedSchema.parse(await response.json());
+    const install = (extra: object = {}) =>
+      app.request(`${path}/definitions/${opened.session.huddle_id}/components`, {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({
+          ...f.location,
+          template: 'prompt-agent',
+          component: 'coder',
+          ...extra,
+        }),
+      });
+    expect((await install({ component: '../escape' })).status).toBe(400);
+    expect((await install({ host_id: 'untrusted' })).status).toBe(400);
+    expect((await install()).status).toBe(200);
     const query = new URLSearchParams(f.location);
     expect((await app.request(`${path}/definitions?${query}`)).status).toBe(200);
     expect(
@@ -428,11 +498,13 @@ describe('inactive huddle authoring', () => {
     expect(huddleDocumentSchema.parse(await saved.json()).layout).toEqual(edit.value);
     expect((await save(edit)).status).toBe(409);
     remote = true;
+    expect((await install()).status).toBe(403);
     expect((await save(edit)).status).toBe(403);
     expect((await post(f.input)).status).toBe(403);
     expect((await app.request(`${path}/availability`)).status).toBe(403);
     remote = false;
     f.revoke();
+    expect((await install()).status).toBe(401);
     expect((await save(edit)).status).toBe(401);
     expect((await post(f.input)).status).toBe(401);
     expect(f.db.prepare('SELECT * FROM sessions').all()).toHaveLength(1);
