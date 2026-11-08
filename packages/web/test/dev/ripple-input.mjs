@@ -41,11 +41,10 @@ try {
       .locator('.ripple-prose')
       .getByText('Display only stays unchanged.', { exact: true })
       .waitFor();
-    assert.equal(
-      await page.locator('.ripple-input').count(),
-      0,
-      'default split leaves input native',
-    );
+    await page.locator('.ripple-input').waitFor();
+    assert.equal(await page.locator('.ripple-boundary').getAttribute('aria-valuenow'), '0');
+    await boundary(4);
+    await page.locator('.ripple-input').waitFor({ state: 'detached' });
     const textarea = await page.locator('.xterm-helper-textarea').elementHandle();
     const handle = await page.getByRole('separator', { name: 'Native CLI boundary' }).boundingBox();
     const pane = await page.locator('.puddle-terminal-ripple').boundingBox();
@@ -140,7 +139,7 @@ try {
       'z',
       'no fake repositioning for CLIs without mouse support',
     );
-    await boundary(null);
+    await boundary(4);
     await projection.waitFor({ state: 'detached' });
     assert.ok(
       await textarea.evaluate(
@@ -160,6 +159,9 @@ try {
       .locator('.ripple-prose')
       .getByText('Display only stays unchanged.', { exact: true })
       .waitFor();
+    await boundary(null);
+    await projection.waitFor();
+    assert.equal(await page.locator('.ripple-boundary').getAttribute('aria-valuenow'), '0');
     assert.deepEqual(errors, []);
     await page.close();
   }

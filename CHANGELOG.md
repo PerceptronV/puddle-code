@@ -13,6 +13,7 @@ Past releases: see docs/changelogs/.
 
 #### Changed
 
+- Enabling Ripple starts its handle at the bottom with output and input covered; disabling it starts at the top for full CLI. Manual placement remains available on desktop and mobile.
 - Use frontend terminology throughout the application, documentation and future releases while retaining compatibility with published versions.
 
 #### Fixed

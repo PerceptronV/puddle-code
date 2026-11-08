@@ -9,7 +9,7 @@ export function RippleSetting() {
   return (
     <SettingRow
       label="Ripple (experimental)"
-      description="Start the divider above agent inputs. When off, start with the full CLI. Drag the divider to adjust either view."
+      description="Start with Ripple covering output and input. When off, start with the full CLI. Drag the handle to adjust either view."
       htmlFor="ripple-enabled"
     >
       <Switch

@@ -55,14 +55,11 @@ try {
   await frame();
   const boundary = page.getByRole('separator', { name: 'Native CLI boundary' });
   await boundary.waitFor();
-  const automatic = Number(await boundary.getAttribute('aria-valuenow'));
   // Place it beside the input. Working is now intentionally in the reader.
-  await boundary.focus();
-  for (let i = automatic; i > 7; i--) {
-    await boundary.focus();
-    await page.keyboard.press('ArrowDown');
-    await page.waitForTimeout(100);
-  }
+  await page.evaluate(() => window.rippleFixture.boundary(7));
+  await page.waitForFunction(
+    () => document.querySelector('.ripple-boundary')?.getAttribute('aria-valuenow') === '7',
+  );
   assert.equal(await boundary.getAttribute('aria-valuenow'), '7');
   manual = true;
   const working = page.locator('.ripple-prose pre').filter({ hasText: 'Working' });
@@ -145,9 +142,10 @@ try {
   await page.locator('.ripple-scroll').waitFor({ state: 'detached' });
   await page.locator('#ripple-enabled').click();
   await page.locator('.ripple-scroll').waitFor();
-  assert.ok(
-    Number(await boundary.getAttribute('aria-valuenow')) > 0,
-    'enabling restores automatic input placement',
+  assert.equal(
+    Number(await boundary.getAttribute('aria-valuenow')),
+    0,
+    'enabling restores the bottom endpoint',
   );
   assert.deepEqual(errors, []);
   console.log(

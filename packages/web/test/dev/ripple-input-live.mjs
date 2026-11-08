@@ -78,11 +78,7 @@ try {
   );
   await page.evaluate(() => window.rippleFixture.enable(true));
   await page.locator('.ripple-scroll').waitFor();
-  assert.equal(
-    await page.locator('.ripple-input').count(),
-    0,
-    'default view keeps Codex input native',
-  );
+  await page.locator('.ripple-input').waitFor();
   const textarea = await page.locator('.xterm-helper-textarea').elementHandle();
   const cover = () => page.evaluate(() => window.rippleFixture.boundary(0));
   await cover();
@@ -119,7 +115,7 @@ try {
     'editing caret stays visible after wrapping and resize',
   );
   await page.screenshot({ path: '/private/tmp/puddle-ripple-live-input.png' });
-  await page.evaluate(() => window.rippleFixture.enable(true));
+  await page.evaluate(() => window.rippleFixture.enable(false));
   await projected.waitFor({ state: 'detached' });
   await page.waitForFunction(() =>
     document.querySelector('.xterm-rows').textContent.includes('ripple-wrapped-input'),

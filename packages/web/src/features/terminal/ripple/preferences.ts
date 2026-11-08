@@ -65,7 +65,7 @@ export function useRippleBoundary(session: string) {
   const { rippleEnabled } = useClientSettings();
   const raw = useSyncExternalStore(boundaries.subscribe, boundaries.get);
   return useMemo(
-    () => rippleBoundaries(raw)[session] ?? (rippleEnabled ? null : 'cli'),
+    () => rippleBoundaries(raw)[session] ?? (rippleEnabled ? 0 : 'cli'),
     [raw, session, rippleEnabled],
   );
 }

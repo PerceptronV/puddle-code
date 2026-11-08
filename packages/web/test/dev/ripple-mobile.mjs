@@ -165,9 +165,10 @@ try {
   await page.locator('#ripple-enabled').tap();
   await page.getByRole('button', { name: 'Appearance', exact: true }).tap();
   await reader.waitFor();
-  assert.ok(
-    Number(await boundary.getAttribute('aria-valuenow')) > 0,
-    'appearance setting restores native input space',
+  assert.equal(
+    Number(await boundary.getAttribute('aria-valuenow')),
+    0,
+    'appearance setting restores the bottom endpoint',
   );
   assert.deepEqual(errors, []);
   await touch.detach();
