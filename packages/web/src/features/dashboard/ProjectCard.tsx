@@ -33,6 +33,7 @@ import { useDaemonVersion, usePatchProject, useSessions } from '../../lib/querie
 import { cn } from '../../lib/utils';
 
 import { ProjectCardContent, projectCardSurface } from './ProjectCardContent';
+import { ProjectWindowMenu } from '../windows/project-window-menu';
 
 /** A borderless icon button revealed on card hover (HUMANS.md: fill-shift, no border). */
 function CardIconButton({
@@ -168,6 +169,7 @@ export function ProjectCard({
           </div>
         </ContextMenuTrigger>
         <ContextMenuContent>
+          <ProjectWindowMenu projectId={project.id} />
           {project.archived ? (
             <ContextMenuItem onSelect={() => archive(false)}>
               <ArchiveRestore /> Reopen

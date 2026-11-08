@@ -25,6 +25,7 @@ import {
   customProjectColourSupported,
 } from '../../../../lib/transport/protocol-support';
 import type { ProjectHeaderActions } from './types';
+import { ProjectWindowMenu } from '../../../windows/project-window-menu';
 
 /**
  * A project-name drag reorders projects; its payload is this private MIME so no
@@ -66,6 +67,7 @@ export function ProjectMenuBody({
   return (
     <>
       <ContextMenuContent>
+        <ProjectWindowMenu projectId={projectId} />
         <ContextMenuItem onSelect={() => actions.onNewSessionIn(projectId)}>
           <Bot />
           New agent

@@ -246,6 +246,22 @@ export interface DesktopWindowTransfersBridge {
 
 export const desktopPaneFocusSchema = z.object({ profileId, ref: tabRefSchema });
 export type DesktopPaneFocus = z.infer<typeof desktopPaneFocusSchema>;
+export const desktopProjectFocusSchema = z.object({ profileId, projectId });
+export type DesktopProjectFocus = z.infer<typeof desktopProjectFocusSchema>;
+export const desktopProjectRouteSchema = z.object({ profileId, route: desktopWindowRouteSchema });
+export type DesktopProjectRoute = z.infer<typeof desktopProjectRouteSchema>;
+export const desktopProjectCommandSchema = z.discriminatedUnion('kind', [
+  desktopProjectFocusSchema.extend({ kind: z.literal('open-project') }),
+  desktopProjectRouteSchema.extend({ kind: z.literal('navigate-project') }),
+]);
+export type DesktopProjectCommand = z.infer<typeof desktopProjectCommandSchema>;
+export interface DesktopWindowProjectsBridge {
+  prepare(request: DesktopPaneDetach): Promise<void>;
+  /** Focus/reopen an owner, or delegate opening from a detached window to its host. */
+  focus(request: DesktopProjectFocus): Promise<boolean>;
+  /** True when main handled navigation, including a returned workspace handoff. */
+  route(request: DesktopProjectRoute): Promise<boolean>;
+}
 
 /** Window lookup includes a following preview's actual target, not just its slot name. */
 export function desktopTabKey(ref: TabRef): string {
@@ -293,6 +309,7 @@ export const desktopWindowTransferCommandSchema = z.discriminatedUnion('kind', [
 ]);
 export type DesktopWindowTransferCommand = z.infer<typeof desktopWindowTransferCommandSchema>;
 export const desktopWindowCommandSchema = z.union([
+  desktopProjectCommandSchema.and(z.object({ id: desktopWindowIdSchema })),
   desktopWindowTransferCommandSchema.and(z.object({ id: desktopWindowIdSchema })),
   desktopPaneMoveCommandSchema.and(z.object({ id: desktopWindowIdSchema })),
   desktopTabMoveCommandSchema.and(z.object({ id: desktopWindowIdSchema })),
@@ -331,4 +348,5 @@ export interface DesktopWindowsBridge {
   write(request: DesktopWindowWrite): Promise<DesktopWindowWriteResult>;
   lifecycle?: DesktopWindowLifecycleBridge;
   transfers?: DesktopWindowTransfersBridge;
+  projects?: DesktopWindowProjectsBridge;
 }

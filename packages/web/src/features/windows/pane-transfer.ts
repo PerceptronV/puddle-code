@@ -6,11 +6,33 @@ import type {
   DesktopTransferReference,
   DesktopPaneDock,
   DesktopTabDock,
+  DesktopWindowProjectsBridge,
 } from '@puddle/shared';
 import type { DesktopWorkingSet } from './working-set';
 import { detachPaneContent, detachTabContent } from './transfer-content';
 import { flattenTabs } from '../workspace/layout/layout-tree';
 import { retainLateDrafts } from './late-draft-recovery';
+import { detachProjectContent } from './project-content';
+
+export async function transferProject(
+  owner: DesktopWorkingSet,
+  bridge: DesktopWindowTransfersBridge,
+  projects: DesktopWindowProjectsBridge,
+  projectId: string,
+  sessionProjects: ReadonlyMap<string, string>,
+  untitledHome: string,
+  sourceRoute: string,
+  fence: (active: boolean) => void,
+): Promise<void> {
+  await transferContent(
+    owner,
+    { ...bridge, preparePane: (request) => projects.prepare(request) },
+    projectId,
+    (content) => detachProjectContent(content, projectId, sessionProjects, untitledHome),
+    fence,
+    sourceRoute,
+  );
+}
 
 /** No live model moves between renderers. Transfer its captured working set, then remount. */
 export async function transferPane(

@@ -1,5 +1,13 @@
 # The puddle communication protocol
 
+Application **26.15** exposes optional private project-window prepare/focus/route
+capabilities and bounded native open/navigation commands. Main resolves the
+registered sender's host and unique project owner; renderers never choose a host
+transport. Project close records a durable return, while Command-Q retains open
+ownership. Ordinary navigation can consume returned state through the existing
+handoff. Older shells omit the capability and retain local project navigation.
+No daemon, runtime or remote operation changes.
+
 Application **26.14** adds a private project merge-planning command and an optional
 returned-project flag in desktop working-set records. A closed project's retained
 revision can join the existing destination acknowledgement flow without a live

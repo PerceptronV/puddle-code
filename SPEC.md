@@ -2287,8 +2287,22 @@ record; commit consumes it atomically. Project-based layouts move the selected
 tree intact; profile-wide layouts partition tabs by session ownership, with
 untitled drafts following the current project and unknown sessions remaining in
 the source. Returning merges with other host work, preserves duplicate editors,
-remaps pane/view identities and rejects conflicting dirty text. Project menus,
-navigation redirection and native close/dock integration remain unfinished.
+remaps pane/view identities and rejects conflicting dirty text.
+
+Application 26.15 exposes project windows from dashboard and sidebar context
+menus. One main-process registry resolves open/focus and navigation for the
+registered host/profile/project. A shared renderer routing boundary mediates
+links, imperative navigation and initial/history visits before mounting a second
+project workspace. Native session destinations retain explicit activation.
+Detached windows can ask their host to open another project, creating the host
+window if necessary; ordinary work in a detached window does not require one.
+Explicit project close checkpoints its latest workspace into the return record;
+Command-Q retains its open arrangement. The project menu's return action uses
+that same close policy. The next host visit accepts the returned workspace, or
+an explicit new-window action reopens the retained project. Failed native creation
+keeps the return record available. Profile-layout extraction removes moved views
+from historical slices; returning lets the next mode transition derive the
+project's latest slice. Project drag/dock and native OS acceptance remain pending.
 
 The native shell now separates one host cockpit connection from its native
 window records (`desktop/src/windows/`). Connection establishment and refresh
@@ -2378,8 +2392,7 @@ to their native window/host/profile; foreign or unscoped references cannot mutat
 local resources. Ordinary browser payloads and dragging retain their existing path.
 
 The shared workspace can render full host, headerless project, and pane-only
-presentations; detached windows use native title bars. Project detachment,
-project redirects, and
+presentations; detached windows use native title bars. Project drag/dock and
 named window arrangements remain in progress. See
 `docs/roadmap/windows.md` for the full contract and `docs/acceptance/windows.md`
 for implemented behaviour and verified scope. These foundations do not yet

@@ -6,6 +6,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import { uiStateSnapshotSchema } from '@puddle/shared';
 import { loadHostIdentities } from '../src/host-identities.js';
 import { loadReopenWindows, saveReopenWindows } from '../src/reopen.js';
+import { DesktopWindowState } from '../src/windows/state.js';
 
 const mocks = vi.hoisted(() => ({
   home: '',
@@ -437,6 +438,45 @@ it('holds explicit closure and its connection until the renderer has saved', asy
   expect(connection.stop).toHaveBeenCalledOnce();
 });
 
+it('returns an explicitly closed project durably with no host window, while Command-Q retains its arrangement', async () => {
+  saveReopenWindows(file(), [
+    {
+      target: 'local',
+      window: { kind: 'project', id: 'project', profileId: '1234567890', projectId: 'abcdef1234' },
+    },
+  ]);
+  await boot();
+  const win = BrowserWindow.getAllWindows()[0]!;
+  const owner = renderer(win);
+  owner.write({
+    profileId: '1234567890',
+    revision: 0,
+    content: {
+      snapshot: uiStateSnapshotSchema.parse({}),
+      buffers: [{ session: 's', path: 'draft.ts', content: 'latest project text', baseMtimeMs: 1 }],
+      views: {},
+    },
+  });
+  // The quit checkpoint is cancelled before exercising ordinary explicit close.
+  app.emit('before-quit', { preventDefault: vi.fn() });
+  owner.reply(owner.lastCommand().id, 'cancel quit');
+  await flush();
+  owner.reply(owner.lastCommand().id);
+  await flush();
+  expect(new DesktopWindowState(file()).openWindows()).toHaveLength(1);
+  expect(new DesktopWindowState(file()).returnedProject('project')).toBeNull();
+  win.close();
+  expect(win.isDestroyed()).toBe(false);
+  owner.reply(owner.lastCommand().id);
+  await flush();
+  expect(win.isDestroyed()).toBe(true);
+  const state = new DesktopWindowState(file());
+  expect(state.openWindows()).toEqual([]);
+  expect(state.returnedProject('project')?.version.content.buffers[0]?.content).toBe(
+    'latest project text',
+  );
+});
+
 it('retains all quitting windows and accepts state writes while waiting for the last checkpoint', async () => {
   saveReopenWindows(file(), [
     { target: 'local', window: { kind: 'host', id: 'host' } },
@@ -469,6 +509,31 @@ it('retains all quitting windows and accepts state writes while waiting for the 
   expect(app.quit).toHaveBeenCalledOnce();
   for (const win of BrowserWindow.getAllWindows()) win.close();
   expect(targets()).toEqual(['local', 'local']);
+});
+
+it('does not return a project when app-wide quit closes its native window', async () => {
+  saveReopenWindows(file(), [
+    {
+      target: 'local',
+      window: { kind: 'project', id: 'project', profileId: '1234567890', projectId: 'abcdef1234' },
+    },
+  ]);
+  await boot();
+  const win = BrowserWindow.getAllWindows()[0]!;
+  const owner = renderer(win);
+  owner.write({
+    profileId: '1234567890',
+    revision: 0,
+    content: { snapshot: uiStateSnapshotSchema.parse({}), buffers: [], views: {} },
+  });
+  app.emit('before-quit', { preventDefault: vi.fn() });
+  owner.reply(owner.lastCommand().id);
+  await flush();
+  expect(app.quit).toHaveBeenCalledOnce();
+  win.close();
+  const state = new DesktopWindowState(file());
+  expect(state.openWindows()).toHaveLength(1);
+  expect(state.returnedProject('project')).toBeNull();
 });
 
 it('cancels quit after a failed save and releases the interaction fence in every window', async () => {

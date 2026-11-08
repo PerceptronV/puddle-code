@@ -5,6 +5,7 @@ import {
   type DesktopWindowCommand,
   type DesktopPaneFocus,
   type DesktopContentMoveCommand,
+  type DesktopProjectCommand,
   type DesktopWindowTransferCommand,
   type DesktopWorkspaceVersion,
 } from '@puddle/shared';
@@ -48,6 +49,10 @@ export class WindowCommands {
   }
 
   moveContent(windowId: string, command: DesktopContentMoveCommand): Promise<void> {
+    return this.dispatch(windowId, command).then(() => undefined);
+  }
+
+  project(windowId: string, command: DesktopProjectCommand): Promise<void> {
     return this.dispatch(windowId, command).then(() => undefined);
   }
 

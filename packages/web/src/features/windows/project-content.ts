@@ -1,5 +1,6 @@
 import {
   UNTITLED_SESSION,
+  desktopTabKey,
   type DesktopWorkspaceContent,
   type LayoutNode,
   type TabRef,
@@ -35,6 +36,23 @@ export function detachProjectContent(
       : sessionProjects.get(session) === projectId;
   };
   const selected = base.layout_mode === 'project' ? tree : pruneTabs(tree, belongs);
+  const moved = new Set(flattenTabs(selected).map(desktopTabKey));
+  const historical = Object.fromEntries(
+    Object.entries(base.project_layouts).map(([id, slice]) => [
+      id,
+      {
+        ...slice,
+        layout_tree: slice.layout_tree
+          ? pruneTabs(slice.layout_tree, (ref) => !moved.has(desktopTabKey(ref)))
+          : null,
+        active_session:
+          slice.active_session &&
+          moved.has(desktopTabKey({ type: 'terminal', session: slice.active_session }))
+            ? null
+            : slice.active_session,
+      },
+    ]),
+  );
   const remaining =
     base.layout_mode === 'project' ? makeLeaf() : pruneTabs(tree, (ref) => !belongs(ref));
   const hasSession = (node: LayoutNode, session: string | null) =>
@@ -52,6 +70,7 @@ export function detachProjectContent(
       : {
           ...base,
           layout_tree: remaining,
+          project_layouts: historical,
           active_session: hasSession(remaining, base.active_session) ? base.active_session : null,
         };
   const destination: UiStateSnapshot = {
@@ -144,7 +163,27 @@ export function returnProjectContent(
       layout_ref: incomingState.layout_ref,
     };
     snapshot = { ...snapshot, project_layouts };
-  } else snapshot = { ...snapshot, layout_tree, active_session: incomingState.active_session };
+  } else {
+    // A retained historical slice must not override this project's latest
+    // returned workspace on the next profile → project mode transition.
+    const project_layouts = { ...base.project_layouts };
+    delete project_layouts[projectId];
+    for (const [id, slice] of Object.entries(project_layouts)) {
+      if (!slice.layout_tree) continue;
+      project_layouts[id] = {
+        ...slice,
+        layout_tree: retain(slice.layout_tree),
+        active_session:
+          slice.active_session && terminals.has(slice.active_session) ? null : slice.active_session,
+      };
+    }
+    snapshot = {
+      ...snapshot,
+      layout_tree,
+      project_layouts,
+      active_session: incomingState.active_session,
+    };
+  }
   // A closed project can also hold recovery drafts without a mounted tab. Make
   // those visible on return, rather than retaining text only in a private store.
   snapshot = retainLateDrafts(snapshot, incoming.buffers, projectId);

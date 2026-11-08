@@ -1,5 +1,5 @@
 import { ForwardLanding } from './features/ports/ForwardLanding';
-import { MutationCache, QueryClient, QueryClientProvider } from '@tanstack/react-query';
+import { QueryClientProvider } from '@tanstack/react-query';
 import { Suspense, lazy, useSyncExternalStore } from 'react';
 import { BrowserRouter, Route, Routes } from 'react-router';
 import { ErrorBoundary } from './components/error-boundary';
@@ -12,9 +12,10 @@ import { ProfilePicker } from './features/profile/ProfilePicker';
 import { useCurrentProfileId } from './features/profile/profile-store';
 import { ShellLayout } from './features/shell/ShellLayout';
 import { tokenStore } from './lib/transport/auth';
-import { toastError } from './lib/transport/errors';
+import { queryClient } from './lib/queries/client';
 import { useProfiles } from './lib/queries/queries';
 import { DesktopWindowGate } from './features/windows/window-context';
+import { ProjectWindowRouter } from './features/windows/project-router';
 
 // Route-level chunks: each page loads on first visit, not up front.
 const Dashboard = lazy(() =>
@@ -23,17 +24,6 @@ const Dashboard = lazy(() =>
 const Workspace = lazy(() =>
   import('./features/workspace/Workspace').then((m) => ({ default: m.Workspace })),
 );
-
-const queryClient = new QueryClient({
-  defaultOptions: {
-    queries: { retry: 1, staleTime: 5_000 },
-  },
-  // The safety net: an action that fails is ALWAYS reported, even if its call
-  // site forgot a handler. Local `onError`s still run for their side effects
-  // and report through the same helper, whose message-derived toast id
-  // collapses the pair into one toast rather than stacking duplicates.
-  mutationCache: new MutationCache({ onError: (error) => toastError(error) }),
-});
 
 function Gated() {
   const profileId = useCurrentProfileId();
@@ -60,17 +50,19 @@ function Gated() {
         // UI, Suspense fallback=null) left clicks changing the URL while the view
         // stayed put until a reload. We want urgent, synchronous navigation.
         <BrowserRouter useTransitions={false}>
-          <Suspense fallback={null}>
-            <Routes>
-              <Route element={<ShellLayout />}>
-                <Route path="/" element={<Dashboard />} />
-                <Route path="/project/:id" element={<Workspace />} />
-                {/* The session route is the workspace; diff and history are left-
+          <ProjectWindowRouter>
+            <Suspense fallback={null}>
+              <Routes>
+                <Route element={<ShellLayout />}>
+                  <Route path="/" element={<Dashboard />} />
+                  <Route path="/project/:id" element={<Workspace />} />
+                  {/* The session route is the workspace; diff and history are left-
                 sidebar navigators (SPEC §8), not routes. */}
-                <Route path="/project/:id/session/:sid" element={<Workspace />} />
-              </Route>
-            </Routes>
-          </Suspense>
+                  <Route path="/project/:id/session/:sid" element={<Workspace />} />
+                </Route>
+              </Routes>
+            </Suspense>
+          </ProjectWindowRouter>
         </BrowserRouter>
       )}
     </ContentMotion>

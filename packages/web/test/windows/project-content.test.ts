@@ -16,6 +16,10 @@ import {
   detachProjectContent,
   returnProjectContent,
 } from '../../src/features/windows/project-content';
+import {
+  splitToProjects,
+  mergeShardedLayouts,
+} from '../../src/features/workspace/layout/project-layout';
 
 const project = '1234567890';
 const otherProject = 'abcdef1234';
@@ -166,6 +170,40 @@ it('remaps colliding pane ids and their view positions while retaining duplicate
   expect(result.views[viewKey('profile', leaves[0]!.id)]).toEqual({ line: 1 });
   expect(result.views[viewKey('profile', leaves[1]!.id)]).toEqual({ line: 30 });
   expect(flattenTabs(result.snapshot.layout_tree!)).toEqual([file('shared.ts'), file('shared.ts')]);
+});
+
+it('does not resurrect transferred views or an obsolete project slice when layout mode changes', () => {
+  const tab = file('current.ts');
+  const original = content(
+    {
+      layout_tree: makeLeaf([tab, file('stay.ts', otherSession)]),
+      project_layouts: {
+        [project]: { layout_tree: makeLeaf([tab]), active_session: null, layout_ref: null },
+        [otherProject]: {
+          layout_tree: makeLeaf([file('stay.ts', otherSession)]),
+          active_session: null,
+          layout_ref: null,
+        },
+      },
+    },
+    [draft('current.ts')],
+  );
+  const detached = detachProjectContent(original, project, sessions, project);
+  const transition = (snapshot: DesktopWorkspaceContent['snapshot']) =>
+    mergeShardedLayouts(
+      splitToProjects(snapshot, [project, otherProject], sessions, project).project_layouts!,
+      snapshot.project_layouts,
+    );
+  expect(flattenTabs(transition(detached.source.snapshot)[project]!.layout_tree!)).toEqual([]);
+  detached.destination.snapshot.layout_tree = makeLeaf([tab, file('new.ts')]);
+  const returned = returnProjectContent(detached.source, detached.destination, project);
+  expect(flattenTabs(transition(returned.snapshot)[project]!.layout_tree!)).toEqual([
+    tab,
+    file('new.ts'),
+  ]);
+  expect(returned.snapshot.project_layouts[otherProject]).toEqual(
+    original.snapshot.project_layouts[otherProject],
+  );
 });
 
 it('moves terminal viewers out of other slices and rejects conflicting dirty copies', () => {

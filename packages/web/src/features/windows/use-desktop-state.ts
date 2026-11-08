@@ -124,6 +124,11 @@ export async function registerDesktopWindowLifecycle(): Promise<void> {
         })
         .catch(toastError);
     },
+    (command) => {
+      void import('./project-actions')
+        .then(({ handleProjectCommand }) => handleProjectCommand(command))
+        .catch(toastError);
+    },
   );
 }
 

@@ -126,13 +126,21 @@ verification; pending items are not support claims.
   profile seed. The coordinator can restore one into a host renderer using the
   existing staged handoff, without a live source renderer. Commit consumes the
   return record atomically; cancellation or interrupted preparation retains it.
-  Reopening preserves its exact workspace. These are preparatory code paths:
-  project menus, navigation redirects and native close events do not call them yet.
+  Reopening preserves its exact workspace.
+- Project menus on dashboard cards and sidebar headers now use that handoff
+  (application 26.15). The native registry enforces one dedicated project owner;
+  repeated opens focus it. Shared routing mediates links, imperative navigation
+  and initial/history visits, including session destinations. A detached window
+  can request another project through its host, opening that host if needed.
+  Explicit project close checkpoints and retains its return state without needing
+  a host window; Command-Q preserves its open arrangement. **Return project to
+  host** uses the same close policy. The next host visit restores the workspace;
+  a new-window request can instead reopen it. Failed native creation leaves the
+  return record intact. Moved views are removed from inactive historical slices,
+  and mode changes after return derive the project's latest workspace.
 
-Project detachment and redirects, named window arrangements, and native OS
-acceptance are still pending. Return to a project presentation is supported by
-the coordinator, but the project-window creation action is not yet implemented.
-Pane detachment and menu return do not deliver the whole roadmap. Undo-stack transfer
+Project drag/dock, named window arrangements, and native OS acceptance are still
+pending. Pane/project detachment and menu return do not deliver the whole roadmap. Undo-stack transfer
 is not implemented; restored editors use
 new Monaco models with recovered text.
 
@@ -262,8 +270,30 @@ and restart state, duplicate owners, source reopening during planning, destinati
 failure and commit persistence failure. The existing destination controller also
 stages and accepts a project with its requested session route. No new project UI
 or native close integration was exercised, and no native acceptance is implied.
-Before exposing the project action, complete navigation/close coordination and
-check layout-mode changes against inactive historical project slices.
+The following increment adds those controls and their navigation/close integration.
+
+The project-controls increment passed 269 tests across 28 window/lifecycle/layout
+and shared-contract files, desktop/web TypeScript and targeted ESLint. The web
+production build passed with its existing chunk-size advisory. The new main-process
+fixture distinguishes explicit project closure from successful Command-Q, including
+dirty checkpoint retention with no host window. Registry tests cover repeated focus,
+session routes, returned-state reopening, failed/cancelled native creation and
+delegation from a detached window. Projection tests cover mode changes without
+resurrecting moved views or overriding the latest returned slice.
+
+`WINDOW_TRANSFER_KIND=project` passed in `web/test/dev/window-transfer.mjs`:
+dashboard context-menu open, dirty text/selection handoff, preserved sidebars,
+host link and history redirection without duplicates, native-style session-target
+activation, closing the host, further unsaved editing, project-menu return with
+no host open, and restoring that text when the host opens again. The screenshot
+is `/tmp/puddle-live-project-return.png`. A first extended run clicked a tab's
+hover action instead of its activation area; correcting the test's click position
+made that session-navigation check pass. Existing native pane drag/return and
+ordinary browser pane-drag checks also passed. These use isolated Chromium and
+the real coordinators through a synthetic bridge. Platform focus/Space behaviour,
+actual title bars, restart/SSH recovery and individual palette/notification UI
+gestures still require acceptance; shared routing alone is not evidence for every
+native gesture.
 
 Native acceptance has not run. Use an isolated UI preview for desktop interaction;
 start any real daemon from a plain shell, never from a coding-agent session.

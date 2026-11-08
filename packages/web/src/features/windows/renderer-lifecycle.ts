@@ -5,6 +5,7 @@ import {
   type DesktopWindowTransferCommand,
   type DesktopWorkspaceVersion,
   type DesktopContentMoveCommand,
+  type DesktopProjectCommand,
 } from '@puddle/shared';
 
 interface WorkingSetCheckpoint {
@@ -23,6 +24,7 @@ export async function registerRendererLifecycle(
     command: DesktopWindowTransferCommand,
   ) => Promise<DesktopWorkspaceVersion | undefined>,
   move?: (command: DesktopContentMoveCommand) => void,
+  project?: (command: DesktopProjectCommand) => void,
 ): Promise<() => void> {
   let queue = Promise.resolve();
   const unsubscribe = bridge.onCommand((value) => {
@@ -45,6 +47,9 @@ export async function registerRendererLifecycle(
           } else if (command.kind === 'resume') {
             for (const workingSet of workingSets()) workingSet.resume();
             fence(false);
+          } else if (command.kind === 'navigate-project' || command.kind === 'open-project') {
+            if (!project) throw new Error('Project window navigation is unavailable');
+            project(command);
           } else if (command.kind === 'move-pane' || command.kind === 'move-tab') {
             if (!move) throw new Error('This window cannot move the requested pane');
             // Acknowledge dispatch, not completion: a successful move may retire

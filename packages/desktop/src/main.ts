@@ -9,6 +9,7 @@ import {
   desktopPaneFocusSchema,
   desktopWindowReadSchema,
   type DesktopPaneFocus,
+  type DesktopProjectCommand,
   type DesktopWindowIdentity,
 } from '@puddle/shared';
 import {
@@ -53,6 +54,7 @@ import { WindowDrags, registerWindowDragIpc } from './windows/drags.js';
 import { WindowTransfers, registerWindowTransferIpc } from './windows/transfers.js';
 import { WindowNavigations } from './windows/navigation.js';
 import { reloadContents } from './windows/reload.js';
+import { ProjectWindows, registerProjectWindowIpc } from './windows/projects.js';
 
 /**
  * The desktop shell (SPEC §10): an Electron main process that drives the SAME
@@ -131,23 +133,26 @@ const windowDrags = new WindowDrags({
   move: (id, command) => windowCommands.moveContent(id, command),
 });
 const pendingPaneFocus = new Map<string, DesktopPaneFocus>();
+const pendingProjectCommands = new Map<string, DesktopProjectCommand>();
+const closingWindows = new Set<string>();
 const checkpoints = new Map<string, Promise<void>>();
+function liveWindowRecord(id: string): ReopenWindow {
+  if (quitting || quitPending || closingWindows.has(id)) throw new Error('Window is closing');
+  for (const host of shells.values()) {
+    const window = host.windows.get(id);
+    if (window && !window.win.isDestroyed()) {
+      if (windowNavigations.busy(host.target)) throw new Error('This host is refreshing');
+      return reopenWindow(host.target, window);
+    }
+  }
+  throw new Error('Source window is unavailable');
+}
 const windowTransfers = new WindowTransfers({
   state: () => {
     if (!windowState || quitting) throw new Error('Window state is unavailable');
     return windowState;
   },
-  record: (id) => {
-    if (quitting || quitPending) throw new Error('Application is closing');
-    for (const host of shells.values()) {
-      const window = host.windows.get(id);
-      if (window && !window.win.isDestroyed()) {
-        if (windowNavigations.busy(host.target)) throw new Error('This host is refreshing');
-        return reopenWindow(host.target, window);
-      }
-    }
-    throw new Error('Source window is unavailable');
-  },
+  record: liveWindowRecord,
   open: (record) => openShell(record.target, record.placement, record),
   dismiss: (id) => {
     rememberedWindows.delete(id);
@@ -168,6 +173,26 @@ const windowTransfers = new WindowTransfers({
   committed: () => {
     for (const record of windowState?.openWindows() ?? [])
       rememberedWindows.set(reopenWindowId(record), record);
+  },
+});
+const projectWindows = new ProjectWindows({
+  state: () => {
+    if (!windowState || quitting || quitPending) throw new Error('Window state is unavailable');
+    return windowState;
+  },
+  transfers: windowTransfers,
+  record: liveWindowRecord,
+  open: (record) => openShell(record.target, record.placement, record),
+  raise: (id) => {
+    for (const host of shells.values()) {
+      const window = host.windows.get(id);
+      if (window && !window.win.isDestroyed()) raise(window.win);
+    }
+  },
+  command: async (id, command) => {
+    liveWindowRecord(id);
+    if (windowCommands.available(id)) await windowCommands.project(id, command);
+    else pendingProjectCommands.set(id, command);
   },
 });
 
@@ -443,29 +468,42 @@ function createWindow(
       event.preventDefault();
       return;
     }
-    if (!windowCommands.available(identity.id)) return;
+    if (!windowCommands.available(identity.id) && identity.kind !== 'project') return;
     event.preventDefault();
     if (closePending) return;
+    if (identity.kind === 'project' && windowTransfers.busy(identity.id)) {
+      windowTransfers.disconnected(identity.id);
+      return;
+    }
     closePending = true;
+    closingWindows.add(identity.id);
     const checkpoint = windowNavigations.busy(target)
       ? windowNavigations.wait(target).then(() => checkpointWindow(identity.id))
       : checkpointWindow(identity.id);
-    void checkpoint.then(
-      () => {
+    void checkpoint
+      .then(() => {
         closePending = false;
-        if (quitPending || quitting || win.isDestroyed()) return;
+        if (quitPending || quitting || win.isDestroyed()) {
+          closingWindows.delete(identity.id);
+          return;
+        }
+        if (identity.kind === 'project' && windowState) {
+          const version = windowState.read(identity.id, identity.profileId);
+          if (version) windowState.closeProject(identity.id, version.revision);
+          rememberedWindows.delete(identity.id);
+        }
         closeAccepted = true;
         win.close();
-      },
-      async (error: unknown) => {
+      })
+      .catch(async (error: unknown) => {
         closePending = false;
+        closingWindows.delete(identity.id);
         // The app-wide attempt owns rollback and error presentation if it joined us.
         if (quitPending || quitting) return;
         await resumeWindows([identity.id]);
         if (!win.isDestroyed())
           dialog.showErrorBox('Could not close this window', errorText(error));
-      },
-    );
+      });
   });
 
   // Full-screen state is a WINDOW fact only the main process knows, and the top
@@ -506,6 +544,8 @@ function createWindow(
   });
 
   win.on('closed', () => {
+    closingWindows.delete(identity.id);
+    pendingProjectCommands.delete(identity.id);
     if (!quitting) {
       rememberedWindows.delete(identity.id);
       try {
@@ -535,6 +575,7 @@ async function openShell(
   await windowNavigations.wait(target);
   if (quitting || quitPending) return;
   const identity = restored?.window ?? { kind: 'host' as const, id: reopenWindowId({ target }) };
+  if (closingWindows.has(identity.id)) throw new Error('This window is closing');
   const existing = restored
     ? shells.get(target)?.windows.get(identity.id)
     : [...(shells.get(target)?.windows.values() ?? [])].find(
@@ -771,6 +812,7 @@ registerWindowStateIpc({
 });
 registerWindowTransferIpc(ipcMain, windowContext, windowTransfers);
 registerWindowDragIpc(ipcMain, windowContext, windowDrags);
+registerProjectWindowIpc(ipcMain, windowContext, projectWindows);
 ipcMain.handle('puddle:window-dock-targets', (event, value: unknown) => {
   const owner = windowContext(event);
   const { profileId } = desktopWindowReadSchema.parse(value);
@@ -809,6 +851,13 @@ ipcMain.handle('puddle:window-ready', (event) => {
   windowCommands.ready(owner.identity.id, (command) =>
     event.sender.send('puddle:window-command', command),
   );
+  const projectCommand = pendingProjectCommands.get(owner.identity.id);
+  if (projectCommand) {
+    pendingProjectCommands.delete(owner.identity.id);
+    void windowCommands
+      .project(owner.identity.id, projectCommand)
+      .catch((error) => logger.warn(errorText(error)));
+  }
   const focus = pendingPaneFocus.get(owner.identity.id);
   if (focus) {
     pendingPaneFocus.delete(owner.identity.id);

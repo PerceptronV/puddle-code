@@ -14,7 +14,7 @@ const directory = await mkdtemp(join(tmpdir(), 'puddle-live-window-'));
 const implementation = join(directory, 'implementation.mjs');
 await build({
   stdin: {
-    contents: `export { DesktopWindowState } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/state.ts'))};\nexport { WindowTransfers } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers.ts'))};\nexport { WindowCommands } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/commands.ts'))};\nexport { WindowDrags } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/drags.ts'))};`,
+    contents: `export { DesktopWindowState } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/state.ts'))};\nexport { WindowTransfers } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers.ts'))};\nexport { WindowCommands } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/commands.ts'))};\nexport { WindowDrags } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/drags.ts'))};\nexport { ProjectWindows } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/projects.ts'))};`,
     resolveDir: root,
   },
   bundle: true,
@@ -23,15 +23,14 @@ await build({
   outfile: implementation,
   alias: { '@puddle/shared': resolve(root, 'packages/shared/src/index.ts') },
 });
-const { DesktopWindowState, WindowTransfers, WindowCommands, WindowDrags } = await import(
-  pathToFileURL(implementation).href
-);
+const { DesktopWindowState, WindowTransfers, WindowCommands, WindowDrags, ProjectWindows } =
+  await import(pathToFileURL(implementation).href);
 const commands = new WindowCommands();
 const mode = process.env.WINDOW_TRANSFER_KIND ?? 'pane';
 const dragBack = process.env.WINDOW_DOCK_BACK === 'drag';
 const dockBack = process.env.WINDOW_DOCK_BACK === '1' || dragBack;
 const addTab = process.env.WINDOW_ADD_TAB;
-assert.ok(['pane', 'file', 'session'].includes(mode));
+assert.ok(['pane', 'file', 'session', 'project'].includes(mode));
 let focused = 0;
 const state = new DesktopWindowState(join(directory, 'windows.json'));
 const browser = await chromium.launch({ headless: true });
@@ -64,9 +63,39 @@ const coordinator = new WindowTransfers({
     return commands.transfer(id, command);
   },
 });
+const pendingProjectCommands = new Map();
+const projects = new ProjectWindows({
+  state: () => state,
+  transfers: coordinator,
+  record: (id) => {
+    const record = records.get(id);
+    if (!record) throw new Error('Window unavailable');
+    return record;
+  },
+  open: openPage,
+  raise: () => {
+    focused++;
+  },
+  command: async (id, command) => {
+    if (commands.available(id)) await commands.project(id, command);
+    else pendingProjectCommands.set(id, command);
+  },
+});
+
+async function closePage(id) {
+  await commands.request(id, 'checkpoint');
+  const record = records.get(id);
+  if (record.window.kind === 'project')
+    state.closeProject(id, state.read(id, record.window.profileId).revision);
+  records.delete(id);
+  state.syncOpenWindows([...records.values()]);
+  commands.disconnected(id);
+  await pages.get(id).close();
+}
 
 async function openPage(record) {
   const id = record.window.id;
+  if (pages.has(id) && !pages.get(id).isClosed()) return;
   records.set(id, record);
   state.syncOpenWindows([...records.values()]);
   const page = await context.newPage();
@@ -75,10 +104,23 @@ async function openPage(record) {
   await page.exposeBinding('windowRequest', async (_source, method, request) => {
     if (method === 'context')
       return { identity: record.window, hostId: 'host', stagingTransfer: state.staging(id)?.id };
-    if (method === 'ready')
-      return commands.ready(id, (command) => {
+    if (method === 'ready') {
+      commands.ready(id, (command) => {
         void page.evaluate((value) => window.receiveWindowCommand(value), command);
       });
+      const command = pendingProjectCommands.get(id);
+      if (command) {
+        pendingProjectCommands.delete(id);
+        void commands.project(id, command);
+      }
+      return;
+    }
+    if (method === 'close') {
+      void closePage(id).catch((error) => errors.push(error.message));
+      return;
+    }
+    if (method.startsWith('project-'))
+      return projects[method.slice('project-'.length)](id, request);
     if (method === 'reply') {
       if (request.error) trace.push([id, request.error]);
       return commands.reply(id, request);
@@ -113,9 +155,20 @@ async function openPage(record) {
   await page.addInitScript((mode) => {
     window.puddleDesktop = {
       raiseWindow() {},
+      closeWindow: () => window.windowRequest('close'),
       isFullScreen: async () => false,
       windows: {
         version: 1,
+        ...(mode === 'project'
+          ? {
+              projects: Object.fromEntries(
+                ['prepare', 'focus', 'route'].map((method) => [
+                  method,
+                  (request) => window.windowRequest(`project-${method}`, request),
+                ]),
+              ),
+            }
+          : {}),
         lifecycle: {
           ready: () => window.windowRequest('ready'),
           onCommand: (callback) => {
@@ -210,17 +263,32 @@ try {
       editor.setSelection({ startLineNumber: 1, startColumn: 9, endLineNumber: 1, endColumn: 18 });
     });
   const trigger =
-    mode === 'file'
-      ? source.locator('[data-path="README.md"]').first()
-      : mode === 'session'
-        ? source.locator('[data-pane-tab]').first()
-        : source.locator('[data-pane-drag-handle]').first();
+    mode === 'project'
+      ? source.locator('a[href="/project/0000000002"]').first()
+      : mode === 'file'
+        ? source.locator('[data-path="README.md"]').first()
+        : mode === 'session'
+          ? source.locator('[data-pane-tab]').first()
+          : source.locator('[data-pane-drag-handle]').first();
+  if (mode === 'project') {
+    await source.evaluate(async () =>
+      (await import('/src/features/windows/project-actions.ts')).navigateProjectRoute('/'),
+    );
+    await trigger.waitFor();
+  }
   await trigger.dispatchEvent('contextmenu', { button: 2 });
   await source.getByRole('menuitem', { name: `Open ${mode} in window`, exact: true }).click();
   await expect
-    .poll(() => [...records.values()].filter((record) => record.window.kind === 'pane').length)
+    .poll(
+      () =>
+        [...records.values()].filter(
+          (record) => record.window.kind === (mode === 'project' ? 'project' : 'pane'),
+        ).length,
+    )
     .toBe(1);
-  const destination = [...records.values()].find((record) => record.window.kind === 'pane');
+  const destination = [...records.values()].find(
+    (record) => record.window.kind === (mode === 'project' ? 'project' : 'pane'),
+  );
   await expect.poll(() => pages.has(destination.window.id)).toBe(true);
   const target = pages.get(destination.window.id);
   const checkText = async (
@@ -279,7 +347,67 @@ try {
     await expect.poll(() => focused).toBe(1);
     assert.equal(records.size, 2);
   }
-  if (addTab) {
+  if (mode === 'project') {
+    await expect(target.locator('[data-path="README.md"]').first()).toBeVisible();
+    await trigger.click();
+    await expect.poll(() => focused).toBeGreaterThan(0);
+    assert.equal(new URL(source.url()).pathname, '/');
+    assert.equal(records.size, 2);
+    // An unmediated history/deep-link visit must also focus the dedicated owner.
+    await source.evaluate(() => {
+      window.history.pushState(null, '', '/project/0000000002');
+      window.dispatchEvent(new window.PopStateEvent('popstate'));
+    });
+    await expect.poll(() => new URL(source.url()).pathname).toBe('/');
+    await source.evaluate(
+      async (profileId) =>
+        window.puddleDesktop.windows.projects.route({
+          profileId,
+          route: '/project/0000000002/session/00000000-0000-4000-8000-000000000001',
+        }),
+      profile,
+    );
+    await target.locator('.xterm').first().waitFor();
+    await target
+      .locator('[data-pane-tab]')
+      .filter({ hasText: 'README.md' })
+      .first()
+      .click({ position: { x: 10, y: 12 } });
+    await target.locator('[data-editor-surface] .monaco-editor').first().waitFor();
+    await closePage('host');
+    const latest = 'Project draft after the host window closed';
+    await target.evaluate(async (text) => {
+      const { monaco } = await import('/src/features/editor/monaco/monaco-setup.ts');
+      const editor = monaco.editor
+        .getEditors()
+        .find((editor) => editor.getModel()?.uri.scheme === 'puddle');
+      editor.getModel().setValue(text);
+    }, latest);
+    await target
+      .locator('[data-sidebar-motion="sessions-project-0000000002"]')
+      .first()
+      .dispatchEvent('contextmenu', { button: 2 });
+    await target.getByRole('menuitem', { name: 'Return project to host', exact: true }).click();
+    await expect.poll(() => target.isClosed()).toBe(true);
+    assert.equal(records.size, 0);
+    assert.ok(state.returnedProject(destination.window.id));
+    await openPage({
+      target: 'local',
+      window: { id: 'host', kind: 'host' },
+      route: '/project/0000000002',
+    });
+    const returned = pages.get('host');
+    await returned.waitForFunction(async (expected) => {
+      const { monaco } = await import('/src/features/editor/monaco/monaco-setup.ts');
+      return monaco.editor
+        .getEditors()
+        .some((editor) => editor.getModel()?.getValue() === expected);
+    }, latest);
+    await expect.poll(() => state.returnedProject(destination.window.id)).toBeNull();
+    await returned.screenshot({ path: '/tmp/puddle-live-project-return.png' });
+    assert.deepEqual(errors, []);
+    console.log('Project menu, click/history redirect, independent closure and host return pass.');
+  } else if (addTab) {
     assert.equal(mode, 'pane');
     assert.ok(['file', 'tab', 'session'].includes(addTab));
     const secondText = 'Another dirty document brought into the pane';
