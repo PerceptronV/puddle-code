@@ -160,7 +160,22 @@ verification; pending items are not support claims.
   `shared/src/desktop/windows/` and retain the public package exports. Browser
   fixtures and current documentation reference the new paths directly.
 
-Named window arrangements and native OS acceptance are still
+- Named layout storage now accepts an optional version-1 window arrangement
+  alongside its ordinary tree (application 26.17, migration 42). Logical slots
+  contain only pane structure, project anchors and session bindings. Legacy rows
+  stay single-tree layouts; rename preserves an arrangement, while an explicit
+  tree overwrite without the field replaces it. Null also clears it. Scope and
+  unique window/project ownership are validated on write and read. A new pure
+  capture projection under `web/features/windows/arrangements/` reuses project
+  extraction: anchored mixed-project panes move into project saves intact, a
+  profile-wide host contributes its matching tabs, and a project-based host
+  contributes its whole selected slice. The browser fallback preserves editor
+  duplicates, deduplicates terminal viewers and repairs colliding pane ids.
+  Dirty text, view caches and native geometry are not named-layout data.
+  This is preparatory code: the coordinator has not yet collected these captures
+  from live windows, and the popover does not yet save/apply native arrangements.
+
+Coordinated named window arrangements and native OS acceptance are still
 pending. Pane/project detachment and menu return do not deliver the whole roadmap. Undo-stack transfer
 is not implemented; restored editors use
 new Monaco models with recovered text.
@@ -335,6 +350,16 @@ The inspected returned-workspace screenshot is
 `/tmp/puddle-live-project-docking.png`. These fixtures use real coordinators and
 synthetic bridge/DataTransfer delivery; native OS dragging, collapsed-label
 gestures, monitor placement, live PTY continuity and restart remain unverified.
+
+The named-arrangement storage/projection increment passed the 230-test window,
+layout, database, saved-layout HTTP and shared-contract suite across 25 files.
+After adding dashboard-untitled and project-only capture cases plus native-record
+reopen validation, all seven focused capture/migration tests passed. Shared,
+daemon and web TypeScript and targeted ESLint passed. Tests cover old-row migration,
+native descriptor round trips, rename/duplicate, legacy tree overwrite, explicit
+clear, unknown versions and transient-data rejection, project scope, mixed panes,
+duplicate editor views, terminal deduplication and no mutation of source state.
+No coordinated native capture/apply or save/load UI acceptance is claimed.
 
 Native acceptance has not run. Use an isolated UI preview for desktop interaction;
 start any real daemon from a plain shell, never from a coding-agent session.

@@ -16,7 +16,7 @@ Update the relevant SPEC sections and changelog when behavior ships. This roadma
 remains the design intent; the acceptance document describes what was implemented.
 
 Keep implementation modules in hierarchical directories grouped by responsibility.
-Use the window feature's `state/`, `transfers/content/`, `drag/`, `navigation/`,
+Use the window feature's `state/`, `transfers/content/`, `arrangements/`, `drag/`, `navigation/`,
 `lifecycle/` and `menus/` groups, leaving shared context and composition at its
 root. Desktop window code groups host connections, persistence, lifecycle and
 transfers separately; private contracts belong under `shared/src/desktop/windows/`.

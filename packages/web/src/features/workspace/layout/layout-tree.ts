@@ -56,7 +56,7 @@ export function makeLeaf(tabs: TabRef[] = [], activeKey?: string | null): Layout
   return { kind: 'leaf', id: newId(), tabs, activeKey: active, previewKey: null };
 }
 
-function makeSplit(
+export function makeSplit(
   direction: 'row' | 'col',
   children: LayoutNode[],
   sizes?: number[],

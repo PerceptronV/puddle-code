@@ -19,6 +19,7 @@ export * from './api/agents/sessions.js';
 export * from './api/workspace/projects.js';
 export * from './api/workspace/scratchpad.js';
 export * from './api/workspace/layouts.js';
+export * from './api/workspace/window-arrangement.js';
 export * from './api/compilation.js';
 export * from './api/notebooks/notebooks.js';
 export * from './api/latex.js';

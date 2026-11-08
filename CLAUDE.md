@@ -47,7 +47,7 @@ packages/
 │   ├── src/features/editor/ # buffers/, conflicts/, compilation/, monaco/, notebooks/ (including widgets/),
 │   │                       # previews/ (html/, markdown/, pdf/), tabs/; pane composition stays at the root
 │   ├── src/features/workspace/ # layout/, panes/, sessions/, sidebar/, tabs/; Workspace and shared context at the root
-│   ├── src/features/windows/ # state/, transfers/content/, drag/, navigation/, lifecycle/, menus/;
+│   ├── src/features/windows/ # state/, transfers/content/, arrangements/, drag/, navigation/, lifecycle/, menus/;
 │   │                        # native window context and renderer composition stay at the root
 │   ├── src/features/terminal/ # clipboard/, input/, links/, rich-output/, scroll/; terminal composition at the root
 │   ├── src/features/guide/ # public deployed-app /guide; edit guide.md for setup/upgrade instructions

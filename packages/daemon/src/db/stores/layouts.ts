@@ -1,9 +1,12 @@
 import {
   layoutNodeSchema,
+  windowArrangementSchema,
+  windowArrangementScopeError,
   type CreateLayoutRequest,
   type LayoutNode,
   type PatchLayoutRequest,
   type SavedLayout,
+  type WindowArrangement,
 } from '@puddle/shared';
 import { ApiError } from '../../http/errors.js';
 import type { Db } from '../db.js';
@@ -16,17 +19,33 @@ interface Row {
   name: string;
   layout_tree: string | null;
   active_session: string | null;
+  window_arrangement: string | null;
   created_at: string;
   updated_at: string;
 }
 
 function toLayout(r: Row): SavedLayout {
+  const { window_arrangement, ...row } = r;
+  const arrangement =
+    window_arrangement === null
+      ? undefined
+      : windowArrangementSchema.parse(JSON.parse(window_arrangement));
+  if (
+    arrangement &&
+    windowArrangementScopeError(
+      arrangement,
+      r.scope === 'profile' ? 'profile' : 'project',
+      r.project_id,
+    )
+  )
+    throw new Error('Saved window arrangement has invalid scope');
   return {
-    ...r,
+    ...row,
     scope: r.scope === 'profile' ? 'profile' : 'project',
     // Validate on read (the 12.0 discipline): a tree this daemon cannot parse
     // must fail loudly here, not surface as a half-restored workspace.
     layout_tree: r.layout_tree === null ? null : layoutNodeSchema.parse(JSON.parse(r.layout_tree)),
+    ...(arrangement ? { window_arrangement: arrangement } : {}),
   };
 }
 
@@ -74,12 +93,13 @@ export class LayoutStore {
 
   create(input: CreateLayoutRequest): SavedLayout {
     const projectId = resolveScope(input.scope, input.project_id ?? null);
+    const arrangement = arrangementColumn(input.window_arrangement, input.scope, projectId);
     const now = new Date().toISOString();
     const info = this.db
       .prepare(
         `INSERT INTO layouts
-           (profile_id, scope, project_id, name, layout_tree, active_session, created_at, updated_at)
-         VALUES (?, ?, ?, ?, ?, ?, ?, ?)`,
+           (profile_id, scope, project_id, name, layout_tree, active_session, window_arrangement, created_at, updated_at)
+         VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`,
       )
       .run(
         input.profile_id,
@@ -88,6 +108,7 @@ export class LayoutStore {
         input.name,
         treeColumn(input.layout_tree),
         input.active_session ?? null,
+        arrangement,
         now,
         now,
       );
@@ -105,6 +126,16 @@ export class LayoutStore {
     if (patch.name !== undefined) set('name', patch.name);
     if (patch.layout_tree !== undefined) set('layout_tree', treeColumn(patch.layout_tree));
     if (patch.active_session !== undefined) set('active_session', patch.active_session);
+    if (patch.window_arrangement !== undefined) {
+      set(
+        'window_arrangement',
+        arrangementColumn(patch.window_arrangement, current.scope, current.project_id),
+      );
+    } else if (patch.layout_tree !== undefined) {
+      // An old/browser client explicitly saving a new tree replaces the layout.
+      // A rename alone retains its complete native arrangement.
+      set('window_arrangement', null);
+    }
     if (sets.length === 0) return current;
 
     set('updated_at', new Date().toISOString());
@@ -117,6 +148,21 @@ export class LayoutStore {
     const info = this.db.prepare(`DELETE FROM layouts WHERE id = ?`).run(id);
     if (info.changes === 0) throw ApiError.notFound('layout', id);
   }
+}
+
+function arrangementColumn(
+  input: WindowArrangement | null | undefined,
+  scope: 'project' | 'profile',
+  project: string | null,
+): string | null {
+  if (!input) return null;
+  const arrangement = windowArrangementSchema.parse(input);
+  const error = windowArrangementScopeError(arrangement, scope, project);
+  if (error) throw ApiError.badRequest('invalid_scope', error);
+  const json = JSON.stringify(arrangement);
+  if (Buffer.byteLength(json) > 2 * 1024 * 1024)
+    throw ApiError.badRequest('invalid_arrangement', 'Window arrangement is too large');
+  return json;
 }
 
 /** Enforce the scope↔project_id pairing; returns the project_id to persist. */

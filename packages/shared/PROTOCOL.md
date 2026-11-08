@@ -1,5 +1,16 @@
 # The puddle communication protocol
 
+Application **26.17** adds optional version-1 `window_arrangement` data to saved
+layouts and their existing create/patch requests. The descriptor contains logical
+window slots and pane trees only; drafts, credentials and native placement remain
+outside named records. New writers must gate this field on 26.17. Every saved
+arrangement retains a single-tree fallback for browsers and older clients, whose
+load never creates native windows. Renames preserve the arrangement; an explicit
+tree overwrite without it replaces the row with an ordinary layout. Null on PATCH
+also clears it. Migration 42 leaves existing rows as single-tree layouts. No new
+route, runtime or remote operation is added. Native capture/apply integration is
+still in progress; the additive storage contract alone does not expose that UI.
+
 Application **26.16** adds optional private project drag registration, drop and
 live return capabilities. A single-use offer binds the registered project window;
 only a host window on the same host/profile can receive its source-directed move.
