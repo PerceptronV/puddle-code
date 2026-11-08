@@ -6,6 +6,13 @@ import type {
   DesktopWindowsBridge,
 } from '@puddle/shared';
 
+/** Native reload must save this renderer's working set before replacing it. */
+export async function reloadCockpit(): Promise<void> {
+  const reload = desktopBridge()?.windows?.reload;
+  if (reload) await reload();
+  else window.location.reload();
+}
+
 /**
  * The desktop shell's preload bridge (packages/desktop/src/preload.ts). Its
  * presence IS the "running inside the desktop app" signal; everything else

@@ -22,3 +22,4 @@ Past releases: see docs/changelogs/.
 - Separate native window lifetime from host connections and retain revisioned desktop working sets and acknowledged transfer records (application protocol 26.7; detached-window controls are in progress).
 - Flush desktop working sets and dirty drafts before native close or Command-Q, and cancel closure when a renderer cannot confirm its checkpoint.
 - Preserve editor selections when detaching from project-based layouts by translating their saved view-state scope.
+- Save native window drafts before reload or host refresh, serialise navigation per host, and let Command-Q wait for pending navigation (application protocol 26.10).

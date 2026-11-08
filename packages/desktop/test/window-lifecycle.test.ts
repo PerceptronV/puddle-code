@@ -57,15 +57,27 @@ vi.mock('electron', async () => {
     static windows: BrowserWindow[] = [];
     static getAllWindows = () => BrowserWindow.windows.filter((win) => !win.destroyed);
     destroyed = false;
+    currentUrl = '';
     webContents = Object.assign(new EventEmitter(), {
       id: BrowserWindow.windows.length,
       send: vi.fn(),
       setWindowOpenHandler: vi.fn(),
+      getURL: () => this.currentUrl,
+      isDestroyed: () => this.destroyed,
+      reload: vi.fn(() => this.reload()),
+      reloadIgnoringCache: vi.fn(() => this.reload()),
     });
-    loadURL = vi.fn().mockResolvedValue(undefined);
+    loadURL = vi.fn(async (url: string) => {
+      this.currentUrl = url;
+      this.webContents.emit('did-start-navigation', {}, url, false, true);
+    });
     loadFile = vi.fn().mockResolvedValue(undefined);
     show = vi.fn();
     focus = vi.fn();
+    reload() {
+      this.webContents.emit('did-start-navigation', {}, this.currentUrl, false, true);
+      queueMicrotask(() => this.webContents.emit('did-finish-load'));
+    }
     setMenuBarVisibility = vi.fn();
     constructor(readonly options: Electron.BrowserWindowConstructorOptions) {
       super();
@@ -115,7 +127,7 @@ vi.mock('electron', async () => {
   };
 });
 
-import { app, BrowserWindow, dialog, ipcMain } from 'electron';
+import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron';
 
 const windows = (BrowserWindow as unknown as { windows: BrowserWindow[] }).windows;
 const file = () => join(mocks.home, 'reopen-windows.json');
@@ -534,4 +546,131 @@ it('opens a staged native pane on the same connection and preserves it after its
   expect(BrowserWindow.getAllWindows()).toEqual([destination]);
   expect(targets()).toEqual(['local']);
   expect(loadReopenWindows(file())[0]?.window?.kind).toBe('pane');
+});
+
+function twoWindows() {
+  saveReopenWindows(file(), [
+    { target: 'local', window: { kind: 'host', id: 'host' } },
+    {
+      target: 'local',
+      window: { kind: 'pane', id: 'pane', profileId: '1234567890', projectId: 'abcdef1234' },
+    },
+  ]);
+}
+function refresh() {
+  mocks.startLocal.mock.calls[0]![0].onRefreshRequest('refresh-id');
+}
+function menuItem(label: string): Electron.MenuItemConstructorOptions {
+  const visit = (
+    items: Electron.MenuItemConstructorOptions[],
+  ): Electron.MenuItemConstructorOptions | undefined => {
+    for (const item of items) {
+      if (item.label === label) return item;
+      if (Array.isArray(item.submenu)) {
+        const found = visit(item.submenu);
+        if (found) return found;
+      }
+    }
+  };
+  for (const [template] of vi.mocked(Menu.buildFromTemplate).mock.calls) {
+    const found = visit(template);
+    if (found) return found;
+  }
+  throw new Error(`Missing menu item ${label}`);
+}
+
+it('checkpoints every sibling before one correlated refresh and resumes surviving same-origin windows', async () => {
+  twoWindows();
+  await boot();
+  const old = await mocks.startLocal.mock.results[0]!.value;
+  const owners = BrowserWindow.getAllWindows().map(renderer);
+  refresh();
+  refresh();
+  await flush();
+  expect(owners.map((owner) => owner.lastCommand().kind)).toEqual(['checkpoint', 'checkpoint']);
+  owners[0]!.reply(owners[0]!.lastCommand().id);
+  await flush();
+  expect(old.stop).not.toHaveBeenCalled();
+  owners[1]!.reply(owners[1]!.lastCommand().id);
+  await flush();
+  expect(old.stop).toHaveBeenCalledOnce();
+  expect(mocks.startLocal).toHaveBeenCalledTimes(2);
+  for (const owner of owners) {
+    expect(owner.lastCommand().kind).toBe('resume');
+    owner.reply(owner.lastCommand().id);
+  }
+  await flush();
+  expect(BrowserWindow.getAllWindows()).toHaveLength(2);
+  expect(dialog.showErrorBox).not.toHaveBeenCalled();
+});
+
+it('leaves the original host connected when any sibling cannot checkpoint', async () => {
+  twoWindows();
+  await boot();
+  const old = await mocks.startLocal.mock.results[0]!.value;
+  const owners = BrowserWindow.getAllWindows().map(renderer);
+  refresh();
+  await flush();
+  owners[0]!.reply(owners[0]!.lastCommand().id, 'Disk is full');
+  await flush();
+  expect(owners[1]!.lastCommand().kind).toBe('checkpoint');
+  owners[1]!.reply(owners[1]!.lastCommand().id);
+  await flush();
+  for (const owner of owners) {
+    expect(owner.lastCommand().kind).toBe('resume');
+    owner.reply(owner.lastCommand().id);
+  }
+  await flush();
+  expect(old.stop).not.toHaveBeenCalled();
+  expect(mocks.startLocal).toHaveBeenCalledOnce();
+  expect(dialog.showErrorBox).toHaveBeenCalledWith('Could not refresh this host', 'Disk is full');
+});
+
+it.each(['Reload', 'Force Reload'])(
+  'checkpoints the focused window before native %s',
+  async (label) => {
+    saveReopenWindows(file(), [{ target: 'local' }]);
+    await boot();
+    const win = BrowserWindow.getAllWindows()[0]!;
+    const owner = renderer(win);
+    const item = menuItem(label);
+    item.click!(item as Electron.MenuItem, win, {} as Electron.KeyboardEvent);
+    await flush();
+    expect(owner.lastCommand().kind).toBe('checkpoint');
+    expect(win.webContents.reload).not.toHaveBeenCalled();
+    expect(win.webContents.reloadIgnoringCache).not.toHaveBeenCalled();
+    owner.reply(owner.lastCommand().id);
+    await flush();
+    expect(
+      label === 'Reload' ? win.webContents.reload : win.webContents.reloadIgnoringCache,
+    ).toHaveBeenCalledOnce();
+    expect(mocks.startLocal).toHaveBeenCalledOnce();
+  },
+);
+
+it('lets Command-Q cancel an unsent refresh, drain its fences, then checkpoint for quit', async () => {
+  twoWindows();
+  await boot();
+  const owners = BrowserWindow.getAllWindows().map(renderer);
+  refresh();
+  await flush();
+  const event = { preventDefault: vi.fn() };
+  app.emit('before-quit', event);
+  expect(event.preventDefault).toHaveBeenCalledOnce();
+  for (const owner of owners) owner.reply(owner.lastCommand().id);
+  await flush();
+  for (const owner of owners) {
+    expect(owner.lastCommand().kind).toBe('resume');
+    owner.reply(owner.lastCommand().id);
+  }
+  await flush();
+  expect(mocks.startLocal).toHaveBeenCalledOnce();
+  expect(app.quit).not.toHaveBeenCalled();
+  for (const owner of owners) {
+    expect(owner.lastCommand().kind).toBe('checkpoint');
+    owner.reply(owner.lastCommand().id);
+  }
+  await flush();
+  expect(app.quit).toHaveBeenCalledOnce();
+  expect(dialog.showErrorBox).not.toHaveBeenCalled();
 });

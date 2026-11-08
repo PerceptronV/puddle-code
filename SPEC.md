@@ -2297,7 +2297,12 @@ close and app quit checkpoint registered renderers before teardown, with
 bounded exact-window acknowledgements. Failure cancels closure and releases the
 interaction fence. App quit preserves the arrangement; explicit closure removes
 its window from the reopen set. A renderer crash can restore its last durable
-snapshot. Refresh/reload checkpoint integration remains pending.
+snapshot. Application 26.10 also checkpoints native Reload/Force Reload and
+in-app reload requests. Host refresh saves every affected window before replacing
+the shared cockpit, then resumes renderers that remain on the same origin.
+Refresh and reload are serial per host; a failed save prevents navigation, and
+Command-Q drains pending navigation before its final checkpoint. Window opens
+wait for that host's navigation; transfers cannot start during it.
 
 The pane transfer projection preserves the selected pane intact, including
 mixed-project tabs; its current project becomes the detached window's anchor.

@@ -64,6 +64,11 @@ async function openPage(record) {
         void page.evaluate((value) => window.receiveWindowCommand(value), command);
       });
     if (method === 'reply') return commands.reply(id, request);
+    if (method === 'reload') {
+      await commands.request(id, 'checkpoint');
+      await page.reload();
+      return;
+    }
     if (method === 'focusPane') {
       const target = state.findPane(id, request.profileId, request.ref);
       if (!target || !pages.has(target)) return false;
@@ -93,6 +98,7 @@ async function openPage(record) {
           reply: (request) => window.windowRequest('reply', request),
         },
         context: () => window.windowRequest('context'),
+        reload: () => window.windowRequest('reload'),
         read: async (profileId) => {
           const existing = await window.windowRequest('read', profileId);
           if (existing) return existing;
@@ -178,23 +184,23 @@ try {
   const destination = [...records.values()].find((record) => record.window.kind === 'pane');
   await expect.poll(() => pages.has(destination.window.id)).toBe(true);
   const target = pages.get(destination.window.id);
-  const checkText = async (page) => {
+  const checkText = async (page, expected = 'Unsaved text moved through the real coordinator') => {
     if (mode === 'session') {
       await page.locator('.xterm').first().waitFor();
       return;
     }
     await page.locator('[data-editor-surface] .monaco-editor').waitFor();
-    await page.waitForFunction(async () => {
+    await page.waitForFunction(async (expected) => {
       const { monaco } = await import('/src/features/editor/monaco/monaco-setup.ts');
       return monaco.editor
         .getEditors()
         .some(
           (editor) =>
-            editor.getModel()?.getValue() === 'Unsaved text moved through the real coordinator' &&
+            editor.getModel()?.getValue() === expected &&
             editor.getSelection()?.startColumn === 9 &&
             editor.getSelection()?.endColumn === 18,
         );
-    });
+    }, expected);
   };
   await checkText(target);
   await expect.poll(() => state.openWindows().length).toBe(2);
@@ -229,8 +235,32 @@ try {
   records.delete('host');
   state.syncOpenWindows([...records.values()]);
   await source.close();
-  await target.reload();
-  await checkText(target);
+  // Exercise the native reload capability immediately after an edit, before
+  // its ordinary 250ms persistence timer can provide accidental coverage.
+  const latest = 'Latest unsaved edit checkpointed before native reload';
+  await Promise.all([
+    target.waitForEvent('load'),
+    target.evaluate(
+      async ({ latest, mode }) => {
+        if (mode !== 'session') {
+          const { monaco } = await import('/src/features/editor/monaco/monaco-setup.ts');
+          const editor = monaco.editor
+            .getEditors()
+            .find((editor) => editor.getModel()?.uri.scheme === 'puddle');
+          editor.getModel().setValue(latest);
+          editor.setSelection({
+            startLineNumber: 1,
+            startColumn: 9,
+            endLineNumber: 1,
+            endColumn: 18,
+          });
+        }
+        void window.puddleDesktop.windows.reload();
+      },
+      { latest, mode },
+    ),
+  ]);
+  await checkText(target, latest);
   await target.screenshot({ path: '/tmp/puddle-live-pane-transfer.png' });
   assert.deepEqual(errors, []);
   console.log(`Live ${mode} handoff, source view removal, and independent pane reload pass.`);

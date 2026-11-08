@@ -97,3 +97,34 @@ it('coalesces refresh triggers and rejects old, unauthenticated, mismatched or u
   expect(fetcher).toHaveBeenCalledTimes(6);
   expect(controller.phase).toBe('complete');
 });
+
+it('awaits one native reload checkpoint and does not repeat it after failure', async () => {
+  const { RefreshController } = await import('../../../src/lib/transport/cockpit-refresh');
+  const instance = crypto.randomUUID();
+  const refreshId = crypto.randomUUID();
+  const fetcher = vi
+    .fn()
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ status: 'refreshing', instance, refreshId }), { status: 202 }),
+    )
+    .mockResolvedValueOnce(
+      new Response(JSON.stringify({ instance: crypto.randomUUID(), refreshId, upstream: 'ready' })),
+    );
+  const gate = Promise.withResolvers<void>();
+  const nativeReload = vi.fn(() => gate.promise);
+  const rawReload = vi.fn();
+  vi.stubGlobal('window', {
+    puddleDesktop: { windows: { reload: nativeReload } },
+    location: { reload: rawReload },
+  });
+  const controller = new RefreshController(fetcher, undefined, async () => {});
+  const pending = controller.refresh();
+  await vi.waitFor(() => expect(nativeReload).toHaveBeenCalledOnce());
+  expect(controller.phase).toBe('waiting');
+  gate.reject(new Error('Draft checkpoint failed'));
+  await expect(pending).resolves.toBe(false);
+  expect(controller.phase).toBe('failed');
+  expect(nativeReload).toHaveBeenCalledOnce();
+  expect(rawReload).not.toHaveBeenCalled();
+  expect(fetcher).toHaveBeenCalledTimes(2);
+});

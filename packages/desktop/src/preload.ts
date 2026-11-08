@@ -14,6 +14,7 @@ contextBridge.exposeInMainWorld('puddleDesktop', {
   windows: {
     version: 1,
     context: () => ipcRenderer.invoke('puddle:window-context'),
+    reload: () => ipcRenderer.invoke('puddle:window-reload'),
     read: (profileId: string) => ipcRenderer.invoke('puddle:window-read', { profileId }),
     write: (request: unknown) => ipcRenderer.invoke('puddle:window-write', request),
     transfers: {

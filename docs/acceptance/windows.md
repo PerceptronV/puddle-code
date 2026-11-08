@@ -37,6 +37,12 @@ verification; pending items are not support claims.
   A failed or missing acknowledgement cancels closure and resumes editing;
   renderer reload/crash invalidates outstanding commands. Quitting retains the
   arrangement, while explicit closure removes its window from the reopen set.
+- Native Reload/Force Reload, the refresh controller and the render-error reload
+  action now checkpoint before replacing the renderer (application 26.10's
+  optional reload bridge). Host refresh checkpoints all its windows before
+  stopping the shared cockpit and resumes same-origin survivors. Navigation is
+  serial per host, duplicate requests join one operation, and Command-Q drains
+  it before checkpointing again. Failed saves preserve the original connection.
 - `web/features/windows/transfer-content.ts` provides the pane extraction
   projection. It preserves tab order, active and
   preview selection, view state, and relevant dirty buffers; duplicate source
@@ -95,9 +101,9 @@ including withheld/failed acknowledgements, sibling admission, renderer replacem
 late buffer notifications, and quit cancellation. Native OS acceptance remains
 pending. The UI-only Chromium check also passed immediate unsaved-editor
 checkpointing before the debounce timer, interaction fencing, cancellation, and
-reload recovery in all three presentations. Host refresh/reload still needs the
-same checkpoint integration; a renderer
-crash can only recover the last durable snapshot.
+reload recovery in all three presentations. Host refresh/reload checkpointing
+was added in the later increment below. A renderer crash can only recover the
+last durable snapshot.
 
 The pane projection increment passed all 17 web window tests and the web
 TypeScript/targeted ESLint checks. Coverage includes dirty duplicate views,
@@ -136,6 +142,16 @@ across eight files, web TypeScript and targeted ESLint. The integrated pane and
 file checks also passed restored editor selection as well as dirty text, including
 an independent destination reload. These runs still exercise Chromium renderers,
 not native drag/dock gestures.
+
+The navigation-checkpoint increment passed 77 tests across 11 files, including
+sibling save failure, duplicate refresh requests, native reload/force-reload,
+Command-Q during refresh, bounded navigation failure, the renderer refresh
+controller and the shared API contract. Desktop/web TypeScript and targeted
+ESLint passed. The integrated pane script also edited immediately before its
+native-style reload, ahead of the normal persistence timer, then recovered the
+latest text and selection with its host window closed. Its reload bridge uses
+the actual command/checkpoint modules in isolated Chromium; Electron menu and
+OS acceptance remain separate and pending.
 
 Native acceptance has not run. Use an isolated UI preview for desktop interaction;
 start any real daemon from a plain shell, never from a coding-agent session.

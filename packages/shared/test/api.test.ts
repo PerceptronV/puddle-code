@@ -32,8 +32,8 @@ import {
 } from '../src/index.js';
 
 describe('shared API schemas', () => {
-  it('declares protocol 26.9 for desktop tab windows', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 26, minor: 9 });
+  it('declares protocol 26.10 for desktop reload checkpoints', () => {
+    expect(PROTOCOL_VERSION).toEqual({ major: 26, minor: 10 });
   });
 
   it('accepts headless mode and rejects the previous scripted name', () => {

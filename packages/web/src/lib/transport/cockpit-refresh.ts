@@ -4,6 +4,7 @@ import {
   type CockpitRefreshResponse,
 } from '@puddle/shared';
 import { tokenStore } from './auth';
+import { reloadCockpit } from '../desktop';
 
 export type RefreshPhase = 'idle' | 'requesting' | 'waiting' | 'complete' | 'failed';
 
@@ -13,7 +14,7 @@ export class RefreshController {
   private pending: Promise<boolean> | null = null;
   constructor(
     private readonly transport: typeof fetch = fetch,
-    private readonly reload = () => window.location.reload(),
+    private readonly reload: () => void | Promise<void> = reloadCockpit,
     private readonly pause = (ms: number) =>
       new Promise<void>((resolve) => setTimeout(resolve, ms)),
   ) {}
@@ -59,12 +60,15 @@ export class RefreshController {
             status.upstream !== 'ready'
           )
             continue;
-          this.phase = 'complete';
-          this.reload();
-          return true;
         } catch {
           /* Replacement or its daemon handshake is still starting. */
+          continue;
         }
+        // A failed native checkpoint is a failed refresh, never permission to
+        // keep requesting another reload on every readiness poll.
+        await this.reload();
+        this.phase = 'complete';
+        return true;
       }
     } catch {
       /* Local controls can fail independently of the browser's login. */

@@ -197,6 +197,8 @@ export interface DesktopWindowLifecycleBridge {
 export interface DesktopWindowsBridge {
   version: 1;
   context(): Promise<DesktopWindowContext>;
+  /** Checkpoint this window before a renderer-requested reload. */
+  reload?(): Promise<void>;
   read(profileId: string): Promise<DesktopWorkspaceVersion | null>;
   write(request: DesktopWindowWrite): Promise<DesktopWindowWriteResult>;
   lifecycle?: DesktopWindowLifecycleBridge;

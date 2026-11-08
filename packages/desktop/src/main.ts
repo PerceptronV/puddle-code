@@ -49,6 +49,8 @@ import { DesktopWindowState } from './windows/state.js';
 import { registerWindowStateIpc } from './windows/ipc.js';
 import { WindowCommands } from './windows/commands.js';
 import { WindowTransfers, registerWindowTransferIpc } from './windows/transfers.js';
+import { WindowNavigations } from './windows/navigation.js';
+import { reloadContents } from './windows/reload.js';
 
 /**
  * The desktop shell (SPEC §10): an Electron main process that drives the SAME
@@ -107,6 +109,7 @@ let restoringWindows = true;
 let windowStateLoaded = false;
 let windowState: DesktopWindowState | null = null;
 const windowCommands = new WindowCommands();
+const windowNavigations = new WindowNavigations();
 const pendingPaneFocus = new Map<string, DesktopPaneFocus>();
 const checkpoints = new Map<string, Promise<void>>();
 const windowTransfers = new WindowTransfers({
@@ -118,7 +121,10 @@ const windowTransfers = new WindowTransfers({
     if (quitting || quitPending) throw new Error('Application is closing');
     for (const host of shells.values()) {
       const window = host.windows.get(id);
-      if (window && !window.win.isDestroyed()) return reopenWindow(host.target, window);
+      if (window && !window.win.isDestroyed()) {
+        if (windowNavigations.busy(host.target)) throw new Error('This host is refreshing');
+        return reopenWindow(host.target, window);
+      }
     }
     throw new Error('Source window is unavailable');
   },
@@ -236,20 +242,61 @@ async function openCockpit(
 
 async function refreshShell(shell: Shell, refreshId?: string): Promise<void> {
   try {
-    await connections.refresh(shell, refreshId, (previous) => {
-      for (const { win } of shell.windows.values()) {
-        if (win.isDestroyed()) continue;
-        const navigation = refreshNavigation(
-          win.webContents.getURL(),
-          previous.origin,
-          shell.cockpit,
-          refreshId,
-        );
-        if (navigation) void win.loadURL(navigation);
+    await windowNavigations.run(shell.target, 'refresh', async () => {
+      if (quitting || quitPending) return;
+      const ids = [...shell.windows.keys()];
+      try {
+        const saved = await Promise.allSettled(ids.map(checkpointWindow));
+        const failure = saved.find((result) => result.status === 'rejected');
+        if (failure?.status === 'rejected') throw failure.reason;
+        if (quitting || quitPending) return;
+        const navigations: Promise<void>[] = [];
+        await connections.refresh(shell, refreshId, (previous) => {
+          for (const { win } of shell.windows.values()) {
+            if (win.isDestroyed()) continue;
+            const navigation = refreshNavigation(
+              win.webContents.getURL(),
+              previous.origin,
+              shell.cockpit,
+              refreshId,
+            );
+            if (navigation) navigations.push(win.loadURL(navigation));
+          }
+        });
+        const loaded = await Promise.allSettled(navigations);
+        const rejected = loaded.find((result) => result.status === 'rejected');
+        if (rejected?.status === 'rejected') throw rejected.reason;
+      } finally {
+        // Correlated same-origin refreshes keep sibling renderers in place.
+        // Failed reconnects also leave their editors usable with saved drafts.
+        await resumeWindows(ids);
       }
     });
   } catch (e) {
     logger.warn(`refresh of ${shell.target} failed: ${errorText(e)}`);
+    if (!quitting && !quitPending) dialog.showErrorBox('Could not refresh this host', errorText(e));
+  }
+}
+
+async function reloadWindow(win: BrowserWindow, ignoreCache = false): Promise<void> {
+  const host = hostForWindow(win);
+  const window = host && [...host.windows.values()].find((window) => window.win === win);
+  if (!host || !window) return;
+  try {
+    await windowNavigations.run(host.target, `reload:${window.identity.id}`, async () => {
+      if (quitting || quitPending || win.isDestroyed()) return;
+      try {
+        await checkpointWindow(window.identity.id);
+        if (quitting || quitPending || win.isDestroyed()) return;
+        await reloadContents(win.webContents, ignoreCache);
+      } finally {
+        await resumeWindows([window.identity.id]);
+      }
+    });
+  } catch (error) {
+    if (!quitting && !quitPending)
+      dialog.showErrorBox('Could not reload this window', errorText(error));
+    throw error;
   }
 }
 
@@ -370,7 +417,10 @@ function createWindow(
     event.preventDefault();
     if (closePending) return;
     closePending = true;
-    void checkpointWindow(identity.id).then(
+    const checkpoint = windowNavigations.busy(target)
+      ? windowNavigations.wait(target).then(() => checkpointWindow(identity.id))
+      : checkpointWindow(identity.id);
+    void checkpoint.then(
       () => {
         closePending = false;
         if (quitPending || quitting || win.isDestroyed()) return;
@@ -451,6 +501,8 @@ async function openShell(
   placement?: WindowPlacement,
   restored?: ReopenWindow,
 ): Promise<void> {
+  if (quitting || quitPending) return;
+  await windowNavigations.wait(target);
   if (quitting || quitPending) return;
   const identity = restored?.window ?? { kind: 'host' as const, id: reopenWindowId({ target }) };
   const existing = restored
@@ -682,10 +734,20 @@ registerWindowStateIpc({
   },
 });
 registerWindowTransferIpc(ipcMain, windowContext, windowTransfers);
+ipcMain.handle('puddle:window-reload', async (event) => {
+  const owner = windowContext(event);
+  for (const host of shells.values()) {
+    const window = host.windows.get(owner.identity.id);
+    if (window) return reloadWindow(window.win);
+  }
+  throw new Error('Window is unavailable');
+});
 
 ipcMain.handle('puddle:window-ready', (event) => {
   const owner = windowContext(event);
-  if (quitting || quitPending) throw new Error('Application is closing');
+  // A replacement may finish loading while quit waits for navigation. Register
+  // it so the final checkpoint covers it, and a cancelled quit leaves it usable.
+  if (quitting) throw new Error('Application is closing');
   windowCommands.ready(owner.identity.id, (command) =>
     event.sender.send('puddle:window-command', command),
   );
@@ -860,8 +922,20 @@ function buildMenu(): void {
     {
       role: 'viewMenu',
       submenu: [
-        { role: 'reload' },
-        { role: 'forceReload' },
+        ...[false, true].map(
+          (ignoreCache) =>
+            ({
+              label: ignoreCache ? 'Force Reload' : 'Reload',
+              accelerator: ignoreCache ? 'CmdOrCtrl+Shift+R' : 'CmdOrCtrl+R',
+              click: (_item, focused) => {
+                const window = BrowserWindow.getAllWindows().find((window) => window === focused);
+                if (window)
+                  void reloadWindow(window, ignoreCache).catch((error) =>
+                    logger.warn(errorText(error)),
+                  );
+              },
+            }) satisfies MenuItemConstructorOptions,
+        ),
         { role: 'toggleDevTools' },
         { type: 'separator' },
         // Plain ⌘0 belongs to project switching in the renderer.
@@ -1021,7 +1095,10 @@ if (!app.requestSingleInstanceLock()) {
       return;
     }
     const ids = [...shells.values()].flatMap((host) => [...host.windows.keys()]);
-    if (!ids.some((id) => windowCommands.available(id))) {
+    if (
+      !ids.some((id) => windowCommands.available(id)) &&
+      ![...shells.keys()].some((target) => windowNavigations.busy(target))
+    ) {
       try {
         finishQuit();
       } catch (error) {
@@ -1033,6 +1110,8 @@ if (!app.requestSingleInstanceLock()) {
     event.preventDefault();
     quitPending = true;
     void (async () => {
+      if ([...shells.keys()].some((target) => windowNavigations.busy(target)))
+        await windowNavigations.drain();
       // Wait for every reply before rolling back; a sibling can still be saving.
       const results = await Promise.allSettled(ids.map(checkpointWindow));
       try {

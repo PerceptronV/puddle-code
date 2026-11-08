@@ -1,5 +1,11 @@
 # The puddle communication protocol
 
+Application **26.10** adds an optional private desktop reload capability. The
+registered window checkpoints its working set before native reload; ordinary
+browser refresh retains its existing path. Native host refresh checkpoints all
+of that host's windows, serialises with reload and drains before app quit. No
+daemon, runtime or remote protocol operation changes.
+
 Application **26.9** adds private desktop lookup and activation of a file/session
 in an existing pane window. Lookup is bounded to the caller's host/profile and
 activation uses the registered renderer's correlated command channel. File and
