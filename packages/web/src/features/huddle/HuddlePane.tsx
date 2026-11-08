@@ -17,6 +17,7 @@ import { useLayoutBuffer } from './documents/use-layout-buffer';
 import { NodePosition } from './inspector/NodePosition';
 import { connectGraph } from './documents/graph-connections';
 import { defaultPosition } from './canvas/geometry';
+import { AuthoringAction } from './authoring/AuthoringAction';
 
 export function HuddlePane({ session, focused = true }: { session: Session; focused?: boolean }) {
   const supported = useHuddleSupported();
@@ -66,6 +67,14 @@ function HuddleEditor({ session, focused }: { session: Session; focused: boolean
           {graph?.definition.name ?? session.title ?? 'Huddle'}
         </span>
         <ControlTray label="Huddle actions" className="max-w-full flex-wrap">
+          {profile && (
+            <AuthoringAction
+              key={`${profile}:${session.id}`}
+              profile={profile}
+              session={session}
+              locked={draft.locked || !!buffer.conflict || !!layout.buffer.conflict}
+            />
+          )}
           <button
             type="button"
             className={actionClass}

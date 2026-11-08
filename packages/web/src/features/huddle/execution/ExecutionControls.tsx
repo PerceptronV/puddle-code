@@ -1,9 +1,9 @@
-import { useState, useSyncExternalStore } from 'react';
+import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
 import type { HuddleCommandTarget, Session } from '@puddle/shared';
 import { ControlTray } from '../../../components/ui/control-tray';
-import { bufferKey, listDirty, subscribeAny } from '../../editor/buffers/buffer-store';
+import { useHuddleSourceDirty } from '../documents/use-source-dirty';
 import { useHuddleAvailability, useHuddleDocument } from '../documents/queries';
 import { graphActionClass } from '../inspector/GraphEditing';
 import { huddleHistory, type HuddleCommand } from './api';
@@ -52,12 +52,7 @@ export function ExecutionControls({
     execution?: string;
   } | null>(null);
   const [preparing, setPreparing] = useState(false);
-  const prefix = bufferKey(session.id, `.puddle/huddle/${session.huddle_id}/`);
-  const dirty = useSyncExternalStore(
-    subscribeAny,
-    () => listDirty().some((key) => key.startsWith(prefix) && key.split(':').length === 2),
-    () => false,
-  );
+  const dirty = useHuddleSourceDirty(session);
   const owner = runtime.data?.owner;
   const current = owner?.connected ? owner : null;
   const availability = useHuddleAvailability(profile, supported && focused && !owner);

@@ -153,6 +153,10 @@ const changedRevision = () => {
 };
 let opened = false;
 let failLayoutRead = false;
+let removedAuthoringAccount: number | undefined;
+let authoringFailure = false;
+let releaseAuthoring: (() => void) | undefined;
+let authoringWait: Promise<void> | undefined;
 const nativeFetch = window.fetch.bind(window);
 window.fetch = async (input, init) => {
   const url = new URL(input instanceof Request ? input.url : String(input), location.href);
@@ -188,20 +192,43 @@ window.fetch = async (input, init) => {
       },
     });
   }
-  if (new URLSearchParams(location.search).has('spawn-templates')) {
+  if (
+    new URLSearchParams(location.search).has('spawn-templates') ||
+    new URLSearchParams(location.search).has('agent-authoring')
+  ) {
     const accounts = [
       { id: 11, label: 'Primary', agent_type: 'claude', logged_in: true },
       { id: 12, label: 'Coding', agent_type: 'codex', logged_in: true },
       { id: 13, label: 'Logged out', agent_type: 'claude', logged_in: false },
       { id: 14, label: 'Unsupported', agent_type: 'plain', logged_in: true },
-    ].map((account) => ({
-      ...account,
-      profile_id: profile.id,
-      config_dir: '/preview/accounts',
-      skip_permissions_default: false,
-      created_at: '2026-01-01T00:00:00Z',
-    }));
+      { id: 15, label: 'Other profile', agent_type: 'codex', logged_in: true },
+    ]
+      .filter((account) => account.id !== removedAuthoringAccount)
+      .map((account) => ({
+        ...account,
+        profile_id: account.id === 15 ? 'another-profile' : profile.id,
+        config_dir: '/preview/accounts',
+        skip_permissions_default: false,
+        created_at: '2026-01-01T00:00:00Z',
+      }));
     if (path === '/api/accounts') return Response.json(accounts);
+    if (path === '/api/sessions' && method === 'POST') {
+      await authoringWait;
+      const account = accounts.find((item) => item.id === body.account_id)!;
+      const agent = sessionSchema.parse({
+        ...sessions[0],
+        id: '00000000-0000-4000-8000-000000000008',
+        title: body.title,
+        project_id: body.project_id,
+        worktree_path: body.join_worktree,
+        account_id: account.id,
+        agent_type: account.agent_type,
+        status: 'exited',
+      });
+      fixture.addSession(agent);
+      if (authoringFailure) throw new TypeError('Synthetic lost creation reply');
+      return Response.json(agent, { status: 201 });
+    }
     if (path === `/api/puddlang/${profile.id}/context`)
       return Response.json({
         profile: { id: profile.id, name: profile.name },
@@ -396,5 +423,19 @@ Object.assign(window, {
       executionSupported = value;
     },
     changedRevision,
+    removeAuthoringAccount: (id: number) => {
+      removedAuthoringAccount = id;
+    },
+    failAuthoring: () => {
+      authoringFailure = true;
+    },
+    holdAuthoring: () => {
+      authoringWait = new Promise<void>((resolve) => {
+        releaseAuthoring = resolve;
+      });
+    },
+    releaseAuthoring: () => {
+      releaseAuthoring?.();
+    },
   },
 });

@@ -9,7 +9,9 @@ observation are also available. [Custom readouts](huddle/readouts.md) can delive
 graph outputs to external services on supporting runtimes. [Custom triggers](huddle/triggers.md)
 can subscribe to external sources with durable cursors and visible source health.
 Spawn agent creates an agent and sends its initial prompt. Resume/restart nodes,
-explicit native feedback and authoring CLI/skills remain unfinished. Native provider, supervisor and reboot acceptance is pending.
+explicit native feedback and authoring CLI/MCP remain unfinished. **Edit with agent**
+supplies a bundled huddle skill to a selected authoring account. Native provider,
+supervisor and reboot acceptance is pending.
 
 ## Create and edit
 
@@ -72,6 +74,12 @@ and includes feedback settings. Connections use the manifest's Undo/Redo history
 they do not send prompts or run nodes. A source edit during a wire gesture cancels
 that gesture. Cycles can be drafted, but require explicit bounded feedback before
 validation permits execution.
+
+Use **Edit with agent** to give an explicitly selected account a task scoped to
+this huddle's directory and worktree. Its ordinary session receives the bundled
+authoring skill; it never activates edits automatically. See
+[agent-assisted authoring](huddle/authoring.md) for account selection, source
+review and lost-reply handling.
 
 ## Run on an interval
 

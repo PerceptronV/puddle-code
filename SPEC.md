@@ -1690,6 +1690,19 @@ Review spawned agent templates with retained `agent` inputs, explicit worktrees
 and editable prompts. They attach only an execution-owned runtime and verify its
 session id before asking; the handle stays immutable across feedback rounds.
 Resume/restart and real-provider acceptance remain unfinished. See the [current usage guide](docs/huddle.md).
+The IDE's **Edit with agent** action under `web/features/huddle/authoring/` uses
+ordinary session creation with an explicitly selected current-profile account,
+the huddle's exact joined worktree, an initial task/context prompt and permission
+bypass disabled. It does not require graph scripted-turn support or launch a
+huddle owner. The frontend embeds the canonical `skill/puddle-huddle/SKILL.md` in
+that prompt; it neither installs personal skills nor assumes provider discovery.
+The account choice has no fallback. Dirty local source/conflicts block authoring
+launch, and external edits use ordinary editor observation/conflict handling.
+Creation is attempted once per dialog; a failed reply requires inspection of
+ordinary sessions before a fresh attempt. Completion/saving never applies source
+or arms triggers. The ordinary authoring agent remains independent of the huddle's
+owned-agent cleanup policy. Existing session APIs suffice; no protocol change is
+introduced. Schema/type bundles and authoring CLI/MCP parity remain pending.
 Huddle views can move through panes, project layouts and native
 transfers without creating PTYs or owners. Closing a view is independent of Stop.
 Desktop recovery format 4 migrates versions 2/3; `windows.huddles` gates native

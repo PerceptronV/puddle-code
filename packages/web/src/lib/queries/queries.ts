@@ -501,6 +501,7 @@ export function useCreateSession() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: CreateSessionRequest) => api<Session>('POST', '/api/sessions', body),
+    retry: false,
     onSuccess: (session) => invalidateSessions(qc, session),
   });
 }

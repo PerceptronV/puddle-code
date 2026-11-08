@@ -34,6 +34,53 @@ delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 No user CLI command is enabled yet.
 
+## Implemented: IDE agent-assisted authoring
+
+**Edit with agent** starts an ordinary managed agent in the huddle's exact
+project worktree using an explicitly selected current-profile account and task.
+The account field has no default or fallback; logged-out accounts are disabled,
+and a removed selected account remains visible as unavailable. The backend's
+normal session path retains provider/login/profile/worktree checks. Authoring
+does not require scripted-turn support. Requests set `separate_branch: false`,
+`separate_worktree: false`, exact `join_worktree`, and `skip_permissions: false`.
+Successful creation navigates to the agent's ordinary session tab.
+
+`web/features/huddle/authoring/` owns the dialog and prompt construction. Its
+canonical `skill/puddle-huddle/SKILL.md` is a raw frontend asset embedded into the
+initial prompt alongside JSON scope and the requested task. It does not modify
+personal skills or depend on provider discovery. The skill covers directory/id
+identity, contracts, explicit worktrees, feedback/operation limits and the
+distinction between saved and active revisions. The current usage guide is
+`docs/huddle/authoring.md`.
+
+The graph's source-dirty subscription is shared with execution controls and
+includes open component drafts in this huddle's editor context. Unsaved source
+or manifest/layout conflicts block launch; archived huddles cannot launch an
+authoring session. File edits retain the ordinary editor's observation/conflict
+behaviour. Neither session creation/completion nor file saving activates code.
+Authoring session cleanup is independent of graph-owned agents. The ordinary
+session mutation explicitly disables automatic retry, and each authoring review
+consumes at most one creation attempt; a failed reply explains that a session may
+already exist and requires closing/reviewing sessions before trying again.
+
+Verification: the new `agent-authoring.browser.mjs` headless check passes against
+the isolated UI-only fixture. It verifies explicit account choice, exclusion of
+another profile/logged-out accounts, ordinary provider eligibility, preserved
+removed-account selection, exact request/worktree/task/skill, dirty-manifest
+admission, navigation, single pending submission and no retry after an accepted
+creation loses its reply. No huddle execution request is sent. The authoring
+dialog screenshot was reviewed. Existing editing, execution and spawn browser checks
+also pass. The focused Vitest run passed 68 of 69 tests in 7 files; the existing
+onboarding-notes watcher timed out and passed when rerun alone (69 distinct tests
+covered). Web TypeScript, changed-source lint/formatting, skill validation,
+semantic colour checks and diff checks pass. The production web build passes and
+contains the canonical skill in the lazy huddle asset. No production daemon,
+native desktop or real provider was launched.
+Remaining authoring work: standalone schemas/types and complete extension examples,
+CLI/MCP discovery/validation/inspection/activation/lifecycle parity, managed
+integration secrets, and real-provider authoring evidence. No protocol, runtime
+metadata, ledger or database format changes are introduced by this UI action.
+
 ## Implemented: retained execution inputs and spawned-agent feedback
 
 Application **28.9** adds `prompt-spawned-agent` and `review-spawned-agent` to
@@ -99,7 +146,7 @@ UI-only preview/headless Chromium were used; no production daemon or native
 provider/desktop was launched.
 
 Remaining: live-provider and distinct-worktree review evidence, resume/restart
-nodes, explicit native completion feedback, authoring assistance, offline recovery
+nodes, explicit native completion feedback, complete authoring resources/CLI/MCP, offline recovery
 and the roadmap's platform/packaged acceptance gates. Retained inputs do not add
 owner-crash recovery or permit continuing arbitrary interrupted scripts.
 

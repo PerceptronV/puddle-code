@@ -751,6 +751,17 @@ revision/history and recovery actions rather than a blank editor.
 
 ## 10. Agents authoring huddles
 
+Implemented first increment: **Edit with agent** starts an ordinary managed
+session using an explicitly selected logged-in account in the current profile,
+joined to the huddle's exact worktree. The initial prompt contains the definition
+directory, application protocol, task and bundled `puddle-huddle` skill. The skill
+is supplied as context for every provider; no personal skill installation is
+assumed or overwritten. Local dirty source/conflicts block launch. Saving and
+agent completion remain separate from graph activation. See the
+[authoring guide](../huddle/authoring.md) and [acceptance](../acceptance/huddle.md).
+Standalone schema/type assets, richer integration templates and CLI/MCP parity
+remain to be shipped; this UI action does not complete the authoring phase.
+
 Let users select any eligible account in the current profile to create or modify
 a huddle through an ordinary managed agent. The authoring agent is distinct from
 agents used by the graph. Keep provider/version capability checks and permission
@@ -782,7 +793,7 @@ enable nested delegation, cross-profile access or unlimited agent budgets.
 
 ## 11. Phased implementation and release gates
 
-Phases 0–4 are **in progress**; phase 5 has window integration but authoring assistance remains unfinished. Phase 6
+Phases 0–4 are **in progress**; phase 5 has window integration and IDE authoring assistance, with authoring resources and CLI/MCP parity unfinished. Phase 6
 has preparatory host maintenance integration, with packaged acceptance pending.
 Phase 1 currently has the private inbox/outbox, node-attempt and exact-operation
 ledger plus durable

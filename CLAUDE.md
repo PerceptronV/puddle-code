@@ -691,6 +691,13 @@ activation. The inspector shares ordinary worktree-file queries for saved local
 contracts; unresolved/invalid contracts must not silently fall back to stale captured
 settings once the read settles. Resource choices come from existing project/worktree
 queries; server activation still resolves exact bindings. See `docs/huddle.md`.
+Agent-assisted editing lives under `web/features/huddle/authoring/`: reuse ordinary
+session creation, explicit current-profile account choice and exact joined worktree.
+Embed its canonical `skill/puddle-huddle/SKILL.md` in the initial prompt; do not
+overwrite personal skills or require graph scripted-turn capability for authoring.
+Share source-dirty observation with execution controls. One creation attempt per
+dialog, no automatic retry after a lost reply, and no activation on save/completion.
+See `docs/huddle/authoring.md`; standalone schema/types and CLI/MCP remain unfinished.
 Migration 44 persists Stop consumption before sending
 shutdown; repeat observation cannot send another Stop. The existing kill/archive
 paths delegate to these controls and refuse unresolved owner cleanup. Keep huddle
