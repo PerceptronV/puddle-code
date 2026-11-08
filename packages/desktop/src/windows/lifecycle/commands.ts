@@ -9,11 +9,14 @@ import {
   type DesktopWindowTransferCommand,
   type DesktopWorkspaceVersion,
   type DesktopArrangementCommand,
+  type DesktopArrangementPlanCommand,
+  type DesktopArrangementPlan,
+  type DesktopWindowCommandReply,
 } from '@puddle/shared';
 
 interface Pending {
   windowId: string;
-  resolve(version?: DesktopWorkspaceVersion): void;
+  resolve(reply: DesktopWindowCommandReply): void;
   reject(error: Error): void;
   timer: ReturnType<typeof setTimeout>;
 }
@@ -22,16 +25,46 @@ interface Pending {
 export class WindowCommands {
   private readonly renderers = new Map<string, (command: DesktopWindowCommand) => void>();
   private readonly pending = new Map<string, Pending>();
+  private readonly generations = new Map<string, number>();
+  private readonly waiting = new Map<string, Set<() => void>>();
 
   constructor(private readonly timeoutMs = 10_000) {}
 
   ready(windowId: string, send: (command: DesktopWindowCommand) => void): void {
     this.disconnected(windowId);
+    this.generations.set(windowId, (this.generations.get(windowId) ?? 0) + 1);
     this.renderers.set(windowId, send);
+    for (const ready of this.waiting.get(windowId) ?? []) ready();
   }
 
   available(windowId: string): boolean {
     return this.renderers.has(windowId);
+  }
+
+  generation(windowId: string): number | null {
+    return this.available(windowId) ? this.generations.get(windowId)! : null;
+  }
+
+  whenReady(windowId: string): Promise<void> {
+    if (this.available(windowId)) return Promise.resolve();
+    return new Promise((resolve, reject) => {
+      const waiters = this.waiting.get(windowId) ?? new Set();
+      this.waiting.set(windowId, waiters);
+      const remove = () => {
+        waiters.delete(ready);
+        if (!waiters.size) this.waiting.delete(windowId);
+      };
+      const timer = setTimeout(() => {
+        remove();
+        reject(new Error('The new window did not finish loading'));
+      }, this.timeoutMs);
+      const ready = () => {
+        clearTimeout(timer);
+        remove();
+        resolve();
+      };
+      waiters.add(ready);
+    });
   }
 
   request(
@@ -46,14 +79,21 @@ export class WindowCommands {
     windowId: string,
     command: DesktopWindowTransferCommand,
   ): Promise<DesktopWorkspaceVersion | undefined> {
-    return this.dispatch(windowId, command);
+    return this.dispatch(windowId, command).then((reply) => reply.version);
   }
 
   arrangement(
     windowId: string,
     command: DesktopArrangementCommand,
   ): Promise<DesktopWorkspaceVersion | undefined> {
-    return this.dispatch(windowId, command);
+    return this.dispatch(windowId, command).then((reply) => reply.version);
+  }
+
+  planArrangement(
+    windowId: string,
+    command: DesktopArrangementPlanCommand,
+  ): Promise<DesktopArrangementPlan | undefined> {
+    return this.dispatch(windowId, command).then((reply) => reply.arrangement);
   }
 
   moveContent(windowId: string, command: DesktopContentMoveCommand): Promise<void> {
@@ -64,10 +104,7 @@ export class WindowCommands {
     return this.dispatch(windowId, command).then(() => undefined);
   }
 
-  private dispatch(
-    windowId: string,
-    command: unknown,
-  ): Promise<DesktopWorkspaceVersion | undefined> {
+  private dispatch(windowId: string, command: unknown): Promise<DesktopWindowCommandReply> {
     const send = this.renderers.get(windowId);
     if (!send) return Promise.reject(new Error('Window renderer is unavailable'));
     const id = randomUUID();
@@ -100,7 +137,7 @@ export class WindowCommands {
     clearTimeout(pending.timer);
     this.pending.delete(reply.id);
     if (reply.error) pending.reject(new Error(reply.error));
-    else pending.resolve(reply.version);
+    else pending.resolve(reply);
   }
 
   disconnected(windowId: string): void {

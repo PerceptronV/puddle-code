@@ -1,5 +1,19 @@
 # The puddle communication protocol
 
+Application **26.20** adds optional private desktop layout apply/observation
+capabilities and a bounded renderer planning command/reply. Only a host window
+can apply a profile/project arrangement. Main matches logical slots within its
+registered host/profile, seals live participants, requests structure/draft planning,
+stages destinations and verifies every live participant before the atomic commit.
+Operation ids are observed after lost replies, never blindly replayed. Failed
+sealing/planning also records a cancellation. A new destination which acquired late
+edits during cancellation remains as a durable recovery window. Layout mode belongs
+to the restored native working set; applying it does not rewrite client preferences.
+New seeds and explicit preference changes still use the existing conversion.
+The named-layout popover's coordinated save/load integration remains pending.
+Recovery format 3, saved arrangement version 1 and daemon/runtime/remote operations
+are unchanged.
+
 Application **26.19** adds private renderer arrangement commands to seal an
 original working set, stage an exact prepared revision, verify the mounted
 presentation and adopt its durable commit/cancellation. A separate optional

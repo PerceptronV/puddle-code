@@ -7,6 +7,8 @@ import {
   type DesktopContentMoveCommand,
   type DesktopProjectCommand,
   type DesktopArrangementCommand,
+  type DesktopArrangementPlanCommand,
+  type DesktopArrangementPlan,
 } from '@puddle/shared';
 
 interface WorkingSetCheckpoint {
@@ -29,6 +31,7 @@ export async function registerRendererLifecycle(
   arrangement?: (
     command: DesktopArrangementCommand,
   ) => Promise<DesktopWorkspaceVersion | undefined>,
+  planArrangement?: (command: DesktopArrangementPlanCommand) => Promise<DesktopArrangementPlan>,
 ): Promise<() => void> {
   let queue = Promise.resolve();
   const unsubscribe = bridge.onCommand((value) => {
@@ -37,6 +40,7 @@ export async function registerRendererLifecycle(
         const command = desktopWindowCommandSchema.parse(value);
         let error: string | undefined;
         let version: DesktopWorkspaceVersion | undefined;
+        let plan: DesktopArrangementPlan | undefined;
         try {
           if (command.kind === 'checkpoint') {
             fence(true);
@@ -45,6 +49,9 @@ export async function registerRendererLifecycle(
             );
             const failure = results.find((result) => result.status === 'rejected');
             if (failure?.status === 'rejected') throw failure.reason;
+          } else if (command.kind === 'plan-layout') {
+            if (!planArrangement) throw new Error('Window layout planning is unavailable');
+            plan = await planArrangement(command);
           } else if (
             command.kind === 'seal-layout' ||
             command.kind === 'stage-layout' ||
@@ -85,6 +92,7 @@ export async function registerRendererLifecycle(
           id: command.id,
           ...(error ? { error } : {}),
           ...(version ? { version } : {}),
+          ...(plan ? { arrangement: plan } : {}),
         });
       })
       .catch(reportError);

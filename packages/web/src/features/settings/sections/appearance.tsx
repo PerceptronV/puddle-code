@@ -12,6 +12,10 @@ import { updateClientSettings, useClientSettings } from '../../../lib/settings/c
 import { CURSOR_PACKAGES, type CursorPackageId } from '../../../lib/appearance/cursor-packages';
 import { applyTheme, storedPreference, type ThemePreference } from '../../../lib/appearance/theme';
 import { NumberField, SectionTitle, SettingRow } from '../parts';
+import {
+  desktopProjectLayoutMode,
+  requestDesktopProjectLayoutMode,
+} from '../../windows/use-desktop-state';
 
 export function AppearanceSection() {
   const settings = useClientSettings();
@@ -112,8 +116,13 @@ export function AppearanceSection() {
       >
         <Switch
           id="project-based-layout"
-          checked={settings.projectBasedLayout}
-          onCheckedChange={(checked) => updateClientSettings({ projectBasedLayout: checked })}
+          checked={
+            desktopProjectLayoutMode(settings.projectBasedLayout) ?? settings.projectBasedLayout
+          }
+          onCheckedChange={(checked) => {
+            requestDesktopProjectLayoutMode(checked);
+            updateClientSettings({ projectBasedLayout: checked });
+          }}
         />
       </SettingRow>
       <SettingRow

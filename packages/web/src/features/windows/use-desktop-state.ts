@@ -1,7 +1,11 @@
 import { useEffect, useMemo, useState, useSyncExternalStore } from 'react';
 import { uiStateSnapshotSchema, desktopTabKey } from '@puddle/shared';
 import { desktopBridge } from '../../lib/desktop';
-import { fetchProfileState, putProfileState } from '../../lib/queries/queries';
+import { fetchAllSessions, fetchProfileState, putProfileState } from '../../lib/queries/queries';
+import { queryClient } from '../../lib/queries/client';
+import { clientSettings } from '../../lib/settings/client-settings';
+import { planWindowArrangement } from './arrangements/plan';
+import { WindowLayoutMode } from './state/layout-mode';
 import { debounce } from '../../lib/debounce';
 import { toastError } from '../../lib/transport/errors';
 import type { UiStateHandle } from '../workspace/use-ui-state';
@@ -22,6 +26,7 @@ import {
 } from './transfers/pane-transfer';
 
 const workingSets = new Map<string, DesktopWorkingSet>();
+const layoutModes = new Map<string, WindowLayoutMode>();
 const empty = uiStateSnapshotSchema.parse({});
 const subscribeNothing = () => () => undefined;
 const loadOwner = async (profileId: string) => {
@@ -167,6 +172,20 @@ export async function registerDesktopWindowLifecycle(): Promise<void> {
         .catch(toastError);
     },
     (command) => arrangementParticipant.command(command),
+    async (command) => {
+      if (
+        desktopWindowContext()?.identity.id !== command.ownerId ||
+        currentProfileId() !== command.request.profileId
+      )
+        throw new Error('The layout owner changed');
+      const sessions = await fetchAllSessions(queryClient);
+      if (currentProfileId() !== command.request.profileId)
+        throw new Error('The layout profile changed');
+      return planWindowArrangement(
+        command,
+        new Map(sessions.map((session) => [session.id, session.project_id])),
+      );
+    },
   );
 }
 
@@ -195,8 +214,32 @@ export function desktopWorkingSet(profileId: string): DesktopWorkingSet | null {
     const owner = workingSet;
     content.subscribe(() => owner.changed());
     workingSets.set(profileId, workingSet);
+    layoutModes.set(profileId, new WindowLayoutMode(clientSettings().projectBasedLayout));
   }
   return workingSet;
+}
+
+/** Keep an applied native mode through remount/reload without changing other windows' preferences. */
+export function desktopProjectLayoutMode(preference: boolean): boolean | null {
+  const profile = currentProfileId();
+  const context = desktopWindowContext();
+  const owner = profile ? workingSets.get(profile) : undefined;
+  if (!profile || context?.identity.kind !== 'host' || !owner) return null;
+  return layoutModes
+    .get(profile)!
+    .select(
+      preference,
+      owner.restored(),
+      owner.get().layout_mode,
+      context.stagingArrangement !== undefined,
+    );
+}
+
+/** A deliberate Settings action also applies when it matches the saved browser default. */
+export function requestDesktopProjectLayoutMode(preference: boolean): void {
+  const profile = currentProfileId();
+  if (profile && desktopWindowContext()?.identity.kind === 'host')
+    layoutModes.get(profile)?.request(preference);
 }
 
 /** Desktop state is owned outside the renderer; browser persistence stays independent. */

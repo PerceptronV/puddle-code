@@ -19,6 +19,8 @@ contextBridge.exposeInMainWorld('puddleDesktop', {
     write: (request: unknown) => ipcRenderer.invoke('puddle:window-write', request),
     layouts: {
       capture: (request: unknown) => ipcRenderer.invoke('puddle:window-layout-capture', request),
+      apply: (request: unknown) => ipcRenderer.invoke('puddle:window-layout-apply', request),
+      observe: (request: unknown) => ipcRenderer.invoke('puddle:window-layout-observe', request),
     },
     projects: {
       prepare: (request: unknown) => ipcRenderer.invoke('puddle:window-prepare-project', request),

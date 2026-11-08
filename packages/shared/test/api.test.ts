@@ -32,8 +32,8 @@ import {
 } from '../src/index.js';
 
 describe('shared API schemas', () => {
-  it('declares protocol 26.19 for native arrangement renderer participation', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 26, minor: 19 });
+  it('declares protocol 26.20 for native arrangement apply coordination', () => {
+    expect(PROTOCOL_VERSION).toEqual({ major: 26, minor: 20 });
   });
 
   it('accepts headless mode and rejects the previous scripted name', () => {

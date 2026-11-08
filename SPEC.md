@@ -2653,9 +2653,44 @@ revision; cancellation restores the original route and content, retaining late
 drafts visibly. A new renderer remains sealed on cancellation for the shell to
 close; an existing renderer replaced during preparation must reload its retained
 original. Staged windows cannot offer or accept native drags. The renderer never
-commits ownership itself. The native matching/apply coordinator and popover
-integration remain pending; these internals do not yet expose named window
-save/load.
+commits ownership itself.
+
+Application 26.20 connects the private host-only apply/observe bridge to native
+matching, renderer planning and atomic recovery. The coordinator shares the host
+navigation lock with capture, refresh and quit. It reserves exact pane slots
+before assigning compatible open panes, reuses the unique dedicated project owner
+(including a closed returned project), and creates missing slots with deterministic
+host/profile-scoped ids. Saved keys cannot select windows outside those candidates.
+Closed exact pane slots retain their working set and placement when reopened.
+The management host stays open even if the saved arrangement has only detached
+slots. Other hosts/profiles and project-scoped neighbours remain untouched.
+
+The renderer replaces structure while retaining live chrome, transfers matching
+drafts and view positions, and adds recovery tabs for omitted dirty files. Distinct
+dirty copies remain independent when their windows survive; an ambiguous merge
+rejects the plan. Project-scoped application replaces only the selected host slice
+or its selected portion of a profile tree, leaving unrelated slices and the host's
+mode intact. Anchored mixed-project panes remain whole. Retired/returned working
+sets contribute drafts before their presentation is emptied. Restored native
+working sets use their own stored layout mode through remount/reload; new seeds
+still use the client preference, and an explicit preference change invokes the
+existing conversion. Layout application never changes that preference globally.
+The Appearance switch shows the native working set's actual mode; a deliberate
+toggle applies even when the browser default already equals the requested value.
+
+Sealed captures must match durable revisions. The native owner checks membership,
+routes and renderer generations, opens missing destinations under its existing
+navigation lock, waits for all mounted acknowledgements, verifies retiring sources
+as well as surviving destinations, and commits ownership once. Only then may native
+sources close. Failed capture/planning consumes the operation id as a durable
+cancellation too. Lost replies use outcome observation; terminal renderer finish
+observations are idempotent. A replaced renderer reloads its original after
+cancellation. A new destination supplies its final sealed capture before dismissal;
+late edits instead keep that window as an atomic, visible draft recovery record.
+Failed final recovery acknowledgement leaves its renderer available, never silently
+destroys it. Startup cancels unfinished preparation and retains committed/recovered
+windows. The coordinated Layouts popover save/load integration remains pending;
+these capabilities currently have automated and isolated-preview callers.
 
 Saved layouts (12.2) are named snapshots of the centre tiling tree a profile can save and load. The **Layouts popover** is a top-bar popover between Settings and the Scratchpad, in the Scratchpad's mould (anchored panel, inline management, no modal). It is a LIST, not a dashboard (redesigned 2026-08-03): the live layout's own state is carried by its ROW, so nothing above the list repeats it. The current layout's **name reads green with `Active`** when it matches what is saved and **red with `Unsaved`** when the live tree has drifted. Drift is a structural comparison (`layoutSignature`): node ids, active/preview tab focus, and sub-0.1 resize noise are ignored — switching tabs is not a layout change — while tab identity, split structure, and pane proportions count. What sits above the list is only ever the name FIELD for the live layout: permanently while it has no row of its own — "Unnamed layout", the scope a save would capture (the current **project** under `projectBasedLayout` — the default — and **profile**-wide with it off), `Unsaved`, and the field that names it — and on demand from `+`. The captured payload is exactly the scoped slice — `{layout_tree, active_session}` — never shell chrome (sidebar modes and sizes stay live state). **Under project-based layout the catalogue narrows to the open project's layouts plus the profile-wide ones**; otherwise it is the whole profile's (the `?project=` filter on GET /api/layouts remains for other callers). Hiding other projects' rows is what leaves **exactly one current layout** in the list at any time — their slices carry their own `layout_ref` and are still restored on arrival, they simply are not shown or markable from a project they do not belong to. A project name under a row is what marks its scope: **profile-wide rows carry no label**, since that is the absence of one. The list stays **filterable by project** — chips in the Scratchpad's mould over what the catalogue actually holds, narrowing only, hidden when there is only one kind to show. **Every row carries four actions** — rename, save-as (save glyph), duplicate (copy glyph), delete — and everything they write takes the provenance the CLIENT SETTING implies right now, never the row's own: scope is fixed at creation, so a save-as invoked from another scope's row writes the current scope's namesake (created when absent) rather than moving a layout between scopes. **Save-as on the current layout is simply Save.** On any other row it asks first — "Overwrite “X” with the current layout?" for a row it can write in place, or "Save the current layout as “X” here?" when the row belongs to another scope — and then the live layout adopts the result as its name, exactly as Save As does elsewhere. **Duplicate means the same thing on every row**: a copy of what is SAVED there under a name asked for inline, leaving the live layout — and which layout is active — exactly as they were. Duplicating the current layout therefore copies its saved version WITHOUT the unsaved changes on top. Creating from the live layout is a different act with its own affordance: **`+` in the header** (the Scratchpad's composer gesture) opens the same name field an unnamed layout shows, saves the live layout under that name with the provenance the setting implies, and makes it the active layout. A save-as targets the row that was clicked, never one resolved by name — nothing stops two layouts sharing a name. **Loading a project-scoped layout makes its project the active one**: the load lands in that project's slice, flips `projectBasedLayout` on if it was off, and follows the URL to `/project/<id>` — without which the workspace would sit in a project whose slice is not the one just loaded and nothing visible would change. Rows load on click, and rename, naming a copy, and every confirm expand inline; the discard-confirm is computed against exactly the state a load replaces — the visible head for the open project's own layouts and profile-scoped loads under profile mode, the target project's slice for cross-project loads (its unnamed content or drift from its `layout_ref`), both for a project-scoped load under profile mode (the live profile layout shards away AND the target's preserved slice is replaced) — and a profile-scoped load under project mode confirms nothing, because it retains every slice. **The dashboard loads (and saves) too**: the layout state exists whether or not a workspace is mounted, so without one the popover drives the persisted snapshot directly (`useDashboardLayouts` — the working set over the profile row, written immediately rather than debounced; safe because no workspace `useUiState` handle is alive in that window to race with), and the next workspace open restores the result. Under the profile-wide mode the dashboard behaves as a workspace does (the profile layout is the current one, and its row says so); under project-based layout there is no single live layout at all — every project keeps its own — so the popover says that in place of any head, drops the row actions that would need one, and still loads, with the discard-confirm computed against the target project's slice. Loading prunes the stored tree against the daemon's full live-session list (untitled tabs always keep), and when it would discard unsaved changes an inline confirm warns first. The live layout keeps persisting exactly as before — closing and reopening the app never changes it; a saved layout is only a named restore point.
 

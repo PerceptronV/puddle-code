@@ -59,6 +59,8 @@ import {
   WindowLayoutCapture,
   registerWindowLayoutCaptureIpc,
 } from './windows/arrangements/capture.js';
+import { WindowLayoutApply } from './windows/arrangements/apply.js';
+import { registerWindowLayoutApplyIpc } from './windows/arrangements/ipc.js';
 
 /**
  * The desktop shell (SPEC §10): an Electron main process that drives the SAME
@@ -159,14 +161,7 @@ const windowTransfers = new WindowTransfers({
   },
   record: liveWindowRecord,
   open: (record) => openShell(record.target, record.placement, record),
-  dismiss: (id) => {
-    rememberedWindows.delete(id);
-    for (const host of shells.values()) {
-      const window = host.windows.get(id);
-      if (window && !window.win.isDestroyed()) window.win.destroy();
-    }
-    persistWindows();
-  },
+  dismiss: dismissWindow,
   report: (error) => logger.warn(errorText(error)),
   command: (id, command) => windowCommands.transfer(id, command),
   activate: (id) => {
@@ -175,13 +170,23 @@ const windowTransfers = new WindowTransfers({
       if (window) raise(window.win);
     }
   },
-  committed: () => {
-    const open = windowState?.openWindows() ?? [];
-    const ids = new Set(open.map(reopenWindowId));
-    for (const id of rememberedWindows.keys()) if (!ids.has(id)) rememberedWindows.delete(id);
-    for (const record of open) rememberedWindows.set(reopenWindowId(record), record);
-  },
+  committed: rememberCommittedWindows,
 });
+
+function dismissWindow(id: string): void {
+  rememberedWindows.delete(id);
+  for (const host of shells.values()) {
+    const window = host.windows.get(id);
+    if (window && !window.win.isDestroyed()) window.win.destroy();
+  }
+  persistWindows();
+}
+function rememberCommittedWindows(): void {
+  const open = windowState?.openWindows() ?? [];
+  const ids = new Set(open.map(reopenWindowId));
+  for (const id of rememberedWindows.keys()) if (!ids.has(id)) rememberedWindows.delete(id);
+  for (const record of open) rememberedWindows.set(reopenWindowId(record), record);
+}
 const projectWindows = new ProjectWindows({
   state: () => {
     if (!windowState || quitting || quitPending) throw new Error('Window state is unavailable');
@@ -258,6 +263,49 @@ const windowLayoutCapture = new WindowLayoutCapture({
     const failure = results.find((result) => result.status === 'rejected');
     if (failure?.status === 'rejected') throw failure.reason;
   },
+});
+
+const windowLayoutApply = new WindowLayoutApply({
+  state: () => {
+    if (!windowState || quitting) throw new Error('Window state is unavailable');
+    return windowState;
+  },
+  admit: liveWindowRecord,
+  record: (id) => {
+    for (const host of shells.values()) {
+      const window = host.windows.get(id);
+      if (window && !window.win.isDestroyed()) return reopenWindow(host.target, window);
+    }
+    throw new Error('Window is unavailable');
+  },
+  run: (target, key, action) => windowNavigations.run(target, key, action),
+  validate: (ids, arrangementId) => {
+    if (quitting || quitPending) throw new Error('Application is closing');
+    for (const id of ids) {
+      if (closingWindows.has(id) || !windowCommands.available(id))
+        throw new Error('A window is closing or still loading');
+      const pending = windowState?.stagingArrangement(id);
+      if (windowTransfers.busy(id) || (pending && pending.transaction.id !== arrangementId))
+        throw new Error('A window transfer is pending');
+    }
+  },
+  generation: (id) => windowCommands.generation(id),
+  ready: (id) => windowCommands.whenReady(id),
+  command: (id, command) => windowCommands.arrangement(id, command),
+  plan: (id, command) => windowCommands.planArrangement(id, command),
+  open: (record) => openShell(record.target, record.placement, record, true),
+  dismiss: dismissWindow,
+  reload: async (id) => {
+    for (const host of shells.values()) {
+      const window = host.windows.get(id);
+      if (window && !window.win.isDestroyed()) {
+        await reloadContents(window.win.webContents, false);
+        return;
+      }
+    }
+  },
+  committed: rememberCommittedWindows,
+  report: (error) => logger.warn(errorText(error)),
 });
 
 function persistWindows(): void {
@@ -613,9 +661,10 @@ async function openShell(
   target: string,
   placement?: WindowPlacement,
   restored?: ReopenWindow,
+  ownsNavigation = false,
 ): Promise<void> {
   if (quitting || quitPending) return;
-  await windowNavigations.wait(target);
+  if (!ownsNavigation) await windowNavigations.wait(target);
   if (quitting || quitPending) return;
   const identity = restored?.window ?? { kind: 'host' as const, id: reopenWindowId({ target }) };
   if (closingWindows.has(identity.id)) throw new Error('This window is closing');
@@ -645,6 +694,13 @@ async function openShell(
     let saveTimer: ReturnType<typeof setTimeout> | undefined;
     const capture = () => {
       if (quitting || window.win.isDestroyed()) return;
+      if (
+        windowState &&
+        !windowState.staging(identity.id) &&
+        !windowState.stagingArrangement(identity.id) &&
+        !windowState.openWindows().some((record) => reopenWindowId(record) === identity.id)
+      )
+        return;
       rememberedWindows.set(identity.id, reopenWindow(target, window));
       try {
         persistWindows();
@@ -859,6 +915,7 @@ registerWindowTransferIpc(ipcMain, windowContext, windowTransfers);
 registerWindowDragIpc(ipcMain, windowContext, windowDrags);
 registerProjectWindowIpc(ipcMain, windowContext, projectWindows);
 registerWindowLayoutCaptureIpc(ipcMain, windowContext, windowLayoutCapture);
+registerWindowLayoutApplyIpc(ipcMain, windowContext, windowLayoutApply);
 ipcMain.handle('puddle:window-dock-targets', (event, value: unknown) => {
   const owner = windowContext(event);
   const { profileId } = desktopWindowReadSchema.parse(value);

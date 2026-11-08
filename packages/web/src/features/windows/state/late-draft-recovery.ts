@@ -4,7 +4,13 @@ import {
   type TabRef,
   type UiStateSnapshot,
 } from '@puddle/shared';
-import { flattenTabs, joinTrees, makeLeaf } from '../../workspace/layout/layout-tree';
+import {
+  dedupeIds,
+  flattenTabs,
+  makeLeaf,
+  makeSplit,
+  normalise,
+} from '../../workspace/layout/layout-tree';
 import { windowBufferKey } from './content-state';
 
 /** Keep exceptional post-confirmation edits visible in their source window. */
@@ -34,7 +40,7 @@ export function retainLateDrafts(
     }));
   if (!missing.length) return snapshot;
   const recovery = makeLeaf(missing);
-  const layout_tree = tree ? joinTrees([tree, recovery]) : recovery;
+  const layout_tree = tree ? dedupeIds(normalise(makeSplit('row', [tree, recovery]))) : recovery;
   return scoped
     ? {
         ...snapshot,

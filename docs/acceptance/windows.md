@@ -204,6 +204,20 @@ verification; pending items are not support claims.
   `stagingArrangement`, not the earlier transfer acknowledgement, and cannot
   participate in native drags. The matching/apply coordinator and named-layout
   controls are still pending.
+- Native apply/observe now drives that handshake through `desktop/windows/arrangements/`
+  (application 26.20). Main reserves exact native matches, reuses compatible panes
+  and project owners, creates stable missing slots, and coordinates all participants
+  under the host navigation lock. The renderer planner lives alongside the shared
+  arrangement operations, retains chrome, moves matching drafts/view positions and
+  adds recovery tabs for omitted dirty files. Ambiguous dirty merges reject before
+  preparation. Project loads preserve unrelated slices and native layout modes;
+  anchored mixed-project panes stay whole. Fresh and retired sources must confirm
+  their versions before one commit changes ownership. Lost replies observe recorded
+  outcomes; failed planning records cancellation as well. Late new-window edits
+  during cancellation keep a durable recovery window instead of being discarded.
+  Restored native layout mode survives remount/reload without changing client
+  preferences; new seeds and explicit preference changes still use the existing
+  layout conversion. The Layouts popover has not yet adopted these capabilities.
 
 Coordinated named window arrangements and native OS acceptance are still
 pending. Pane/project detachment and menu return do not deliver the whole roadmap. Undo-stack transfer
@@ -427,6 +441,31 @@ host reload also pass. The inspected screenshot is
 under `test/dev/windows/arrangements/`; it supplies the plan directly, so this is
 renderer handshake acceptance, not named-layout matching/apply UI or native OS
 window acceptance.
+
+The native apply increment passed 220 window/lifecycle/shared-contract tests across
+32 files, shared/desktop/web TypeScript, targeted ESLint and formatting. Coverage
+includes actual renderer planning and correlated commands, scoped matching,
+repeated loads, retained closed slots, placement, cancellation before preparation,
+failed mounts, replaced renderers, lost finish acknowledgements, failed atomic
+commit, other project/profile/host isolation, mixed panes, divergent dirty copies,
+orphan-draft recovery, duplicate editor views and view-key translation. Exceptional
+new-window recovery also retains omitted drafts from a reopened closed slot.
+The additional workspace-layout and client-settings regression suite passed all
+136 tests across eight files.
+
+The isolated Chromium command
+`WINDOW_TRANSFER_KIND=project WINDOW_DOCK_BACK=drag WINDOW_LAYOUT_APPLY=1 PREVIEW_URL=http://127.0.0.1:5186/ node test/dev/window-transfer.mjs`
+(from `packages/web`) passed with the real native coordinator and renderer planner.
+It creates a missing pane slot, reapplies without duplicates, retires the superseded
+pane after acceptance and preserves dirty text/selection. It then verifies project
+drag-back and host reload, applies a different native layout mode, checks it survives
+remount/reload without changing the client preference, and exercises the actual
+Appearance switch when the default already equals the requested value. The inspected
+screenshot is `/tmp/puddle-live-layout-apply.png`. The preview harness now disconnects
+its old command registration on document navigation, matching Electron's lifecycle.
+The ordinary native-pane drag/return and browser pane-drag regressions also passed.
+These tests supply arrangements directly through the private capability; named-layout
+popover save/load and native OS acceptance remain pending.
 
 Native acceptance has not run. Use an isolated UI preview for desktop interaction;
 start any real daemon from a plain shell, never from a coding-agent session.

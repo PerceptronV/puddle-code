@@ -24,6 +24,7 @@ export class DesktopWorkingSet {
   private generation = 0;
   private savedGeneration = 0;
   private ready = false;
+  private durable = false;
   private frozen = false;
   private checkpointing = false;
   private loading: Promise<void> | null = null;
@@ -44,6 +45,7 @@ export class DesktopWorkingSet {
 
   get = (): UiStateSnapshot => this.snapshot;
   loaded = (): boolean => this.ready;
+  restored = (): boolean => this.durable;
   locked = (): boolean => this.frozen;
   subscribe = (listener: () => void): (() => void) => {
     this.listeners.add(listener);
@@ -58,6 +60,7 @@ export class DesktopWorkingSet {
     this.loading = (async () => {
       const stored = await this.bridge.read(this.profileId);
       if (stored) {
+        this.durable = true;
         this.revision = stored.revision;
         this.snapshot = stored.content.snapshot;
         this.content.restore(stored.content);
@@ -199,6 +202,15 @@ export class DesktopWorkingSet {
     );
   }
 
+  /** Read a fenced presentation for exceptional cancellation recovery; never publishes it. */
+  sealedCapture(): DesktopWorkspaceVersion {
+    if (!this.ready || !this.frozen || this.writing) throw new Error('Window is not sealed');
+    return {
+      revision: this.revision,
+      content: { snapshot: this.snapshot, ...this.content.capture(this.snapshot) },
+    };
+  }
+
   /** Suppress cleanup writes while the destination's existing views unmount. */
   beginStaging(): void {
     if (!this.frozen || this.staged || this.writing)
@@ -242,6 +254,7 @@ export class DesktopWorkingSet {
       ? retainLateDrafts(version.content.snapshot, late, projectId)
       : version.content.snapshot;
     this.revision = version.revision;
+    this.durable = true;
     this.content.restore(
       late.length
         ? { ...version.content, snapshot: this.snapshot, buffers: [...buffers.values()] }

@@ -9,13 +9,14 @@ import { pathToFileURL, fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { chromium, expect } from '@playwright/test';
 import { checkArrangementHandshake } from './windows/arrangements/handshake.mjs';
+import { checkArrangementApply, checkArrangementMode } from './windows/arrangements/apply.mjs';
 
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
 const directory = await mkdtemp(join(tmpdir(), 'puddle-live-window-'));
 const implementation = join(directory, 'implementation.mjs');
 await build({
   stdin: {
-    contents: `export { DesktopWindowState } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/persistence/state.ts'))};\nexport { WindowTransfers } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers/coordinator.ts'))};\nexport { WindowCommands } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/lifecycle/commands.ts'))};\nexport { WindowDrags } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers/drags.ts'))};\nexport { ProjectWindows } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/projects.ts'))};`,
+    contents: `export { DesktopWindowState } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/persistence/state.ts'))};\nexport { WindowTransfers } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers/coordinator.ts'))};\nexport { WindowCommands } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/lifecycle/commands.ts'))};\nexport { WindowDrags } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers/drags.ts'))};\nexport { ProjectWindows } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/projects.ts'))};\nexport { WindowLayoutApply } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/arrangements/apply.ts'))};`,
     resolveDir: root,
   },
   bundle: true,
@@ -24,8 +25,14 @@ await build({
   outfile: implementation,
   alias: { '@puddle/shared': resolve(root, 'packages/shared/src/index.ts') },
 });
-const { DesktopWindowState, WindowTransfers, WindowCommands, WindowDrags, ProjectWindows } =
-  await import(pathToFileURL(implementation).href);
+const {
+  DesktopWindowState,
+  WindowTransfers,
+  WindowCommands,
+  WindowDrags,
+  ProjectWindows,
+  WindowLayoutApply,
+} = await import(pathToFileURL(implementation).href);
 const commands = new WindowCommands();
 const mode = process.env.WINDOW_TRANSFER_KIND ?? 'pane';
 const dragBack = process.env.WINDOW_DOCK_BACK === 'drag';
@@ -88,6 +95,33 @@ const projects = new ProjectWindows({
   },
 });
 
+const layouts = new WindowLayoutApply({
+  state: () => state,
+  admit: (id) => records.get(id),
+  record: (id) => ({ ...records.get(id), route: new URL(pages.get(id).url()).pathname }),
+  run: (_target, _key, action) => action(),
+  validate: (ids) => {
+    for (const id of ids) if (!commands.available(id)) throw new Error('Renderer unavailable');
+  },
+  generation: (id) => commands.generation(id),
+  ready: (id) => commands.whenReady(id),
+  command: (id, command) => commands.arrangement(id, command),
+  plan: (id, command) => commands.planArrangement(id, command),
+  open: openPage,
+  dismiss: (id) => {
+    records.delete(id);
+    commands.disconnected(id);
+    void pages.get(id)?.close();
+    const open = new Set(state.openWindows().map((record) => record.window.id));
+    state.syncOpenWindows([...records.values()].filter((record) => open.has(record.window.id)));
+  },
+  reload: async (id) => {
+    await pages.get(id).reload();
+  },
+  committed: () => {},
+  report: (error) => errors.push(error.message),
+});
+
 async function closePage(id) {
   await commands.request(id, 'checkpoint');
   const record = records.get(id);
@@ -106,6 +140,10 @@ async function openPage(record) {
   state.syncOpenWindows([...records.values()]);
   const page = await context.newPage();
   pages.set(id, page);
+  page.on('request', (request) => {
+    if (request.isNavigationRequest() && request.frame() === page.mainFrame())
+      commands.disconnected(id);
+  });
   page.on('pageerror', (error) => errors.push(error.message));
   await page.exposeBinding('windowRequest', async (_source, method, request) => {
     if (method === 'context')
@@ -117,7 +155,12 @@ async function openPage(record) {
       };
     if (method === 'ready') {
       commands.ready(id, (command) => {
-        void page.evaluate((value) => window.receiveWindowCommand(value), command);
+        void page
+          .evaluate((value) => window.receiveWindowCommand(value), command)
+          .catch((error) => {
+            commands.disconnected(id);
+            errors.push(error.message);
+          });
       });
       const command = pendingProjectCommands.get(id);
       if (command) {
@@ -136,6 +179,8 @@ async function openPage(record) {
       if (request.error) trace.push([id, request.error]);
       return commands.reply(id, request);
     }
+    if (method === 'layout-apply') return layouts.apply(id, request);
+    if (method === 'layout-observe') return layouts.observe(id, request);
     if (method === 'beginPaneDrag') return drags.beginPane(id, request);
     if (method === 'dropPane') return drags.dropPane(id, request);
     if (method === 'beginTabDrag') return drags.beginTab(id, request);
@@ -210,16 +255,22 @@ async function openPage(record) {
             content: {
               snapshot: {
                 ...state.ui_state,
-                layout_mode: 'profile',
-                project_layouts: {},
-                explorer_pin: sessions[0].id,
-                layout_tree: {
-                  kind: 'leaf',
-                  id: 'fixture-pane',
-                  tabs: [ref],
-                  activeKey: tabRefKey(ref),
-                  previewKey: null,
+                layout_mode: 'project',
+                project_layouts: {
+                  [sessions[0].project_id]: {
+                    layout_tree: {
+                      kind: 'leaf',
+                      id: 'fixture-pane',
+                      tabs: [ref],
+                      activeKey: tabRefKey(ref),
+                      previewKey: null,
+                    },
+                    active_session: null,
+                    layout_ref: null,
+                  },
                 },
+                explorer_pin: sessions[0].id,
+                layout_tree: null,
               },
               buffers: [],
               views: {},
@@ -357,6 +408,16 @@ try {
       records,
       pages,
       openPage,
+      profileId: profile,
+      targetId: destination.window.id,
+      checkText,
+    });
+  if (process.env.WINDOW_LAYOUT_APPLY === '1')
+    await checkArrangementApply({
+      state,
+      source,
+      records,
+      pages,
       profileId: profile,
       targetId: destination.window.id,
       checkText,
@@ -706,6 +767,8 @@ try {
     assert.deepEqual(errors, []);
     console.log(`Live ${mode} handoff, source view removal, and independent pane reload pass.`);
   }
+  if (process.env.WINDOW_LAYOUT_APPLY === '1' && mode === 'project' && dockBack)
+    await checkArrangementMode({ state, source, profileId: profile, checkText });
 } catch (error) {
   console.error('Transfer diagnostics', trace, errors);
   for (const [id, page] of pages) {

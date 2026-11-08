@@ -1,10 +1,14 @@
 import {
   desktopArrangementTransactionSchema,
+  desktopArrangementOutcomeSchema,
+  desktopWindowIdSchema,
+  desktopWorkspaceVersionSchema,
   type DesktopArrangementTransaction,
   type DesktopWorkspaceContent,
+  type DesktopWorkspaceVersion,
 } from '@puddle/shared';
 import { parseReopenWindows, reopenWindowId, type ReopenWindow } from '../../reopen.js';
-import { assertDraftsRetained } from './drafts.js';
+import { assertDraftsRetained, bufferIdentity } from './drafts.js';
 import type { WindowState } from './model.js';
 
 export interface ArrangementChange {
@@ -38,6 +42,7 @@ function records(transaction: DesktopArrangementTransaction): ArrangementChange[
 export function arrangementParticipants(
   state: WindowState,
   request: Pick<ArrangementRequest, 'ownerId' | 'profileId' | 'scope' | 'projectId'>,
+  retained = false,
 ): string[] {
   const owner = state.entries[request.ownerId];
   if (!owner?.open || (owner.record.window && owner.record.window.kind !== 'host'))
@@ -54,7 +59,7 @@ export function arrangementParticipants(
       if (id === request.ownerId) return [id];
       const identity = entry.record.window;
       return entry.record.target === owner.record.target &&
-        (entry.open || entry.returnedProject) &&
+        (retained || entry.open || entry.returnedProject) &&
         identity &&
         identity.kind !== 'host' &&
         identity.profileId === request.profileId &&
@@ -236,5 +241,81 @@ export function cancelArrangement(
   if (!state.arrangements[id]) return null;
   const next = structuredClone(state);
   finish(next, id, 'cancelled');
+  return next;
+}
+
+/** A failed seal/plan still consumes its operation id without changing window ownership. */
+export function cancelArrangementPreparation(
+  state: WindowState,
+  id: string,
+  ownerId: string,
+  profileId: string,
+): WindowState | null {
+  const previous = state.arrangements[id] ?? state.arrangementOutcomes[id];
+  if (previous) {
+    if (previous.profileId !== profileId) throw new Error('Arrangement belongs to another profile');
+    return cancelArrangement(state, id, ownerId);
+  }
+  if (state.pending[id] || state.outcomes[id])
+    throw new Error('A transfer already uses this operation id');
+  arrangementParticipants(state, { ownerId, profileId, scope: 'profile' });
+  const next = structuredClone(state);
+  next.arrangementOutcomes[desktopWindowIdSchema.parse(id)] = desktopArrangementOutcomeSchema.parse(
+    { status: 'cancelled', ownerId, profileId },
+  );
+  for (const old of Object.keys(next.arrangementOutcomes).slice(0, -256))
+    delete next.arrangementOutcomes[old];
+  return next;
+}
+
+/** Keep a cancelled destination's late work without erasing a retained closed slot's drafts. */
+export function retainArrangementRecovery(
+  state: WindowState,
+  id: string,
+  ownerId: string,
+  profile: string,
+  windowId: string,
+  version: DesktopWorkspaceVersion,
+): WindowState {
+  const outcome = state.arrangementOutcomes[id];
+  if (
+    outcome?.status !== 'cancelled' ||
+    outcome.ownerId !== ownerId ||
+    outcome.profileId !== profile
+  )
+    throw new Error('The arrangement is not cancelled');
+  const entry = state.entries[windowId];
+  const identity = entry?.record.window;
+  if (
+    !entry ||
+    entry.open ||
+    !identity ||
+    identity.kind === 'host' ||
+    identity.profileId !== profile ||
+    entry.record.target !== state.entries[ownerId]?.record.target
+  )
+    throw new Error('Invalid layout recovery destination');
+  if (
+    stagedArrangement(state, windowId) ||
+    Object.values(state.pending).some(
+      (move) => move.sourceId === windowId || move.destinationId === windowId,
+    )
+  )
+    throw new Error('Window transfer is pending');
+  const previous = entry.workspaces[profile];
+  if ((previous?.revision ?? 0) !== version.revision) throw new Error('Window state changed');
+  const recovered = desktopWorkspaceVersionSchema.parse({
+    ...version,
+    revision: version.revision + 1,
+  });
+  const keys = new Set(recovered.content.buffers.map(bufferIdentity));
+  if (previous?.content.buffers.some((buffer) => !keys.has(bufferIdentity(buffer))))
+    throw new Error('Layout recovery would discard a retained draft');
+  const next = structuredClone(state);
+  const recovery = next.entries[windowId]!;
+  recovery.open = true;
+  delete recovery.returnedProject;
+  recovery.workspaces[profile] = recovered;
+  assertProjectOwners(next);
   return next;
 }

@@ -347,7 +347,8 @@
 // 26.17: optional portable window arrangements in saved-layout records.
 // 26.18: coordinated native layout capture and atomic multi-window recovery transactions.
 // 26.19: renderer seal, stage, verify and outcome commands for native layout arrangements.
-export const PROTOCOL_VERSION = { major: 26, minor: 19 } as const;
+// 26.20: coordinated native arrangement apply, renderer planning and outcome observation.
+export const PROTOCOL_VERSION = { major: 26, minor: 20 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

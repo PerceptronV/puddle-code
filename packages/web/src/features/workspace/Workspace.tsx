@@ -3,6 +3,7 @@ import { TrayMotionProvider } from '../../components/ui/tray-motion';
 import { animateSidebar } from './layout/animate-sidebar';
 import { useAcceptWindowTransfer } from '../windows/transfers/use-window-transfer';
 import { useArrangementReady } from '../windows/arrangements/use-arrangement-ready';
+import { desktopProjectLayoutMode } from '../windows/use-desktop-state';
 import { IslandSeparator } from './layout/IslandSeparator';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
@@ -134,7 +135,10 @@ function WorkspaceInner() {
   // keys. Everything downstream uses the scoped handle; only the transition
   // and slice-prune effects reach for the base one.
   const clientSettingsNow = useClientSettings();
-  const projectMode = !detachedWindow && clientSettingsNow.projectBasedLayout;
+  const projectMode =
+    !detachedWindow &&
+    (desktopProjectLayoutMode(clientSettingsNow.projectBasedLayout) ??
+      clientSettingsNow.projectBasedLayout);
   // Independent of the layout mode since 2026-08-03 (they were one setting
   // through v0.0.24): this one only decides whether the right sidebar lists
   // every project's sessions or just this project's.

@@ -39,6 +39,8 @@ import {
   prepareArrangement,
   commitArrangement,
   cancelArrangement,
+  cancelArrangementPreparation,
+  retainArrangementRecovery,
   type ArrangementRequest,
 } from './arrangements.js';
 type Transfer = DesktopWindowTransfer;
@@ -353,8 +355,9 @@ export class DesktopWindowState {
   /** The same recovery records supply coherent layout capture and apply planning. */
   arrangementEntries(
     request: Pick<ArrangementRequest, 'ownerId' | 'profileId' | 'scope' | 'projectId'>,
+    retained = false,
   ) {
-    return arrangementParticipants(this.state, request).map((id) => {
+    return arrangementParticipants(this.state, request, retained).map((id) => {
       const entry = this.entry(id);
       return structuredClone({
         record: entry.record,
@@ -382,10 +385,32 @@ export class DesktopWindowState {
     if (next) this.publish(next);
   }
 
-  arrangementOutcome(id: string, ownerId: string): 'prepared' | 'committed' | 'cancelled' | null {
+  cancelArrangementPreparation(id: string, ownerId: string, profileId: string): void {
+    const next = cancelArrangementPreparation(this.state, id, ownerId, profileId);
+    if (next) this.publish(next);
+  }
+
+  /** Retain exceptional late work in an already-created destination after cancellation. */
+  retainArrangementRecovery(
+    id: string,
+    ownerId: string,
+    profile: string,
+    windowId: string,
+    version: DesktopWorkspaceVersion,
+  ): void {
+    this.publish(retainArrangementRecovery(this.state, id, ownerId, profile, windowId, version));
+  }
+
+  arrangementOutcome(
+    id: string,
+    ownerId: string,
+    profileId?: string,
+  ): 'prepared' | 'committed' | 'cancelled' | null {
     const transaction = this.state.arrangements[id] ?? this.state.arrangementOutcomes[id];
     if (!transaction) return null;
     if (transaction.ownerId !== ownerId) throw new Error('Arrangement belongs to another window');
+    if (profileId !== undefined && transaction.profileId !== profileId)
+      throw new Error('Arrangement belongs to another profile');
     return this.state.arrangements[id] ? 'prepared' : this.state.arrangementOutcomes[id]!.status;
   }
 

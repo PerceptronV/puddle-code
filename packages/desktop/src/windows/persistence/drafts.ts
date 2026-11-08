@@ -1,6 +1,6 @@
 import type { DesktopWorkspaceContent } from '@puddle/shared';
 
-function bufferIdentity(buffer: DesktopWorkspaceContent['buffers'][number]): string {
+export function bufferIdentity(buffer: DesktopWorkspaceContent['buffers'][number]): string {
   return JSON.stringify([buffer.session, buffer.path, buffer.root ?? null]);
 }
 

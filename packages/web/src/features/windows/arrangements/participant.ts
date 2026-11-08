@@ -1,5 +1,7 @@
 import type { DesktopArrangementCommand, DesktopWorkspaceVersion } from '@puddle/shared';
 import type { DesktopWorkingSet } from '../state/working-set';
+import { retainLateDrafts } from '../state/late-draft-recovery';
+import { windowBufferKey } from '../state/content-state';
 
 interface Pending {
   id: string;
@@ -55,11 +57,43 @@ export class ArrangementParticipant {
       throw new Error('This window belongs to another layout arrangement');
     if (command.kind === 'seal-layout') return this.seal(command);
     if (command.kind === 'stage-layout') return this.stage(command);
-    const pending = this.pending;
+    let pending = this.pending;
+    if (
+      !pending &&
+      command.kind === 'finish-layout' &&
+      command.outcome === 'cancelled' &&
+      this.environment.initialArrangement() === command.arrangementId
+    ) {
+      const owner = await this.environment.owner(command.profileId);
+      pending = this.pending = {
+        id: command.arrangementId,
+        profileId: command.profileId,
+        owner,
+        originalRoute: this.environment.route(),
+        mounted: false,
+        verified: false,
+      };
+    }
+    if (
+      !pending &&
+      command.kind === 'finish-layout' &&
+      command.outcome === 'cancelled' &&
+      !this.environment.initialArrangement()
+    ) {
+      this.checkProfile(command.profileId);
+      const owner = await this.environment.owner(command.profileId);
+      if (owner.locked()) throw new Error('Another operation still owns this window');
+      this.finished = {
+        id: command.arrangementId,
+        profileId: command.profileId,
+        outcome: 'cancelled',
+      };
+      this.environment.fence(false);
+      return;
+    }
     if (!pending) throw new Error('The window layout plan is unavailable');
     if (command.kind === 'finish-layout') {
-      await this.finish(pending, command.outcome);
-      return;
+      return this.finish(pending, command.outcome);
     }
     if (pending.planned && !pending.mounted)
       throw new Error('The window has not mounted its prepared layout');
@@ -211,12 +245,33 @@ export class ArrangementParticipant {
     this.environment.suspend(true);
     await Promise.resolve();
     if (outcome === 'cancelled' && !pending.original) {
-      // A new/replaced renderer has no in-memory original. After cancellation
-      // main closes a new destination or reloads an existing participant from its
-      // retained original; never expose an editable copy of imported drafts.
-      this.finished = { id: pending.id, profileId: pending.profileId, outcome };
-      this.pending = null;
-      return;
+      // Main compares this sealed capture with the plan before closing a new
+      // destination. Late model work requires a durable recovery window instead.
+      const original = await this.environment.read(pending.profileId);
+      const unchanged = pending.planned && pending.owner.matchesCapture(pending.planned);
+      const capture = pending.owner.sealedCapture();
+      if (!unchanged) {
+        // A reopened closed slot can still own original drafts that the proposed
+        // layout placed elsewhere. Cancellation restored that record; keep its
+        // omitted files as well when this renderer needs exceptional recovery.
+        const keys = new Set(capture.content.buffers.map(windowBufferKey));
+        for (const buffer of original?.content.buffers ?? [])
+          if (!keys.has(windowBufferKey(buffer))) {
+            capture.content.buffers.push(buffer);
+            keys.add(windowBufferKey(buffer));
+          }
+        capture.content.snapshot = retainLateDrafts(
+          capture.content.snapshot,
+          capture.content.buffers,
+          projectFromRoute(this.environment.route()),
+        );
+        pending.owner.stage(capture);
+      }
+      pending.planned = capture;
+      pending.destinationRoute = this.environment.route();
+      pending.mounted = true;
+      pending.verified = false;
+      return pending.planned;
     }
     const expected =
       outcome === 'committed'

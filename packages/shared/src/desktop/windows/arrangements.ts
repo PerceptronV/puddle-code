@@ -1,5 +1,10 @@
 import { z } from 'zod';
-import { profileId, projectId } from '../../api/common.js';
+import { profileId, projectId, rowId } from '../../api/common.js';
+import {
+  savedWindowLayoutSchema,
+  windowArrangementSchema,
+  windowArrangementScopeError,
+} from '../../api/workspace/window-arrangement.js';
 import {
   desktopWindowIdSchema,
   desktopWindowIdentitySchema,
@@ -40,7 +45,66 @@ export const desktopArrangementCaptureSchema = z.object({
 export type DesktopArrangementCapture = z.infer<typeof desktopArrangementCaptureSchema>;
 export interface DesktopWindowLayoutsBridge {
   capture(request: DesktopArrangementCaptureRequest): Promise<DesktopArrangementCapture>;
+  apply?(request: DesktopArrangementApplyRequest): Promise<DesktopArrangementObservation>;
+  observe?(request: { id: string; profileId: string }): Promise<DesktopArrangementObservation>;
 }
+
+export const desktopArrangementApplyRequestSchema = desktopArrangementCaptureRequestSchema
+  .safeExtend({
+    id: desktopWindowIdSchema,
+    arrangement: windowArrangementSchema,
+    layoutRef: rowId.optional(),
+  })
+  .superRefine((request, ctx) => {
+    const error = windowArrangementScopeError(
+      request.arrangement,
+      request.scope,
+      request.projectId ?? null,
+    );
+    if (error) ctx.addIssue({ code: 'custom', message: error });
+  });
+export type DesktopArrangementApplyRequest = z.infer<typeof desktopArrangementApplyRequestSchema>;
+export const desktopArrangementObservationSchema = z.object({
+  status: z.enum(['unknown', 'prepared', 'committed', 'cancelled']),
+  error: z.string().max(2048).optional(),
+});
+export type DesktopArrangementObservation = z.infer<typeof desktopArrangementObservationSchema>;
+
+export const desktopArrangementPlanCommandSchema = z.object({
+  kind: z.literal('plan-layout'),
+  ownerId: desktopWindowIdSchema,
+  request: desktopArrangementApplyRequestSchema,
+  entries: z
+    .array(
+      z.object({
+        identity: desktopWindowIdentitySchema,
+        route: desktopWindowRouteSchema.optional(),
+        open: z.boolean(),
+        returnedProject: z.boolean(),
+        version: desktopWorkspaceVersionSchema.nullable(),
+      }),
+    )
+    .max(128),
+  slots: z
+    .array(
+      z.object({ key: savedWindowLayoutSchema.shape.key, identity: desktopWindowIdentitySchema }),
+    )
+    .max(64),
+});
+export type DesktopArrangementPlanCommand = z.infer<typeof desktopArrangementPlanCommandSchema>;
+export const desktopArrangementPlanSchema = z.object({
+  changes: z
+    .array(
+      z.object({
+        id: desktopWindowIdSchema,
+        content: desktopWorkspaceContentSchema,
+        route: desktopWindowRouteSchema,
+      }),
+    )
+    .min(1)
+    .max(128),
+});
+export type DesktopArrangementPlan = z.infer<typeof desktopArrangementPlanSchema>;
 
 /** Shell-directed participation; a renderer never chooses other windows or commits ownership. */
 export const desktopArrangementCommandSchema = z.discriminatedUnion('kind', [
