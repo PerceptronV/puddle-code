@@ -20,6 +20,8 @@ import { defaultPosition } from './canvas/geometry';
 import { AuthoringAction } from './authoring/AuthoringAction';
 import { useViewStateKey } from '../editor/tabs/view-state-context';
 import { useHuddleView } from './view/use-huddle-view';
+import { ExecutionSettings } from './inspector/settings/ExecutionSettings';
+import { NodeConcurrency } from './inspector/settings/NodeConcurrency';
 
 export function HuddlePane({ session, focused = true }: { session: Session; focused?: boolean }) {
   const supported = useHuddleSupported();
@@ -62,6 +64,7 @@ function HuddleEditor({
   const list = navigation.view.mode === 'list';
   const [adding, setAdding] = useState(false);
   const [connecting, setConnecting] = useState(false);
+  const [settings, setSettings] = useState(false);
   const { openFile } = useEditor();
   const prefix = `.puddle/huddle/${session.huddle_id}/`;
   const node = graph?.definition.nodes.find((node) => node.id === selected);
@@ -114,6 +117,15 @@ function HuddleEditor({
             onClick={() => setConnecting(!connecting)}
           >
             Connections
+          </button>
+          <button
+            type="button"
+            className={actionClass}
+            disabled={draft.locked || !graph}
+            aria-pressed={settings}
+            onClick={() => setSettings(!settings)}
+          >
+            Settings
           </button>
           <button
             type="button"
@@ -244,10 +256,17 @@ function HuddleEditor({
               Saved component inspection: {document.error.message}
             </p>
           )}
-          {(adding || connecting) && (
+          {(adding || connecting || settings) && (
             <div className="flex max-h-64 shrink-0 gap-4 overflow-auto">
               {adding && <AddNode edit={edit} profile={profile} session={session} />}
               {connecting && <Connections graph={graph} edit={edit} />}
+              {settings && (
+                <ExecutionSettings
+                  execution={graph.definition.execution}
+                  edit={edit}
+                  locked={draft.locked || !!buffer.conflict}
+                />
+              )}
             </div>
           )}
           {graph.diagnostics.length > 0 && (
@@ -398,6 +417,12 @@ function HuddleEditor({
                     edit={edit}
                   />
                   <NodeAppearance node={node} component={component} edit={edit} />
+                  <NodeConcurrency
+                    key={`${node.id}:${node.concurrency}`}
+                    node={node}
+                    edit={edit}
+                    locked={draft.locked || !!buffer.conflict}
+                  />
                   {position && (
                     <NodePosition
                       key={`${node.id}:${position.x}:${position.y}`}

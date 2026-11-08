@@ -18,6 +18,33 @@ try {
   await page.getByRole('button', { name: 'New huddle', exact: true }).click();
   await page.getByRole('button', { name: 'Review graph', exact: true }).click();
   const editor = page.getByRole('region', { name: 'Huddle editor' });
+  await editor.getByRole('button', { name: 'Settings', exact: true }).click();
+  const settings = editor.getByRole('form', { name: 'Execution settings' });
+  const updateSettings = settings.getByRole('button', { name: 'Update execution draft' });
+  await settings.getByLabel('Agent turns per execution', { exact: true }).fill('0');
+  assert.equal(await updateSettings.isDisabled(), true);
+  await settings.getByLabel('Agent turns per execution', { exact: true }).fill('12');
+  await settings.getByLabel('Owned agent cleanup').selectOption('retain-owned');
+  await updateSettings.click();
+  await editor.getByText('Unsaved changes', { exact: true }).waitFor();
+  assert.notEqual(await page.evaluate(() => window.huddleFixture.source().execution?.maxTurns), 12);
+  await editor.getByRole('button', { name: 'Undo', exact: true }).click();
+  assert.equal(
+    await settings.getByLabel('Agent turns per execution', { exact: true }).inputValue(),
+    '50',
+  );
+  await editor.getByRole('button', { name: 'Redo', exact: true }).click();
+  assert.equal(
+    await settings.getByLabel('Agent turns per execution', { exact: true }).inputValue(),
+    '12',
+  );
+  await editor.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.waitForFunction(() => window.huddleFixture.source().execution?.maxTurns === 12);
+  assert.equal(
+    await page.evaluate(() => window.huddleFixture.source().execution.cleanup),
+    'retain-owned',
+  );
+  await editor.getByRole('button', { name: 'Settings', exact: true }).click();
   await editor.getByRole('button', { name: 'Add node', exact: true }).click();
   await editor.getByRole('button', { name: 'Add Result', exact: true }).click();
   await editor.getByText('Unsaved changes', { exact: true }).waitFor();

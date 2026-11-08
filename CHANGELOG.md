@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Configure huddle execution limits, owned-agent cleanup and node concurrency in the IDE, using the existing draft, undo, Save and explicit Start/Apply flow.
+
 - Inspect a stopped huddle's recorded activation and an execution's original source from History; CLI/MCP also compare retained revisions with exact saved source without restarting owners (application 28.13).
 
 - Inspect retained huddle executions, results and operation outcomes after Stop through the IDE and CLI/MCP; browse recorded runtimes without starting owners or treating recorded state as live evidence (application 28.12).

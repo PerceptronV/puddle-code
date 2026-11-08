@@ -34,6 +34,21 @@ delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## Implemented: execution settings in the IDE
+
+The Settings panel edits concurrency, per-execution turn/spawn/invocation limits,
+timeout, queued-event capacity, UTC daily execution/spawn limits and owned-agent
+cleanup. The node inspector also edits per-node concurrency. Controls live under
+`web/features/huddle/inspector/settings/` and use the existing shared graph draft,
+schema validation, undo, guarded save and explicit Start/Apply flow. Accepted
+executions retain their captured limits. Unsupported coalesce/drop policies remain
+visible without silently changing the source; Queue is the available selection.
+
+Web TypeScript and scoped lint pass. The existing headless editing flow now verifies
+invalid limits, draft-only changes, undo/redo and persisted settings alongside its
+source/conflict checks, using captured-source saves. It issues no execution request.
+Full runtime recovery and native/provider acceptance remain pending.
+
 ## Implemented: durable agent-operation caller provenance
 
 Ask and spawn mailboxes now pass their exact owner identity into intent admission.
@@ -3581,7 +3596,7 @@ Phase 1 has retained revisions/activation, the ledger, routing, workers and a ma
 scheduler composed in an independent owner process, now exposed through local/SSH
 lifecycle, live-history and retained-history APIs with IDE controls. Next complete
 owner recovery, provider lifecycle coverage, host resource accounting and
-lifecycle fencing. Active-revision/source review is now implemented above. Finish settings,
+lifecycle fencing. Active-revision/source review and execution settings are implemented above. Finish unified trigger health/backlog,
 additional integration adapters, provider-backed lifecycle nodes,
 managed integration secrets, real-service adapters and packaged integration.
 

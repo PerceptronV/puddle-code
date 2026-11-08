@@ -529,6 +529,9 @@ tests and open gates in `docs/acceptance/huddle.md`. Definitions live separately
 under `.puddle/huddle/<random-hex-id>/` in the explicitly declared worktree. Shared
 graph/value/binding validation lives in `shared/src/huddle/validation/`; keep it
 data-only and do not infer runtime support from the existence of document schemas.
+Reuse SessionService/runtime controls and existing status/turn observations for
+huddle agent lifecycle nodes and triggers. Do not build another lifecycle manager
+or status detector. Prioritise finishing features with focused existing checks.
 `runtime/huddle/state/` retains a separate private ledger with atomic cursor,
 activation and operation records. Never reset dispatch consumption after a lost
 reply, and reserve outcome storage before external work. Ledger recovery assumes

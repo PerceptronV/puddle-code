@@ -182,6 +182,14 @@ grid, bevelled boxes, thick borders or glossy headers.
 
 ## 2. Existing foundations and concrete gaps
 
+Implementation priority: finish working features, reusing existing checks rather
+than expanding preparatory test infrastructure. Puddle's session lifecycle service
+and status/turn observations already drive its UI and notifications. Huddle nodes
+must call those existing controls and consume those observations; do not introduce
+another agent lifecycle manager or provider-status detector. Huddle owns graph
+routing, durable subscriptions/cursors and execution policy. Resume/restart nodes
+should extend the existing operation bridge to the ordinary session controls.
+
 | Area | Existing code to reuse | Required extension |
 | --- | --- | --- |
 | Session identity | `shared/src/api/agents/sessions.ts`, daemon `db/stores/sessions.ts`, `db/stores/huddle/placements.ts` and `sessions/` | Migration 43 and application 27.0 add huddle placement identity without an account, native conversation or PTY. Inactive creation/opening is exposed in application 27.1; application 28.2 adds manual lifecycle/history APIs. The IDE now exposes these controls; the remaining binary-kind audit is still required. |
@@ -849,7 +857,9 @@ local/SSH hosts now use captured manifest/layout saves with shared source-tab
 baselines, IndexedDB/native draft metadata, dependency conflict review and guarded
 Keep mine; missing old metadata requires review. Explicit invalid-source repair
 retains its narrower file guard. Application 28.12 adds recorded owner discovery and stopped-owner execution/result
-history through the IDE and CLI/MCP, without restarting owners. Complete settings,
+history through the IDE and CLI/MCP, without restarting owners. Execution limits,
+owned-agent cleanup and node concurrency now have IDE controls sharing draft,
+undo and explicit Save/Apply. Unified trigger health/backlog and
 native/provider/platform acceptance remain pending. Application 28.13 adds recorded
 activation/historical source inspection and exact saved comparisons through CLI/MCP.
 The IDE now has reviewed lifecycle controls, manual input and live result inspection,
