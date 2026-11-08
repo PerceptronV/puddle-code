@@ -3,8 +3,9 @@
 Status: implementation in progress, 2026-11-08, following the user's instruction
 to implement this roadmap. Phase 0 has shared document contracts, graph/binding
 validation, data-only source discovery/capture, event/delivery contracts and an
-internal node execution boundary. Phase 1 has the private execution ledger;
-independent owner/service, graph scheduling and UI integration remain unimplemented.
+internal node execution boundary. Phase 1 has the private execution ledger and
+durable graph routing with correlated joins and bounded feedback;
+independent owner/service, worker scheduling and UI integration remain unimplemented.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals, not available commands/imports.
 
@@ -248,6 +249,17 @@ Graph execution rules must be explicit before building the canvas:
    finite round/turn/lifetime limits and an exit condition. Reject unbounded
    immediate cycles. Shared root budgets cover both directions and all fan-out.
 
+Implemented routing semantics: a completion carries its input activation through
+fan-out; an explicit event emission creates a new activation shared by its fan-out.
+Joins match execution and activation, never latest values. Required inputs gate
+admission; optional values arriving later cannot revise the admitted invocation.
+Explicit `any` alternatives each create a separate activation and validate only
+their supplied inputs. A feedback edge creates a new activation; distinct feedback
+edges remain separate. The initial pass counts as round one, and feedback
+boundaries increment the causal path's round count without resetting it at another
+edge. A still-true continuation condition at the limit is a limit outcome, not
+successful completion. The owner scheduler must persist and expose that outcome.
+
 Start from puddlang's existing per-execution defaults (50 asks, eight cumulative
 agent spawns and one hour), with a five-round default for the review template.
 An armed schedule can live longer than an execution; it needs separate daily
@@ -452,9 +464,9 @@ External agent edits refresh the draft and surface conflicts, without running it
 
 The owner is the sole writer of its private execution ledger. The daemon remains
 the sole writer of application SQLite and projects committed owner observations
-into it, using cursor/acknowledgement reconciliation like existing runtimes. Choose
-a versioned journal/checkpoint or owner-local database in the runtime phase; do
-not let two processes independently update the same execution authority.
+into it, using cursor/acknowledgement reconciliation like existing runtimes. The
+initial implementation uses a versioned owner-local SQLite ledger; do not let two
+processes independently update the same execution authority.
 
 ## 7. Independent huddle runtime and recovery
 
@@ -654,8 +666,8 @@ enable nested delegation, cross-profile access or unlimited agent budgets.
 ## 11. Phased implementation and release gates
 
 Phases 0 and 1 are **in progress**; phases 2–6 are **not started**. Phase 1 currently
-has the private inbox/outbox, node-attempt and exact-operation ledger, without
-the independent owner service or scheduler. Each phase must update
+has the private inbox/outbox, node-attempt and exact-operation ledger plus durable
+graph routing, without the independent owner service or worker scheduler. Each phase must update
 `docs/acceptance/huddle.md` with implemented details and evidence, rather than
 leaving the only accurate description in code or marking future phases complete.
 

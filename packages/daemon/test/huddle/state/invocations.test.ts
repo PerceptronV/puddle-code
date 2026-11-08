@@ -18,6 +18,14 @@ afterEach(() => {
 });
 
 describe('durable huddle node execution and outbox', () => {
+  it('does not report a failed invocation as successful graph completion', () => {
+    const f = setup();
+    const { invocation, execution } = runningHuddleInvocation(f);
+    f.ledger.invocations.finish(invocation.id, 'failed', 'Script failed');
+    expect(() => f.ledger.executions.finish(execution.id, 'completed')).toThrow(
+      'unsuccessful invocations',
+    );
+  });
   it('enforces node concurrency before starting a second invocation', () => {
     const f = setup();
     const { invocation, execution } = runningHuddleInvocation(f);

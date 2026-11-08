@@ -64,6 +64,7 @@ export * from './api/agents/runtime.js';
 export * from './runtime/protocol.js';
 export * from './runtime/storage.js';
 export * from './runtime/huddle/state.js';
+export * from './runtime/huddle/routing.js';
 export * from './installation/stage.js';
 export * from './installation/collection.js';
 export * from './installation/update.js';

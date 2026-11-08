@@ -31,10 +31,14 @@ function validatePorts(
   contracts: Record<string, HuddlePort>,
   values: HuddleValues,
   direction: string,
+  activation: 'all' | 'any' = 'all',
 ) {
+  if (activation === 'any' && !Object.keys(values).length)
+    throw new Error('Missing input for alternative activation');
   for (const [port, contract] of Object.entries(contracts)) {
     if (!Object.hasOwn(values, port)) {
-      if (contract.required) throw new Error(`Missing ${direction} port: ${port}`);
+      if (contract.required && activation === 'all')
+        throw new Error(`Missing ${direction} port: ${port}`);
       continue;
     }
     if (validateHuddleValue(contract.schema, values[port]).length)
@@ -55,7 +59,7 @@ export async function executeHuddleNode(
   if (component.category !== 'script') throw new Error('HuddleNode requires a script component');
   const inputs = snapshot(context.inputs);
   const parameters = snapshot(context.parameters);
-  validatePorts(component.inputs, inputs, 'input');
+  validatePorts(component.inputs, inputs, 'input', component.activation);
   for (const [name, parameter] of Object.entries(component.parameters)) {
     if (!Object.hasOwn(parameters, name)) {
       if (parameter.required) throw new Error(`Missing node parameter: ${name}`);

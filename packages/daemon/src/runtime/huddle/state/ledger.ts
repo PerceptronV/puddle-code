@@ -3,12 +3,16 @@ import {
   huddleExecutionRecordSchema,
   huddleInvocationRecordSchema,
   huddleOperationRecordSchema,
+  huddleJoinRecordSchema,
+  type HuddleDefinition,
+  type HuddleComponent,
   type HuddleLedgerIdentity,
 } from '@puddle/shared';
 import { HuddleStateDatabase, type HuddleCollection, type LedgerRow } from './database.js';
 import { HuddleExecutions } from './executions.js';
 import { HuddleInvocations } from './invocations.js';
 import { HuddleOperations } from './operations.js';
+import { HuddleGraphRouting } from '../execution/graph.js';
 
 /** Owner-local durable execution authority; application SQLite remains daemon-owned. */
 export class HuddleLedger {
@@ -37,6 +41,20 @@ export class HuddleLedger {
 
   usage() {
     return this.database.usage();
+  }
+  graph(
+    revision: string,
+    definition: HuddleDefinition,
+    components: ReadonlyMap<string, HuddleComponent>,
+  ) {
+    return new HuddleGraphRouting(
+      this.database,
+      this.executions,
+      this.invocations,
+      revision,
+      definition,
+      components,
+    );
   }
   close() {
     this.database.close();
@@ -83,6 +101,13 @@ export class HuddleLedger {
         const emission = huddleEmissionRecordSchema.parse(JSON.parse(row.body));
         this.database.put('emissions', row.id, executionId, 'cancelled', {
           ...emission,
+          state: 'cancelled',
+        });
+      });
+      this.scan('joins', { parent: executionId, state: 'waiting' }, (row) => {
+        const record = huddleJoinRecordSchema.parse(JSON.parse(row.body));
+        this.database.put('joins', row.id, executionId, 'cancelled', {
+          ...record,
           state: 'cancelled',
         });
       });

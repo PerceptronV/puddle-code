@@ -1356,8 +1356,14 @@ trigger/cursor admission, bounded node attempts and outbox routing, retained
 execution budgets and single-consumption operation intent. Capacity reservations
 protect accepted outcomes. Recovery after outgoing-worker fencing interrupts
 script attempts and preserves unknown consumed operations without replay. The
-ledger is not yet connected to owner services, graph scheduling or provider
-dispatch; its format and isolated crash evidence are tracked in acceptance.
+ledger is not yet connected to owner services or provider dispatch; its format
+and isolated crash evidence are tracked in acceptance. Internal graph routing in
+`runtime/huddle/execution/` commits trigger/output fan-out and join admission
+atomically. Joins correlate execution and activation; each explicit event emission
+and feedback iteration creates a separate activation. Feedback checks actual
+boolean exit conditions and finite round limits. Waiting joins and failed nodes
+prevent successful completion. Worker scheduling and owner integration remain
+unfinished; routing primitives do not launch scripts or agents.
 There is no huddle API, runtime capability or UI yet; existing sessions and
 protocols remain unchanged. Contracts, bounds, verification and unfinished
 work are recorded in [huddle acceptance](docs/acceptance/huddle.md); the complete

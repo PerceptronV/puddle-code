@@ -45,6 +45,26 @@ function fixture() {
 }
 
 describe('HuddleNode execution boundary', () => {
+  it('runs explicit alternatives with one validated input and rejects empty alternatives', async () => {
+    const s = fixture();
+    s.component.activation = 'any';
+    s.component.inputs['alternative'] = {
+      schema: { type: 'string' },
+      required: true,
+      emission: 'completion',
+    };
+    const run = vi.fn(() => ({ completed: { approved: true } }));
+    const node = HuddleNode({ contract: './node.json', run });
+    await executeHuddleNode(node, s.component, { ...s.context, inputs: { alternative: 'review' } });
+    expect(run).toHaveBeenCalledOnce();
+    await expect(
+      executeHuddleNode(node, s.component, { ...s.context, inputs: {} }),
+    ).rejects.toThrow('Missing input');
+    await expect(
+      executeHuddleNode(node, s.component, { ...s.context, inputs: { alternative: 1 } }),
+    ).rejects.toThrow('Invalid input');
+    expect(run).toHaveBeenCalledOnce();
+  });
   it('declares a node without executing it and validates completion outputs', async () => {
     const s = fixture();
     const run = vi.fn(() => ({ completed: { approved: true } }));

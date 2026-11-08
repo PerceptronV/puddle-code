@@ -43,6 +43,8 @@ export type HuddleCollection =
   | 'budgets'
   | 'invocations'
   | 'activations'
+  | 'joins'
+  | 'graph-starts'
   | 'operations'
   | 'emissions';
 

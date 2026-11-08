@@ -37,7 +37,7 @@ packages/
 │   │   ├── state/       # retained journal/segments, shell observations, titles and attention
 │   │   ├── controller/  # daemon reconciliation, placement controls, viewers and notifications
 │   │   ├── lifecycle/   # launch, supervision and ended-service cleanup
-│   │   └── huddle/state/ # preparatory private inbox/outbox, invocation and operation ledger; owner service not enabled
+│   │   └── huddle/      # state/ ledger, execution/ correlated graph routing and bounded feedback
 │   └── src/worktrees/    # worktree lifecycle plus repository-aware Git inspection/mutations
 ├── web/       # React UI: Tailwind v4 + owned shadcn-style components (src/components/ui/)
 │   ├── src/styles/tokens.css   # THE colour source; scripts/check-tokens.mjs guards it in lint/CI
@@ -533,6 +533,10 @@ data-only and do not infer runtime support from the existence of document schema
 activation and operation records. Never reset dispatch consumption after a lost
 reply, and reserve outcome storage before external work. Ledger recovery assumes
 the lifecycle caller has fenced outgoing workers; it is not process-death proof.
+`runtime/huddle/execution/` routes captured graphs with durable correlated joins;
+never join different root events, event emissions or feedback activations, or
+acknowledge fan-out before every downstream admission commits. Routing errors
+still require owner-scheduler handling; these helpers do not start workers.
 The user permits breaking puddlang redesign during huddle work, while existing
 agent/terminal runtime compatibility remains required. Organise each layer by
 responsibility and keep UI, runtime, source definitions and private state separate.

@@ -174,9 +174,17 @@ export class HuddleExecutions {
         state === 'completed' &&
         (this.db.count('invocations', { parent: id, state: 'running' }) ||
           this.db.count('invocations', { parent: id, state: 'pending' }) ||
+          this.db.count('joins', { parent: id, state: 'waiting' }) ||
           this.db.count('emissions', { parent: id, state: 'pending' }))
       )
         throw new Error('Huddle execution still has pending work');
+      if (
+        state === 'completed' &&
+        ['failed', 'interrupted', 'cancelled'].some((state) =>
+          this.db.count('invocations', { parent: id, state }),
+        )
+      )
+        throw new Error('Huddle execution contains unsuccessful invocations');
       if (
         state === 'completed' &&
         ['prepared', 'dispatched', 'unknown'].some((state) =>

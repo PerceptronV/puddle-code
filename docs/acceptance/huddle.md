@@ -94,8 +94,8 @@ Node activation identities deduplicate routing. Completion and its outgoing
 ports commit in one transaction. Routing acknowledges an emission only in the
 same transaction as downstream queue admission. A persistent emission watermark
 rejects gaps/conflicting sequences; late duplicate observations do not route again.
-Future graph scheduling must supply validated edges, feedback iterations and
-contracts; this store does not itself interpret graph wiring.
+The graph router described below supplies validated edges, causal iterations and
+contracts; the low-level store does not itself interpret graph wiring.
 
 External operations retain exact target/input, invocation and execution identity.
 Dispatch consumption commits before the caller can send the operation. Repeating
@@ -120,6 +120,43 @@ an unstarted execution from pending inbox state. Late exact external outcomes
 remain readable, but do not restart the interrupted graph. These methods record
 intent/state; they do not themselves terminate workers or agents.
 
+## Implemented: durable graph routing
+
+`runtime/huddle/execution/graph.ts` interprets validated captured graph contracts
+against the ledger. Starting a root execution and admitting its trigger fan-out
+commit together. Output routing commits downstream join/input records, invocation
+admission, budget spending and acknowledgement together; a failed destination or
+capacity/budget check rolls back the entire fan-out. Repeated starts and routed
+emissions are observation-only, including after close/reopen. Both source and
+destination values are validated; the router rejects a completion record for an
+event port and pending output from an unsuccessful invocation.
+
+Join identity includes execution, destination node and causal activation. Ordinary
+completion fan-out retains that activation. Each explicit event emission creates
+a separate activation shared by its descendants; two emissions cannot contribute
+one input each to a join. Required inputs must all be present. Optional inputs
+received before admission are included; later optional inputs cannot modify an
+already admitted invocation. A node with `activation: "any"` admits each incoming
+alternative independently, validates supplied ports and does not require absent
+alternatives. Downstream joins must follow those distinct causal activations.
+
+Feedback checks the declared boolean path against each actual output, advances
+to a new activation and increments the path's iteration. The initial pass is
+round one; `maxRounds: 5` permits at most five passes, including the initial pass.
+The count covers feedback boundaries along that causal path, so multiple different
+boundaries do not reset it. Distinct feedback edges create distinct activations.
+A false continuation condition exits that edge. A still-true condition at the
+limit raises `HuddleFeedbackLimitError`, leaves the emission unacknowledged and
+admits no next invocation; the owner scheduler must record/stop the execution as
+a limit outcome. An incomplete join or failed invocation cannot be reported as
+successful execution completion. Interrupt/recovery also cancels waiting joins.
+
+These are internal routing primitives, not a running worker scheduler. They do
+not launch agents or scripts, subscribe triggers, publish/activate captured
+revisions, automatically settle failures, or create an owner service. The eventual
+owner must supply the pinned revision and handle routing errors visibly before
+this feature can be enabled.
+
 ## Bounds and defaults
 
 Document limits: 256 nodes, 1,024 edges, 64 ports/parameters per component,
@@ -133,8 +170,8 @@ Execution settings already have validated defaults: one concurrent execution,
 50 turns, eight cumulative agent spawns, one hour, 128 queued events, 100 daily
 executions, 32 daily spawns and 512 invocations per execution. Queuing defaults to
 `queue`, cleanup to `stop-owned`. The ledger enforces admission, deadline,
-concurrency and cumulative turn/spawn/invocation bounds. Coalescing/drop policies,
-feedback rounds, actual dispatch and lifecycle cleanup still need the
+concurrency and cumulative turn/spawn/invocation bounds. The router enforces
+feedback rounds. Coalescing/drop policies, actual dispatch and lifecycle cleanup still need the
 scheduler/control layer. Blank graphs can be saved as documents but fail
 activation validation until a trigger exists.
 
@@ -178,11 +215,22 @@ version without changing its database bytes. These checks establish ledger
 durability, not complete runtime/service/provider continuity. There are no
 operational huddle commands or application migrations yet.
 
+The routing increment passed **211 tests across 30 files** in the expanded
+shared/huddle suite, plus shared/daemon TypeScript and scoped ESLint. Its fake
+coder/reviewer graph completes three rounds across repeated ledger reopen, exits
+on approval and refuses further admission after a configured round limit.
+Interleaved root events and explicit event emissions retain separate join inputs;
+partial joins survive reopen; repeated delivery does not add invocations; budget
+exhaustion and invalid destinations roll back fan-out and acknowledgement together.
+Further checks cover alternatives, late optional inputs, forged emission kinds,
+failed branches and cancellation of incomplete joins. This is no evidence of
+provider-native turn completion or daemon-replacement continuity.
+
 ## Remaining implementation and acceptance
 
 Phase 0 remains open for the full component contract catalogue and lifecycle
-admission. Phase 1 has the private ledger; next wire it into the independent
-huddle owner, graph scheduler, isolated workers and exact-operation bridge,
+admission. Phase 1 has the private ledger and graph routing; next wire them into
+the independent huddle owner, worker scheduler, isolated workers and exact-operation bridge,
 including host resource accounting and lifecycle fencing. Runtime capability
 admission; third
 session kind and application protocol transition; IDE and normal windows; actual
