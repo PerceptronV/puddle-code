@@ -11,6 +11,7 @@ import {
   type RuntimeIdentity,
 } from '@puddle/shared';
 import { digest } from '@puddle/shared/node';
+import { huddleSpawnReceipt } from './receipt.js';
 import type { Db } from '../../../db/db.js';
 import type { SessionCreationCaller } from '../../../sessions/creation/caller.js';
 import { requireHuddleOwnerScope } from '../authority.js';
@@ -87,7 +88,7 @@ export class HuddleSpawnStore {
         outcome.agent.sessionId !== row.session_id ||
         outcome.agent.projectId !== request.projectId ||
         outcome.agent.worktree !== request.worktree ||
-        outcome.receipt !== digest(canonicalHuddleJson({ intent, agent: outcome.agent }))
+        outcome.receipt !== huddleSpawnReceipt(scope, request, outcome.agent)
       )
         throw new Error('Retained huddle spawn outcome changed');
       return outcome;
@@ -217,7 +218,7 @@ export class HuddleSpawnStore {
           };
           const result = huddleSpawnOutcomeSchema.parse({
             agent,
-            receipt: digest(canonicalHuddleJson({ intent, agent })),
+            receipt: huddleSpawnReceipt(scope, request, agent),
           });
           const previous = retainedOutcome();
           if (previous) {

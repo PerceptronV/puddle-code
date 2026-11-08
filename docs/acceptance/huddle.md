@@ -32,6 +32,51 @@ delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 No user CLI command is enabled yet.
 
+## Implemented: owner spawn outbox and execution-scoped handles
+
+`runtime/huddle/operations/spawns/` now validates script spawn requests against the
+captured node's declared account/provider/project/worktree bindings and records
+intent in the owner ledger. Account ids must already be resolved; there is no
+implicit account, project or worktree selection. The ordinary puddlang default
+mode remains interactive; an omitted title uses the component title. Path-based
+creation is unavailable through this bridge.
+
+A bounded outbox exposes exact scope/request records, single-consumption claims
+and retained outcomes. Claiming spends both the execution and daily spawn budgets
+in the existing ledger transaction. A lost claim is never reoffered. A known
+readiness result must match the project/worktree and host receipt for the original
+request; the owner saves it before returning the worker handle. Definite refusals
+and unknown outcomes remain distinct. A late readiness result can settle unknown
+creation after cancellation without resuming the interrupted script.
+
+Completed spawns can supply handles to attach/ask in the same execution, including
+later invocations, with an explicitly declared matching worktree and session
+capability. They do not become implicit bindings in another execution. The existing
+host turn path still checks current agent incarnation, placement and availability.
+Spawn and ask queues share bounded worker waits, cancellation and memory admission
+through `operations/pending.ts`. Result settlement and handle lookup survive ledger
+reopen; Apply keeps existing executions on their captured activation.
+
+An isolated integration drives a real node worker through spawn, simulated lost
+creation reply, host-service replacement/observation, handle return and one real
+agent ask, then exact cleanup. The source owner is composed in the test process;
+the agent and node workers run as separate child processes. This proves the queue
+and host-service composition, **not** production owner IPC or native-provider
+acceptance. Private spawn transport, automatic production dispatch, resource
+resolution on Start/Apply and lifecycle cleanup remain required before advertising
+spawn support or enabling templates. No public/owner wire contract or capability
+changes in this increment; application 28.7, runtime 1.2, remote 5, database 49 and
+huddle owner/ledger versions remain unchanged.
+
+Verification, 2026-11-08: **112 tests in 18 files** passed across huddle operations,
+owner scheduler/ledger and session creation, including the real worker spawn-to-ask
+round trip and existing two-agent exchange. All **11 owner spawn mailbox cases**
+passed again after bounding failure messages before persistence. Cases include lost
+claims, one-time budget consumption, resource-scope refusal, ledger reopen, late
+settlement after cancellation, changed Apply bindings, persistence failure,
+cross-execution handle refusal and memory admission/cancellation. Shared/daemon/CLI
+TypeScript, scoped ESLint and formatting checks passed.
+
 ## Implemented: host spawn readiness and cleanup
 
 `huddle/operations/spawns/service.ts` now composes the existing SessionService,
@@ -64,9 +109,10 @@ in the original placement remains untouched. A readiness timeout or controller
 loss alone does not issue cleanup; the future owner dispatcher must apply the
 execution's explicit cancellation/retention policy.
 
-This service is not yet exposed to huddle script workers. Owner mailbox/dispatcher,
-dynamic handles, lifecycle cleanup policy and node templates remain pending before
-spawn support can be advertised. There is no new network message, capability or
+This service is not yet exposed through production huddle owner transport. The
+owner-local queue and dynamic handle composition above are implemented; automatic
+dispatch, lifecycle cleanup policy and node templates remain pending before spawn
+support can be advertised. There is no new network message, capability or
 application protocol bump in this slice; application 28.7, ordinary runtime 1.2,
 remote 5 and huddle owner/ledger contracts are unchanged.
 

@@ -1425,8 +1425,19 @@ before retaining a receipt. Retained results remain historical after the agent e
 Explicit cleanup uses the existing queued RuntimeControls stop path, with current
 private authority and one exact-owner attempt; uncertain replies remain observation
 only. Cleanup never follows a replacement in the original placement. Source/daemon
-loss alone does not stop an accepted agent. Owner mailbox/dispatcher integration,
-lifecycle cleanup policy and user-facing spawn/resume/restart nodes remain unfinished.
+loss alone does not stop an accepted agent. The internal owner spawn outbox under
+`runtime/huddle/operations/spawns/` now validates declared resolved account/provider/
+project/worktree resources, records single-consumption claims and spends retained
+execution/daily spawn budgets. Settlement verifies the original request receipt and
+saves readiness before replying to the worker. Unknown outcomes remain reconcilable
+after interruption without restarting script work. Execution-scoped dynamic handles
+can feed later attach/ask invocations with matching worktree/session declarations;
+other executions need explicit session bindings. Ask and spawn waits share bounded
+memory/cancellation through `operations/pending.ts`. Existing executions retain their
+original activation across Apply. These components are verified together with real
+isolated node/agent workers, but private spawn transport, production dispatch,
+Start/Apply resource resolution, lifecycle cleanup and user-facing spawn/resume/restart
+nodes remain unfinished. No spawn capability is advertised yet.
 Private immutable revision documents and compare-and-swap activation records
 separate source publication from Apply/arming. Managed executions retain their
 accepted revision, variable values and resource bindings across later Apply.

@@ -614,9 +614,14 @@ stop attempt. `spawns/service.ts` shares normal session creation, exact native-c
 inspection and queued runtime stopping. Persist readiness before returning it;
 historical results never imply a currently usable agent. Check exact runtime identity
 and placement before readiness/cleanup. Consume cleanup in the queued stop review,
-never resend an uncertain stop or follow a replacement placement. Owner mailbox/
-dispatcher, lifecycle cleanup policy and authoring remain pending; do not advertise
-spawn support yet.
+never resend an uncertain stop or follow a replacement placement. Owner spawn queues
+live under `runtime/huddle/operations/spawns/`; share bounded waits with asks through
+`operations/pending.ts`. Require declared resolved account/provider/project/worktree
+resources; save verified readiness before returning execution-scoped handles.
+A completed spawn can feed later attach/ask nodes only in the same execution and
+explicit worktree. Preserve captured choices across Apply. Private spawn transport,
+production dispatch, Start/Apply resolution, lifecycle cleanup and authoring remain
+pending; do not advertise spawn support yet.
 Migration 45 adds `huddle_runtime_turns`. Host-side exact asks live under
 `huddle/operations/turns/`, reusing `RuntimeProgrammeTurns.askFor` and the common
 busy gate. Shared ordered allocation/result reservation lives in

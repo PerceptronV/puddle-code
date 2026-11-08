@@ -1,5 +1,13 @@
 # The puddle communication protocol
 
+Internal `runtime/huddle/operations/spawn-mailbox.ts` now defines bounded spawn
+outbox records/pages, exact scope and state/result consistency for owner-local
+composition. Existing ask schemas are unchanged. These spawn contracts are not
+yet carried by private owner IPC or HTTP and advertise no capability; application
+28.7, ordinary runtime 1.2, remote 5, database 49 and huddle owner/ledger versions
+remain unchanged. Production transport and lifecycle cleanup must be integrated
+before enabling spawn support.
+
 Database **49** adds retained huddle spawn readiness outcomes (bounded to 32 KiB)
 and consumed cleanup attempts. The internal `huddleSpawnOutcomeSchema` binds an
 exact agent target and receipt. These records support host observation after lost

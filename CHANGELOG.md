@@ -39,6 +39,7 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Add an owner-local huddle spawn outbox with retained claims/readiness, declared resource checks and execution-scoped handles for subsequent agent prompts. Share bounded worker waits with attach/ask and verify an isolated node-to-agent round trip after a lost spawn reply. Production spawn transport, dispatch and lifecycle cleanup remain pending.
 - Add host-side huddle agent creation, retained readiness receipts and exact-runtime cleanup through existing session/runtime services. Database schema 49 preserves readiness and consumed stop attempts across lost replies; cleanup leaves replacement agents untouched. Owner mailbox, lifecycle policy and node UI integration remain pending.
 - Retain huddle spawn placement and exact runtime admission atomically in database schema 48, preserving consumed identities across lost replies and excluding undispatched placements from automatic boot resume. Keep ownership tied to the original runtime after a placement is resumed. Spawn dispatcher, cleanup and node UI integration remain pending.
 
