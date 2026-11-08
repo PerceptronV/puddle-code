@@ -61,7 +61,10 @@ Headless observations use exact command-correlated keys, successful native resul
 plus exit evidence, and immutable ask attribution. Interactive Codex now retains
 exact native turn ids, including external turns and events preceding RPC replies,
 with ordered in-process identity delivery. Delivery into huddle completion nodes
-remains pending.
+remains pending. An internal completion subscription ledger now pins exact targets,
+validates contiguous durable native pages and atomically admits external completions
+with their cursors. Automated/unknown completions are suppressed; host/owner delivery,
+editor enablement and explicit same-execution native feedback remain unfinished.
 Broader recurrence rules, exact native completion subscriptions, a richer trigger health/backlog
 inspector and custom trigger/readout workers remain unfinished.
 See [implementation evidence](../acceptance/huddle.md). Unshipped

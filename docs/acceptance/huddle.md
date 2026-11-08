@@ -27,6 +27,55 @@ Runtime protocol 1.2 now retains an independent native-turn source for hook-base
 interactive, structured Codex and command-correlated headless controls; completion-trigger delivery remains pending.
 No user CLI command is enabled yet.
 
+## Implemented: completion subscription admission core
+
+The internal `runtime/huddle/triggers/completions.ts` contracts describe eight
+bounded node subscriptions, each pinned to the exact target runtime identity
+(including incarnation and launch), selected placement, native conversation and
+segment. The selected placement can differ from the runtime's original launch
+placement. Definition resolution requires explicit literal/variable session and
+canonical worktree bindings. Baselines must match the huddle profile/project and
+resolved resources; the owner cannot subscribe to itself.
+
+`runtime/huddle/state/completions.ts` retains eight reusable `completion-sources`
+slots in the existing private ledger. Initialisation requires the exact retained
+activation. The same generation preserves progress and refuses target changes;
+a new explicit arming generation permits a fresh target and cursor. Scope changes
+partway through initialising multiple sources roll back the whole transaction.
+
+Admission validates an unfiltered, contiguous native page and exact record scope.
+Pending persistence, epoch/retention/ahead gaps, missing positions and changed
+placement/segment/native identity cannot advance the cursor. Only successful
+external completions create root executions. Started/failed/interrupted records,
+automated completions (including known huddle origins) and unknown-origin results
+advance source progress without creating a root or spending its daily budget.
+Automated feedback must eventually continue the original bounded execution; this
+core does not allow automation to reset limits by starting another root.
+
+Each page's cursor and all admitted roots commit together. Queue/storage refusal
+and an oversized result roll back the whole page. The emitted data includes exact
+native identity, observed time, origin, reply, runtime and worktree. The existing
+256 KiB **encoded JSON value** limit includes that envelope and escaping, so a
+native reply within its own 256 KiB text limit can still be refused; it is never
+silently truncated. Reopening the ledger retains progress, and graph start retains
+its existing single-admission semantics after a lost acknowledgement.
+
+This is an internal admission core, **not an enabled completion trigger**.
+`puddle.trigger.turn-completed@1` is exported for composition but excluded from
+the creation catalogue; existing feature validation rejects it. No owner capability
+or private/public request has been enabled and no protocol/database version changes.
+Host-authorised baseline capture, live target/provider availability checks, owner
+delivery/lifecycle/resource admission, editor settings and explicit bounded native
+feedback routing remain unfinished. Tests do not establish those missing paths.
+
+Verification: **97 tests passed across 17 files**, including 16 new completion
+cases plus existing huddle revision, state, routing, scheduler, definition and
+session-trigger integration suites. Cases exercise atomic rollback, ledger reopen,
+lost-reply observation, exact scopes, variable bindings, baseline changes, missing
+history, persistence refusal, envelope limits, automation suppression and admission
+into the real captured graph. Shared/daemon/CLI TypeScript builds and repository
+ESLint, Prettier and diff checks passed.
+
 ## Implemented: interactive Codex native turn observation
 
 `agents/codex/turns/` observes exact native `turn/started`, final agent messages and

@@ -708,6 +708,15 @@ Stale generation/cursor requests must not fail a newer activation. Participate i
 maintenance drain and recheck exact owner/project/worktree scope before delivery.
 The separate native-turn source is not yet wired to huddle completion nodes; richer
 source health remains unfinished. No new public route.
+The completion admission core lives in owner `state/completions.ts`, with contracts
+in shared `runtime/huddle/triggers/completions.ts` and binding resolution in owner
+`triggers/completions/`. Pin runtime incarnation, selected placement, native segment
+and conversation; commit contiguous durable pages and roots atomically. Never
+rebase a same-generation cursor or admit automated/unknown completions as fresh
+roots. Bounded native feedback needs same-execution causality and ask-result
+deduplication. The component is not in the creation catalogue and has no enabled
+capability/delivery request; finish host/provider admission and owner integration
+before enabling it. Oversized JSON envelopes fail without truncating replies.
 Optional `git: 1` adds owner-local ref/HEAD observation under `triggers/git/`.
 Group refs and metadata watches by canonical common directory; retain distinct
 worktree HEAD targets and OIDs. `state/git.ts` uses bounded `git-sources` slots

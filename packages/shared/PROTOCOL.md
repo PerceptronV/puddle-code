@@ -45,6 +45,15 @@ in-process identity delivery preserves event/segment ordering inside native batc
 legacy loopback delivery remains available but does not advertise this observation path.
 Huddle completion-node delivery and native-provider acceptance remain pending.
 
+Internal huddle completion subscription schemas now live in
+`runtime/huddle/triggers/completions.ts`. Eight sources pin exact runtime identity,
+selected session, native segment/conversation, activation/generation and cursor.
+The owner ledger core admits only contiguous durable pages and external successful
+completions, atomically with cursor advancement. Automated/unknown outcomes do not
+start new executions. These contracts are not yet added to private owner messages
+or capabilities, and the component is absent from the creation catalogue. No wire
+or persisted schema version changes; end-to-end delivery remains unfinished.
+
 Database **47** retains bounded host session observations. Optional private huddle
 capability **`sessionEvents: 1`** enables `puddle.trigger.session@1`. Existing owners
 without it remain supported; older candidates cannot adopt owners requiring it.

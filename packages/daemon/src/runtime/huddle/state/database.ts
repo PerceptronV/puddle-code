@@ -42,6 +42,7 @@ export type HuddleCollection =
   | 'filetrees'
   | 'git-sources'
   | 'session-sources'
+  | 'completion-sources'
   | 'inbox'
   | 'cursors'
   | 'executions'

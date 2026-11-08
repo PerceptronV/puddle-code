@@ -1476,6 +1476,15 @@ including within native batches; a retained per-frame cursor prevents partial
 capacity retries from replaying observed messages. Legacy loopback delivery remains
 supported without advertising Codex source observation. Native-provider acceptance
 and subscriptions into huddle owners are still pending.
+An internal completion-admission core under `runtime/huddle/state/completions.ts`
+now retains eight exact target/cursor slots. It commits contiguous durable pages
+and external-completion roots atomically, rejects scope/generation changes and
+never turns automated or unknown-origin results into fresh executions. Replies
+must fit the existing huddle JSON envelope limit without truncation. Same-generation
+reinitialisation preserves progress; a fresh arming generation can replace targets.
+The component is excluded from the creation catalogue and no capability or delivery
+request is enabled yet. Host baseline capture, provider/target admission, owner
+delivery, editor controls and same-execution native feedback remain unfinished.
 The runtime entry point selects a separate huddle owner from a strict private launch
 record. It reuses runtime/memory claims, host grants and lifetime checks; consumes
 launch intent once; and provides bounded authenticated controller commands.
