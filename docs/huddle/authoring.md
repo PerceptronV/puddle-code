@@ -85,9 +85,8 @@ normal report with `valid: false`; malformed calls and unavailable source are MC
 tool errors. This does not automatically configure MCP for authoring accounts.
 
 For custom extensions, see [triggers](triggers.md) and [readouts](readouts.md).
-Standalone JSON Schema/type bundles, component fixtures, graph diff and
-archive/unarchive CLI/MCP operations remain pending. The originally proposed
-directory-only validation command is superseded by the explicit scope above.
+Standalone JSON Schema/type bundles, component fixtures and graph diff
+remain pending. The originally proposed directory-only validation command is superseded by the explicit scope above.
 
 ## Create, open and control a huddle
 
@@ -160,3 +159,30 @@ tools take `{session_id, request}` with the same body as the CLI. Capability gat
 filter the advertised tools; mutation annotations identify their effects and do
 not promise safe replay. There is no automatic MCP installation or execution
 approval on behalf of authoring agents.
+
+## Inspect, archive and restore a placement
+
+```sh
+pudl huddle session SESSION_ID
+pudl huddle archive SESSION_ID
+pudl huddle unarchive SESSION_ID
+```
+
+These commands require a compatible application 28.2+ host and accept the usual
+`--host`/`--profile` selection. They take the placement UUID returned by `open`,
+with no `--request`, project or worktree override. The host verifies that this is
+a huddle in the selected profile before the tools use normal session routes.
+`session` returns its declared project/worktree and current archive status.
+
+Archive follows the sidebar action: stop the placement's **current owner**, apply
+its captured agent cleanup policy and then hide the session. Uncertain shutdown
+cannot be reported as successful archive. Source, worktree and retained history
+are preserved. Unlike `stop --request`, archive is a placement operation and does
+not require a previously inspected owner target. Unarchive returns the placement
+to `exited` without starting an owner, arming triggers, recreating a missing worktree
+or unarchiving the project. Start remains a separate explicit action.
+
+MCP equivalents are `huddle_session`, `huddle_archive` and `huddle_unarchive`, each
+with strict `{session_id}` arguments. Only `huddle_session` is read-only. After a
+failed archive/unarchive reply, use `session` and `runtime` to inspect what happened
+before deciding on another action; the tools never retry or fall back automatically.

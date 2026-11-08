@@ -25,16 +25,20 @@ export class PuddlangClient {
     readonly profile: string,
     private readonly protocol?: { major: number; minor: number },
   ) {
-    this.huddles = new HuddleClient((path, body) => this.request(path, body, 'huddle'), protocol);
+    this.huddles = new HuddleClient(
+      (path, body) => this.request(path, body, 'huddle'),
+      protocol,
+      (path, body) => this.request(path, body, 'sessions'),
+    );
   }
 
   private async request(
     path: string,
     body?: unknown,
-    namespace: 'puddlang' | 'huddle' = 'puddlang',
+    namespace: 'puddlang' | 'huddle' | 'sessions' = 'puddlang',
   ): Promise<unknown> {
     const response = await fetch(
-      `http://127.0.0.1:${this.port()}/api/${namespace}/${encodeURIComponent(this.profile)}${path}`,
+      `http://127.0.0.1:${this.port()}/api/${namespace}${namespace === 'sessions' ? '' : '/' + encodeURIComponent(this.profile)}${path}`,
       {
         method: body === undefined ? 'GET' : 'POST',
         headers: {
@@ -47,7 +51,7 @@ export class PuddlangClient {
     );
     if (!response.ok)
       throw new Error(
-        `${namespace === 'huddle' ? 'Huddle' : 'Puddlang'} request failed (${response.status}): ${(await response.text()).slice(0, 2048)}`,
+        `${namespace === 'puddlang' ? 'Puddlang' : 'Huddle'} request failed (${response.status}): ${(await response.text()).slice(0, 2048)}`,
       );
     return response.json();
   }

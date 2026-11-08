@@ -4,10 +4,12 @@ import {
   huddleToolCreateSchema,
   huddleToolExecutionCommandSchema,
   huddleExecutionToolSchemas,
+  huddleToolPlacementCommandSchema,
   type HuddleLocation,
   type HuddleOpen,
   type HuddleCreate,
   type HuddleToolExecutionCommand,
+  type HuddleToolPlacementCommand,
 } from '@puddle/shared';
 import type { HuddleClient } from './client.js';
 
@@ -17,6 +19,7 @@ export const huddleHelp = `  pudl huddle list --project ID --worktree /absolute/
   pudl huddle create --name NAME --project ID --worktree /absolute/host/worktree
   pudl huddle open <huddle-id> --project ID --worktree /absolute/host/worktree
   pudl huddle runtime <session-id>
+  pudl huddle session|archive|unarchive <session-id>
   pudl huddle start|apply|run|interrupt|resume|stop <session-id> --request JSON
   pudl huddle history|observe-readout <session-id> --request JSON
 
@@ -31,12 +34,16 @@ History requires owner, collection, after and parent for invocations/operations.
 Pass the existing HTTP request body as JSON; no targets, variables or event ids
 are filled automatically. Start/Apply/Resume arm triggers and may execute code.
 Never retry a failed mutation automatically: inspect runtime/history first.
+Archive stops the placement's current owner before hiding it; it is not bound to
+a reviewed runtime target. Unarchive leaves it stopped. Neither deletes source
+or worktrees. Use session to inspect archive status, including after lost replies.
 `;
 
 export type HuddleCommand =
   | { action: 'list'; input: HuddleLocation }
   | { action: 'inspect' | 'validate' | 'open'; input: HuddleOpen }
   | { action: 'create'; input: HuddleCreate }
+  | { action: 'placement'; command: HuddleToolPlacementCommand }
   | { action: 'execution'; command: HuddleToolExecutionCommand };
 
 /** Validate before opening local authority or an SSH transport. */
@@ -45,6 +52,14 @@ export function parseHuddleCommand(
   options: { project?: string; worktree?: string; name?: string; request?: string },
 ): HuddleCommand {
   const [action, id] = args;
+  if (action === 'session' || action === 'archive' || action === 'unarchive') {
+    if (args.length !== 2 || Object.values(options).some((value) => value !== undefined))
+      throw new Error(huddleHelp);
+    return {
+      action: 'placement',
+      command: huddleToolPlacementCommandSchema.parse({ action, session_id: id }),
+    };
+  }
   if (action && Object.hasOwn(huddleExecutionToolSchemas, action)) {
     if (
       args.length !== 2 ||
@@ -75,7 +90,10 @@ export function parseHuddleCommand(
 }
 
 export async function runHuddleCommand(
-  client: Pick<HuddleClient, 'list' | 'inspect' | 'validate' | 'create' | 'open' | 'execution'>,
+  client: Pick<
+    HuddleClient,
+    'list' | 'inspect' | 'validate' | 'create' | 'open' | 'execution' | 'placement'
+  >,
   command: HuddleCommand,
   print: (value: unknown) => void,
 ): Promise<number> {
@@ -84,6 +102,7 @@ export async function runHuddleCommand(
   else if (command.action === 'open') print(await client.open(command.input));
   else if (command.action === 'create') print(await client.create(command.input));
   else if (command.action === 'execution') print(await client.execution.execute(command.command));
+  else if (command.action === 'placement') print(await client.placement.execute(command.command));
   else {
     const result = await client.validate(command.input);
     print(result);

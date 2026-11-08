@@ -1,8 +1,20 @@
 # The puddle communication protocol
 
+CLI/MCP placement tools now expose `huddle_session`, `huddle_archive` and
+`huddle_unarchive` with strict `{session_id}` arguments under
+`api/huddle/tools/placement.ts`. The CLI spelling is `pudl huddle
+session|archive|unarchive SESSION_ID`. They require the existing 28.2 feature floor.
+The client first verifies the huddle kind and selected profile through the scoped
+runtime inspection route, then uses existing ordinary session GET/archive/unarchive
+routes under the same local/SSH authority. Archive targets the placement's current
+owner through normal session lifecycle; it does not promise exact-incarnation
+semantics. Unarchive returns stopped. Mutations are never retried automatically.
+This additive stdio catalogue changes no HTTP/WS, application/runtime/remote,
+database or owner-ledger version.
+
 CLI/MCP now also expose inactive huddle create/open and the existing runtime,
 Start/Apply/Run/Interrupt/Resume/Stop/history/readout-observation controls. Shared
-tool contracts live under `api/huddle/tools/{source,execution}.ts`; MCP execution
+tool contracts live under `api/huddle/tools/{source,execution,placement}.ts`; MCP execution
 arguments contain explicit `session_id` and `request`, matching the current HTTP
 body. Runtime inspection takes only the session id. Source/placement tools use
 the 27.1 feature floor; core execution requires 28.2, readout observation requires

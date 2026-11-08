@@ -130,6 +130,15 @@ Apply and Resume can arm triggers immediately. Resume rearms the graph, not an
 agent session or interrupted script. Tool availability does not grant execution
 authority beyond the user's task.
 
+For requested placement management, `session SESSION_ID` reads archive status;
+`archive SESSION_ID` stops the current owner and hides the placement, while
+`unarchive SESSION_ID` leaves it stopped. These use the placement's declared scope
+and take no request body or worktree override. MCP equivalents are
+`huddle_session|archive|unarchive` with `{session_id}`. Archive targets the current
+placement owner, unlike Stop's reviewed exact target. After a failed reply inspect
+session/runtime; do not automatically repeat it. Neither action deletes source or
+recreates a missing worktree.
+
 Report the files changed, checks actually performed and any remaining diagnostics.
 Keep authoring within the requested task. This invocation does not grant additional
 accounts, cross-profile access, nested delegation or automatic execution authority.

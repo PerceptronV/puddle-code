@@ -1722,7 +1722,16 @@ the immutable placement's declared scope. Resume maps to existing `rearm`, retai
 the activation rather than replaying interrupted scripts. History reads one bounded
 page. Runtime inspection opts into supported readout/custom-trigger fields; older
 hosts retain basic inspection. Tool annotations distinguish observation from effects.
-Schema/type bundles, graph diff and archive/unarchive CLI/MCP parity remain pending.
+`cli/huddle/placement/` adds `session|archive|unarchive SESSION_ID` and matching
+MCP tools taking `{session_id}`. These require 28.2 and verify the selected profile
+and huddle kind through the existing scoped runtime route before using ordinary
+session routes. Placement UUID, project/profile and worktree are immutable.
+Archive shares the sidebar semantics: stop the current owner with its captured
+cleanup policy, then hide the placement. It does not target a reviewed runtime
+incarnation. Unarchive leaves the huddle stopped and does not restore a missing
+worktree or archived project. Failed mutation replies require explicit session/runtime
+inspection; no automatic retry or fallback occurs. No HTTP/WS or version change
+is introduced. Schema/type bundles and graph diff remain pending.
 Huddle views can move through panes, project layouts and native
 transfers without creating PTYs or owners. Closing a view is independent of Stop.
 Desktop recovery format 4 migrates versions 2/3; `windows.huddles` gates native

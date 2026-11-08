@@ -788,8 +788,10 @@ Expose discovery, validate, inspect/diff, activate and lifecycle operations thro
 shared host services, then CLI/MCP entry points. The implemented source syntax is
 `pudl huddle validate <id> --project <id> --worktree <absolute-host-root>`;
 this replaces the proposed directory-only form. Core runtime controls are exposed
-with `--request JSON` (MCP: `{session_id, request}`); source/active-revision diff
-and archive/unarchive tool parity remain pending.
+with `--request JSON` (MCP: `{session_id, request}`). Placement observation and
+archive/unarchive are also available through CLI/MCP, reusing normal session
+lifecycle after a host-side profile/kind check. Archive stops the current owner;
+unarchive leaves the placement stopped. Source/active-revision diff remains pending.
 Validation returns stable node/port/path diagnostics and supports fixture-based
 contract checks without arming live triggers or contacting providers. Source
 inspection must not evaluate custom modules. Executing component tests is a

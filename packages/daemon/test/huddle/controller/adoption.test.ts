@@ -7,6 +7,10 @@ import { setTimeout as delay } from 'node:timers/promises';
 import { launchOwner } from '../../helpers/runtime-fixture.js';
 import { HostMemoryLedger } from '../../../src/runtime/resources/host/ledger.js';
 import { RuntimeServiceCleanupStore } from '../../../src/db/stores/runtime-service-cleanup.js';
+import { PROTOCOL_VERSION } from '@puddle/shared';
+import { PuddlangClient } from '../../../../cli/src/puddlang/client.js';
+import type { ConnectionAuthority } from '../../../../cli/src/lib/auth/connection-authority.js';
+import { parseHuddleCommand, runHuddleCommand } from '../../../../cli/src/huddle/commands.js';
 
 import { huddleControllerFixture as fixture, until } from '../../helpers/huddle/controller.js';
 
@@ -209,7 +213,7 @@ it('projects a surviving huddle through real isolated daemon replacement without
   }
 });
 
-it('archives a running huddle through the ordinary daemon route only after clean owner shutdown', async () => {
+it('archives and restores a running huddle through the CLI only after clean owner shutdown', async () => {
   const f = await fixture();
   let daemon: ReturnType<typeof launchOwner> | undefined;
   try {
@@ -222,21 +226,60 @@ it('archives a running huddle through the ordinary daemon route only after clean
       return existsSync(readyFile);
     });
     const ready = JSON.parse(readFileSync(readyFile, 'utf8')) as { port: number; token: string };
-    const response = await fetch(
-      `http://127.0.0.1:${ready.port}/api/sessions/${f.session.id}/archive`,
-      {
-        method: 'POST',
-        headers: { authorization: `Bearer ${ready.token}`, 'content-type': 'application/json' },
-        body: '{}',
-        signal: AbortSignal.timeout(20_000),
-      },
+    const client = new PuddlangClient(
+      () => ready.port,
+      { credential: () => ready.token } as ConnectionAuthority,
+      f.profile.id,
+      PROTOCOL_VERSION,
     );
-    const result = await response.json();
-    expect(response.status, JSON.stringify(result)).toBe(200);
+    const otherProfile = f.profiles.create({ name: 'other-huddle-tools', branch_prefix: '' });
+    const wrongProfile = new PuddlangClient(
+      () => ready.port,
+      { credential: () => ready.token } as ConnectionAuthority,
+      otherProfile.id,
+      PROTOCOL_VERSION,
+    );
+    await expect(
+      wrongProfile.huddles.placement.execute({ action: 'archive', session_id: f.session.id }),
+    ).rejects.toThrow('profile_scope');
+    expect(f.runtimes.ownerOf(f.session.id)).not.toBeNull();
+    const ordinary = f.sessions
+      .list({ project_id: f.project.id })
+      .find((session) => session.kind !== 'huddle')!;
+    await expect(
+      client.huddles.placement.execute({ action: 'archive', session_id: ordinary.id }),
+    ).rejects.toThrow('not_huddle');
+    expect(f.sessions.get(ordinary.id).status).not.toBe('archived');
+    const print = vi.fn();
+    expect(
+      await runHuddleCommand(
+        client.huddles,
+        parseHuddleCommand(['archive', f.session.id], {}),
+        print,
+      ),
+    ).toBe(0);
+    expect(print).toHaveBeenCalledWith(
+      expect.objectContaining({ id: f.session.id, status: 'archived' }),
+    );
     expect(f.runtimes.get(f.binding.runtime_id)?.state).toBe('exited');
     expect(f.sessions.get(f.session.id).status).toBe('archived');
     expect(readFileSync(join(f.home, 'entered'), 'utf8')).toBe('x');
     expect(existsSync(f.home)).toBe(true);
+    expect(
+      await client.huddles.placement.execute({ action: 'session', session_id: f.session.id }),
+    ).toMatchObject({ kind: 'huddle', status: 'archived', worktree_path: f.session.worktree_path });
+    expect(
+      await client.huddles.placement.execute({ action: 'unarchive', session_id: f.session.id }),
+    ).toMatchObject({ kind: 'huddle', status: 'exited' });
+    expect(
+      await client.huddles.execution.execute({ action: 'runtime', session_id: f.session.id }),
+    ).toMatchObject({ owner: null, unresolved: false });
+    expect(f.runtimes.ownerOf(f.session.id)).toBeNull();
+    expect(f.sessions.get(f.session.id).status).toBe('exited');
+    expect(existsSync(join(f.home, 'completed'))).toBe(false);
+    await expect(
+      client.huddles.placement.execute({ action: 'unarchive', session_id: f.session.id }),
+    ).rejects.toThrow('not_archived');
   } finally {
     if (daemon && daemon.child.exitCode === null && daemon.child.signalCode === null) {
       const ended = once(daemon.child, 'exit');

@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Inspect huddle session status and archive/unarchive placements through CLI/MCP, sharing sidebar shutdown and cleanup semantics; verify profile/kind before dispatch and leave restored huddles stopped.
+
 - Create/open inactive huddles and inspect, start, apply, run, interrupt, resume, stop and read their history through CLI/MCP tools. Require reviewed JSON requests and preserve exact targets without automatic mutation retries; expose readout observation on supporting hosts.
 - Inspect and validate saved huddles with `pudl huddle list|inspect|validate` and matching MCP source tools, using explicit project/worktree scope without running scripts or activating graphs.
 - Add Edit with agent to huddles, with an explicit authoring account, exact worktree/task context and bundled huddle skill. Preserve ordinary permissions, block unsaved source and keep activation separate from agent edits.

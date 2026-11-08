@@ -34,6 +34,46 @@ delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 Source, inactive placement and core runtime CLI/MCP tools are available.
 
+## Implemented: CLI/MCP archive and placement observation
+
+`pudl huddle session|archive|unarchive SESSION_ID` and matching
+`huddle_session|archive|unarchive` MCP tools now share the ordinary session routes.
+Their strict arguments contain only the placement UUID; connection host/profile
+remain fixed. `cli/src/huddle/placement/` first uses the scoped huddle runtime
+inspection route to verify profile and kind before entering host-wide session
+routes. Placement UUID, project/profile and definition worktree are immutable.
+These tools require the existing 28.2 capability floor; no public HTTP/WS, runtime,
+remote, database or ledger format changes are introduced.
+
+Archive targets the current placement owner using the sidebar's shutdown and
+captured cleanup policy, then hides the placement. It does not claim the reviewed
+exact-incarnation semantics of Stop. Unarchive returns `exited`, never starts an
+owner, registers onboarding, recreates a missing worktree or restores an archived
+project. Session observation reports placement state after an uncertain reply.
+Failed scope checks never dispatch to session routes; failed/malformed mutation
+replies retain observation guidance without retry, fallback or implicit reads.
+MCP annotations mark archive/unarchive as mutations without replay promises.
+
+Verification: **75/75 tests in 6 files passed**: 67 CLI/MCP source, execution,
+placement and programme-MCP tests plus eight daemon adoption/session-boundary
+checks, with one Vitest worker. Placement cases cover profile/kind/authority
+rejections, unsupported hosts, malformed/mismatched replies, exact one-shot
+forwarding, strict UUID/option validation, lost replies and stdio dispatch.
+The real temporary-daemon test archives a running isolated huddle through the CLI,
+confirms retired ownership before success, observes archived placement state,
+unarchives to stopped and verifies the cancelled script never completes. Real
+cross-profile and ordinary-agent attempts are rejected before archive. The fixture
+asserts the stored canonical worktree, including macOS symlink resolution. Existing
+session-boundary coverage confirms no onboarding registration after unarchive.
+No production daemon, native desktop or real agent provider is used. Ten additional
+connection/outcome regression tests pass. Shared/daemon/CLI and web TypeScript,
+changed-source ESLint/formatting and bundled skill validation pass. Production web
+and CLI builds pass; packaged help lists the placement commands and the copied
+frontend contains the updated skill.
+
+Remaining: source/active-revision diff, offline history, standalone authoring assets,
+agent restart/native feedback, owner recovery and platform/provider acceptance.
+
 ## Implemented: CLI/MCP placement and runtime controls
 
 `pudl huddle create --name NAME` and `open <huddle-id>` use explicit project/worktree
@@ -75,7 +115,7 @@ after bounding failure details so MCP truncation cannot hide observation guidanc
 CLI/frontend production builds and packaged help pass; the copied frontend contains
 the updated authoring skill. The installed-launch fixture also resolves compiled
 shared output, so rebuild that package before running it after contract edits.
-Remaining tool work: source/active-revision diff, archive/unarchive, offline history,
+Remaining tool work: source/active-revision diff, offline history,
 standalone schema/types and component fixtures. Runtime recovery, agent restart
 nodes, native feedback and platform/provider acceptance remain open elsewhere.
 
@@ -116,7 +156,7 @@ changed-source lint/formatting and the skill validator pass. The production CLI
 build and packaged help commands pass without contacting a daemon. The production
 web build passes, and the CLI's copied frontend includes the revised authoring
 skill with the actual huddle command syntax.
-Remaining: source/active-revision diff, archive/unarchive tools, standalone
+Remaining: source/active-revision diff, standalone
 schema/types and component fixtures, automatic account MCP binding if designed,
 managed integration secrets and real-provider/platform acceptance.
 
@@ -163,7 +203,7 @@ semantic colour checks and diff checks pass. The production web build passes and
 contains the canonical skill in the lazy huddle asset. No production daemon,
 native desktop or real provider was launched.
 Remaining authoring work: standalone schemas/types and complete extension examples,
-CLI/MCP diff/archive parity, managed
+CLI/MCP diff parity, managed
 integration secrets, and real-provider authoring evidence. No protocol, runtime
 metadata, ledger or database format changes are introduced by this UI action.
 

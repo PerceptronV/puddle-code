@@ -701,12 +701,17 @@ dialog, no automatic retry after a lost reply, and no activation on save/complet
 Reuse the selected puddlang connection authority; require project/id/absolute host
 worktree instead of inferring the client cwd. Source validation never executes
 modules or opens placements, and is not execution admission. Shared tool schemas
-live in `shared/api/huddle/tools/`, split into source and execution contracts.
+live in `shared/api/huddle/tools/`, split into source, execution and placement contracts.
 `cli/huddle/execution/` owns runtime/lifecycle/history/readout-observation tools.
 Preserve exact reviewed digests/targets/event ids in JSON requests; never refresh,
 retry or fall back after failed mutations. Resume maps to rearm. Keep source scope
 explicit and runtime scope bound to the immutable placement. See
-`docs/huddle/authoring.md`; standalone schema/types and diff/archive tools remain unfinished.
+`docs/huddle/authoring.md`; standalone schema/types and diff tools remain unfinished. Placement tools live in
+`cli/src/huddle/placement/`: verify kind/profile through the scoped huddle runtime
+route before calling the ordinary session GET/archive/unarchive routes. UUID,
+project/profile and definition worktree are immutable placement identity. Archive
+acts on the current placement owner; unarchive never starts it. Failed mutations
+require observation through `pudl huddle session`/`runtime`, never an automatic retry.
 Migration 44 persists Stop consumption before sending
 shutdown; repeat observation cannot send another Stop. The existing kill/archive
 paths delegate to these controls and refuse unresolved owner cleanup. Keep huddle

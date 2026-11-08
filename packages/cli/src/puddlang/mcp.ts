@@ -11,10 +11,12 @@ import {
   puddlangMcpOutcomeSchema,
   huddleMcpTools,
   huddleExecutionMcpTools,
+  huddlePlacementMcpTools,
 } from '@puddle/shared';
 import type { PuddlangClient } from './client.js';
 import { callHuddleTool } from '../huddle/mcp.js';
 import { callHuddleExecutionTool, executionTools } from '../huddle/execution/mcp.js';
+import { callHuddlePlacementTool, placementTools } from '../huddle/placement/mcp.js';
 
 /** MCP 2025-06-18 stdio: bounded newline-delimited JSON-RPC, no stdout logging. */
 export async function serveMcp(
@@ -76,6 +78,7 @@ export async function serveMcp(
           ...puddlangMcpTools,
           ...(client.huddles?.supported ? huddleMcpTools : []),
           ...executionTools(client.huddles?.execution),
+          ...placementTools(client.huddles?.placement),
         ],
       });
       return;
@@ -96,6 +99,8 @@ export async function serveMcp(
         result = await callHuddleTool(client.huddles, call.data.name, args);
       } else if (huddleExecutionMcpTools.some((tool) => tool.name === call.data.name)) {
         result = await callHuddleExecutionTool(client.huddles?.execution, call.data.name, args);
+      } else if (huddlePlacementMcpTools.some((tool) => tool.name === call.data.name)) {
+        result = await callHuddlePlacementTool(client.huddles?.placement, call.data.name, args);
       } else
         switch (call.data.name) {
           case 'puddlang_context':
