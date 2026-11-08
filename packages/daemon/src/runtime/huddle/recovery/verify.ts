@@ -35,6 +35,12 @@ export function verifyHuddleRecoverySeed(home: string, launch: HuddleOwnerLaunch
       )
   )
     throw new Error('Huddle recovery provenance changed');
+  if (
+    recovery.automaticAttempts !== undefined &&
+    (source.capabilities.automaticRecovery !== 1 ||
+      recovery.automaticAttempts !== (source.recovery?.automaticAttempts ?? 0) + 1)
+  )
+    throw new Error('Automatic recovery attempt provenance changed');
   if (recovery.containment) requireHuddleDescendantsEnded(home, source, recovery.containment);
   const directory = retainedHuddleDirectory(home, launch.identity.runtime_id);
   const file = join(directory, 'huddle.sqlite');

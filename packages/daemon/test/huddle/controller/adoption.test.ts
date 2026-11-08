@@ -149,12 +149,15 @@ it('keeps a mismatched live owner protected and reconnects without replay after 
 it('records owner loss as interrupted, retaining unresolved worktree, release and memory ownership', async () => {
   const f = await fixture();
   try {
+    const lost = vi.fn((id: string) => expect(f.runtimes.get(id)?.state).toBe('interrupted'));
+    f.reconciler.on('huddle-owner-lost', lost);
     const exited = once(f.owner.child, 'exit');
     f.owner.child.kill('SIGKILL');
     await exited;
     await f.connections.connect();
     await until(() => f.runtimes.get(f.binding.runtime_id)!.state === 'interrupted');
     expect(f.sessions.get(f.session.id).status).toBe('interrupted');
+    expect(lost).toHaveBeenCalledExactlyOnceWith(f.binding.runtime_id);
     expect(f.runtimes.hasUnreleasedWorktree(f.launch.identity.canonical_worktree_path)).toBe(true);
     expect(f.runtimes.releaseReferences()).toContainEqual({
       runtime_id: f.binding.runtime_id,

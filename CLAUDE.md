@@ -984,7 +984,14 @@ verify the same namespace/device/inode and an empty or removed cgroup under sour
 claims, then recheck in seed copying and replacement startup. Missing PID/service
 state never proves child exit. Do not signal stored PIDs or substitute reboot-only
 recovery automatically. Metadata offers are opt-in and never dispatch authority.
-Automatic crash recovery and macOS/detached fencing remain unfinished.
+Application 28.19 adds automaticRecovery-1 for armed same-boot Linux owners. The
+coordinator under `recovery/automatic.ts` consumes authoritative reconciler loss
+notifications; do not add an agent status detector. Share automatic placement checks
+with reboot startup, recheck Stop/archive/armed intent under recovery admission,
+retain a three-attempt automatic budget in private recovery provenance and never
+retry accepted predecessor replacement intent. Include this coordinator before the
+launcher in daemon maintenance/shutdown draining. macOS/detached fencing remains
+unfinished.
 Application 28.17 and optional triggerInspection-1 expose installed source health
 and retained accepted backlog through owner `inspection/`, the existing exact
 control queue and web `execution/triggers/`. Reuse existing lifecycle/status feeds;

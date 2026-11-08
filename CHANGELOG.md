@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Automatically recover armed Linux huddles from verified owner crashes through existing lifecycle reconciliation, respecting Stop/archive/maintenance and a retained three-replacement limit (application 28.19).
+
 - Recover a crashed Linux systemd/cgroup-v2 huddle explicitly after its recorded script scope is confirmed empty, reusing existing queued-work recovery without replaying agent actions (application 28.18).
 
 - Inspect huddle trigger health and accepted backlog from the IDE or CLI/MCP, including timer coalescing/skipping and one-off date disposition; reuse existing subscriptions and lifecycle feeds (application 28.17).

@@ -2045,8 +2045,14 @@ and replacement recheck the same provenance. No PID absence or marker substitute
 and recovery never signals unconfirmed processes. Existing copied-ledger recovery
 preserves queued work/cursors and never replays historical agent operations.
 `after: "owner-crash"` is explicit; omitted mode remains reboot-only. The opt-in
-UI offer is metadata, not exit proof. Automatic crash recovery and macOS/detached
-containment remain unfinished.
+UI offer is metadata, not exit proof. Application 28.19 and automaticRecovery-1
+add automatic recovery for armed same-boot interrupted Linux owners through existing
+owner-loss reconciliation. One serial paginated coordinator shares reboot placement
+checks, excludes Stop/archive/inactive intent, rechecks admission and drains before
+launcher maintenance/shutdown. Retained automaticAttempts permits three consecutive
+automatic replacements; explicit/reboot recovery or fresh Start resets the budget. Accepted
+replacement intent is observation-only after lost replies. Reboot auto-start remains
+separate. macOS/detached containment and native acceptance remain unfinished.
 
 ### Puddlang runs
 

@@ -2,6 +2,8 @@ import { z } from 'zod';
 import { runtimeIdentitySchema } from '../protocol.js';
 import { huddleRevisionSchema } from '../../api/huddle/events.js';
 
+export const HUDDLE_AUTOMATIC_RECOVERY_LIMIT = 3;
+
 export const huddleContainmentSchema = z.strictObject({
   format: z.literal(1),
   identity: runtimeIdentitySchema,
@@ -24,9 +26,11 @@ export const huddleRecoverySchema = z
     ancestors: z.array(runtimeIdentitySchema).max(32),
     seed: huddleRevisionSchema,
     containment: huddleContainmentSchema.optional(),
+    automaticAttempts: z.number().int().min(1).max(HUDDLE_AUTOMATIC_RECOVERY_LIMIT).optional(),
   })
   .refine(
     (value) =>
+      (value.automaticAttempts === undefined || value.containment !== undefined) &&
       (value.sourceBoot !== value.boot
         ? value.containment === undefined
         : value.containment !== undefined &&

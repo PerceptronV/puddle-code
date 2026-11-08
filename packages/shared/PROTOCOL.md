@@ -1,5 +1,21 @@
 # The puddle communication protocol
 
+Application **28.19** adds bounded automatic Linux huddle crash recovery behind
+optional owner **`automaticRecovery: 1`**, requiring crashRecovery-1. The existing
+private recovery provenance adds optional `automaticAttempts` (1–3), requiring
+containment and a supporting replacement. Its value must advance the predecessor's
+counter exactly; explicit/reboot recovery omits it and resets this automatic budget.
+Older owners without the capability stay explicit-only. Public recovery request
+and response shapes, database schema and agent runtime protocol are unchanged.
+
+The daemon consumes existing authoritative huddle owner-loss reconciliation, then
+uses the existing recovery launcher for armed same-boot interrupted owners only.
+Stop/archive/placement/maintenance/storage checks apply before dispatch and under
+source claims. Durable replacement intent prevents replay after a lost reply.
+A serial, paginated coordinator shares placement checks with opted-in reboot
+recovery and drains before launcher maintenance/shutdown. Reboot policy is separate.
+Real Linux acceptance and macOS/detached descendant fencing remain pending.
+
 Application **28.18** adds optional `after: "reboot" | "owner-crash"` to the
 existing huddle recovery request; absent means reboot-only. CLI/MCP gate explicit
 modes on 28.18. Opt-in `include_crash_recovery=true` alongside `include_recovery=true`
@@ -14,8 +30,8 @@ cgroup path/device/inode and namespace. Source claims, seed copying and replacem
 startup require unchanged proof of an empty/removed cgroup. Ordinary reboot recovery
 keeps its existing provenance shape. Older owners/clients retain their previous
 contracts. No application database, owner ledger or agent runtime protocol change.
-The implementation is explicit Linux systemd/cgroup-v2 recovery; automatic crash
-recovery and other platform descendant fencing remain unfinished.
+Application 28.19 extends this with bounded automatic Linux recovery; other
+platform descendant fencing remains unfinished.
 
 Application **28.17** adds read-only local/SSH `POST
 /api/huddle/:profile/sessions/:sid/triggers` with `{target}`. Optional owner
@@ -67,7 +83,7 @@ trigger cursors, budgets and receipts survive. Historical operations retain thei
 original callers and are observation-only through descendants. No agent runtime
 protocol or ledger format bump is needed. Application 28.16 adds explicit auto-start
 as described above. Application 28.18 adds explicit Linux same-boot recovery;
-automatic crash recovery and native platform acceptance remain unfinished.
+automatic Linux recovery follows in 28.19; native platform acceptance remains unfinished.
 
 Application **28.14** adds `resume-agent`/`restart-agent` source templates and an
 optional component `lifecycle: "resume" | "restart"` declaration. The declared

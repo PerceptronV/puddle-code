@@ -439,7 +439,7 @@ export class RuntimeStore {
           input.huddle!.capabilities.recovery !== 1
         )
           throw new Error('Huddle recovery predecessor changed');
-        // Reboot proof is held by the launcher through this transaction. Ended resources
+        // Descendant fencing is held by the recovery launcher through this transaction. Ended resources
         // do not turn interrupted ledger executions into completed executions.
         this.db
           .prepare(

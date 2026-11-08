@@ -1,3 +1,4 @@
+import { HuddleCrashRecovery } from './runtime/huddle/recovery/automatic.js';
 import { recoverHuddlesAtStartup } from './runtime/huddle/recovery/startup.js';
 import { HuddleAgentLifecycle } from './huddle/operations/lifecycle/service.js';
 import { tmpdir } from 'node:os';
@@ -764,6 +765,24 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
           ),
       });
 
+    const huddleCrashRecovery = runtimeLauncher
+      ? new HuddleCrashRecovery({
+          home: paths.home,
+          runtimes,
+          sessions,
+          projects,
+          reconciler: runtimeReconciler,
+          launcher: runtimeLauncher,
+          storage,
+          failed: (id, error) =>
+            console.warn(
+              `huddle crash recovery ${id} failed: ${error instanceof Error ? error.message : String(error)}`,
+            ),
+        })
+      : undefined;
+    huddleCrashRecovery?.start();
+    if (huddleCrashRecovery) failedStartup.push(() => huddleCrashRecovery.close());
+
     // Register the tier-2 proxy's raw WebSocket upgrade listener AFTER serve() so
     // it becomes the SECOND 'upgrade' listener — see attachProxyUpgrade for why
     // that ordering is load-bearing. /ws stays with @hono/node-server's own listener.
@@ -798,6 +817,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       huddles: huddleDispatcher,
       huddleSessions: huddleSessionDispatcher,
       huddleCompletions: huddleCompletionDispatcher,
+      huddleRecovery: huddleCrashRecovery,
       compilation,
       catalogue,
       markers: onboarding,
@@ -929,6 +949,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
           huddleDispatcher.close(),
           huddleSessionDispatcher.close(),
           huddleCompletionDispatcher.close(),
+          huddleCrashRecovery?.close(),
         ]);
         stopping = (async () => {
           await huddlesClosed;

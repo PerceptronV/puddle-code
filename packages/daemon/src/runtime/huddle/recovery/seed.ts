@@ -34,6 +34,7 @@ export function copyHuddleRecoverySeed(
   boot: string,
   capabilities: HuddleRuntimeCapabilities,
   containment?: HuddleContainment,
+  automaticCrash = false,
 ) {
   if (
     !source.boot_id ||
@@ -41,6 +42,13 @@ export function copyHuddleRecoverySeed(
     identity.runtime_id === source.identity.runtime_id
   )
     throw new Error('Recovery needs a new runtime and verified descendant fencing');
+  if (
+    automaticCrash &&
+    (!containment ||
+      capabilities.automaticRecovery !== 1 ||
+      source.capabilities.automaticRecovery !== 1)
+  )
+    throw new Error('Automatic recovery requires supporting source and replacement owners');
   if (containment) {
     if (source.boot_id !== boot) throw new Error('Unexpected same-boot containment proof');
     requireHuddleDescendantsEnded(home, source, containment);
@@ -175,6 +183,7 @@ export function copyHuddleRecoverySeed(
     boot,
     seed: createHash('sha256').update(bytes).digest('hex'),
     ...(containment ? { containment } : {}),
+    ...(automaticCrash ? { automaticAttempts: (source.recovery?.automaticAttempts ?? 0) + 1 } : {}),
   });
   return { recovery, snapshot, activation, scope };
 }

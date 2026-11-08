@@ -34,6 +34,53 @@ delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## Implemented: bounded automatic Linux crash recovery
+
+Application **28.19** and optional owner **`automaticRecovery: 1`** add automatic
+recovery for armed Linux systemd/cgroup-v2 huddles. The capability requires
+crashRecovery-1. Existing owners without it remain explicit-recovery-only. Reboot
+recovery still requires the separate per-run auto-start preference; this path never
+uses same-boot crash policy to recover a prior-boot owner.
+
+The existing huddle reconciler emits `huddle-owner-lost` only after it has committed
+interrupted owner state under retirement claims. `runtime/huddle/recovery/automatic.ts`
+subscribes to that event and makes one paginated startup pass after ordinary adoption,
+agent readiness and opted-in reboot recovery. It adds no agent/status detector.
+One serial recovery task, 64-row pages and one bounded retry timer cover interrupted
+candidates. Live/prepared owners, interrupted/stopped control intent, archived
+placements/projects, retained Stop requests, missing source and unsupported/missing
+containment are excluded. Shared `recovery/placement.ts` supplies placement checks
+for both reboot and crash recovery. Resource admission and placement are rechecked
+before launch; the launcher repeats armed intent, capability, boot, Stop and positive
+cgroup proof under the existing source claims.
+
+Automatic replacement uses the existing durable predecessor/successor transaction.
+Once that intent is accepted, the predecessor is exited and cannot be dispatched
+again after a lost reply. A new optional private recovery `automaticAttempts` count
+is persisted in the replacement launch, validated against its predecessor and
+bounded to **three** automatic replacements between explicit/reboot recoveries or fresh
+Starts. Reaching the limit leaves the huddle interrupted for explicit review and
+recovery; applying source or a healthy interval does not silently reset the budget.
+No application database migration or agent protocol change.
+
+The coordinator participates in daemon maintenance before launcher drain and closes
+before launcher shutdown. Pause/close revoke pending admission, cancel its timer
+and drain accepted work; resume scans retained state for events missed while paused.
+Existing session/turn notifications, agent lifecycle, recovery reconciliation and
+operation dispatch remain the authoritative machinery.
+
+Five focused checks passed across the new coordinator case and existing reboot,
+owner-loss and daemon-maintenance cases. They cover authoritative loss delivery,
+reboot-policy independence, maintenance, placement changes during admission and
+accepted-but-lost replacement replies, using real isolated stores/runtimes with
+simulated containment/dispatch where stated. Types, lint and SDK drift checks are
+recorded with this increment. Real Linux cgroup crash/automatic-replacement acceptance
+remains required: use an isolated interval-triggered crash fixture to verify
+three automatic replacements and no fourth, then explicit recovery to reset the
+budget. Check Stop/archive during admission and daemon maintenance, and retain
+proof that historical agent operations are not redispatched. macOS and detached
+same-boot descendant fencing remain unfinished.
+
 ## Implemented: explicit Linux owner-crash recovery
 
 Application **28.18** adds `after: "owner-crash"` to the existing recovery request.
@@ -73,8 +120,8 @@ observations are simulated by bounded filesystem fixtures on this macOS host. Re
 child process in an isolated installed service, kill only that huddle owner, verify
 recovery refuses until its cgroup is empty, then observe exactly one replacement,
 unchanged queued roots and no second agent dispatch. Also test lost recovery replies.
-Automatic crash detection/recovery and macOS/detached descendant fencing remain
-unfinished. Arbitrary external service requests are external effects; cgroup
+Application 28.19 adds bounded automatic Linux recovery as described above;
+macOS/detached descendant fencing remains unfinished. Arbitrary external service requests are external effects; cgroup
 containment is not a sandbox against deliberate process migration.
 
 Kernel semantics: [cgroup-v2 populated state](https://docs.kernel.org/admin-guide/cgroup-v2.html)
@@ -1417,7 +1464,8 @@ observation and shared-capacity/forbidden-operation coverage, the final readout 
 passed **26 tests across 4 files**. The final headless history check, formatting,
 semantic-colour/contrast and diff checks passed.
 Destination-specific, installed-provider, native supervisor/SSH/reboot acceptance,
-offline-owner reconciliation and automatic owner-crash recovery remain pending.
+offline-owner reconciliation remain pending. Subsequent application 28.19 adds
+bounded automatic Linux owner-crash recovery; its native acceptance remains open.
 
 ## Implemented: project-local readout delivery
 
@@ -2136,9 +2184,10 @@ unknown scan settlement blocks clean owner retirement rather than releasing clai
 Optional **`filetree: 1`** gates Start/Apply and independent-owner validation.
 Older owners remain supported; older daemon candidates cannot adopt Filetree
 owners. No REST/WS, ordinary runtime, SQLite schema or desktop format changes.
-The existing failure inspector exposes gaps. Rich per-trigger ready/degraded state,
-backlog inspection and automatic crash/reboot recovery remain unfinished; an
-explicit Stop/Start acknowledges a new baseline, not replay of missing edits.
+The existing failure inspector exposes gaps. Subsequent applications 28.17–28.19
+add trigger/backlog inspection, opted-in reboot recovery and bounded automatic
+Linux crash recovery. Native/platform acceptance remains open; an explicit
+Stop/Start acknowledges a new baseline, not replay of missing edits.
 
 Verification: bounded scan tests cover glob/default/output exclusions, symlinks,
 atomic save, rename, remove, file limits and replaced roots. Ledger tests retain

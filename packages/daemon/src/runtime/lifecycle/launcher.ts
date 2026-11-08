@@ -124,12 +124,18 @@ export class RuntimeLauncher {
     sessionId: string,
     target: { runtimeId: string; incarnation: string },
     authorised: () => boolean,
-    autoStartOnly = false,
-    allowSameBoot = false,
+    options: { autoStartOnly?: boolean; after?: 'owner-crash'; automatic?: boolean } = {},
   ): Promise<void> {
     return this.admit(async () => {
       const lifetime = await this.lifetime();
       const selected = this.selectedHuddleRelease();
+      const { autoStartOnly = false, automatic = false } = options;
+      const allowSameBoot = options.after === 'owner-crash';
+      if (automatic && (!allowSameBoot || autoStartOnly || selected.huddle.automaticRecovery !== 1))
+        throw ApiError.conflict(
+          'huddle_recovery_unsupported',
+          'Select a runtime with automatic huddle crash recovery support',
+        );
       if (selected.huddle.recovery !== 1 || (autoStartOnly && selected.huddle.autoStart !== 1))
         throw ApiError.conflict(
           'huddle_recovery_unsupported',
@@ -144,7 +150,7 @@ export class RuntimeLauncher {
         binding.active_session_id !== sessionId
       )
         throw ApiError.conflict('huddle_recovery_changed', 'The recorded owner changed');
-      if (autoStartOnly && this.deps.runtimes.stopRequested(binding.runtime_id))
+      if ((autoStartOnly || automatic) && this.deps.runtimes.stopRequested(binding.runtime_id))
         throw ApiError.conflict('huddle_stopping', 'Stop was requested for this huddle');
       const recovery = acquireHuddleRecoverySource(
         this.deps.home,
@@ -152,6 +158,7 @@ export class RuntimeLauncher {
         lifetime.bootId,
         autoStartOnly,
         allowSameBoot && selected.huddle.crashRecovery === 1,
+        automatic,
       );
       try {
         await launchHuddleOwner(
@@ -163,6 +170,7 @@ export class RuntimeLauncher {
             snapshot: recovery.snapshot,
             recoverySource: recovery.source,
             recoveryContainment: recovery.containment,
+            automaticCrashRecovery: automatic,
             hostId: recovery.source.scope.hostId,
             variables: recovery.activation.variables,
             bindings: recovery.activation.bindings,

@@ -35,6 +35,7 @@ export interface HuddleLaunchOptions {
   snapshot: HuddleDefinitionSnapshot;
   recoverySource?: HuddleOwnerLaunch;
   recoveryContainment?: HuddleContainment;
+  automaticCrashRecovery?: boolean;
   hostId: string;
   variables: HuddleRevisionActivation['variables'];
   bindings: HuddleRevisionActivation['bindings'];
@@ -125,6 +126,7 @@ export async function launchHuddleOwner(
           lifetime.bootId!,
           selected.huddle,
           options.recoveryContainment,
+          options.automaticCrashRecovery,
         )
       : prepareHuddleActivation(
           options.snapshot,

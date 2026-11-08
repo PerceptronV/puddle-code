@@ -3,7 +3,7 @@ import type { RuntimeStore } from '../../../db/stores/runtimes.js';
 import type { SessionStore } from '../../../db/stores/sessions.js';
 import type { ProjectStore } from '../../../db/stores/projects.js';
 import type { StorageMonitor } from '../../../storage/monitor.js';
-import { requireHuddleSource } from '../../../huddle/execution/source.js';
+import { huddleRecoveryPlacementAvailable } from './placement.js';
 import type { RuntimeLauncher } from '../../lifecycle/launcher.js';
 import { huddleBindingLaunch } from '../ownership/binding.js';
 import { readRecordedHuddleControl } from '../state/readers/activation.js';
@@ -30,27 +30,7 @@ export async function recoverHuddlesAtStartup(deps: {
         const source = huddleBindingLaunch(deps.home, binding);
         if (source.capabilities.autoStart !== 1 || !source.boot_id || source.boot_id === boot)
           continue;
-        const valid = () => {
-          try {
-            const session = deps.sessions.get(binding.active_session_id);
-            const project = deps.projects.get(session.project_id);
-            if (
-              session.kind !== 'huddle' ||
-              session.huddle_id !== binding.huddle_id ||
-              session.status === 'archived' ||
-              project.archived ||
-              session.project_id !== binding.project_id ||
-              project.profile_id !== binding.profile_id ||
-              session.worktree_path !== binding.canonical_worktree_path ||
-              deps.runtimes.stopRequested(binding.runtime_id)
-            )
-              return false;
-            requireHuddleSource(session);
-            return true;
-          } catch {
-            return false;
-          }
-        };
+        const valid = () => huddleRecoveryPlacementAvailable(deps, binding);
         if (!valid()) continue;
         const control = readRecordedHuddleControl(deps.home, source.scope);
         if (control.state !== 'armed' || !control.autoStart) continue;
@@ -62,7 +42,7 @@ export async function recoverHuddlesAtStartup(deps: {
           binding.active_session_id,
           { runtimeId: binding.runtime_id, incarnation: binding.incarnation },
           valid,
-          true,
+          { autoStartOnly: true },
         );
       } catch (error) {
         deps.failed(binding.active_session_id, error);

@@ -1,6 +1,10 @@
 import { join } from 'node:path';
 import { requireHuddleDescendantsEnded } from './containment.js';
-import { canonicalHuddleJson, runtimeRetiredSchema } from '@puddle/shared';
+import {
+  HUDDLE_AUTOMATIC_RECOVERY_LIMIT,
+  canonicalHuddleJson,
+  runtimeRetiredSchema,
+} from '@puddle/shared';
 import { atomicPrivateJson } from '@puddle/shared/node';
 import type { RuntimeBinding } from '../../../db/stores/runtimes.js';
 import { acquireHostClaim } from '../../../security/claims.js';
@@ -22,6 +26,7 @@ export function acquireHuddleRecoverySource(
   boot: string | null,
   autoStartOnly = false,
   allowSameBoot = false,
+  automaticCrash = false,
 ) {
   const claims = acquireRuntimeRetirementClaims(home, binding.runtime_id);
   const extra: Array<{ release(): void }> = [];
@@ -34,6 +39,16 @@ export function acquireHuddleRecoverySource(
     const sameBoot = boot === source.boot_id;
     if (sameBoot && (!allowSameBoot || autoStartOnly))
       throw new Error('Recovery requires an unresolved owner from a verified earlier host boot');
+    if (
+      automaticCrash &&
+      (!sameBoot ||
+        binding.state !== 'interrupted' ||
+        source.capabilities.automaticRecovery !== 1 ||
+        (source.recovery?.automaticAttempts ?? 0) >= HUDDLE_AUTOMATIC_RECOVERY_LIMIT)
+    )
+      throw new Error('Automatic crash recovery is unavailable or its attempt limit was reached');
+    if (automaticCrash && readRecordedHuddleControl(home, source.scope).state !== 'armed')
+      throw new Error('Huddle is no longer armed for crash recovery');
     const containment = sameBoot ? requireHuddleDescendantsEnded(home, source) : undefined;
     if (autoStartOnly) {
       const control = readRecordedHuddleControl(home, source.scope);

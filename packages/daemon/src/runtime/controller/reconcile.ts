@@ -75,6 +75,7 @@ export class RuntimeReconciler extends EventEmitter {
     this.huddles = new HuddleReconciler(deps);
     this.huddles.on('changed', (projectId: string) => this.emit('changed', projectId));
     this.huddles.on('status', (event: StatusEvent) => this.emit('status', event));
+    this.huddles.on('owner-lost', (id: string) => this.emit('huddle-owner-lost', id));
     this.observations = new RuntimeObservationStore(deps.db);
     this.attention = new RuntimeAttentionStore(deps.db);
   }

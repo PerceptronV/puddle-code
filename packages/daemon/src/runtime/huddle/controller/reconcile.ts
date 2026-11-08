@@ -156,6 +156,7 @@ export class HuddleReconciler extends EventEmitter {
       if (entry?.timer) clearTimeout(entry.timer);
       this.entries.delete(id);
       this.publish(id);
+      if (this.deps.runtimes.get(id)?.state === 'interrupted') this.emit('owner-lost', id);
     }
     return retired;
   }

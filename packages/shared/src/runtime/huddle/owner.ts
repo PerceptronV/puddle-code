@@ -62,6 +62,8 @@ export const huddleOwnerLaunchSchema = z
       launch.recovery &&
       (launch.capabilities.recovery !== 1 ||
         (launch.recovery.containment !== undefined && launch.capabilities.crashRecovery !== 1) ||
+        (launch.recovery.automaticAttempts !== undefined &&
+          launch.capabilities.automaticRecovery !== 1) ||
         launch.boot_id !== launch.recovery.boot ||
         [launch.recovery.source, ...launch.recovery.ancestors].some(
           (owner) =>

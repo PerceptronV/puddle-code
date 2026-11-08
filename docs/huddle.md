@@ -140,7 +140,8 @@ resource, then explicitly Stop/Start; failed occurrences are not silently consum
 Explicit **Recover after reboot** restores retained timer progress and its configured
 missed-event policy. Enable **Auto-start after reboot** to recover an armed run
 when the host starts. Explicit owner-crash recovery is available on supporting
-Linux cgroup-v2 runtimes; automatic crash recovery remains pending.
+Linux cgroup-v2 runtimes. Application 28.19 also recovers armed supporting Linux
+runs automatically, as described below.
 
 ## Run on a calendar or a one-off date
 
@@ -531,9 +532,26 @@ observed, never dispatched again.
 The offer alone does not prove descendants have exited. A rejected or lost reply
 requires inspecting runtime/history before another action. Recovery does not kill
 unconfirmed processes. Older runtimes, macOS and detached lifetimes retain **Recover
-after reboot**. Automatic owner-crash recovery remains unfinished.
+after reboot**. Supporting Linux runs can also recover automatically as described below.
 
 CLI/MCP use the existing recovery command with
 `{owner: {runtimeId, incarnation}, after: "owner-crash"}`. Omitting `after` keeps
 reboot-only behavior. Both the original owner and selected replacement runtime must
 support this path; no project code or session lifecycle implementation is duplicated.
+
+## Automatic recovery of armed Linux huddles
+
+Application 28.19 and runtimes advertising `automaticRecovery: 1` recover an armed
+huddle after authoritative owner-loss reconciliation and positive descendant-exit
+checks. This applies to supporting Linux systemd/cgroup-v2 owners; older owners,
+macOS and detached runtimes keep their existing recovery paths.
+
+Stop, Interrupt and Archive suppress automatic recovery. The separate **Auto-start
+after reboot** preference still controls reboot recovery. Queued roots and trigger
+cursors survive; running scripts are interrupted and accepted agent actions are not
+repeated. Recovery waits for host admission and pauses during daemon maintenance.
+
+At most three automatic replacements occur between explicit/reboot recoveries or a fresh
+Start. If the huddle keeps crashing, inspect its retained history and source before
+using **Recover after crash** explicitly. Applying source alone does not reset this
+limit. A lost recovery reply cannot trigger a second replacement for the same owner.

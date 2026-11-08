@@ -363,8 +363,7 @@ export class HuddleExecutionService {
         id,
         input.owner,
         scope.valid,
-        false,
-        input.after === 'owner-crash',
+        input.after === 'owner-crash' ? { after: 'owner-crash' } : {},
       );
     } catch (error) {
       scope.check();

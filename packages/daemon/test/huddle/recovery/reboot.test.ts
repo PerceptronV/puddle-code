@@ -89,8 +89,14 @@ it('recovers one recorded owner after reboot, resumes queued work and subscripti
       /earlier host boot/,
     );
     await expect(
-      f.launcher.recoverHuddle(f.session.id, target, () => true, false, true),
+      f.launcher.recoverHuddle(f.session.id, target, () => true, { after: 'owner-crash' }),
     ).rejects.toThrow(/containment proof/);
+    await expect(
+      f.launcher.recoverHuddle(f.session.id, target, () => true, {
+        after: 'owner-crash',
+        automatic: true,
+      }),
+    ).rejects.toThrow(/Automatic crash recovery/);
     expect(f.run).not.toHaveBeenCalled();
     // Model a previous boot's durable state without killing or rebooting this host.
     launch.boot_id = randomUUID();

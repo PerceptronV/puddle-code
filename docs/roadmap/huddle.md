@@ -114,7 +114,7 @@ captured HuddleReadout adapters with durable intent, bounded receipts and explic
 unknown outcomes. Explicit owner/API observation and the history panel's Check
 delivery action now reconcile uncertain deliveries through their captured adapters,
 without resending or continuing ended graphs. Offline owner reconciliation and
-automatic same-boot owner-crash recovery remain unfinished. Explicit reboot recovery
+same-boot recovery on macOS/detached lifetimes remain unfinished. Explicit reboot recovery
 now restores the recorded activation, queued work and trigger cursors in one
 replacement owner (application 28.15, runtime recovery-1, migration 51). Running
 scripts are interrupted and historical agent operations remain observation-only.
@@ -123,8 +123,10 @@ switch and a paginated host-startup pass through the same recovery launcher. Onl
 armed, opted-in predecessors from an earlier boot are recovered. Native reboot
 acceptance remains pending. Application 28.18 adds explicit same-boot recovery
 for systemd/cgroup-v2 owners with retained containment and positive empty-scope
-evidence. Automatic crash recovery and macOS/detached descendant fencing remain
-pending.
+evidence. Application 28.19 adds bounded automatic recovery from existing owner-loss
+reconciliation for armed supporting Linux runs, with Stop/archive/maintenance gates
+and a retained three-replacement limit. macOS/detached descendant fencing and native
+platform acceptance remain pending.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals except where explicitly documented
 in acceptance as implemented.
@@ -677,8 +679,8 @@ fence descendants, one atomic predecessor/successor mapping, a copied ledger and
 restored subscriptions/queues. Old operations retain observation-only host authority.
 Explicit per-run auto-start is implemented in 28.16. Application 28.18 adds
 explicit same-boot recovery with retained Linux systemd/cgroup-v2 containment;
-automatic crash recovery, macOS/detached descendant fencing and native platform
-acceptance remain unfinished.
+bounded automatic Linux recovery follows in 28.19. macOS/detached descendant
+fencing and native platform acceptance remain unfinished.
 Legacy rows without provenance must retain their verified original launch identity;
 never backfill them from a replacement's identity.
 
