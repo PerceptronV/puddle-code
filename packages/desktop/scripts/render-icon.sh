@@ -5,6 +5,7 @@
 # and plates self-rounded artwork on white). Uses macOS-native tooling only
 # (qlmanage / sips / iconutil). The outputs are COMMITTED — CI packages with
 # them and needs no rasteriser; re-run this after editing either svg.
+# Also refreshes the web install/touch/notification icon from the Linux artwork.
 # electron-builder picks both up by default from the build/ resources dir
 # (icns for mac, png for linux).
 set -e
@@ -12,6 +13,7 @@ cd "$(dirname "$0")/../build"
 
 qlmanage -t -s 1024 -o . icon.svg >/dev/null
 mv icon.svg.png icon.png
+cp icon.png ../../web/public/puddle-app.png
 
 qlmanage -t -s 1024 -o . icon-mac.svg >/dev/null
 rm -rf icon.iconset && mkdir icon.iconset
@@ -22,4 +24,4 @@ for s in 16 32 128 256 512; do
 done
 iconutil -c icns icon.iconset -o icon.icns
 rm -rf icon.iconset icon-mac.svg.png
-echo "rendered build/icon.png (linux) + build/icon.icns (mac full-bleed)"
+echo "rendered build/icon.png (linux) + build/icon.icns (mac full-bleed) + web/public/puddle-app.png"
