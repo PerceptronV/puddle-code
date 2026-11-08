@@ -1,5 +1,8 @@
 import {
   huddleApplySchema,
+  huddleReadoutObserveSchema,
+  huddleReadoutObserveAcceptedSchema,
+  type HuddleReadoutObserve,
   huddleLifecycleCommandSchema,
   huddleRunSchema,
   huddleStartSchema,
@@ -19,6 +22,7 @@ import { browserTransport } from '../../../lib/transport/browser-transport';
 import { huddleShellSupported } from '../documents/queries';
 
 export type HuddleCommand =
+  | { action: 'readouts/observe'; input: HuddleReadoutObserve }
   | { action: 'start'; input: HuddleStart }
   | { action: 'apply'; input: HuddleApply }
   | { action: 'run'; input: HuddleRun }
@@ -28,10 +32,20 @@ function local() {
   if (browserTransport() || !huddleShellSupported())
     throw new Error('Huddle execution requires a supporting local or SSH connection');
 }
-export async function inspectHuddle(profile: string, session: string, signal?: AbortSignal) {
+export async function inspectHuddle(
+  profile: string,
+  session: string,
+  signal?: AbortSignal,
+  includeReadoutObservation = false,
+) {
   local();
   return huddleRuntimeInspectionSchema.parse(
-    await api('GET', `${path(profile, session)}/runtime`, undefined, signal),
+    await api(
+      'GET',
+      `${path(profile, session)}/runtime${includeReadoutObservation ? '?include_readout_observation=true' : ''}`,
+      undefined,
+      signal,
+    ),
   );
 }
 export async function huddleHistory(
@@ -53,6 +67,7 @@ export async function huddleHistory(
 export async function sendHuddleCommand(profile: string, session: string, command: HuddleCommand) {
   local();
   const schemas = {
+    'readouts/observe': huddleReadoutObserveSchema,
     start: huddleStartSchema,
     apply: huddleApplySchema,
     run: huddleRunSchema,
@@ -62,6 +77,8 @@ export async function sendHuddleCommand(profile: string, session: string, comman
   };
   const input = schemas[command.action].parse(command.input);
   const reply = await api('POST', `${path(profile, session)}/${command.action}`, input);
+  if (command.action === 'readouts/observe')
+    return { action: 'observing' as const, value: huddleReadoutObserveAcceptedSchema.parse(reply) };
   if (command.action === 'run')
     return { action: 'run' as const, value: huddleRunAcceptedSchema.parse(reply) };
   if (command.action === 'stop')

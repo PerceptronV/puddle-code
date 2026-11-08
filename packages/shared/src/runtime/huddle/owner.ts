@@ -103,6 +103,13 @@ export const huddleOwnerRequestSchema = z.discriminatedUnion('t', [
     controllerEpoch: sequence,
   }),
   z.strictObject({ t: z.literal('inspect'), ...request }),
+  z.strictObject({
+    t: z.literal('readout-observe'),
+    ...request,
+    operationId: z.uuid(),
+    expectedGeneration: sequence,
+    activationId: z.uuid().nullable(),
+  }),
   z.strictObject({ t: z.literal('completion-sources'), ...request }),
   z.strictObject({
     t: z.literal('completion-plan'),

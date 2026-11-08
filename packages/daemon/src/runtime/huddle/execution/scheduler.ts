@@ -37,6 +37,14 @@ export class HuddleScheduler {
     return this.attempts.size > 0;
   }
 
+  observeReadout(operationId: string): void {
+    try {
+      this.attempts.observeReadout(operationId);
+    } finally {
+      this.contexts.prune();
+    }
+  }
+
   drain(): Promise<void> {
     this.notify();
     if (!this.driving)
@@ -49,6 +57,7 @@ export class HuddleScheduler {
   async halt(intent: 'stopped' | 'interrupted', reason: string): Promise<void> {
     const current = this.ledger.activations.current();
     this.ledger.activations.setIntent(current.generation, intent, current.autoStart);
+    this.attempts.cancelAll(reason);
     for (const execution of this.executions()) {
       this.attempts.cancel(execution.id, reason);
       this.ledger.interrupt(

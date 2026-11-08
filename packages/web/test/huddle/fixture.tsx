@@ -182,8 +182,14 @@ window.fetch = async (input, init) => {
       },
     });
   }
-  const execution = path.match(new RegExp(`^${prefix}/sessions/([^/]+)/([^/]+)$`));
-  if (execution) return runtime.request(execution[1]!, execution[2]!, body);
+  const execution = path.match(new RegExp(`^${prefix}/sessions/([^/]+)/(readouts/observe|[^/]+)$`));
+  if (execution)
+    return runtime.request(
+      execution[1]!,
+      execution[2]!,
+      body,
+      url.searchParams.get('include_readout_observation') === 'true',
+    );
   if (path === `${prefix}/availability`)
     return Response.json(
       available

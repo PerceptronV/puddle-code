@@ -15,9 +15,16 @@ export function useHuddleExecutionSupported() {
 }
 export function useHuddleRuntime(profile: string, session: string, focused: boolean) {
   const supported = useHuddleExecutionSupported();
+  const protocol = useDaemonVersion().data?.protocol;
   return useQuery({
     queryKey: runtimeKey(profile, session),
-    queryFn: ({ signal }) => inspectHuddle(profile, session, signal),
+    queryFn: ({ signal }) =>
+      inspectHuddle(
+        profile,
+        session,
+        signal,
+        supportsApplicationFeature(protocol, { major: 28, minor: 6 }),
+      ),
     enabled: supported && !!profile && focused,
     retry: false,
     networkMode: 'always',

@@ -295,6 +295,37 @@ export class HuddleRuntimeControls {
       reviewed,
     );
   }
+  observeReadout(
+    sessionId: string,
+    expected: HuddleControlTarget,
+    operationId: string,
+    authorised: Authorised,
+  ) {
+    const reviewed = { ...expected };
+    return this.run(
+      sessionId,
+      authorised,
+      async (target) => {
+        const state = await this.review(target, reviewed, authorised);
+        if (state.capabilities.readoutObservation !== 1)
+          throw ApiError.conflict(
+            'huddle_execution_unsupported',
+            'This runtime cannot observe readout deliveries',
+          );
+        this.requireDispatch(target, authorised);
+        const response = await target.client.request({
+          t: 'readout-observe',
+          operationId,
+          expectedGeneration: reviewed.generation,
+          activationId: reviewed.activationId,
+        });
+        if (response.t !== 'accepted') throw unavailable();
+        await this.inspectTarget(target, authorised);
+        return { accepted: true as const, operation_id: operationId };
+      },
+      reviewed,
+    );
+  }
   stop(
     sessionId: string,
     authorised: Authorised,

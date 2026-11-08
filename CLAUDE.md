@@ -599,7 +599,7 @@ an inspected saved digest. Rearm retains the current activation. Public schemas
 explicitly project owner/ledger data; never return private launch evidence or
 operation inputs/targets. Recheck declared worktree bindings after async admission.
 The installation event id in `huddle-host.json` is not authority. Agent bridges,
-custom trigger adapters, readout reconciliation, stopped-owner history and active revision detail
+custom trigger adapters, offline readout reconciliation, stopped-owner history and active revision detail
 remain pending; unsupported execution is rejected before launch.
 Migration 45 adds `huddle_runtime_turns`. Host-side exact asks live under
 `huddle/operations/turns/`, reusing `RuntimeProgrammeTurns.askFor` and the common
@@ -791,8 +791,15 @@ failed/unknown outcomes without replay. Named joined inputs, source scope/revisi
 and idempotency key are immutable. Only acknowledged delivered receipts followed
 by successful worker exit release matching completion outputs. Use the existing
 worker pool and declared resource bindings. Cancellation is best effort and never
-proves a destination received nothing. Observation invokes only the declared
-observe method; explicit owner/API reconciliation remains unfinished.
+proves a destination received nothing. Application 28.6 and `readoutObservation: 1`
+gate exact-owner observation through local/SSH controls and history. Reconstruct and
+compare the original retained envelope/policy and captured source before invoking
+only `observe`; never substitute current files or dispatch agents/events from it.
+Only unknown consumed readouts in ended executions are eligible. Share worker/memory
+capacity, the 30-second observation deadline and Interrupt/Stop cancellation; retain
+claims until positive child exit. Acknowledged acceptance is not delivery proof;
+lost replies never retry, and receipt settlement never resumes an ended graph.
+Offline-owner observation and automatic crash recovery remain unfinished.
 `runtime/huddle/workers/` executes captured component closures in isolated children;
 pin its runtime assets and preserve bounded owner acknowledgements. Unknown child
 termination never permits replay. Shared agent client semantics live in

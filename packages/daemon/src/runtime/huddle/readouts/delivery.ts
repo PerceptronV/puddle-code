@@ -53,14 +53,14 @@ export class HuddleReadoutDelivery {
     });
     this.ledger.operations.dispatch(this.envelope.id);
   }
-  accept(input: HuddleDeliveryResult) {
+  accept(input: HuddleDeliveryResult, mode: 'deliver' | 'observe' = 'deliver') {
     const result = huddleDeliveryResultSchema.parse(input);
     huddleJsonSchema.parse(result);
     if (result.status === 'delivered') {
       const outputs = result.outputs ?? {};
       for (const [port, contract] of Object.entries(this.component.outputs)) {
         if (
-          (!Object.hasOwn(outputs, port) && contract.required) ||
+          (!Object.hasOwn(outputs, port) && contract.required && mode === 'deliver') ||
           (Object.hasOwn(outputs, port) &&
             validateHuddleValue(contract.schema, outputs[port]).length)
         )

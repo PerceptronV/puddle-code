@@ -36,6 +36,7 @@ export const huddleRuntimeInspectionSchema = z.strictObject({
         executing: z.boolean(),
         stopping: z.boolean(),
         failure: z.string().max(4096).nullable(),
+        readout_observation: z.literal(true).optional(),
       }),
     ])
     .nullable(),
@@ -63,21 +64,32 @@ export const huddleRunAcceptedSchema = z.strictObject({
   duplicate: z.boolean(),
 });
 export const huddleStoppedSchema = z.strictObject({ stopped: z.literal(true) });
+export const huddleReadoutObserveSchema = huddleLifecycleCommandSchema.extend({
+  operation_id: z.uuid(),
+});
+export const huddleReadoutObserveAcceptedSchema = z.strictObject({
+  accepted: z.literal(true),
+  operation_id: z.uuid(),
+});
+const historyRequest = {
+  owner: huddleRuntimeTargetSchema,
+  include_readout_observation: z.literal(true).optional(),
+};
 export const huddleHistoryRequestSchema = z.discriminatedUnion('collection', [
   z.strictObject({
-    owner: huddleRuntimeTargetSchema,
+    ...historyRequest,
     collection: z.literal('executions'),
     after: ordinal,
     parent: huddleRevisionSchema.optional(),
   }),
   z.strictObject({
-    owner: huddleRuntimeTargetSchema,
+    ...historyRequest,
     collection: z.literal('invocations'),
     after: ordinal,
     parent: z.uuid(),
   }),
   z.strictObject({
-    owner: huddleRuntimeTargetSchema,
+    ...historyRequest,
     collection: z.literal('operations'),
     after: ordinal,
     parent: z.uuid(),
@@ -107,16 +119,19 @@ const invocation = z.strictObject(huddleInvocationRecordSchema.shape).pick({
   result: true,
   error: true,
 });
-const operation = z.strictObject(huddleOperationRecordSchema.shape).pick({
-  id: true,
-  invocationId: true,
-  executionId: true,
-  kind: true,
-  state: true,
-  consumed: true,
-  result: true,
-  error: true,
-});
+const operation = z
+  .strictObject(huddleOperationRecordSchema.shape)
+  .pick({
+    id: true,
+    invocationId: true,
+    executionId: true,
+    kind: true,
+    state: true,
+    consumed: true,
+    result: true,
+    error: true,
+  })
+  .extend({ readout_observation: z.literal(true).optional() });
 export const huddleExecutionViewSchema = execution.strip();
 export const huddleInvocationViewSchema = invocation.strip();
 export const huddleOperationViewSchema = operation.strip();
@@ -145,5 +160,6 @@ export type HuddleStart = z.infer<typeof huddleStartSchema>;
 export type HuddleApply = z.infer<typeof huddleApplySchema>;
 export type HuddleLifecycleCommand = z.infer<typeof huddleLifecycleCommandSchema>;
 export type HuddleRun = z.infer<typeof huddleRunSchema>;
+export type HuddleReadoutObserve = z.infer<typeof huddleReadoutObserveSchema>;
 export type HuddleHistoryRequest = z.infer<typeof huddleHistoryRequestSchema>;
 export type HuddleHistoryPage = z.infer<typeof huddleHistoryPageSchema>;

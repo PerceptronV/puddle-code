@@ -32,8 +32,8 @@ import {
 } from '../src/index.js';
 
 describe('shared API schemas', () => {
-  it('declares protocol 28.5 for local huddle readout declarations', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 28, minor: 5 });
+  it('declares protocol 28.6 for explicit huddle readout observation', () => {
+    expect(PROTOCOL_VERSION).toEqual({ major: 28, minor: 6 });
   });
 
   it('accepts headless mode and rejects the previous scripted name', () => {

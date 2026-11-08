@@ -108,7 +108,27 @@ Use `'none'` when the adapter cannot cooperate.
 
 Adapters declaring `reconciliation: 'observe'` must also export
 `async observe(context, delivery)` returning the same result type. This method must
-query the original delivery by its retained key and must not resend it. The worker
-supports separate observation, but explicit owner/API reconciliation controls are
-still unfinished. Until those are available, inspect uncertain delivery at the
-destination before deliberately starting new work.
+query the original delivery by its retained key and must not resend it.
+
+With application 28.6 and a runtime advertising `readoutObservation: 1`, open
+**History → Operations → Check delivery** on an unknown readout in an ended
+execution. This runs `observe` using the original captured script, parameters,
+bindings, inputs and idempotency key, even if the graph has since been edited or
+Apply selected a newer revision. The owner records delivered/failed/unknown in
+the operation history. The ended graph remains ended and publishes no new outputs.
+A delivered observation may return its receipt without reconstructing graph outputs;
+any supplied outputs still have to satisfy the captured port schemas.
+
+Observation shares the huddle worker pool and has a 30-second deadline. Interrupt
+and Stop cancel it. Observe must perform read-only destination lookup; the SDK
+rejects agent operations and event emissions in this mode. Captured custom code
+remains trusted host code, so this is not an OS sandbox. The destination's lookup
+must distinguish a proven refusal from an absent or not-yet-visible receipt;
+inconclusive lookup returns `unknown`.
+
+An accepted check can finish after the frontend disconnects. If the reply is lost,
+inspect history before another action. Refreshing history never schedules another
+check. For a still-unknown outcome, **Refresh delivery** enables another deliberate
+check; there is no automatic polling of the destination or delivery retry. Checking
+requires the original live owner and retained source; stopped/offline owner recovery
+is not yet available.

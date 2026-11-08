@@ -7,12 +7,25 @@ import {
 import { canAdoptHuddle, daemonRuntimeCapabilities } from '../../src/installation/runtime-roles.js';
 
 it('preserves old owners and requires readout support to adopt newer owners', () => {
-  const { readouts: _, ...old } = HUDDLE_RUNTIME_CAPABILITIES;
+  const { readouts: _, readoutObservation: _observation, ...old } = HUDDLE_RUNTIME_CAPABILITIES;
   expect(supportsHuddleRuntime(old)).toBe(true);
   expect(supportsHuddleRuntime({ ...old, readouts: 2 })).toBe(false);
   const candidate = daemonRuntimeCapabilities('fixture');
   expect(canAdoptHuddle(candidate, old)).toBe(true);
   candidate.roles.huddle = old;
+  expect(canAdoptHuddle(candidate, HUDDLE_RUNTIME_CAPABILITIES)).toBe(false);
+});
+
+it('gates observation separately from delivery and preserves delivery-only owners', () => {
+  const { readoutObservation: _, ...deliveryOnly } = HUDDLE_RUNTIME_CAPABILITIES;
+  expect(supportsHuddleRuntime(deliveryOnly)).toBe(true);
+  expect(supportsHuddleRuntime({ ...deliveryOnly, readoutObservation: 2 })).toBe(false);
+  expect(
+    supportsHuddleRuntime({ ...deliveryOnly, readouts: undefined, readoutObservation: 1 }),
+  ).toBe(false);
+  const candidate = daemonRuntimeCapabilities('fixture');
+  candidate.roles.huddle = deliveryOnly;
+  expect(canAdoptHuddle(candidate, deliveryOnly)).toBe(true);
   expect(canAdoptHuddle(candidate, HUDDLE_RUNTIME_CAPABILITIES)).toBe(false);
 });
 

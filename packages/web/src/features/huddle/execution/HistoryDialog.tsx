@@ -1,6 +1,10 @@
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { HuddleHistoryPage, HuddleHistoryRequest } from '@puddle/shared';
+import {
+  supportsApplicationFeature,
+  type HuddleHistoryPage,
+  type HuddleHistoryRequest,
+} from '@puddle/shared';
 import {
   Dialog,
   DialogContent,
@@ -9,7 +13,9 @@ import {
 } from '../../../components/ui/dialog';
 import { ControlTray } from '../../../components/ui/control-tray';
 import { huddleHistory } from './api';
-import { historyKey } from './queries';
+import { historyKey, useHuddleRuntime, useHuddleCommands } from './queries';
+import { useDaemonVersion } from '../../../lib/queries/queries';
+import { ReadoutObservation } from './ReadoutObservation';
 import { graphActionClass } from '../inspector/GraphEditing';
 
 type Owner = HuddleHistoryRequest['owner'];
@@ -163,7 +169,29 @@ function ExecutionRecords({
   const [collection, setCollection] = useState<'invocations' | 'operations'>('invocations');
   const [cursors, setCursors] = useState([0]);
   const after = cursors.at(-1)!;
-  const page = usePage(profile, session, { owner, collection, after, parent: execution });
+  const protocol = useDaemonVersion().data?.protocol;
+  const observationSupported = supportsApplicationFeature(protocol, { major: 28, minor: 6 });
+  const page = usePage(profile, session, {
+    owner,
+    collection,
+    after,
+    parent: execution,
+    ...(observationSupported ? { include_readout_observation: true as const } : {}),
+  });
+  const runtime = useHuddleRuntime(profile, session, true);
+  const commands = useHuddleCommands(profile, session);
+  const current = runtime.data?.owner;
+  const observationTarget =
+    observationSupported &&
+    !runtime.error &&
+    current?.connected &&
+    current.readout_observation &&
+    !current.stopping &&
+    !current.failure &&
+    current.target.runtimeId === owner.runtimeId &&
+    current.target.incarnation === owner.incarnation
+      ? current.target
+      : null;
   return (
     <>
       <ControlTray label="Execution detail" className="w-fit flex-wrap">
@@ -203,6 +231,20 @@ function ExecutionRecords({
           {page.error.message}
         </p>
       )}
+      {commands.status.review && (
+        <button
+          type="button"
+          className={graphActionClass}
+          disabled={page.isFetching || runtime.isFetching}
+          onClick={() => {
+            void Promise.all([page.refetch(), runtime.refetch()]).then(([history, state]) => {
+              if (!history.error && !state.error) commands.reviewed();
+            });
+          }}
+        >
+          Inspect previous command
+        </button>
+      )}
       {page.data?.records.length === 0 && (
         <p className="text-xs text-fg-muted">No {collection} on this page.</p>
       )}
@@ -224,6 +266,19 @@ function ExecutionRecords({
               <p className="text-fg-muted">
                 {record.consumed ? 'Dispatch consumed' : 'Not dispatched'}
               </p>
+            )}
+            {'readout_observation' in record && record.readout_observation && observationTarget && (
+              <ReadoutObservation
+                operation={record.id}
+                target={observationTarget}
+                disabled={commands.status.pending || commands.status.review}
+                send={commands.send}
+                inspect={async () => {
+                  const [history, state] = await Promise.all([page.refetch(), runtime.refetch()]);
+                  if (history.error) throw history.error;
+                  if (state.error) throw state.error;
+                }}
+              />
             )}
           </details>
         ))}

@@ -3,6 +3,8 @@ import { requireHuddleHostFeatures } from '../../runtime/huddle/triggers/definit
 import { randomUUID } from 'node:crypto';
 import {
   huddleStartSchema,
+  huddleReadoutObserveSchema,
+  type HuddleReadoutObserve,
   huddleApplySchema,
   huddleRunSchema,
   huddleLifecycleCommandSchema,
@@ -94,6 +96,7 @@ export class HuddleExecutionService {
     profile: string,
     id: string,
     authority: Authority,
+    includeReadoutObservation = false,
   ): Promise<HuddleRuntimeInspection> {
     const scope = this.scope(profile, id, authority);
     const binding = this.deps.runtimes.ownerOf(id);
@@ -122,6 +125,9 @@ export class HuddleExecutionService {
             state.state !== 'running' ||
             this.deps.runtimes.stopRequested(state.identity.runtime_id),
           failure: state.failure,
+          ...(includeReadoutObservation && state.capabilities.readoutObservation === 1
+            ? { readout_observation: true as const }
+            : {}),
         },
       };
     } catch (error) {
@@ -380,7 +386,7 @@ export class HuddleExecutionService {
   async history(profile: string, id: string, raw: HuddleHistoryRequest, authority: Authority) {
     const input = huddleHistoryRequestSchema.parse(raw);
     const scope = this.scope(profile, id, authority);
-    const { owner, ...query } = input;
+    const { owner, include_readout_observation, ...query } = input;
     const page = await this.deps.controls.records(id, owner, query, scope.valid);
     scope.check();
     if (page.collection === 'executions')
@@ -403,8 +409,41 @@ export class HuddleExecutionService {
       ...page,
       records: page.records.map(({ ordinal, record }) => ({
         ordinal,
-        record: huddleOperationViewSchema.parse(record),
+        record: huddleOperationViewSchema.parse({
+          ...record,
+          ...(include_readout_observation &&
+          record.kind === 'readout' &&
+          record.consumed &&
+          record.state === 'unknown' &&
+          typeof record.target === 'object' &&
+          record.target !== null &&
+          !Array.isArray(record.target) &&
+          typeof record.target.support === 'object' &&
+          record.target.support !== null &&
+          !Array.isArray(record.target.support) &&
+          record.target.support.reconciliation === 'observe'
+            ? { readout_observation: true }
+            : {}),
+        }),
       })),
     };
+  }
+
+  async observeReadout(
+    profile: string,
+    id: string,
+    raw: HuddleReadoutObserve,
+    authority: Authority,
+  ) {
+    const input = huddleReadoutObserveSchema.parse(raw);
+    const scope = this.scope(profile, id, authority, true);
+    const accepted = await this.deps.controls.observeReadout(
+      id,
+      input.target,
+      input.operation_id,
+      scope.valid,
+    );
+    scope.check();
+    return accepted;
   }
 }

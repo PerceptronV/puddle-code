@@ -20,6 +20,7 @@ import {
 } from '../workers/process.js';
 import { huddleRecords } from './records.js';
 import { HuddleReadoutDelivery } from '../readouts/delivery.js';
+import { prepareReadoutObservation } from '../readouts/observation.js';
 
 export interface HuddleAttemptOptions extends Pick<
   HuddleWorkerOptions,
@@ -60,6 +61,60 @@ export class HuddleAttempts {
   }
   get pending() {
     return [...this.live.values()].map((item) => item.task);
+  }
+
+  observeReadout(operationId: string): void {
+    if (this.blocked) throw this.blocked;
+    if (this.live.has(operationId) || this.live.size >= this.maxWorkers)
+      throw new Error('Huddle observation is already running or worker capacity is unavailable');
+    const observation = prepareReadoutObservation(this.ledger, this.revisions, operationId);
+    const releaseWorker = this.options.allowance?.reserve(160 * 1024 * 1024);
+    if (this.options.allowance && !releaseWorker)
+      throw new Error('Host memory admission is unavailable for a huddle worker');
+    let handle: HuddleWorkerHandle;
+    try {
+      this.ledger.operations.unknown(
+        operationId,
+        'An observation was requested; delivery remains unknown until a receipt is retained',
+      );
+      handle = startHuddleWorker(observation.job, {
+        ...this.options,
+        cwd: observation.worktree,
+        timeoutMs: 30_000,
+        request: observation.request,
+        log: (stream, text) => this.options.log?.(observation.invocation.id, stream, text),
+      });
+    } catch (error) {
+      releaseWorker?.();
+      throw error;
+    }
+    const task = handle.result
+      .then(() => {})
+      .catch((error: unknown) => {
+        const failure = error instanceof Error ? error : new Error(String(error));
+        if (failure instanceof HuddleWorkerTerminationUnknown) this.blocked = failure;
+        try {
+          observation.failed(failure);
+        } catch (error) {
+          this.blocked = error instanceof Error ? error : new Error(String(error));
+          throw error;
+        }
+      })
+      .finally(() => this.wake());
+    this.live.set(operationId, {
+      executionId: observation.invocation.executionId,
+      handle,
+      task,
+    });
+    void Promise.allSettled([handle.exited, task]).then(() => {
+      this.live.delete(operationId);
+      releaseWorker?.();
+      this.wake();
+    });
+  }
+
+  cancelAll(reason: string) {
+    for (const item of this.live.values()) item.handle.cancel(reason);
   }
 
   start(invocation: HuddleInvocationRecord): boolean {

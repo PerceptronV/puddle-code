@@ -1,5 +1,28 @@
 # The puddle communication protocol
 
+Application **28.6** adds local/SSH
+`POST /api/huddle/:profile/sessions/:sid/readouts/observe`, binding a reviewed owner,
+activation/generation and operation id. The response acknowledges acceptance only.
+Optional `readout_observation: true` on connected runtime inspection and eligible
+unknown operation history enables the history action. An older runtime remains
+inspectable and executable without this action. Emit these additions only when
+the caller opts in with `include_readout_observation=true` on the runtime query or
+`include_readout_observation: true` in the history request; older strict response
+readers retain their previous shapes. Optional private capability
+`readoutObservation: 1` requires `readouts: 1` and gates `readout-observe`; ordinary
+agent/terminal IPC, remote protocol 5, database 47 and huddle owner/ledger versions
+are unchanged.
+
+Observation uses the operation's retained revision, activation, envelope and
+declared `observe` method. It shares worker concurrency/memory admission, has a
+30-second deadline, and participates in Interrupt/Stop and positive-exit fencing.
+Only consumed unknown readouts in ended executions are eligible. No agent operation,
+event emission, delivery resend or graph continuation is permitted through this
+path. A known receipt survives lost acknowledgements. Lost command replies are
+observation-only; neither reconnect nor history refresh schedules another worker.
+Subsequent inconclusive observations require another explicit command. No offline
+owner reconciliation or automatic owner-crash recovery is introduced.
+
 Application **28.5** adds optional `readout` delivery declarations to local huddle
 component manifests: idempotency support, `none|observe` reconciliation and
 `none|signal` cancellation. Local readout entries must declare these fields;
@@ -17,7 +40,7 @@ Private worker jobs optionally carry the exact delivery and `deliver|observe` mo
 consumed `readout` operation precedes source evaluation. Unknown/failed outcomes
 cannot publish completion outputs. Confirmed delivery and worker exit remain
 separate evidence; no automatic delivery retry or completed-script replay exists.
-Explicit owner/API reconciliation of unknown deliveries remains pending.
+Explicit owner/API reconciliation is available through application 28.6 above.
 
 Private agent/terminal runtime protocol **1.2** adds a separate `native-turns`
 read request/response, optional `state.native_turns` source status and optional

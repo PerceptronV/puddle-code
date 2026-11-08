@@ -1382,8 +1382,15 @@ receipts/refusals or unknown outcomes without replay. Completion outputs require
 delivered receipt, matching owner acknowledgement and successful worker exit.
 Readouts reuse captured closures, the worker pool, memory/transport/log bounds and
 declared agent-resource bridge. Signal cancellation gives bounded cleanup without
-proving absence of delivery. Separate worker observation invokes only `observe`;
-explicit owner/API reconciliation and custom trigger subscriptions remain pending.
+proving absence of delivery. Application 28.6 and optional `readoutObservation: 1`
+expose explicit local/SSH observation through the history panel. A reviewed exact
+owner/activation and operation id select the original retained adapter and envelope,
+even after source edits or Apply. Only consumed unknown readouts in ended executions
+are eligible. Observation shares worker/memory limits and cancellation with a
+30-second deadline, rejects agent operations/events, and retains known receipts
+without resending or continuing the graph. Acceptance is separate from completion;
+lost replies and history refresh never trigger another worker. Offline reconciliation,
+automatic owner-crash recovery and custom trigger subscriptions remain pending.
 Private immutable revision documents and compare-and-swap activation records
 separate source publication from Apply/arming. Managed executions retain their
 accepted revision, variable values and resource bindings across later Apply.

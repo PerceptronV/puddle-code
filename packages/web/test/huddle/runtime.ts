@@ -17,6 +17,7 @@ export function huddleRuntimeFixture(document: () => HuddleDocument) {
   let ordinal = 0;
   const executions: Extract<HuddleHistoryPage, { collection: 'executions' }>['records'] = [];
   const nodes: Extract<HuddleHistoryPage, { collection: 'invocations' }>['records'] = [];
+  const operations: Extract<HuddleHistoryPage, { collection: 'operations' }>['records'] = [];
   const fail = (code: string) =>
     Response.json({ error: { code, message: code.replaceAll('_', ' ') } }, { status: 409 });
   return {
@@ -39,12 +40,43 @@ export function huddleRuntimeFixture(document: () => HuddleDocument) {
     },
     state: () => owner,
     executions: () => executions,
-    async request(session: string, action: string, body: Record<string, unknown> | undefined) {
+    uncertainReadout() {
+      const execution = executions.at(-1)!.record;
+      execution.state = 'failed';
+      operations.push({
+        ordinal: ++ordinal,
+        record: {
+          id: crypto.randomUUID(),
+          executionId: execution.id,
+          invocationId: nodes.at(-1)!.record.id,
+          kind: 'readout',
+          state: 'unknown',
+          consumed: true,
+          error: 'Destination reply was lost',
+          readout_observation: true,
+        },
+      });
+      if (owner?.connected) owner.readout_observation = true;
+    },
+    readoutSupport(value: boolean) {
+      if (owner?.connected) {
+        if (value) owner.readout_observation = true;
+        else delete owner.readout_observation;
+      }
+    },
+    async request(
+      session: string,
+      action: string,
+      body: Record<string, unknown> | undefined,
+      includeReadoutObservation = false,
+    ) {
       if (action === holdAction) await held;
       const current = owner?.connected ? owner : null;
       if (action === 'runtime') {
         if (observationFails) return fail('observation_unavailable');
-        return Response.json({ session_id: session, owner, unresolved: false });
+        const observed = structuredClone(owner);
+        if (!includeReadoutObservation && observed?.connected) delete observed.readout_observation;
+        return Response.json({ session_id: session, owner: observed, unresolved: false });
       }
       if (action === 'history') {
         if (
@@ -62,8 +94,13 @@ export function huddleRuntimeFixture(document: () => HuddleDocument) {
             ? executions
             : collection === 'invocations'
               ? nodes.filter(({ record }) => record.executionId === body?.parent)
-              : [];
-        const records = rows.filter(({ ordinal }) => ordinal > Number(body?.after)).slice(0, 2);
+              : operations.filter(({ record }) => record.executionId === body?.parent);
+        const records = structuredClone(
+          rows.filter(({ ordinal }) => ordinal > Number(body?.after)).slice(0, 2),
+        );
+        if (!body?.include_readout_observation)
+          for (const { record } of records)
+            if ('readout_observation' in record) delete record.readout_observation;
         return Response.json({
           owner: body?.owner,
           collection,
@@ -76,6 +113,19 @@ export function huddleRuntimeFixture(document: () => HuddleDocument) {
         (!current || JSON.stringify(body?.target) !== JSON.stringify(current.target))
       )
         return fail('huddle_control_changed');
+      if (action === 'readouts/observe') {
+        const operation = operations.find(({ record }) => record.id === body?.operation_id)?.record;
+        if (!operation || !current?.readout_observation) return fail('huddle_command_rejected');
+        operation.state = 'completed';
+        operation.result = { status: 'delivered', receipt: { id: 'observed-destination' } };
+        delete operation.error;
+        delete operation.readout_observation;
+        if (lose === action) {
+          lose = null;
+          throw new TypeError('Reply lost after observation acceptance');
+        }
+        return Response.json({ accepted: true, operation_id: operation.id });
+      }
       if (action === 'start' || action === 'apply') {
         if (body?.expected_digest !== document().digest) return fail('huddle_source_changed');
         if (action === 'start' && owner) return fail('huddle_owned');

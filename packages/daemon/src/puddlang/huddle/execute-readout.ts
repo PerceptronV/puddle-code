@@ -41,7 +41,18 @@ export async function executeHuddleReadout(
   );
   context.signal.throwIfAborted();
   huddleJsonSchema.parse(result);
-  if (result.status === 'delivered')
-    validatePorts(component.outputs, result.outputs ?? {}, 'output');
+  if (result.status === 'delivered') {
+    // Observation can prove delivery without reconstructing outputs for an ended graph.
+    const outputs =
+      mode === 'observe'
+        ? Object.fromEntries(
+            Object.entries(component.outputs).map(([key, port]) => [
+              key,
+              { ...port, required: false },
+            ]),
+          )
+        : component.outputs;
+    validatePorts(outputs, result.outputs ?? {}, 'output');
+  }
   return immutable(result) as HuddleDeliveryResult;
 }

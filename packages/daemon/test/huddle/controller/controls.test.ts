@@ -145,6 +145,7 @@ it('rejects stale owner, activation and generation for every mutation before dis
           ),
         () => f.controls.trigger(f.session.id, stale, 'run', 'stale', f.home, authorised),
         () => f.controls.interrupt(f.session.id, stale, authorised),
+        () => f.controls.observeReadout(f.session.id, stale, randomUUID(), authorised),
       ])
         await expect(pending()).rejects.toMatchObject({ code });
     }
@@ -303,6 +304,10 @@ it('rechecks authority and Stop after inspection, and discards history after aut
     ).rejects.toMatchObject({ code: 'upstream_expired' });
     valid = true;
     await expect(
+      f.controls.observeReadout(f.session.id, f.target(), randomUUID(), () => valid),
+    ).rejects.toMatchObject({ code: 'upstream_expired' });
+    valid = true;
+    await expect(
       f.controls.records(
         f.session.id,
         f.target(),
@@ -319,6 +324,10 @@ it('rechecks authority and Stop after inspection, and discards history after aut
       { code: 'huddle_stopping' },
     );
     expect(calls.mock.calls.some(([command]) => command.t === 'arm')).toBe(false);
+    await expect(
+      f.controls.observeReadout(f.session.id, f.target(), randomUUID(), authorised),
+    ).rejects.toMatchObject({ code: 'huddle_stopping' });
+    expect(calls.mock.calls.some(([command]) => command.t === 'readout-observe')).toBe(false);
   } finally {
     await f.close();
   }

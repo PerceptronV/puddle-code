@@ -402,6 +402,23 @@ export class HuddleOwner {
       return state();
     }
     if (this.failure) throw new Error('Huddle owner needs recovery');
+    if (request.t === 'readout-observe') {
+      if (this.memory.launch.capabilities.readoutObservation !== 1)
+        throw new Error('Owner has no readout observation capability');
+      const control = this.ledger.activations.current();
+      if (
+        control.generation !== request.expectedGeneration ||
+        control.activationId !== request.activationId
+      )
+        throw new Error('Readout observation review is stale');
+      requireHuddleDefinitionLocation(
+        this.memory.launch.identity.canonical_worktree_path,
+        this.memory.launch.scope.huddleId,
+      );
+      this.scheduler.observeReadout(request.operationId);
+      this.drive();
+      return { t: 'accepted', id: request.id };
+    }
     if (
       (request.t === 'apply' || request.t === 'arm') &&
       request.completionBaselines !== undefined &&

@@ -11,6 +11,7 @@ Application 28.2 exposes local/SSH manual execution and live-owner history APIs.
 Application 28.3 adds editable agent templates and feedback settings.
 Application 28.4 adds guarded absent-file creation and layout editing.
 Application 28.5 adds local readout delivery declarations and execution.
+Application 28.6 adds explicit readout observation and the history action.
 Runtime archives declare their internal huddle-role contracts;
 application 27.0 now includes huddle session identity and migration 43 records
 placements/owner roles. The daemon launcher and lifecycle controls now integrate
@@ -29,6 +30,63 @@ interactive, structured Codex and command-correlated headless controls. Automati
 delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 No user CLI command is enabled yet.
+
+## Implemented: explicit readout observation
+
+Application **28.6** exposes local/SSH
+`POST /api/huddle/:profile/sessions/:sid/readouts/observe` with an exact reviewed
+owner target and `operation_id`. Optional runtime `readoutObservation: 1` gates the
+private `readout-observe` command independently of delivery support. Connected
+runtime inspection and eligible unknown operation history expose optional
+`readout_observation: true`; old delivery-only owners receive no new command.
+These fields require explicit `include_readout_observation` requests so older
+strict clients retain their runtime/history response shapes.
+The history panel offers **Check delivery** only for a matching supporting owner.
+Commands share placement authority, queued target review, Stop/maintenance admission
+and the existing no-retry mutation path. Owner-side generation/activation checks
+also reject stale private requests.
+
+`runtime/huddle/readouts/observation.ts` reconstructs the exact original delivery
+from its retained execution, activation and source, comparing the complete envelope
+and policy with recorded intent before source evaluation. Only consumed unknown
+readouts in ended executions, with a declared `observe` method, are eligible.
+Later source edits or Apply cannot substitute code, inputs, parameters or bindings.
+Observation shares the existing worker pool and 160 MiB managed child allowance,
+bounded transport/logs, cancellation and positive-exit retention. It has a 30-second
+deadline. Concurrent observation of the same operation is refused, as is exhausted
+worker capacity. Interrupt/Stop cancel observations even though their graph executions
+have already ended. Unknown child termination retains ownership and blocks dispatch.
+
+The observer can acknowledge only a readout result; agent operations and event
+emissions are rejected. It never dispatches the delivery or resumes graph routing.
+Receipts/refusals update only the operation, leaving its execution and invocations
+ended. A receipt committed before acknowledgement loss or worker failure remains
+known. Observation may prove delivery with a receipt alone; optional supplied outputs
+are validated but never routed. Inconclusive/failed observation retains uncertainty
+without automatic retries.
+Acceptance is asynchronous; losing the control reply causes inspection, not another
+worker launch. History refresh is read-only. A later explicit check may query again
+after an inconclusive outcome. Custom source remains trusted host code, so read-only
+destination behaviour is part of its adapter contract rather than an OS sandbox.
+
+Verification: **53 tests passed across 7 files** covering readout workers, ledger
+settlement, owner/HTTP controls, application protocol and role capabilities.
+Real isolated owner/worker processes and a loopback HTTP destination verify lookup
+after a lost delivery reply, single dispatch after a lost observation acknowledgement,
+stale target refusal, captured-source use after edits, old-owner gating, cancellation,
+known refusal, inconclusive outcomes and retained receipts. Headless Chromium checks
+the actual history action, supporting-owner visibility, pending-button exclusion,
+lost-reply inspection and unchanged ended graph state against UI-only fixtures.
+Shared/daemon/CLI and web TypeScript checks and repository ESLint passed.
+The broader regression run passed **412 of 413 tests across 83 files**; the one
+completion integration refusal was host memory admission. A single-worker rerun,
+including final opt-in response compatibility and owner/API controls, passed
+**22 tests across 4 files**, including that completion case. After receipt-only
+observation and shared-capacity/forbidden-operation coverage, the final readout run
+passed **26 tests across 4 files**. The final headless history check, formatting,
+semantic-colour/contrast and diff checks passed.
+Destination-specific, installed-provider, native supervisor/SSH/reboot acceptance,
+offline-owner reconciliation and automatic owner-crash recovery remain pending.
 
 ## Implemented: project-local readout delivery
 
@@ -66,10 +124,10 @@ cleanup before forced exit; it is never proof that a destination received nothin
 
 The worker supports a separate `observe` mode and verifies its exported method
 against the captured declaration. Tests prove that this mode does not invoke
-`deliver`. **Owner/API controls for explicitly reconciling unknown deliveries are
-still unfinished**, as are custom trigger subscriptions, managed integration-secret
-references and destination-specific conformance/acceptance. No automatic retry is
-enabled merely because a component declares idempotency support.
+`deliver`. Owner/API controls now expose this mode as described above. Custom
+trigger subscriptions, managed integration-secret references and destination-specific
+conformance/acceptance remain unfinished. No automatic retry is enabled merely
+because a component declares idempotency support.
 
 Verification: the broader huddle/shared run passed **251 tests**, with one older
 readout-source fixture missing the newly required delivery declaration. After
