@@ -1412,8 +1412,14 @@ old/new OIDs, including annotated tags and force updates. Eight `git-sources`
 ledger slots retain baseline/pending snapshots and atomic 64-change batch progress.
 Fresh Start/Resume/armed Apply baselines exclude paused changes. Cancellation owns
 Git subprocesses until close and prevents clean retirement before scan settlement.
-Puddle subscriptions, full per-trigger health/backlog inspection and custom adapters
-remain unfinished.
+Migration 47 supplies a bounded host session-observation feed under
+`huddle/triggers/sessions/`. Database triggers atomically retain placement creation,
+changed statuses and selected lifecycle audits, with exact observed worktree scope.
+A persistent epoch/head/loss floor distinguishes baseline reads from expired cursors;
+count/byte-bounded private pages never claim missing history was caught up. Status
+observations do not establish native turn completion. Owner delivery, native turn
+retention, full per-trigger health/backlog inspection and custom adapters remain
+unfinished.
 The runtime entry point selects a separate huddle owner from a strict private launch
 record. It reuses runtime/memory claims, host grants and lifetime checks; consumes
 launch intent once; and provides bounded authenticated controller commands.

@@ -38,10 +38,12 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Retain bounded session lifecycle/status observations atomically with their source writes (database schema 47), with scoped private pages and explicit cursor gaps. Huddle subscription delivery and exact native-turn triggers remain pending.
+
 - Observe Git refs and worktree HEAD in independent huddle owners with durable net-change batches, common-directory deduplication and optional `git: 1` support. Retain old/new OIDs and symbolic targets through force updates and branch switches.
 - Observe Filetree changes in independent huddle owners, using bounded metadata reconciliation and durable batches with optional `filetree: 1` support. Controller loss leaves observation running; interruption and failure fence scans before admission.
 - Run calendar and one-off date triggers in independent huddle owners with durable consumption and optional `calendar: 1` support. Calendar schedules skip nonexistent local times, fire once during repeated times and bound missed-event recovery; completed dates stay consumed through Resume.
-- Run huddle interval triggers in their independent owner through controller disconnection, with durable occurrence tracking, coalesce/skip/bounded catch-up and explicit `timers: 1` runtime support. Interrupt/Stop disarm timers; resource failures remain visible. Git/session subscriptions and reboot recovery remain pending.
+- Run huddle interval triggers in their independent owner through controller disconnection, with durable occurrence tracking, coalesce/skip/bounded catch-up and explicit `timers: 1` runtime support. Interrupt/Stop disarm timers; resource failures remain visible. Session subscriptions and reboot recovery remain pending.
 
 - Support guarded creation of absent worktree files through `expected_mtime_ms: -1` (application 28.4). Concurrent creations and existing symlinks return a conflict without replacement.
 - Dispatch huddle attach/ask scripts to explicitly bound live agents, sharing ordinary puddlang busy admission and preserving accepted turns through daemon handoff. Surface unsent refusals, retain uncertain sends, and persist exact cancellation attempts (database schema 46); agent graphs require huddle operation capability 2.

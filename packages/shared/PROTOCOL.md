@@ -1,5 +1,21 @@
 # The puddle communication protocol
 
+Database **47** adds bounded host session observations for forthcoming Puddle
+triggers. Shared private cursor/page/record schemas live in
+`runtime/huddle/triggers/session-feed.ts`; no request, runtime capability or public
+endpoint exposes them yet. Application 28.4, ordinary runtime 1.1 and huddle ledger
+format 1 remain unchanged. Existing host compatibility inspection admits only
+candidates that support the current application database.
+
+The stream retains a random epoch, monotonic head and conservative loss floor.
+Placement/status/audit observations commit with their source writes, retain exact
+observed scope and omit arbitrary audit payloads. Explicit baseline reads do not
+replay history; epoch mismatch, expired retention and ahead cursors report gaps.
+Rows are bounded to 8 KiB and 4,096 sequence positions; pages to 64 rows and 128 KiB.
+Readers must supply previously authorised profile/project/worktree scope. Status
+observations are not exact native turn completions. Owner delivery and native turn
+retention remain pending.
+
 Optional private huddle capability **`git: 1`** enables `puddle.trigger.git@1`.
 Launch/Apply and independent-owner validation require it; old owners remain
 supported, while old candidates cannot adopt owners requiring it. Application

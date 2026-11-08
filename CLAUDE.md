@@ -678,6 +678,13 @@ refusal and never replace a pending scan before draining its batches. Start/Resu
 and armed Apply create fresh baselines. Stop/failure cancels watches/timers and
 fences in-flight scans before admission. Keep scan capacity charged until settlement;
 a stalled scan must prevent clean owner shutdown, never release live claims.
+Migration 47 adds bounded host session observations under `huddle/triggers/sessions/`.
+SQL triggers commit them with session/audit writes; retain epoch/head/loss floor even
+when history is removed. Never backfill old statuses as new events, silently rebase
+an expired cursor, copy arbitrary audit payloads or equate waiting_input with an
+exact turn completion. Bound rows/pages and keep resource scoping in the private
+reader. Owner subscription delivery and native-turn retention remain unfinished;
+this foundation does not advertise a new runtime capability or public endpoint.
 Optional `git: 1` adds owner-local ref/HEAD observation under `triggers/git/`.
 Group refs and metadata watches by canonical common directory; retain distinct
 worktree HEAD targets and OIDs. `state/git.ts` uses bounded `git-sources` slots

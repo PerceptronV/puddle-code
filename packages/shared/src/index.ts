@@ -75,6 +75,7 @@ export * from './runtime/huddle/triggers/interval.js';
 export * from './runtime/huddle/triggers/calendar.js';
 export * from './runtime/huddle/triggers/filetree.js';
 export * from './runtime/huddle/triggers/git.js';
+export * from './runtime/huddle/triggers/session-feed.js';
 export * from './runtime/huddle/owner.js';
 export * from './runtime/huddle/capabilities.js';
 export * from './runtime/huddle/operations/agents.js';
