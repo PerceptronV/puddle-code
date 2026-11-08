@@ -6,16 +6,39 @@ import { debounce } from '../../lib/debounce';
 import { toastError } from '../../lib/transport/errors';
 import type { UiStateHandle } from '../workspace/use-ui-state';
 import { desktopContentState } from './content-state';
-import { desktopWindowContext } from './window-context';
+import { desktopWindowContext, suspendDesktopContent } from './window-context';
 import { DesktopWorkingSet } from './working-set';
 import { desktopProfileSeed } from './profile-seed';
 import { registerRendererLifecycle } from './renderer-lifecycle';
 import { fenceWindowInteraction } from './interaction-fence';
 import { allLeaves, focusTab, tabRefKey } from '../workspace/layout/layout-tree';
+import { currentProfileId } from '../profile/profile-store';
+import { DestinationTransfer } from './destination-transfer';
 
 const workingSets = new Map<string, DesktopWorkingSet>();
 const empty = uiStateSnapshotSchema.parse({});
 const subscribeNothing = () => () => undefined;
+export const destinationTransfer = new DestinationTransfer({
+  activeProfile: currentProfileId,
+  owner: async (profileId) => {
+    const owner = desktopWorkingSet(profileId);
+    if (!owner) throw new Error('Window working set is unavailable');
+    await owner.load(async () => (await fetchProfileState(profileId))?.ui_state ?? empty);
+    return owner;
+  },
+  read: (profileId) => desktopBridge()!.windows!.read(profileId),
+  fence: fenceWindowInteraction,
+  suspend: suspendDesktopContent,
+  staging: (id) => {
+    const context = desktopWindowContext();
+    if (context) {
+      if (id) context.stagingTransfer = id;
+      else delete context.stagingTransfer;
+    }
+  },
+  route: () => window.location.pathname,
+  navigate: (route) => window.history.replaceState(null, '', route),
+});
 
 /** Installed once before workspace children mount, including on the dashboard. */
 export async function registerDesktopWindowLifecycle(): Promise<void> {
@@ -45,6 +68,7 @@ export async function registerDesktopWindowLifecycle(): Promise<void> {
       if (!tree || !leaf || !tab) throw new Error('The tab is no longer in this window');
       owner.update({ layout_tree: focusTab(tree, leaf.id, tabRefKey(tab)) });
     },
+    (command) => destinationTransfer.command(command),
   );
 }
 

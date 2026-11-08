@@ -199,6 +199,22 @@ export class DesktopWorkingSet {
     );
   }
 
+  /** Suppress cleanup writes while the destination's existing views unmount. */
+  beginStaging(): void {
+    if (!this.frozen || this.staged || this.writing)
+      throw new Error('Window cannot stage a transfer');
+    this.staged = true;
+  }
+
+  /** Install a prepared presentation only after old models have been released. */
+  stage(version: DesktopWorkspaceVersion): void {
+    if (!this.frozen || !this.staged || this.writing || version.revision !== this.revision)
+      throw new Error('Window state changed before staging');
+    this.snapshot = version.content.snapshot;
+    this.content.restore(version.content);
+    this.notify();
+  }
+
   /** After a committed/aborted transfer, adopt the main process's exact outcome. */
   adopt(
     version: DesktopWorkspaceVersion,

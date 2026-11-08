@@ -230,7 +230,7 @@ export class DesktopWindowState {
         (transfer) => transfer.destinationId === id,
       );
       next.entries[id] = {
-        record,
+        record: preparing && previous ? { ...record, route: previous.record.route } : record,
         open: preparing ? (this.state.entries[id]?.open ?? false) : true,
         workspaces: previous?.workspaces ?? {},
       };
@@ -419,6 +419,8 @@ export class DesktopWindowState {
       content: transfer.destinationContent,
     };
     next.entries[transfer.destinationId]!.open = true;
+    if (transfer.destinationRoute)
+      next.entries[transfer.destinationId]!.record.route = transfer.destinationRoute;
     this.finish(next, id, 'committed');
     this.publish(next);
   }
@@ -427,6 +429,51 @@ export class DesktopWindowState {
     if (!this.state.pending[id]) return;
     const next = structuredClone(this.state);
     this.finish(next, id, 'cancelled');
+    this.publish(next);
+  }
+
+  /** A cancelled destination plan must not later become a prepared move. */
+  cancelPreparation(id: string, sourceId: string, destinationId: string, profileId: string): void {
+    if (this.outcome(id)) return;
+    this.assertProfile(sourceId, profileId);
+    this.assertProfile(destinationId, profileId);
+    if (this.entry(sourceId).record.target !== this.entry(destinationId).record.target)
+      throw new Error('Cannot transfer between hosts');
+    const next = structuredClone(this.state);
+    next.outcomes[id] = { status: 'cancelled', sourceId, destinationId, profileId };
+    for (const old of Object.keys(next.outcomes).slice(
+      0,
+      Math.max(0, Object.keys(next.outcomes).length - MAX_OUTCOMES),
+    ))
+      delete next.outcomes[old];
+    this.publish(next);
+  }
+
+  /** Retire only a sealed empty pane after its acknowledged handoff. */
+  retireSource(id: string, sourceId: string, profileId: string, revision: number): void {
+    const outcome = this.state.outcomes[id];
+    if (
+      outcome?.status !== 'committed' ||
+      outcome.sourceId !== sourceId ||
+      outcome.profileId !== profileId
+    )
+      throw new Error('The pane handoff has not committed');
+    const entry = this.entry(sourceId);
+    if (entry.record.window?.kind !== 'pane') throw new Error('Only a pane window can retire');
+    this.assertUnlocked(sourceId);
+    this.assertRevision(sourceId, profileId, revision);
+    const content = entry.workspaces[profileId]!.content;
+    const empty = (node: LayoutNode | null): boolean =>
+      !node || (node.kind === 'leaf' ? node.tabs.length === 0 : node.children.every(empty));
+    if (
+      content.buffers.length ||
+      (content.snapshot.layout_mode === 'project'
+        ? Object.values(content.snapshot.project_layouts).some((slice) => !empty(slice.layout_tree))
+        : !empty(content.snapshot.layout_tree))
+    )
+      throw new Error('The source pane still contains recoverable work');
+    const next = structuredClone(this.state);
+    next.entries[sourceId]!.open = false;
     this.publish(next);
   }
 

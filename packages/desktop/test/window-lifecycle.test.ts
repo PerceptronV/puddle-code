@@ -74,6 +74,9 @@ vi.mock('electron', async () => {
     loadFile = vi.fn().mockResolvedValue(undefined);
     show = vi.fn();
     focus = vi.fn();
+    restore = vi.fn();
+    isMinimized = () => false;
+    getTitle = () => 'Host window';
     reload() {
       this.webContents.emit('did-start-navigation', {}, this.currentUrl, false, true);
       queueMicrotask(() => this.webContents.emit('did-finish-load'));
@@ -113,6 +116,7 @@ vi.mock('electron', async () => {
       getPath: () => mocks.home,
       quit: vi.fn(),
       exit: vi.fn(),
+      focus: vi.fn(),
       dock: { setMenu: vi.fn() },
     }),
     Menu: { buildFromTemplate: vi.fn(), setApplicationMenu: vi.fn() },

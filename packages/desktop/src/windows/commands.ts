@@ -4,11 +4,13 @@ import {
   desktopWindowCommandSchema,
   type DesktopWindowCommand,
   type DesktopPaneFocus,
+  type DesktopWindowTransferCommand,
+  type DesktopWorkspaceVersion,
 } from '@puddle/shared';
 
 interface Pending {
   windowId: string;
-  resolve(): void;
+  resolve(version?: DesktopWorkspaceVersion): void;
   reject(error: Error): void;
   timer: ReturnType<typeof setTimeout>;
 }
@@ -34,6 +36,20 @@ export class WindowCommands {
     kind: DesktopWindowCommand['kind'],
     payload?: DesktopPaneFocus,
   ): Promise<void> {
+    return this.dispatch(windowId, { kind, ...payload }).then(() => undefined);
+  }
+
+  transfer(
+    windowId: string,
+    command: DesktopWindowTransferCommand,
+  ): Promise<DesktopWorkspaceVersion | undefined> {
+    return this.dispatch(windowId, command);
+  }
+
+  private dispatch(
+    windowId: string,
+    command: unknown,
+  ): Promise<DesktopWorkspaceVersion | undefined> {
     const send = this.renderers.get(windowId);
     if (!send) return Promise.reject(new Error('Window renderer is unavailable'));
     const id = randomUUID();
@@ -44,7 +60,7 @@ export class WindowCommands {
       }, this.timeoutMs);
       this.pending.set(id, { windowId, resolve, reject, timer });
       try {
-        send(desktopWindowCommandSchema.parse({ id, kind, ...payload }));
+        send(desktopWindowCommandSchema.parse({ ...(command as object), id }));
       } catch (error) {
         clearTimeout(timer);
         this.pending.delete(id);
@@ -54,6 +70,8 @@ export class WindowCommands {
   }
 
   reply(windowId: string, value: unknown): void {
+    if (Buffer.byteLength(JSON.stringify(value)) > 16 * 1024 * 1024)
+      throw new Error('Window reply is too large');
     const reply = desktopWindowCommandReplySchema.parse(value);
     const pending = this.pending.get(reply.id);
     // A late reply is observation only. A sibling cannot acknowledge the request.
@@ -62,7 +80,7 @@ export class WindowCommands {
     clearTimeout(pending.timer);
     this.pending.delete(reply.id);
     if (reply.error) pending.reject(new Error(reply.error));
-    else pending.resolve();
+    else pending.resolve(reply.version);
   }
 
   disconnected(windowId: string): void {

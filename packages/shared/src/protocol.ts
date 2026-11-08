@@ -338,7 +338,8 @@
 // 26.8: private desktop lifecycle checkpoints and staged pane-window handoff.
 // 26.9: private desktop tab-window lookup and exact-window tab activation.
 // 26.10: optional private desktop reload with a durable window checkpoint.
-export const PROTOCOL_VERSION = { major: 26, minor: 10 } as const;
+// 26.11: private desktop docking plans, staged destination commands and empty-source retirement.
+export const PROTOCOL_VERSION = { major: 26, minor: 11 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

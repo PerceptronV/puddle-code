@@ -1,4 +1,5 @@
-import { useEffect, useState, type ReactNode } from 'react';
+import { useEffect, useState, useSyncExternalStore, type ReactNode } from 'react';
+import { flushSync } from 'react-dom';
 import {
   desktopWindowIdSchema,
   desktopWindowIdentitySchema,
@@ -9,6 +10,22 @@ import { fenceWindowInteraction } from './interaction-fence';
 
 let context: DesktopWindowContext | null = null;
 let initialising: Promise<void> | null = null;
+let suspended = false;
+const suspensionListeners = new Set<() => void>();
+const subscribeSuspension = (listener: () => void) => {
+  suspensionListeners.add(listener);
+  return () => {
+    suspensionListeners.delete(listener);
+  };
+};
+
+/** Release existing models before installing a staged working set in this window. */
+export function suspendDesktopContent(value: boolean): void {
+  flushSync(() => {
+    suspended = value;
+    for (const listener of suspensionListeners) listener();
+  });
+}
 
 /** Identity is fixed for this renderer lifetime and comes only from its native owner. */
 export function desktopWindowContext(): DesktopWindowContext | null {
@@ -38,6 +55,7 @@ function initialise(): Promise<void> {
 
 /** Resolve the fixed profile/presentation before mounting any workspace effects. */
 export function DesktopWindowGate({ children }: { children: ReactNode }) {
+  const hidden = useSyncExternalStore(subscribeSuspension, () => suspended);
   const [ready, setReady] = useState(() => !desktopBridge()?.windows || context !== null);
   const [error, setError] = useState<Error | null>(null);
   useEffect(() => {
@@ -56,5 +74,5 @@ export function DesktopWindowGate({ children }: { children: ReactNode }) {
     };
   }, []);
   if (error) throw error;
-  return ready ? children : null;
+  return ready && !hidden ? children : null;
 }

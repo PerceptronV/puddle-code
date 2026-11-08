@@ -72,6 +72,7 @@ export const desktopWindowTransferSchema = z.object({
   destinationContent: desktopWorkspaceContentSchema,
   closeSource: z.boolean(),
   sourceRoute: desktopWindowRouteSchema.optional(),
+  destinationRoute: desktopWindowRouteSchema.optional(),
 });
 export type DesktopWindowTransfer = z.infer<typeof desktopWindowTransferSchema>;
 
@@ -133,8 +134,25 @@ export const desktopPaneDetachSchema = z.object({
   sourceRoute: desktopWindowRouteSchema.optional(),
 });
 export type DesktopPaneDetach = z.infer<typeof desktopPaneDetachSchema>;
+export const desktopPanePlacementSchema = z.object({
+  paneId: z.string().min(1).max(512),
+  edge: z.enum(['left', 'right', 'top', 'bottom']),
+});
+export const desktopPaneDockSchema = desktopPaneDetachSchema.extend({
+  destinationId: desktopWindowIdSchema,
+  placement: desktopPanePlacementSchema.optional(),
+});
+export type DesktopPaneDock = z.infer<typeof desktopPaneDockSchema>;
 export const desktopTransferReferenceSchema = z.object({ id: desktopWindowIdSchema, profileId });
 export type DesktopTransferReference = z.infer<typeof desktopTransferReferenceSchema>;
+export const desktopTransferRetireSchema = desktopTransferReferenceSchema.extend({
+  revision: z.number().int().nonnegative(),
+});
+export type DesktopTransferRetire = z.infer<typeof desktopTransferRetireSchema>;
+export interface DesktopDockTarget {
+  identity: DesktopWindowIdentity;
+  label: string;
+}
 export interface DesktopTransferObservation {
   status: 'prepared' | 'committed' | 'cancelled' | 'unknown';
   version: DesktopWorkspaceVersion | null;
@@ -149,6 +167,9 @@ export interface DesktopWindowTransfersBridge {
   /** Resolves only when the source has confirmed the handoff. */
   accept(request: DesktopTransferReference): Promise<DesktopWorkspaceVersion>;
   focusPane?(request: DesktopPaneFocus): Promise<boolean>;
+  dockTargets?(profileId: string): Promise<DesktopDockTarget[]>;
+  prepareDock?(request: DesktopPaneDock): Promise<void>;
+  retire?(request: DesktopTransferRetire): Promise<void>;
 }
 
 export const desktopPaneFocusSchema = z.object({ profileId, ref: tabRefSchema });
@@ -170,20 +191,37 @@ export function desktopTabKey(ref: TabRef): string {
   ]);
 }
 
-export const desktopWindowCommandSchema = z.discriminatedUnion('kind', [
-  z.object({ id: desktopWindowIdSchema, kind: z.literal('checkpoint') }),
-  z.object({ id: desktopWindowIdSchema, kind: z.literal('resume') }),
+export const desktopWindowTransferCommandSchema = z.discriminatedUnion('kind', [
   z.object({
-    id: desktopWindowIdSchema,
-    kind: z.literal('activate-tab'),
+    kind: z.literal('plan-pane'),
+    transferId: desktopWindowIdSchema,
     profileId,
-    ref: tabRefSchema,
+    projectId,
+    content: desktopWorkspaceContentSchema,
+    placement: desktopPanePlacementSchema.optional(),
   }),
+  z.object({ kind: z.literal('stage-window'), transferId: desktopWindowIdSchema, profileId }),
+  z.object({ kind: z.literal('cancel-window'), transferId: desktopWindowIdSchema, profileId }),
+]);
+export type DesktopWindowTransferCommand = z.infer<typeof desktopWindowTransferCommandSchema>;
+export const desktopWindowCommandSchema = z.union([
+  desktopWindowTransferCommandSchema.and(z.object({ id: desktopWindowIdSchema })),
+  z.discriminatedUnion('kind', [
+    z.object({ id: desktopWindowIdSchema, kind: z.literal('checkpoint') }),
+    z.object({ id: desktopWindowIdSchema, kind: z.literal('resume') }),
+    z.object({
+      id: desktopWindowIdSchema,
+      kind: z.literal('activate-tab'),
+      profileId,
+      ref: tabRefSchema,
+    }),
+  ]),
 ]);
 export type DesktopWindowCommand = z.infer<typeof desktopWindowCommandSchema>;
 export const desktopWindowCommandReplySchema = z.object({
   id: desktopWindowIdSchema,
   error: z.string().max(2048).optional(),
+  version: desktopWorkspaceVersionSchema.optional(),
 });
 export type DesktopWindowCommandReply = z.infer<typeof desktopWindowCommandReplySchema>;
 

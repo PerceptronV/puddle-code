@@ -14,7 +14,8 @@ Past releases: see docs/changelogs/.
 #### Added
 
 - Open individual files and sessions in native pane windows from their existing context menus, and focus an existing detached view when reopening it (application protocol 26.9).
-- Open an entire pane in its own native window from its tab-strip context menu, preserving dirty text through an acknowledged handoff (application protocol 26.8; project detachment and docking remain in progress).
+- Open an entire pane in its own native window from its tab-strip context menu, preserving dirty text through an acknowledged handoff (application protocol 26.8).
+- Return detached panes to existing host/project windows through their context menu, preserving dirty text and view positions and retaining the source when late drafts remain (application protocol 26.11; native drag and project detachment remain in progress).
 - Highlight TeX and LaTeX commands, comments, environments, mathematics and verbatim text, with automatic file detection and a per-file language choice.
 
 #### Changed

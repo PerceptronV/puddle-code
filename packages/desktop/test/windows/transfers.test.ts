@@ -2,7 +2,11 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
-import { uiStateSnapshotSchema, type DesktopPaneDetach } from '@puddle/shared';
+import {
+  uiStateSnapshotSchema,
+  type DesktopPaneDetach,
+  type DesktopWindowTransferCommand,
+} from '@puddle/shared';
 import type { ReopenWindow } from '../../src/reopen.js';
 import { DesktopWindowState } from '../../src/windows/state.js';
 import { WindowTransfers } from '../../src/windows/transfers.js';
@@ -101,4 +105,131 @@ it('times out missing destination readiness and never redispatches the move', as
   expect(open).toHaveBeenCalledOnce();
   expect(transfers.observe('source', request).status).toBe('cancelled');
   expect(state.read('source', profileId)?.revision).toBe(1);
+});
+
+function docking() {
+  const home = mkdtempSync(join(tmpdir(), 'puddle-docking-'));
+  homes.push(home);
+  const state = new DesktopWindowState(join(home, 'state.json'));
+  const source: ReopenWindow = {
+    target: 'local',
+    window: { kind: 'pane', id: 'source', profileId, projectId: request.projectId },
+  };
+  const destination: ReopenWindow = {
+    target: 'local',
+    window: { kind: 'host', id: 'destination' },
+    route: '/project/0000000001',
+  };
+  state.syncOpenWindows([source, destination]);
+  state.write('source', profileId, 0, request.destination);
+  state.write('destination', profileId, 0, request.source);
+  const command = vi.fn(async (_id: string, command: DesktopWindowTransferCommand) =>
+    command.kind === 'plan-pane' ? { revision: 1, content: request.destination } : undefined,
+  );
+  const dismiss = vi.fn();
+  const open = vi.fn();
+  const transfers = new WindowTransfers({
+    state: () => state,
+    record: (id) => (id === 'source' ? source : destination),
+    command,
+    dismiss,
+    open,
+    report: vi.fn(),
+    timeoutMs: 1000,
+  });
+  return {
+    state,
+    transfers,
+    command,
+    dismiss,
+    open,
+    source,
+    destination,
+    request: { ...request, destinationId: 'destination' },
+  };
+}
+
+it('docks into an existing revision and retires only an empty acknowledged source', async () => {
+  const f = docking();
+  const prepared = f.transfers.prepareDock('source', f.request);
+  await vi.waitFor(() => expect(f.state.outcome('move')).toBe('prepared'));
+  const accepted = f.transfers.accept('destination', request);
+  await prepared;
+  f.state.syncOpenWindows([f.source, { ...f.destination, route: '/project/abcdef1234' }]);
+  expect(f.state.openWindows().find((record) => record.window?.id === 'destination')?.route).toBe(
+    '/project/0000000001',
+  );
+  expect(f.state.read('source', profileId)?.content.buffers).toEqual(request.destination.buffers);
+  expect(f.state.read('destination', profileId)?.content.buffers).toEqual([]);
+  expect(() => f.transfers.retire('source', { ...request, revision: 1 })).toThrow('not committed');
+  f.transfers.commit('source', request);
+  await accepted;
+  expect(f.state.openWindows().find((record) => record.window?.id === 'destination')?.route).toBe(
+    '/project/abcdef1234',
+  );
+  expect(() => f.transfers.retire('source', { ...request, revision: 1 })).toThrow('state changed');
+  f.transfers.retire('source', { ...request, revision: 2 });
+  expect(f.dismiss).toHaveBeenCalledWith('source');
+  expect(f.state.openWindows().map((record) => record.window?.id)).toEqual(['destination']);
+  expect(f.open).not.toHaveBeenCalled();
+});
+
+it('restores an existing destination after a staging failure without destroying either window', async () => {
+  const f = docking();
+  f.command.mockImplementation(async (_id, command) => {
+    if (command.kind === 'stage-window') throw new Error('Mount failed');
+    return command.kind === 'plan-pane' ? { revision: 1, content: request.destination } : undefined;
+  });
+  await expect(f.transfers.prepareDock('source', f.request)).rejects.toThrow('Mount failed');
+  expect(f.state.outcome('move')).toBe('cancelled');
+  expect(f.state.openWindows()).toHaveLength(2);
+  expect(f.state.read('source', profileId)?.revision).toBe(1);
+  expect(f.state.read('destination', profileId)?.revision).toBe(1);
+  expect(f.dismiss).not.toHaveBeenCalled();
+  expect(f.command).toHaveBeenLastCalledWith('destination', {
+    kind: 'cancel-window',
+    transferId: 'move',
+    profileId,
+  });
+});
+
+it('cancels an asynchronous destination plan before a late reply can prepare it', async () => {
+  const f = docking();
+  const gate = Promise.withResolvers<{ revision: number; content: typeof request.destination }>();
+  f.command.mockImplementation(async (_id, command) =>
+    command.kind === 'plan-pane' ? gate.promise : undefined,
+  );
+  const prepared = expect(f.transfers.prepareDock('source', f.request)).rejects.toThrow(
+    'cancelled',
+  );
+  expect(f.transfers.observe('source', request).status).toBe('prepared');
+  const cancelled = f.transfers.cancel('source', request);
+  gate.resolve({ revision: 1, content: request.destination });
+  await prepared;
+  expect((await cancelled).status).toBe('cancelled');
+  expect(f.state.pending('move')).toBeNull();
+  expect(f.state.read('source', profileId)?.revision).toBe(1);
+  expect(f.command.mock.calls.some(([, command]) => command.kind === 'stage-window')).toBe(false);
+});
+
+it('rejects incompatible destinations and refuses retirement with a retained dirty draft', async () => {
+  const f = docking();
+  f.destination.target = 'other@host';
+  expect(() => f.transfers.prepareDock('source', f.request)).toThrow('between hosts');
+  expect(f.command).not.toHaveBeenCalled();
+  f.destination.target = 'local';
+  const prepared = f.transfers.prepareDock('source', f.request);
+  await vi.waitFor(() => expect(f.state.outcome('move')).toBe('prepared'));
+  const accepted = f.transfers.accept('destination', request);
+  await prepared;
+  f.transfers.commit('source', request);
+  await accepted;
+  f.state.write('source', profileId, 2, {
+    ...request.source,
+    buffers: request.destination.buffers,
+  });
+  expect(() => f.transfers.retire('source', { ...request, revision: 3 })).toThrow(
+    'recoverable work',
+  );
+  expect(f.dismiss).not.toHaveBeenCalled();
 });

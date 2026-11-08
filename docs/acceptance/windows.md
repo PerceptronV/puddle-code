@@ -70,11 +70,26 @@ verification; pending items are not support claims.
   remaps colliding pane ids and their view keys, retains unrelated project slices,
   and moves an existing terminal view instead of creating two in one renderer.
   Different dirty text or saved baselines for the same file reject the merge.
-  This projection is not yet connected to native docking controls; destination
-  staging and reconciliation of already-mounted models remain required.
+  The pane context menu now offers **Return pane to …** for existing host/project
+  windows on the same host/profile (application 26.11). The destination must have
+  that profile selected. With no destination open, the menu explains that a host
+  or project window must be opened; the detached pane remains usable independently.
+- Existing destinations plan against their exact revision, then release their
+  mounted views before staging the merged working set. The same Workspace,
+  editor and terminal components remount and acknowledge readiness. Cancellation
+  restores the original presentation and route; temporary navigation is not
+  written into the reopen record before commit. An existing clean editor receives
+  the incoming dirty text. Native view-state reads prefer the imported selection
+  over a stale cache from an earlier presentation of the same pane.
+- After docking commits, the source releases its models and checkpoints again.
+  Its native window retires only if the exact committed source is empty, with no
+  dirty buffers. Remaining tabs or late cleanup edits keep it open, with recovery
+  drafts visible. Failure to retire leaves it editable and never repeats the move.
 
-Project detachment and redirects, docking, and named window arrangements are still
-pending. Pane detachment alone does not deliver the roadmap. Undo-stack transfer
+Project detachment and redirects, native cross-window drag, and named window
+arrangements are still pending. Return to a project presentation is supported by
+the coordinator, but the project-window creation action is not yet implemented.
+Pane detachment and menu return do not deliver the whole roadmap. Undo-stack transfer
 is not implemented; restored editors use
 new Monaco models with recovered text.
 
@@ -152,6 +167,21 @@ native-style reload, ahead of the normal persistence timer, then recovered the
 latest text and selection with its host window closed. Its reload bridge uses
 the actual command/checkpoint modules in isolated Chromium; Electron menu and
 OS acceptance remain separate and pending.
+
+The live menu-return increment passed 231 tests across 24 window/layout/lifecycle
+and shared-contract files, desktop/web TypeScript and targeted ESLint. The
+production web build passed with its existing large-chunk advisory. Tests cover
+destination planning/staging/rollback, cancellation during an asynchronous plan,
+route retention before commit, dirty conflicts, stale revisions, late cleanup
+drafts, and source retirement failure without replay.
+The integrated Chromium script passed with `WINDOW_DOCK_BACK=1`: detach a dirty
+editor, reopen a clean view in the host, change selection in the detached pane,
+return through the context menu, retain both editor views, retire the source and
+reload the host with the latest text/selection. Combining that option with
+`WINDOW_TRANSFER_KIND=session` passed terminal return with an unchanged session
+reference. These are UI-only checks using the real desktop coordinator and state
+modules through a synthetic native bridge; they do not prove OS drag/focus,
+live PTY continuity, crash recovery or project-window return acceptance.
 
 Native acceptance has not run. Use an isolated UI preview for desktop interaction;
 start any real daemon from a plain shell, never from a coding-agent session.

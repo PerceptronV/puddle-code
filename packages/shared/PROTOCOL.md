@@ -1,5 +1,13 @@
 # The puddle communication protocol
 
+Application **26.11** adds optional private desktop pane docking capabilities.
+Destination commands return a bounded revisioned plan, remount prepared content,
+and restore the original presentation on cancellation. Main validates same-host
+and same-profile participants, persists the destination route with ownership,
+and retires only an acknowledged source pane with no remaining tabs or drafts.
+Native targets and dirty content never select transports or grant host authority.
+Older shells omit these capabilities; daemon/runtime/remote operations are unchanged.
+
 Application **26.10** adds an optional private desktop reload capability. The
 registered window checkpoints its working set before native reload; ordinary
 browser refresh retains its existing path. Native host refresh checkpoints all

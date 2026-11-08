@@ -2,6 +2,8 @@ import {
   desktopWindowCommandSchema,
   type DesktopWindowLifecycleBridge,
   type DesktopPaneFocus,
+  type DesktopWindowTransferCommand,
+  type DesktopWorkspaceVersion,
 } from '@puddle/shared';
 
 interface WorkingSetCheckpoint {
@@ -16,6 +18,9 @@ export async function registerRendererLifecycle(
   fence: (active: boolean) => void,
   reportError: (error: unknown) => void,
   activate?: (request: DesktopPaneFocus) => Promise<void>,
+  transfer?: (
+    command: DesktopWindowTransferCommand,
+  ) => Promise<DesktopWorkspaceVersion | undefined>,
 ): Promise<() => void> {
   let queue = Promise.resolve();
   const unsubscribe = bridge.onCommand((value) => {
@@ -23,6 +28,7 @@ export async function registerRendererLifecycle(
       .then(async () => {
         const command = desktopWindowCommandSchema.parse(value);
         let error: string | undefined;
+        let version: DesktopWorkspaceVersion | undefined;
         try {
           if (command.kind === 'checkpoint') {
             fence(true);
@@ -34,9 +40,12 @@ export async function registerRendererLifecycle(
           } else if (command.kind === 'activate-tab') {
             if (!activate) throw new Error('This window cannot activate the requested tab');
             await activate(command);
-          } else {
+          } else if (command.kind === 'resume') {
             for (const workingSet of workingSets()) workingSet.resume();
             fence(false);
+          } else {
+            if (!transfer) throw new Error('This window cannot receive a transfer');
+            version = await transfer(command);
           }
         } catch (reason) {
           error = (reason instanceof Error ? reason.message : 'Could not save this window').slice(
@@ -44,7 +53,11 @@ export async function registerRendererLifecycle(
             2048,
           );
         }
-        await bridge.reply({ id: command.id, ...(error ? { error } : {}) });
+        await bridge.reply({
+          id: command.id,
+          ...(error ? { error } : {}),
+          ...(version ? { version } : {}),
+        });
       })
       .catch(reportError);
   });

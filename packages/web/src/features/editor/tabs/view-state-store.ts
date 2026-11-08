@@ -18,7 +18,11 @@ export class ViewStateStore<T> {
   }
 
   get(key: string): T | undefined {
-    const value = this.entries.get(key) ?? this.desktopState()?.view<T>(`${this.namespace}:${key}`);
+    // A returned pane can reuse a key this renderer cached before detachment.
+    // Desktop adoption is authoritative; never shadow its newer position with
+    // that old per-store cache entry (or resurrect a key the snapshot removed).
+    const desktop = this.desktopState();
+    const value = desktop ? desktop.view<T>(`${this.namespace}:${key}`) : this.entries.get(key);
     if (value !== undefined) {
       this.entries.delete(key);
       this.entries.set(key, value);

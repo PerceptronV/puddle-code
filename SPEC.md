@@ -2327,9 +2327,21 @@ Tree rows and path-backed tabs share the existing file menu; other editor tabs
 receive the native action without unrelated file-system actions. Session opens
 keep the same session reference and do not launch or restart a runtime.
 
+Application 26.11 adds menu-based pane return to existing host/project windows.
+The destination must share the host and selected profile. It freezes its current
+revision, plans the merge, releases mounted views and remounts the shared workspace
+with the staged content before acknowledgement. Dirty conflicts reject the move;
+clean duplicate editors adopt incoming text. Cancellation restores the original
+state and route; staged routes do not become durable until commit. Imported view
+positions take precedence over old renderer caches. After commit the source
+releases its models and checkpoints once more; only an empty source with no dirty
+buffers retires. Remaining tabs or late drafts stay visible. Retirement failure
+does not repeat the transfer. With no destination open, the pane remains independent
+and its menu directs the user to open a host/project window before returning it.
+
 The shared workspace can render full host, headerless project, and pane-only
 presentations; detached windows use native title bars. Project detachment,
-docking, project redirects, and
+native cross-window drag, project redirects, and
 named window arrangements remain in progress. See
 `docs/roadmap/windows.md` for the full contract and `docs/acceptance/windows.md`
 for implemented behaviour and verified scope. These foundations do not yet

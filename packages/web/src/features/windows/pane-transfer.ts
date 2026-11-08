@@ -3,9 +3,13 @@ import type {
   DesktopWorkspaceVersion,
   DesktopWorkspaceContent,
   TabRef,
+  DesktopTransferReference,
+  DesktopPaneDock,
 } from '@puddle/shared';
 import type { DesktopWorkingSet } from './working-set';
 import { detachPaneContent, detachTabContent } from './transfer-content';
+import { flattenTabs } from '../workspace/layout/layout-tree';
+import { retainLateDrafts } from './late-draft-recovery';
 
 /** No live model moves between renderers. Transfer its captured working set, then remount. */
 export async function transferPane(
@@ -15,7 +19,7 @@ export async function transferPane(
   paneId: string,
   fence: (active: boolean) => void,
 ): Promise<void> {
-  return transferContent(
+  await transferContent(
     owner,
     bridge,
     projectId,
@@ -40,7 +44,68 @@ export function transferTab(
     (content) => detachTabContent(content, projectId, ref, paneId),
     fence,
     sourceRoute,
+  ).then(() => undefined);
+}
+
+/** Return through the same handoff, then retire only an empty sealed source. */
+export async function transferDock(
+  owner: DesktopWorkingSet,
+  bridge: DesktopWindowTransfersBridge,
+  projectId: string,
+  paneId: string,
+  destinationId: string,
+  fence: (active: boolean) => void,
+  suspend: (active: boolean) => void,
+  placement?: DesktopPaneDock['placement'],
+): Promise<void> {
+  if (!bridge.prepareDock || !bridge.retire) throw new Error('Pane docking is unavailable');
+  const reference = await transferContent(
+    owner,
+    {
+      ...bridge,
+      preparePane: (request) => bridge.prepareDock!({ ...request, destinationId, placement }),
+    },
+    projectId,
+    (content) => detachPaneContent(content, projectId, paneId),
+    fence,
   );
+  fence(true);
+  let recovery: DesktopWorkspaceVersion | undefined;
+  try {
+    const captured = await owner.freeze();
+    recovery = captured;
+    owner.beginStaging();
+    suspend(true);
+    await Promise.resolve();
+    // Release the old models before the final capture. Anything that completed
+    // during their cleanup remains recoverable instead of closing with the window.
+    owner.adopt(captured, captured, projectId);
+    const sealed = await owner.freeze();
+    recovery = sealed;
+    const snapshot = sealed.content.snapshot;
+    const trees =
+      snapshot.layout_mode === 'project'
+        ? Object.values(snapshot.project_layouts).map((slice) => slice.layout_tree)
+        : [snapshot.layout_tree];
+    if (sealed.content.buffers.length || trees.some((tree) => tree && flattenTabs(tree).length)) {
+      owner.adopt(sealed);
+      if (sealed.content.buffers.length) {
+        owner.update(retainLateDrafts(snapshot, sealed.content.buffers, projectId));
+        await owner.flush();
+      }
+      return;
+    }
+    await bridge.retire({ ...reference, revision: sealed.revision });
+  } catch (error) {
+    if (recovery && owner.locked()) owner.adopt(recovery, recovery, projectId);
+    else owner.resume();
+    throw error;
+  } finally {
+    if (!owner.locked()) {
+      suspend(false);
+      fence(false);
+    }
+  }
 }
 
 async function transferContent(
@@ -53,7 +118,7 @@ async function transferContent(
   },
   fence: (active: boolean) => void,
   sourceRoute?: string,
-): Promise<void> {
+): Promise<DesktopTransferReference> {
   if (!owner.loaded() || owner.locked()) throw new Error('The workspace is not ready to detach');
   const reference = { id: crypto.randomUUID(), profileId: owner.profileId };
   let captured: DesktopWorkspaceVersion | undefined;
@@ -81,13 +146,13 @@ async function transferContent(
     const observed = await bridge.observe(reference).catch(() => null);
     if (observed?.status === 'committed' && observed.version) {
       await adopt(observed.version);
-      return;
+      return reference;
     }
     if (observed?.status === 'prepared') {
       const cancelled = await bridge.cancel(reference);
       if (cancelled.status === 'committed' && cancelled.version) {
         await adopt(cancelled.version);
-        return;
+        return reference;
       }
       if (cancelled.status !== 'cancelled')
         throw new Error('Could not confirm cancellation; the pane has been kept in place', {
@@ -104,4 +169,5 @@ async function transferContent(
   } finally {
     if (!owner.locked()) fence(false);
   }
+  return reference;
 }

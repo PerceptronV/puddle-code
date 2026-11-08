@@ -7,6 +7,7 @@ import {
   PROTOCOL_VERSION,
   desktopWindowRouteSchema,
   desktopPaneFocusSchema,
+  desktopWindowReadSchema,
   type DesktopPaneFocus,
   type DesktopWindowIdentity,
 } from '@puddle/shared';
@@ -138,6 +139,13 @@ const windowTransfers = new WindowTransfers({
     persistWindows();
   },
   report: (error) => logger.warn(errorText(error)),
+  command: (id, command) => windowCommands.transfer(id, command),
+  activate: (id) => {
+    for (const host of shells.values()) {
+      const window = host.windows.get(id);
+      if (window) raise(window.win);
+    }
+  },
   committed: () => {
     for (const record of windowState?.openWindows() ?? [])
       rememberedWindows.set(reopenWindowId(record), record);
@@ -561,6 +569,12 @@ function reopenWindow(target: string, window: ShellWindow): ReopenWindow {
       ? desktopWindowRouteSchema.safeParse(new URL(currentUrl).pathname)
       : null;
     if (route?.success) record.route = route.data;
+    // Staging can temporarily visit another project. Persist that route only
+    // with ownership; a cancelled move must reopen the original presentation.
+    if (windowTransfers.presentationPending(window.identity.id)) {
+      const previous = rememberedWindows.get(window.identity.id);
+      if (previous) record.route = previous.route;
+    }
     const bounds = window.win.getNormalBounds();
     const display = screen.getDisplayMatching(bounds);
     const workspace =
@@ -734,6 +748,27 @@ registerWindowStateIpc({
   },
 });
 registerWindowTransferIpc(ipcMain, windowContext, windowTransfers);
+ipcMain.handle('puddle:window-dock-targets', (event, value: unknown) => {
+  const owner = windowContext(event);
+  const { profileId } = desktopWindowReadSchema.parse(value);
+  if (!windowState || quitting || quitPending) throw new Error('Window state is unavailable');
+  windowState.read(owner.identity.id, profileId);
+  const host = [...shells.values()].find((host) => host.windows.has(owner.identity.id));
+  return [...(host?.windows.values() ?? [])]
+    .filter(
+      ({ identity, win }) =>
+        identity.id !== owner.identity.id &&
+        !win.isDestroyed() &&
+        (identity.kind === 'host' ||
+          (identity.kind === 'project' && identity.profileId === profileId)),
+    )
+    .map(({ identity, win }) => ({
+      identity,
+      label: (
+        win.getTitle() || (identity.kind === 'host' ? 'Host window' : 'Project window')
+      ).slice(0, 160),
+    }));
+});
 ipcMain.handle('puddle:window-reload', async (event) => {
   const owner = windowContext(event);
   for (const host of shells.values()) {
