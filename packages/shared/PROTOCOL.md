@@ -17,12 +17,19 @@ operation records. Refresh earlier pages for mutable outcomes. Explicit public
 projections omit private owner identity/launch data and operation inputs/targets.
 Disconnected owners have no actionable target or invented lifecycle state.
 Schemas live in `api/huddle/execution.ts`; clients feature-detect 28.2. The IDE
-execution UI, stopped-owner history and active-revision detail remain pending.
+execution UI now uses these APIs; stopped-owner history and active-revision detail
+remain pending.
 Only manual input, local scripts and result readouts are currently executable;
 unsupported adapters/agent bridges are rejected before launch. Existing owners
 remain usable if the selected default loses huddle support. Remote profile leases
 and the connector still deny all huddle routes. Ordinary runtime 1.1, private
 huddle contracts, database schema and remote protocol 5 are unchanged.
+
+Private database migration **45** adds host-side huddle caller/agent-turn mappings
+and exact owner-result receipts. The internal dispatcher shares ordinary agent
+runtime 1.1 without new IPC or public routes; the private owner operation bridge
+and production agent-capable graphs remain pending. Release capability metadata
+advertises the new database requirement through the existing schema boundary.
 
 Application **28.1** adds local/SSH `PUT /api/huddle/:profile/definitions/:id`.
 The body contains an explicit project/worktree, `expected_digest` from inspection,

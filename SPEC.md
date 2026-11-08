@@ -1365,7 +1365,8 @@ and feedback iteration creates a separate activation. Feedback checks actual
 boolean exit conditions and finite round limits. Waiting joins and failed nodes
 prevent successful completion. The internal scheduler drives local scripts,
 manual events and result readouts, including cancellation and explicit feedback
-limit failure; production launcher/adoption integration remains unfinished.
+limit failure; the independent production launcher/adopter now integrates this
+scheduler, while provider bridges and native continuity acceptance remain open.
 `runtime/huddle/workers/` supplies isolated captured-source script execution with
 bounded framed transport, acknowledged owner calls, cancellation and exit
 observation. Source preparation rechecks the revision digest; imports use the
@@ -1444,6 +1445,15 @@ runtime inspection, Start/Apply/Rearm/Run/Interrupt/Stop and bounded history und
 and explicit variables under the registered repository lock; Start launches one
 capable owner and arms it without sending input. Rearm retains the active revision.
 All owner commands use reviewed targets, with no automatic retry after lost replies.
+Migration 45 adds private host-side huddle-to-agent turn mappings. The internal
+`huddle/operations/turns/` adapter shares exact-turn dispatch and busy admission
+with puddlang, binding source owner/invocation/activation/request to the exact
+agent placement, canonical worktree and native turn. Both caller types allocate
+from the same ordered identity space and existing host result allowance. Huddle
+reads retain results until an exact private owner receipt confirms durable ledger
+storage; acknowledgement permits reclamation without reusing the operation id.
+The private owner transport and production agent-node composition remain pending,
+so this adapter does not yet enable agent-capable graphs. No agent IPC changes.
 Node worktrees resolve to registered roots in the placement's project and are
 rechecked after asynchronous admission. Unsupported agent bridges and local
 trigger/readout adapters fail before launch. Missing source blocks new work but

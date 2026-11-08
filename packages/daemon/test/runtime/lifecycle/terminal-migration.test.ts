@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { openDatabase } from '../../../src/db/db.js';
 import { RuntimeStore } from '../../../src/db/stores/runtimes.js';
 import { runtimeDatabase } from '../../helpers/runtime-database.js';
-import { dropResultCapacity } from '../../helpers/runtime/result-capacity.js';
+import { writeHistoricalDatabase } from '../../helpers/db/historical.js';
 
 it('backfills only proven live terminal generations when upgrading older runtime observations', async () => {
   const f = runtimeDatabase('interactive');
@@ -53,15 +54,12 @@ it('backfills only proven live terminal generations when upgrading older runtime
     journal: { cursor: 5, acknowledged: 0, lost_through: 0, persistence_pending: false },
   });
   const current = f.runtimes.get(f.binding.runtime_id)!;
-  dropResultCapacity(f.db);
-  f.db.exec('DROP TABLE puddlang_outcome_dispositions');
   expect(f.runtimes.terminalForPlacement(f.session.id, 'shell-1')).toMatchObject({ generation });
-  f.db.exec(
-    'DROP TRIGGER runtime_service_cleanup_insert; DROP TRIGGER runtime_service_cleanup_end; DROP TABLE runtime_service_cleanup; DROP TABLE runtime_attention; ALTER TABLE runtime_turns DROP COLUMN consumed; DROP TABLE runtime_turn_watermarks; DROP TABLE puddlang_runtime_spawns; DROP TABLE puddlang_stop_requests; DROP TABLE puddlang_runtime_turns; DROP TABLE runtime_code_runs; DROP TABLE runtime_stop_requests; DROP TABLE runtime_segment_terminals; DROP TABLE terminal_placements; PRAGMA user_version = 31',
-  );
+  const historical = join(f.home, 'schema-31.sqlite');
+  writeHistoricalDatabase(f.db, historical, 31);
   await f.reconciler.close();
   f.db.close();
-  const db = openDatabase(f.paths.dbFile);
+  const db = openDatabase(historical);
   try {
     const runtimes = new RuntimeStore(db);
     expect(db.prepare('SELECT * FROM runtime_code_runs').all()).toEqual([]);

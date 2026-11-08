@@ -10,8 +10,79 @@ Application 28.2 exposes local/SSH manual execution and live-owner history APIs.
 Runtime archives declare their internal huddle-role contracts;
 application 27.0 now includes huddle session identity and migration 43 records
 placements/owner roles. The daemon launcher and lifecycle controls now integrate
-with session kill/archive; migration 44 retains Stop intent. No user CLI command
+with session kill/archive; migration 44 retains Stop intent. Migration 45 adds
+host-side agent-turn identities; the owner operation bridge remains pending. No user CLI command
 is enabled yet.
+
+## Implemented: host-side exact agent-turn admission (owner bridge pending)
+
+`huddle/operations/turns/` now supplies a host-side ask/observe/acknowledge adapter
+for huddle callers. It is an internal building block: the private huddle-owner
+operation transport, source capability admission, spawn/attach/resume nodes and
+production composition are still pending. Start/Apply continue rejecting
+`sessions` capabilities; no graph can use this adapter through the application yet.
+
+Migration **45** adds `huddle_runtime_turns`, independently of daemon-owned
+`puddlang_runs`. An immutable admission binds the source owner identity,
+execution/invocation/operation, revision/activation, exact destination runtime,
+incarnation, placement/project/worktree and a canonical request digest. The row
+retains the admitted agent turn, segment and native reference, plus an eventual
+result receipt. Identity strings alone grant no authority: the private bridge
+must supply a current dispatch/observation authority callback after validating
+its owner, retained invocation, operation and declared resource bindings.
+Database checks additionally enforce matching profiles, immutable source identity,
+explicit worktree/placement, live dispatch targets and Stop/archive exclusion.
+Observation and cancellation of an already admitted turn remain distinct from
+permission to send another prompt.
+
+`RuntimeProgrammeTurns.askFor` shares the existing busy gate, inspection,
+one-send transport, correlated rejection handling and exact cancellation path
+with ordinary puddlang asks. `db/stores/runtime-results/admission.ts` allocates
+ordered identities across both caller tables and retained watermarks, and reserves
+existing host/runtime result capacity in the same transaction as caller admission.
+Failed mapping writes roll back the reservation. A positively unsent/rejected
+request releases unused result capacity while retaining its non-reusable operation
+identity; uncertain dispatch retains its debt. No ordinary agent IPC or protocol
+version changes are required.
+
+Huddle reads **do not mark replies consumed**. The host retains completed, failed
+and cancelled outcomes until the private owner bridge confirms it durably stored
+the exact result in the huddle ledger. An exact receipt then atomically records
+acknowledgement and makes the agent result reclaimable. Repeated acknowledgement
+is observation-only, even after result reclamation; a changed receipt/request or
+binding is refused. Reconnection observes the admitted turn and never calls ask
+again for that operation. Binding retention is bounded at 1,000 per execution,
+16,384 per source owner and 65,536 per host; reaching a limit refuses new admission
+without deleting replay protection. Safe operation-aware collection remains
+unfinished, alongside the broader host resource accounting work.
+
+Verification uses a synthetic source-huddle binding/authority and real isolated
+agent owners with a test adapter. It covers a lost start-turn acknowledgement,
+a replacement controller adopting the still-running agent's result without replay,
+shared huddle/programme busy admission, revocation after inspection, positive
+rejection cleanup and cancellation of the exact admitted turn after huddle Stop.
+Database tests cover mixed-caller ordering, scope/worktree changes, request JSON
+round trips, capacity rollback, retention bounds, unread results through pressure
+and a separately reopened database, receipt/reclamation semantics and schema-44
+migration preserving existing programme mappings/results. The older terminal
+migration fixture now constructs an actual schema-31 database rather than
+rewinding today's schema number while leaving newer tables behind.
+
+Verified 2026-11-08: the expanded shared/huddle/puddlang, programme-turn,
+runtime-lifecycle, database and startup run passed **536 tests in 80 files**;
+three opt-in native/staged-runtime tests were skipped. The focused turn suites
+then passed **26 tests in three files**, including the added controller-replacement
+and canonical-request checks. After extracting scope checks into `authority.ts`,
+all ten turn-store checks passed again. Shared/daemon/CLI TypeScript, repository
+ESLint and Prettier passed. No production daemon, provider account or native
+window was used.
+
+This does not establish provider-native or full huddle graph integration, actual
+huddle-owner receipt delivery, packaged daemon replacement, SSH or reboot survival.
+The next bridge increment must durably record owner intent before dispatch,
+revalidate declared bindings, settle/acknowledge outcomes only after owner storage,
+wait through daemon absence within root limits, and reconcile consumed operations
+without replay before enabling agent-capable graphs.
 
 ## Implemented: IDE execution controls and live history
 

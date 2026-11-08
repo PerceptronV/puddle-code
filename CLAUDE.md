@@ -584,6 +584,17 @@ operation inputs/targets. Recheck declared worktree bindings after async admissi
 The installation event id in `huddle-host.json` is not authority. Agent bridges,
 custom trigger/readout adapters, stopped-owner history and active revision detail
 remain pending; unsupported execution is rejected before launch.
+Migration 45 adds `huddle_runtime_turns`. Host-side exact asks live under
+`huddle/operations/turns/`, reusing `RuntimeProgrammeTurns.askFor` and the common
+busy gate. Shared ordered allocation/result reservation lives in
+`db/stores/runtime-results/admission.ts`; never allocate huddle and programme turn
+numbers independently. Private bridge authority must bind the exact owner,
+invocation, declared worktree/agent and request before using this adapter. Read
+huddle outcomes without marking them consumed; acknowledge only after the owner
+has durably stored the exact result. Preserve operation identity after rejection,
+revocation, acknowledgement and reclamation. Observation/cancellation of admitted
+work must not imply new-dispatch authority. The private owner bridge is not wired
+and `sessions` capabilities remain rejected at source admission.
 Migration 44 persists Stop consumption before sending
 shutdown; repeat observation cannot send another Stop. The existing kill/archive
 paths delegate to these controls and refuse unresolved owner cleanup. Keep huddle

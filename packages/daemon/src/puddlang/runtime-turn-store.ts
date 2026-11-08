@@ -3,6 +3,7 @@ import type { Db } from '../db/db.js';
 import { ApiError } from '../http/errors.js';
 import { RuntimeObservationStore } from '../db/stores/runtime-observations.js';
 import type { ResultCapacityLimits } from '../db/stores/runtime-results/limits.js';
+import { reserveRuntimeTurn } from '../db/stores/runtime-results/admission.js';
 
 export interface ProgrammeOperation {
   runId: string;
@@ -115,23 +116,7 @@ export class ProgrammeTurnStore {
         .prepare('SELECT COUNT(*) AS count FROM puddlang_runtime_turns WHERE run_id = ?')
         .get(scope.runId) as { count: number };
       if (count.count >= 1000) throw new Error('Programme turn binding limit reached');
-      const owner = this.db
-        .prepare(
-          `SELECT 1 FROM runtime_bindings WHERE runtime_id = ?
-        AND active_session_id = ? AND active_segment_id = ? AND state = 'running'`,
-        )
-        .get(runtimeId, placement.session_id, placement.segment_id);
-      if (!owner) throw new Error('Runtime placement changed before turn admission');
-      const latest = this.db
-        .prepare(
-          `SELECT MAX(turn) AS turn FROM (
-        SELECT turn FROM runtime_turn_watermarks WHERE runtime_id = ? UNION ALL
-        SELECT turn FROM puddlang_runtime_turns WHERE runtime_id = ?)`,
-        )
-        .get(runtimeId, runtimeId) as { turn: number | null };
-      const turn = Math.max(latest.turn ?? 0, observedTurn) + 1;
-      if (!Number.isSafeInteger(turn)) throw new Error('Runtime turn identities exhausted');
-      new RuntimeObservationStore(this.db, this.limits).reserveTurnCapacity(runtimeId, turn);
+      const turn = reserveRuntimeTurn(this.db, runtimeId, placement, observedTurn, this.limits);
       this.db
         .prepare(
           `INSERT INTO puddlang_runtime_turns

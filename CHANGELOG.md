@@ -32,6 +32,7 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Add internal huddle agent-turn admission with durable caller identities, shared result-capacity accounting and explicit owner acknowledgement before result reclamation (database schema 45). The private owner bridge and agent-capable graphs remain pending.
 - Expose local/SSH huddle Start, Apply, Rearm, Run, Interrupt, Stop and live-history APIs (application 28.2). Run saved manual-input/local-script graphs in independent owners with reviewed activation targets; unsupported agent bridges and custom adapters remain gated. IDE execution controls are still pending.
 
 - Bind internal huddle commands to the inspected owner and activation, rejecting stale queued actions. Add bounded live-owner history reads for execution, node and operation outcomes; IDE execution controls remain pending.

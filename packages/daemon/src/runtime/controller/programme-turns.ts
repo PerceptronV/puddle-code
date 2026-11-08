@@ -10,6 +10,7 @@ import {
 } from '../transport/client.js';
 import type { RuntimeConnections } from '../transport/connections.js';
 import type { RuntimeReconciler } from './reconcile.js';
+import type { RuntimeTurnCaller } from './turns/caller.js';
 
 interface Target {
   id: string;
@@ -68,9 +69,37 @@ export class RuntimeProgrammeTurns {
     };
   }
 
-  async ask(
+  ask(
     reference: string,
     scope: ProgrammeOperation,
+    prompt: string,
+    signal: AbortSignal,
+    schema?: Record<string, unknown>,
+    preserveOnAbort: () => boolean = () => false,
+    dispatched: () => void = () => {},
+  ): Promise<string> {
+    // Existing programmes retain their own run authority and consumption policy.
+    return this.askFor(
+      reference,
+      {
+        check: (id) => this.operations.check(scope, id),
+        reserve: (...args) => this.operations.reserve(scope, ...args),
+        read: (id, turn) => this.operations.consume(scope, id, turn),
+        checkCancellation: (id) => this.operations.check(scope, id),
+        releaseUnused: (...args) => this.operations.releaseUnused(scope, ...args),
+      },
+      prompt,
+      signal,
+      schema,
+      preserveOnAbort,
+      dispatched,
+    );
+  }
+
+  /** All callers share one busy gate and the existing exact-turn provider channel. */
+  async askFor(
+    reference: string,
+    caller: RuntimeTurnCaller,
     prompt: string,
     signal: AbortSignal,
     schema?: Record<string, unknown>,
@@ -87,7 +116,7 @@ export class RuntimeProgrammeTurns {
     let sent = false;
     let rejected = false;
     try {
-      this.operations.check(scope, target.id);
+      caller.check(target.id);
       const inspected = await target.client.request({ t: 'inspect' });
       signal.throwIfAborted();
       const current = this.target(reference);
@@ -114,15 +143,14 @@ export class RuntimeProgrammeTurns {
         prompt,
         ...(schema ? { output_schema: schema } : {}),
       });
-      turn = this.operations.reserve(
-        scope,
+      turn = caller.reserve(
         target.id,
         target.placement,
         expectedRef,
         inspected.state.turn?.turn ?? 0,
       );
       // No await between the durable intent, authority check and the single dispatch.
-      this.operations.check(scope, target.id);
+      caller.check(target.id);
       signal.throwIfAborted();
       sent = true;
       let uncertain = false;
@@ -150,8 +178,8 @@ export class RuntimeProgrammeTurns {
       const discoveryDeadline = Date.now() + 15_000;
       for (;;) {
         signal.throwIfAborted();
-        this.operations.check(scope, target.id);
-        const result = this.operations.consume(scope, target.id, turn);
+        // Observing admitted work may remain authorised after fresh dispatch is revoked.
+        const result = caller.read(target.id, turn);
         if (result && result.status !== 'running') {
           if (result.status === 'completed') return result.reply!;
           throw new Error(result.error ?? `Agent turn ${result.status}`);
@@ -168,7 +196,7 @@ export class RuntimeProgrammeTurns {
     } finally {
       if (turn !== undefined && (!sent || rejected)) {
         try {
-          this.operations.releaseUnused(scope, target.id, target.placement, expectedRef, turn);
+          caller.releaseUnused(target.id, target.placement, expectedRef, turn);
         } catch {
           // Lost storage access retains conservative debt; never replay the request.
         }
@@ -177,7 +205,7 @@ export class RuntimeProgrammeTurns {
         // Cancellation addresses only the admitted identity and original placement.
         // A stale/lost cancellation is never retargeted or retried.
         try {
-          this.operations.check(scope, target.id);
+          caller.checkCancellation(target.id, turn);
           const current = this.target(reference);
           if (
             current.id === target.id &&
