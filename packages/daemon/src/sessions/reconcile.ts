@@ -40,12 +40,14 @@ export function reconcilePass(deps: {
   }
   // Re-register notes watchers for every session that can still teach rules.
   for (const s of deps.sessions.listByStatus(['exited', 'interrupted'])) {
-    if (existsSync(s.worktree_path)) {
+    if (s.kind !== 'huddle' && existsSync(s.worktree_path)) {
       deps.onboarding.watch(s.id, deps.projects.get(s.project_id).repo_id, s.worktree_path);
     }
   }
   return {
-    interrupted: interrupted.filter((s) => !unstarted.has(s.id)).map((s) => s.id),
+    interrupted: interrupted
+      .filter((s) => s.kind !== 'huddle' && !unstarted.has(s.id))
+      .map((s) => s.id),
     protected: [...protectedIds],
   };
 }

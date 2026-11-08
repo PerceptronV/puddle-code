@@ -9,6 +9,9 @@ import {
   type RuntimeIdentity,
   type RuntimeSegment,
   type RuntimePlacementBinding,
+  type HuddleOwnerState,
+  huddleOwnerStateSchema,
+  canonicalHuddleJson,
 } from '@puddle/shared';
 import { digest } from '@puddle/shared/node';
 import type { Db } from '../db.js';
@@ -480,6 +483,53 @@ export class RuntimeStore {
           id,
         );
       if (current.active_session_id !== event.sessionId) this.setTerminalOwner(event.sessionId, id);
+      apply(current);
+      return true;
+    })();
+  }
+
+  /** Commit a durable graph snapshot without creating a terminal segment or releasing ownership. */
+  observeHuddle(
+    id: string,
+    input: HuddleOwnerState,
+    apply: (binding: RuntimeBinding) => void,
+  ): boolean {
+    const state = huddleOwnerStateSchema.parse(input);
+    return this.db.transaction(() => {
+      const current = this.get(id);
+      if (
+        !current ||
+        current.role !== 'huddle' ||
+        current.active_segment_id !== null ||
+        current.active_session_id !== current.launch_session_id ||
+        current.account_id !== null ||
+        current.agent_type !== null ||
+        current.conversation_id !== null ||
+        current.runtime_id !== state.identity.runtime_id ||
+        current.incarnation !== state.identity.incarnation ||
+        current.launch_id !== state.identity.launch_id ||
+        current.profile_id !== state.identity.profile_id ||
+        current.project_id !== state.identity.project_id ||
+        current.active_session_id !== state.identity.session_id ||
+        current.canonical_worktree_path !== state.identity.canonical_worktree_path ||
+        current.huddle_id !== state.scope.huddleId ||
+        current.build !== state.build ||
+        !current.huddle_capabilities ||
+        canonicalHuddleJson(JSON.parse(current.huddle_capabilities)) !==
+          canonicalHuddleJson(state.capabilities) ||
+        state.persistencePending
+      )
+        throw new Error('Huddle observation does not match its durable binding');
+      if (!['prepared', 'running'].includes(current.state))
+        throw new Error('An ended huddle cannot be adopted');
+      if (state.observation < current.event_cursor)
+        throw new Error('Huddle observation moved backwards');
+      if (state.observation === current.event_cursor) return false;
+      this.db
+        .prepare(
+          "UPDATE runtime_bindings SET state = 'running', event_cursor = ? WHERE runtime_id = ?",
+        )
+        .run(state.observation, id);
       apply(current);
       return true;
     })();

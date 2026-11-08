@@ -9,8 +9,10 @@ captured-source script workers, retained revisions/activation and a manual sched
 in an independent owner process with private authenticated control, explicit
 runtime-role metadata and pinned capability checks. Phase 2 has the third session
 kind, immutable application placement and common runtime inventory role, with
-application protocol 27.0; public creation and the IDE remain unfinished. Production
-launch/adoption, native supervision, provider dispatch and UI integration remain unfinished.
+application protocol 27.0; public creation and the IDE remain unfinished. Daemon
+adoption/projection now observes independent huddle owners alongside ordinary
+runtimes, including across isolated daemon replacement. Production launch,
+maintenance checkpoints, native supervision, provider dispatch and UI integration remain unfinished.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals, not available commands/imports.
 

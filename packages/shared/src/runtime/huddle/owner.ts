@@ -39,21 +39,37 @@ export const huddleOwnerLaunchSchema = z
   });
 export type HuddleOwnerLaunch = z.infer<typeof huddleOwnerLaunchSchema>;
 
-export const huddleOwnerStateSchema = z.strictObject({
-  format: z.literal(1),
-  role: z.literal('huddle'),
-  contract: z.literal(HUDDLE_OWNER_CONTRACT),
-  capabilities: huddleRuntimeCapabilitiesSchema,
-  identity: runtimeIdentitySchema,
-  scope: huddleLedgerIdentitySchema,
-  build: z.string().min(1).max(128),
-  lifetime: z.enum(['service', 'host_session']),
-  state: z.enum(['running', 'stopping', 'exited']),
-  commandCursor: sequence,
-  control: huddleControlStateSchema,
-  liveWorkers: z.boolean(),
-  failure: z.string().max(4096).nullable(),
-});
+export const huddleOwnerStateSchema = z
+  .strictObject({
+    format: z.literal(1),
+    role: z.literal('huddle'),
+    contract: z.literal(HUDDLE_OWNER_CONTRACT),
+    capabilities: huddleRuntimeCapabilitiesSchema,
+    identity: runtimeIdentitySchema,
+    scope: huddleLedgerIdentitySchema,
+    build: z.string().min(1).max(128),
+    lifetime: z.enum(['service', 'host_session']),
+    state: z.enum(['running', 'stopping', 'exited']),
+    observation: sequence,
+    persistencePending: z.boolean(),
+    executing: z.boolean(),
+    commandCursor: sequence,
+    control: huddleControlStateSchema,
+    liveWorkers: z.boolean(),
+    failure: z.string().max(4096).nullable(),
+  })
+  .superRefine(({ identity, scope }, ctx) => {
+    if (
+      scope.runtimeId !== identity.runtime_id ||
+      scope.profileId !== identity.profile_id ||
+      scope.projectId !== identity.project_id ||
+      scope.sessionId !== identity.session_id
+    )
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Huddle observation scope differs from its runtime identity',
+      });
+  });
 export type HuddleOwnerState = z.infer<typeof huddleOwnerStateSchema>;
 const request = { id: z.uuid(), sequence };
 export const huddleOwnerRequestSchema = z.discriminatedUnion('t', [
@@ -99,6 +115,7 @@ export const huddleOwnerRequestSchema = z.discriminatedUnion('t', [
 ]);
 export type HuddleOwnerRequest = z.infer<typeof huddleOwnerRequestSchema>;
 export const huddleOwnerResponseSchema = z.discriminatedUnion('t', [
+  z.strictObject({ t: z.literal('changed'), observation: sequence }),
   z.strictObject({ t: z.literal('state'), id: z.uuid(), state: huddleOwnerStateSchema }),
   z.strictObject({ t: z.literal('accepted'), id: z.uuid() }),
   z.strictObject({

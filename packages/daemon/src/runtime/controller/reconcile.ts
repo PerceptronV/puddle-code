@@ -31,6 +31,8 @@ import { retireMissingRuntime } from '../ownership/discovery.js';
 import { runtimeBindingIdentity } from '../transport/connections.js';
 import { RuntimeAttentionStore } from '../../db/stores/runtime-attention.js';
 import { HostAdmission } from '../../host/lifecycle/admission.js';
+import { HuddleReconciler } from '../huddle/controller/reconcile.js';
+import type { HuddleOwnerClient } from '../huddle/transport/client.js';
 
 interface ReconcileDeps {
   home: string;
@@ -59,6 +61,7 @@ class RuntimePreparing extends Error {}
 
 /** Commit observations, never replay execution. One serial reconciler per owner. */
 export class RuntimeReconciler extends EventEmitter {
+  readonly huddles: HuddleReconciler;
   readonly observations: RuntimeObservationStore;
   readonly attention: RuntimeAttentionStore;
   private readonly attached = new Map<string, Attachment>();
@@ -69,6 +72,9 @@ export class RuntimeReconciler extends EventEmitter {
 
   constructor(private readonly deps: ReconcileDeps) {
     super();
+    this.huddles = new HuddleReconciler(deps);
+    this.huddles.on('changed', (projectId: string) => this.emit('changed', projectId));
+    this.huddles.on('status', (event: StatusEvent) => this.emit('status', event));
     this.observations = new RuntimeObservationStore(deps.db);
     this.attention = new RuntimeAttentionStore(deps.db);
   }
@@ -106,6 +112,10 @@ export class RuntimeReconciler extends EventEmitter {
     await this.refresh(id);
   }
 
+  attachHuddle(id: string, client: HuddleOwnerClient): Promise<void> {
+    return this.huddles.attach(id, client);
+  }
+
   refreshProfile(profileId: string): void {
     if (this.closed || this.paused) return;
     for (const [id, entry] of this.attached)
@@ -121,10 +131,14 @@ export class RuntimeReconciler extends EventEmitter {
   }
 
   pendingIds(): string[] {
-    return [...this.attached].filter(([, entry]) => entry.failed).map(([id]) => id);
+    return [...this.attached]
+      .filter(([, entry]) => entry.failed)
+      .map(([id]) => id)
+      .concat(this.huddles.pendingIds());
   }
 
   settled(id: string): boolean {
+    if (this.deps.runtimes.get(id)?.role === 'huddle') return this.huddles.settled(id);
     const entry = this.attached.get(id);
     return (
       !this.closed &&
@@ -134,6 +148,7 @@ export class RuntimeReconciler extends EventEmitter {
   }
 
   refresh(id: string): Promise<void> {
+    if (this.deps.runtimes.get(id)?.role === 'huddle') return this.huddles.refresh(id);
     const entry = this.attached.get(id);
     if (!entry || this.closed) return Promise.reject(new Error('Runtime is not attached'));
     if (this.paused) return Promise.reject(new Error('Runtime reconciliation is paused'));
@@ -370,6 +385,7 @@ export class RuntimeReconciler extends EventEmitter {
 
   /** Connection failure is only a reason to inspect the OS claim, never proof of death. */
   async retire(id: string): Promise<boolean> {
+    if (this.deps.runtimes.get(id)?.role === 'huddle') return this.huddles.retire(id);
     const entry = this.attached.get(id);
     if (entry && !entry.disconnected) return false;
     await entry?.active;
@@ -802,6 +818,13 @@ export class RuntimeReconciler extends EventEmitter {
   /** Freeze committed cursors without closing owner connections or stopping execution. */
   pause(): ReturnType<HostAdmission['pause']> {
     const hold = this.admission.pause();
+    let huddles: ReturnType<HostAdmission['pause']>;
+    try {
+      huddles = this.huddles.pause();
+    } catch (error) {
+      hold.release();
+      throw error;
+    }
     this.paused = true;
     for (const entry of this.attached.values()) {
       if (entry.timer) clearTimeout(entry.timer);
@@ -810,11 +833,14 @@ export class RuntimeReconciler extends EventEmitter {
     }
     let released = false;
     return {
-      drain: (timeoutMs) => hold.drain(timeoutMs),
+      drain: async (timeoutMs) => {
+        await Promise.all([hold.drain(timeoutMs), huddles.drain(timeoutMs)]);
+      },
       release: () => {
         if (released) return;
         released = true;
         hold.release();
+        huddles.release();
         this.paused = false;
         for (const [id, entry] of this.attached) this.schedule(id, entry);
       },
@@ -828,7 +854,7 @@ export class RuntimeReconciler extends EventEmitter {
       if (entry.timer) clearTimeout(entry.timer);
       entry.client.off('event', entry.listen);
     }
-    await this.admission.drain();
+    await Promise.all([this.admission.drain(), this.huddles.close()]);
     this.attached.clear();
   }
 }

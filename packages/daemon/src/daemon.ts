@@ -230,6 +230,8 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       {
         connected: (id, client) => runtimeReconciler.attach(id, client),
         missing: (id) => runtimeReconciler.retire(id),
+        huddleConnected: (id, client) => runtimeReconciler.attachHuddle(id, client),
+        huddleMissing: (id) => runtimeReconciler.retire(id),
       },
       await acquireRuntimeControllerWhenAvailable(paths.home),
     );

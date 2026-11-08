@@ -1261,8 +1261,8 @@ CREATE TABLE agent_conversations (
 CREATE TABLE sessions (
   id TEXT PRIMARY KEY,                  -- immutable puddle placement uuid
   project_id TEXT NOT NULL REFERENCES projects(id),
-  account_id INTEGER REFERENCES accounts(id),  -- current/preferred launch account; NULL for terminals
-  conversation_id INTEGER REFERENCES agent_conversations(id), -- NULL for terminals and retained migration aliases
+  account_id INTEGER REFERENCES accounts(id),  -- current/preferred launch account; NULL for terminals/huddles
+  conversation_id INTEGER REFERENCES agent_conversations(id), -- NULL for terminals/huddles and retained migration aliases
   placement_alias_of TEXT REFERENCES sessions(id), -- preserves a legacy duplicate's UUID/logs/layout refs
   worktree_path TEXT NOT NULL,
   canonical_worktree_path TEXT NOT NULL,
@@ -1271,7 +1271,8 @@ CREATE TABLE sessions (
   separate_branch INTEGER NOT NULL DEFAULT 1,
   branch_owned INTEGER NOT NULL DEFAULT 0, -- one placement owns worktree/branch-dependent actions
   kind TEXT NOT NULL DEFAULT 'agent',
-  agent_type TEXT,                      -- NULL for terminal sessions
+  huddle_id TEXT,                       -- only huddles: 32 lowercase hex, scoped to project/canonical worktree
+  agent_type TEXT,                      -- NULL for terminal/huddle sessions
   title TEXT,                           -- puddle user override; native title lives above
   status TEXT NOT NULL,
   native_sync TEXT,                     -- pending | full | fallback; NULL for terminals
@@ -1383,7 +1384,7 @@ launch intent once; and provides bounded authenticated controller commands.
 Controller loss leaves local scripts running; a replacement observes retained
 results without replay. Managed graph, transport and worker capacity spends the
 common host allowance. Shutdown retains ownership until worker exit is confirmed.
-Production service launch/adoption, host operation authority, complete resource
+Production service launch, host operation authority, complete resource
 accounting and service-scope recovery remain integration work. Retained auto-start
 intent alone provides no reboot promise.
 Archives separately declare huddle role/format support in `RUNTIME_CAPABILITIES.json`.
@@ -1398,8 +1399,15 @@ Ordinary agent/terminal launch fingerprints, records and runtime protocol 1.1 ar
 unchanged. The internal placement store does not launch an owner or grant project
 authority; its future service must validate scope and runtime capability first.
 There is no huddle creation API or IDE yet. Existing agent/terminal creation and
-restart controls cannot launch huddles. Production role-aware adoption and host
-maintenance checkpoints remain unfinished. Contracts, bounds, verification and unfinished
+restart controls cannot launch huddles. Role-aware daemon discovery now adopts
+both owner kinds under one controller claim. Bounded owner invalidations trigger
+inspection and atomic coarse status/cursor projection; idle owners are not polled.
+Armed huddles remain `running`, stopped owners project `exited`, and interruption
+or failure projects `interrupted`; detailed executing/control state remains private.
+Pause/drain covers huddle projection. Clean retirement requires exact final state
+and all launch/owner claims; crash loss retains unresolved resources and never
+enters ordinary auto-resume/onboarding. Host maintenance/checkpoint integration
+remains unfinished. Contracts, bounds, verification and unfinished
 work are recorded in [huddle acceptance](docs/acceptance/huddle.md); the complete
 design is in the [roadmap](docs/roadmap/huddle.md).
 

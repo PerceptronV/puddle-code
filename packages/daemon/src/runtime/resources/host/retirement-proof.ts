@@ -4,6 +4,7 @@ import {
   RUNTIME_LIMITS,
   runtimeIdentitySchema,
   runtimeLaunchSchema,
+  huddleOwnerLaunchSchema,
   runtimeRetiredSchema,
   type RuntimeIdentity,
 } from '@puddle/shared';
@@ -29,9 +30,11 @@ export function retiredGrantProof(
     };
     const launchStamp = stamp(launchFile, RUNTIME_LIMITS.frameBytes);
     const retiredStamp = stamp(retiredFile, 64 * 1024);
-    const launch = runtimeLaunchSchema.parse(
-      readPrivateJson(launchFile, RUNTIME_LIMITS.frameBytes),
-    );
+    const raw = readPrivateJson(launchFile, RUNTIME_LIMITS.frameBytes);
+    const role = (raw as { role?: unknown } | null)?.role;
+    if (role !== undefined && role !== 'huddle') throw new Error('Unknown runtime retirement role');
+    const launch =
+      role === 'huddle' ? huddleOwnerLaunchSchema.parse(raw) : runtimeLaunchSchema.parse(raw);
     const retired = runtimeRetiredSchema.parse(readPrivateJson(retiredFile, 64 * 1024));
     if (
       [launch.identity, retired.identity].some(

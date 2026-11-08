@@ -3,6 +3,7 @@ import { openDatabase } from '../../../src/db/db.js';
 import { RuntimeStore } from '../../../src/db/stores/runtimes.js';
 import { HuddlePlacements } from '../../../src/db/stores/huddle/placements.js';
 import { fixture } from '../../helpers/daemon-fixtures.js';
+import { reconcilePass } from '../../../src/sessions/reconcile.js';
 
 it('keeps huddles out of ordinary launch, shell and runtime-restart paths', async () => {
   const f = fixture();
@@ -32,5 +33,13 @@ it('keeps huddles out of ordinary launch, shell and runtime-restart paths', asyn
   expect(f.stores.sessions.get(session.id).status).toBe('archived');
   await f.service.unarchive(session.id);
   expect(f.stores.sessions.get(session.id).status).toBe('exited');
+  f.stores.sessions.setStatus(session.id, 'running');
+  const boot = reconcilePass({
+    ...f.stores,
+    onboarding: f.onboarding,
+    runtimes: new RuntimeStore(db),
+  });
+  expect(boot.interrupted).not.toContain(session.id);
+  expect(f.stores.sessions.get(session.id).status).toBe('interrupted');
   expect(watch).not.toHaveBeenCalled();
 });

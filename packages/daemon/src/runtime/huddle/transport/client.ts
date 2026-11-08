@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { EventEmitter } from 'node:events';
 import { connect, type Socket } from 'node:net';
 import {
   canonicalHuddleJson,
@@ -28,16 +29,21 @@ interface Pending {
 }
 
 /** Authenticated observation and commands. Neither disconnect nor timeout retries a mutation. */
-export class HuddleOwnerClient {
+export class HuddleOwnerClient extends EventEmitter {
   private readonly pending = new Map<string, Pending>();
   private closed = false;
   private cursor = 0;
   state: HuddleOwnerState | null = null;
   private constructor(private readonly socket: Socket) {
+    super();
     readRuntimeFrames(
       socket,
       (raw) => {
         const response = huddleOwnerResponseSchema.parse(raw);
+        if (response.t === 'changed') {
+          this.emit('changed', response.observation);
+          return;
+        }
         const pending = this.pending.get(response.id);
         if (!pending) throw new Error('Uncorrelated huddle owner response');
         this.pending.delete(response.id);
@@ -136,5 +142,6 @@ export class HuddleOwnerClient {
       pending.reject(new RuntimeConnectionLost());
     }
     this.pending.clear();
+    this.emit('disconnected');
   }
 }

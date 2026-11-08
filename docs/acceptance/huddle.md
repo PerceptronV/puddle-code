@@ -38,8 +38,8 @@ all ordinary launch fingerprints. Huddle bindings have no active terminal segmen
 terminal-placement row or provider identity. Shared worktree/release retention
 sees their prepared/running owners. Ordinary terminal observations cannot attach
 segments to them. Migration retains historical agent/terminal records as role
-`session`; it does not restart or rewrite their owners. Production role-aware
-connections, daemon projection and maintenance/recovery checkpoints remain
+`session`; it does not restart or rewrite their owners. Role-aware connections and
+daemon projection are implemented below; maintenance/recovery checkpoints remain
 unfinished, so these internal records do not enable public huddle launches.
 
 The shared session glyph renders the Puddle mark and sidebar labels/search identify
@@ -54,6 +54,54 @@ archive/unarchive adds no onboarding. Schema-42 migration coverage verifies
 unchanged agent/terminal identities, fingerprints, cursors and terminal history,
 including idempotent preparation with the old launch inputs. Older migration
 fixtures now seed historical columns independently of the current session writer.
+Shared/daemon/web TypeScript, scoped ESLint and changed-file formatting checks passed.
+
+## Implemented: daemon adoption and lifecycle projection
+
+`runtime/huddle/controller/` now owns discovery, coarse session projection and
+retirement, composed by the ordinary runtime connection/reconciliation services
+and wired into daemon startup/shutdown. Both roles share the existing exclusive
+controller claim; `getHuddle` never exposes a graph owner through terminal controls.
+Adoption validates the exact private launch, committed placement, build, huddle
+scope and capabilities, without consulting the newly selected default runtime.
+
+The unshipped owner contract 1 adds a persisted monotonic `observation` version,
+`persistencePending`, `executing` and bounded `changed` notifications. Observation
+versions are distinct from consumed command sequences. The owner publishes a
+notification after persisting state; the daemon coalesces notifications and
+inspects asynchronously. Settled idle owners have no polling timer. Failed
+observations retry with bounded backoff; no mutation is retried. An armed owner
+projects `running`, a stopped owner projects `exited`, and interrupted/failed
+control projects `interrupted`. Detailed execution state and result history remain
+in the private owner protocol/ledger; no public huddle projection endpoint exists.
+
+`RuntimeStore.observeHuddle` checks scope, rejects pending persistence and backwards
+versions, and commits the observation cursor with session status in one transaction.
+A failed write preserves the prior cursor. Host maintenance pause/drain and daemon
+shutdown include the huddle projector; release inspects changes accumulated while
+paused. Disconnecting a daemon leaves independent graph workers running. The next
+controller observes their results without sending Run or rearming triggers.
+
+Retirement holds the existing launch, dispatch, execution and process-memory claims,
+validates exact retained state, and writes the durable delayed-launch fence. Only
+a clean exited state with stopped control, no active execution/workers and no
+failure releases the binding and memory grant. A crash becomes `interrupted` while
+retaining unresolved worktree, release and memory references; recovery still needs
+descendant/service fencing. Corrupt, missing previously observed or mismatched
+records remain unavailable. Boot reconciliation excludes huddles from ordinary
+auto-resume and onboarding. This does not implement a new owner after a crash,
+native service recovery, public Start/Stop or host-update checkpoint compatibility.
+
+Verification: the expanded shared/huddle and ordinary discovery, daemon adoption,
+ownership, host-memory retirement, maintenance and compatibility suites passed
+**334 tests in 50 files**. The subsequent **six-test huddle adoption suite** also
+passed, adding real isolated daemon replacement: two daemon processes successively
+adopt the same live owner, a script finishes across the handoff, and its effect
+occurs once. Other cases cover mixed owner roles, controllerless completion,
+pause/catch-up, no idle polls, failed projection rollback, forged/incomplete
+observations, mismatched live metadata, clean shutdown and crash retention.
+These fixtures use temporary homes, sanitized environments and deterministic
+independent processes; they establish no native supervision or reboot promise.
 Shared/daemon/web TypeScript, scoped ESLint and changed-file formatting checks passed.
 
 ## Implemented: definition and validation foundation
@@ -200,7 +248,7 @@ admits no next invocation; the scheduler records failure and cancels dependent
 work. An incomplete join or failed invocation cannot be reported as
 successful execution completion. Interrupt/recovery also cancels waiting joins.
 
-Routing composes with the scheduler below. Production owner/service integration,
+Routing composes with the scheduler below. Production service launch,
 non-manual trigger subscriptions and live-agent dispatch remain unimplemented;
 these internal helpers alone do not expose huddles in the application.
 
@@ -312,8 +360,8 @@ reservations; physical ENOSPC still requires storage recovery.
 The scheduler can call an injected host operation bridge, but a production bridge
 with account/session/worktree authorisation and exact dispatch is not installed.
 Existing-agent cleanup, external adapter shutdown, native supervision and
-application-side daemon adoption remain integration work. The
-stored auto-start setting is not proof of restart/reboot continuity.
+production launch remain integration work. Application-side daemon adoption is
+implemented above. The stored auto-start setting is not proof of restart/reboot continuity.
 
 ## Implemented: independent owner process and private controller
 
@@ -340,8 +388,9 @@ the owner's allowance. Controller replacement fences the old connection; a
 monotonic command cursor survives controller disconnects. Lost replies and
 timeouts never retry a command. Inspection, bounded execution/invocation/operation
 pages, Apply, Arm, Run, Interrupt and Shutdown are private internal commands.
-Record pages are observation only; application projection with durable cursors
-and acknowledgement has not been wired yet.
+Record pages are observation only. The daemon now projects versioned owner
+snapshots as described above; execution/outcome journal replication and
+acknowledgement are still pending.
 
 Local scripts continue when the controller disconnects or releases its epoch.
 Shutdown acknowledgement means acceptance, not confirmed termination. The owner
@@ -359,10 +408,11 @@ worker heap plus overhead; they do not enforce total RSS or fence arbitrary OS
 descendants. Complete resource accounting/measurement and supervised descendant
 recovery remain acceptance gates.
 
-Application and agent/terminal runtime versions remain unchanged. Runtime-role
-capabilities are described below; no production placement/launcher/API exists
-yet. Tests supply private launch records directly. Application admission,
-application session records, maintenance inventories/checkpoints/removal,
+This owner increment left application and agent/terminal runtime versions unchanged;
+the later placement increment introduced application 27.0. Runtime-role
+capabilities are described below; no production launcher/API exists yet. Tests
+supply private launch records directly. Application admission,
+maintenance checkpoints/removal,
 provider-operation dispatch and fenced owner replacement/reboot recovery must be
 connected before enabling creation. Do not infer production support from this
 entry point or its private schemas.
@@ -531,7 +581,7 @@ software and did not start a service.
 Phase 0 remains open for the full component contract catalogue and lifecycle
 admission. Phase 1 has retained revisions/activation, the ledger, routing, workers
 and a manual scheduler composed in an independent owner process. Next connect
-the production launcher, daemon projection and exact-operation bridge, including
+the production launcher and exact-operation bridge, including
 complete host resource accounting and lifecycle fencing. Connect the implemented
 runtime capability checks and application placements to authorised creation;
 build the IDE and normal windows; actual trigger/readout adapters; provider-backed

@@ -32,14 +32,23 @@ It shares permanent runtime and process-memory claims, lifetime validation,
 pre-dispatch grants and bounded framing. Its handshake binds the exact scoped
 identity, secret, build and current controller epoch; command sequences survive
 controller replacement. A consumed launch cannot restart the same incarnation.
+Persisted observation versions and bounded `changed` notifications drive daemon
+projection without idle polling. Command cursors and observation versions are
+separate. The daemon rejects incomplete/backwards observations and commits the
+coarse session status with its observation cursor; detailed execution records
+stay in the owner ledger. Shared discovery keeps huddle clients separate from PTY
+clients, under one controller claim. Pause/drain includes both projectors.
+Retirement requires the launch/dispatch/execution/memory claims and exact retained
+state. A clean exit releases the owner; crash/unknown state leaves an interrupted
+placement with unresolved resources retained and never invokes ordinary auto-resume.
 Archives now carry a separate `RUNTIME_CAPABILITIES.json` with exact build/protocol
 and role contract versions. The bounded huddle selection reader requires owner,
 definition, component and ledger support plus pinned helper files, then rechecks
 the exact selection before launch intent. Private huddle launches retain those
 requirements and live adoption verifies actual capabilities. Ordinary owners need
 no new metadata and historical `HOST_CAPABILITIES.json` readers are unchanged.
-No production creation path is enabled yet. Application admission and
-maintenance/adoption integration must precede product enablement; executable
+No production creation path is enabled yet. Daemon adoption/projection is wired;
+application admission and maintenance/checkpoint integration must precede product enablement; executable
 presence or the ordinary runtime protocol alone is not huddle admission evidence.
 See [huddle acceptance](../../docs/acceptance/huddle.md) for the tested scope.
 

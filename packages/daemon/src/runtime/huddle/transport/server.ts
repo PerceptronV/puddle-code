@@ -136,6 +136,11 @@ export class HuddleOwnerServer {
   private reply(socket: Socket, value: HuddleOwnerResponse) {
     writeRuntimeFrame(socket, value, this.buffers.outgoing, this.buffers.encoding);
   }
+  changed(observation: number) {
+    const controller = this.controller;
+    if (this.closed || !controller || !this.authorised(controller.id, controller.epoch)) return;
+    this.reply(controller.socket, { t: 'changed', observation });
+  }
   async close() {
     this.closed = true;
     for (const socket of this.sockets) socket.destroy();

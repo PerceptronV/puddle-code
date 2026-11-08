@@ -5,6 +5,8 @@ import { connectRuntimeOwner } from '../ownership/discovery.js';
 import type { RuntimeClient } from './client.js';
 import { acquireRuntimeController } from '../ownership/storage.js';
 import { HostAdmission } from '../../host/lifecycle/admission.js';
+import { connectHuddleOwner } from '../huddle/controller/discovery.js';
+import type { HuddleOwnerClient } from '../huddle/transport/client.js';
 
 export function runtimeBindingIdentity(binding: RuntimeBinding): RuntimeIdentity {
   return {
@@ -25,6 +27,7 @@ export function runtimeBindingIdentity(binding: RuntimeBinding): RuntimeIdentity
  */
 export class RuntimeConnections extends EventEmitter {
   private readonly clients = new Map<string, RuntimeClient>();
+  private readonly huddles = new Map<string, HuddleOwnerClient>();
   private readonly unavailable = new Set<string>();
   private connecting: Promise<void> | null = null;
   private readonly attaching = new Map<string, Promise<void>>();
@@ -41,6 +44,8 @@ export class RuntimeConnections extends EventEmitter {
     private readonly handlers: {
       connected?: (id: string, client: RuntimeClient) => Promise<void>;
       missing?: (id: string) => Promise<boolean>;
+      huddleConnected?: (id: string, client: HuddleOwnerClient) => Promise<void>;
+      huddleMissing?: (id: string) => Promise<boolean>;
     } = {},
     // Offline maintenance acquires ownership before opening the application database.
     private readonly controller = acquireRuntimeController(home),
@@ -50,6 +55,9 @@ export class RuntimeConnections extends EventEmitter {
 
   get(id: string): RuntimeClient | null {
     return this.clients.get(id) ?? null;
+  }
+  getHuddle(id: string): HuddleOwnerClient | null {
+    return this.huddles.get(id) ?? null;
   }
 
   unavailableIds(): string[] {
@@ -110,7 +118,7 @@ export class RuntimeConnections extends EventEmitter {
     const id = binding.runtime_id;
     const pending = this.attaching.get(id);
     if (pending) return pending;
-    if (this.clients.has(id)) return Promise.resolve();
+    if (this.clients.has(id) || this.huddles.has(id)) return Promise.resolve();
     const task = this.attachBinding(binding).finally(() => this.attaching.delete(id));
     this.attaching.set(id, task);
     return task;
@@ -119,6 +127,30 @@ export class RuntimeConnections extends EventEmitter {
   private async attachBinding(binding: RuntimeBinding): Promise<void> {
     const id = binding.runtime_id;
     try {
+      if (binding.role === 'huddle') {
+        const client = await connectHuddleOwner(this.home, binding, this.controller.record);
+        if (this.closed || this.paused) {
+          client.close();
+          if (!this.closed) this.unavailable.add(id);
+          return;
+        }
+        this.huddles.set(id, client);
+        this.unavailable.delete(id);
+        this.retryMs = 0;
+        client.once('disconnected', () => {
+          if (this.huddles.get(id) !== client) return;
+          this.huddles.delete(id);
+          this.emit('disconnected', id);
+          if (!this.closed) {
+            this.unavailable.add(id);
+            this.schedule();
+          }
+        });
+        await this.handlers.huddleConnected?.(id, client);
+        if (!this.closed && this.huddles.get(id) === client)
+          this.emit('huddle-connected', id, client);
+        return;
+      }
       const client = await connectRuntimeOwner(
         this.home,
         runtimeBindingIdentity(binding),
@@ -154,11 +186,16 @@ export class RuntimeConnections extends EventEmitter {
       if (!this.closed && this.clients.get(id) === client) this.emit('connected', id, client);
     } catch {
       this.clients.get(id)?.close();
+      this.huddles.get(id)?.close();
       // A failed observation never proves ownership has ended.
       if (!this.closed && !this.paused) {
         this.unavailable.add(id);
         try {
-          if (await this.handlers.missing?.(id)) this.unavailable.delete(id);
+          const retired =
+            binding.role === 'huddle'
+              ? await this.handlers.huddleMissing?.(id)
+              : await this.handlers.missing?.(id);
+          if (retired) this.unavailable.delete(id);
         } catch {
           // Storage errors retain ownership for a later retry.
         }
@@ -202,6 +239,8 @@ export class RuntimeConnections extends EventEmitter {
     if (this.retryTimer) clearTimeout(this.retryTimer);
     for (const client of this.clients.values()) client.close();
     this.clients.clear();
+    for (const client of this.huddles.values()) client.close();
+    this.huddles.clear();
     // A timeout does not establish that admitted callbacks stopped using SQLite.
     await this.admission.drain();
     if (this.released) {

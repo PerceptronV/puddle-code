@@ -29,6 +29,8 @@ export class HuddleOwner {
   private readonly transport: HuddleOwnerServer;
   private status: HuddleOwnerState['state'] = 'running';
   private failure: string | null = null;
+  private observation = 0;
+  private persistencePending = false;
   private stopping: Promise<void> | null = null;
   private interrupting: Promise<void> | null = null;
   private driving: Promise<void> | null = null;
@@ -114,6 +116,9 @@ export class HuddleOwner {
       build: launch.build,
       lifetime: launch.lifetime,
       state: this.status,
+      observation: this.observation,
+      persistencePending: this.persistencePending,
+      executing: this.driving !== null,
       commandCursor: this.transport.commandCursor,
       control: this.ledger.activations.current(),
       liveWorkers: this.scheduler.hasLiveWorkers,
@@ -121,9 +126,18 @@ export class HuddleOwner {
     });
   }
   private persist() {
-    atomicPrivateJson(join(this.memory.directory, 'huddle-owner.json'), this.state(), {
+    this.persistencePending = true;
+    const state = huddleOwnerStateSchema.parse({
+      ...this.state(),
+      observation: this.observation + 1,
+      persistencePending: false,
+    });
+    atomicPrivateJson(join(this.memory.directory, 'huddle-owner.json'), state, {
       syncDirectory: true,
     });
+    this.observation = state.observation;
+    this.persistencePending = false;
+    this.transport.changed(this.observation);
   }
   private drive() {
     if (this.failure || this.stopping || this.interrupting) return;
@@ -142,6 +156,7 @@ export class HuddleOwner {
       }
     };
     void pending.then(() => finished(), finished);
+    this.persist();
   }
   private async execute(request: HuddleOwnerRequest): Promise<HuddleOwnerResponse> {
     const state = (): HuddleOwnerResponse => ({ t: 'state', id: request.id, state: this.state() });
@@ -221,6 +236,7 @@ export class HuddleOwner {
   private async shutdown() {
     this.status = 'stopping';
     try {
+      this.persist();
       await this.interrupting;
       await this.scheduler.halt('stopped', 'Huddle owner stopped');
       await this.driving;
