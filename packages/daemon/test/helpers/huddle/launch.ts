@@ -1,3 +1,4 @@
+import { RUNTIME_PROTOCOL_VERSION } from '@puddle/shared';
 import { randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
@@ -29,7 +30,11 @@ return {completed: 42}; }});`;
 export async function huddleLaunchFixture(loseDispatchReply = false) {
   const f = runtimeDatabase();
   f.runtimes.finish(f.binding.runtime_id, 'exited', () => {});
-  const installed = runtimeRelease(f.home, '1.2.3', '1.1');
+  const installed = runtimeRelease(
+    f.home,
+    '1.2.3',
+    `${RUNTIME_PROTOCOL_VERSION.major}.${RUNTIME_PROTOCOL_VERSION.minor}`,
+  );
   copyFileSync(
     process.execPath,
     join(installed.release, 'bin', 'node'),

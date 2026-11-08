@@ -1,3 +1,4 @@
+import { RUNTIME_PROTOCOL_VERSION } from '@puddle/shared';
 import {
   mkdirSync,
   mkdtempSync,
@@ -28,7 +29,11 @@ function home() {
   return directory;
 }
 function release(directory: string, build = '1.2.3') {
-  const f = runtimeRelease(directory, build, '1.1');
+  const f = runtimeRelease(
+    directory,
+    build,
+    `${RUNTIME_PROTOCOL_VERSION.major}.${RUNTIME_PROTOCOL_VERSION.minor}`,
+  );
   mkdirSync(join(f.release, 'daemon', 'huddle'));
   for (const name of ['runner.js', 'sdk.js'])
     writeFileSync(join(f.release, 'daemon', 'huddle', name), '// fixture; never execute\n');

@@ -3,6 +3,7 @@ import {
   runtimeAgentStateSchema,
   runtimeLifecycleSchema,
   type AgentSignalRequest,
+  type AgentNativeTurn,
   type RuntimeAgentState,
   type RuntimeCommand,
   type RuntimeLaunch,
@@ -18,6 +19,8 @@ import { runtimeDirectory } from '../ownership/storage.js';
 import type { RuntimeByteAllowance } from '../resources/budget.js';
 
 interface AgentObservers {
+  nativeTurn?(event: AgentNativeTurn): void;
+  nativeTurnGap?(ref: string, turn: string): void;
   screen?(): Promise<string>;
   writeInput(data: string): void;
   lifecycle(signal: RuntimeLifecycle): void;
@@ -131,6 +134,10 @@ export class RuntimeAgent {
             this.observers.writeInput(data);
           },
           reportStatus: (state) => this.signalStatus(state),
+          ...(this.observers.nativeTurn
+            ? { reportNativeTurn: (event: AgentNativeTurn) => this.observers.nativeTurn!(event) }
+            : {}),
+          reportNativeTurnGap: (ref, turn) => this.observers.nativeTurnGap?.(ref, turn),
           bindConversation: async (ref) => {
             if (
               !this.receive({
@@ -170,6 +177,9 @@ export class RuntimeAgent {
   state(): RuntimeAgentState {
     return runtimeAgentStateSchema.parse({
       provider: this.adapter.id,
+      ...(this.resource?.control?.nativeTurnEvents && !this.lifecycleUnavailable
+        ? { native_turn_events: 1 }
+        : {}),
       native_sync: this.nativeSync,
       status: this.status,
       agent_session_ref: this.ref,

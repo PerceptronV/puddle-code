@@ -149,6 +149,10 @@ export class RuntimeProgrammeTurns {
       if (inspected.t !== 'state' || !inspected.state.agent?.control_ready)
         throw ApiError.conflict('runtime_busy', 'Agent is not ready for an automated turn');
       expectedRef = inspected.state.agent.agent_session_ref;
+      const origin =
+        inspected.state.protocol.major === 1 && inspected.state.protocol.minor >= 2
+          ? caller.origin?.()
+          : undefined;
       // Validate provider input before durable capacity admission. These local
       // identity placeholders are never sent or persisted; the real ordered
       // turn/command identities are allocated below and by RuntimeClient.
@@ -161,6 +165,7 @@ export class RuntimeProgrammeTurns {
         expected_ref: expectedRef,
         prompt,
         ...(schema ? { output_schema: schema } : {}),
+        ...(origin ? { origin } : {}),
       });
       turn = caller.reserve(
         target.id,
@@ -181,6 +186,7 @@ export class RuntimeProgrammeTurns {
           expected_ref: expectedRef,
           prompt,
           ...(schema ? { output_schema: schema } : {}),
+          ...(origin ? { origin } : {}),
         });
       } catch (error) {
         // These correlated errors occur before RuntimeTurns admits provider work.

@@ -44,12 +44,20 @@ async function fixture() {
 it('automatically dispatches a captured script ask and acknowledges only its saved outcome', async () => {
   const f = await fixture();
   try {
-    await f.run('automatic review');
+    const requests = vi.spyOn(f.client, 'request');
+    const operation = await f.run('automatic review');
     await expect.poll(() => f.outcome(), { timeout: 10000 }).toEqual(['completed']);
     await expect
       .poll(() => f.db.prepare('SELECT consumed FROM runtime_turns').get())
       .toEqual({ consumed: 1 });
     expect(readRuntimeJson(join(f.home, `${f.session.id}.turns.json`))).toMatchObject({ count: 1 });
+    expect(requests.mock.calls.find(([request]) => request.t === 'start-turn')?.[0]).toMatchObject({
+      origin: {
+        huddleId: f.huddle.state!.scope.huddleId,
+        executionId: operation.scope.executionId,
+        operationId: operation.scope.operationId,
+      },
+    });
     expect(
       resolveHuddleAgent(
         { sessions: f.sessions, runtimes: f.runtimes, turns: f.programmeTurns },

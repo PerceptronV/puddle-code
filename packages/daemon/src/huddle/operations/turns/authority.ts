@@ -25,7 +25,7 @@ export function requireHuddleTurnScope(
   const dispatch = mode === 'dispatch';
   const source = db
     .prepare(
-      `SELECT b.state, s.status, p.archived,
+      `SELECT b.state, b.huddle_id, s.status, p.archived,
   EXISTS (SELECT 1 FROM huddle_stop_requests WHERE runtime_id = b.runtime_id) AS stopping
   FROM runtime_bindings b JOIN sessions s ON s.id = b.launch_session_id
   JOIN projects p ON p.id = s.project_id
@@ -42,7 +42,9 @@ export function requireHuddleTurnScope(
       owner.project_id,
       owner.session_id,
       owner.canonical_worktree_path,
-    ) as { state: string; status: string; archived: number; stopping: number } | undefined;
+    ) as
+    | { state: string; huddle_id: string; status: string; archived: number; stopping: number }
+    | undefined;
   const destination = db
     .prepare(
       `SELECT b.state, b.active_session_id, s.status, p.archived,
@@ -83,4 +85,5 @@ export function requireHuddleTurnScope(
         destination.stopping))
   )
     throw new ApiError(403, 'huddle_scope', 'Huddle or agent binding is no longer available');
+  return source.huddle_id;
 }

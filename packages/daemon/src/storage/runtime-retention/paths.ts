@@ -10,6 +10,7 @@ const metadata = new Set([
   'launch.json',
   'state.json',
   'events.json',
+  'native-turns.json',
   'consumed.json',
   'retired.json',
   'assets.json',
@@ -31,7 +32,8 @@ export function runtimeStorageCategory(
   }
   const parts = relative.split('/');
   const [root, stream, name] = parts;
-  if (!directory && ['.journal-0.tmp', '.state-0.tmp'].includes(relative)) return 'temporary';
+  if (!directory && ['.journal-0.tmp', '.native-turns-0.tmp', '.state-0.tmp'].includes(relative))
+    return 'temporary';
   const slot = /^\.checkpoint-(0|[1-9][0-9]{0,2})\.tmp$/.exec(stream ?? '');
   if (
     !directory &&

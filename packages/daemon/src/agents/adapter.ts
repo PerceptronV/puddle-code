@@ -1,3 +1,4 @@
+import type { AgentNativeTurn, AgentTurnContext } from '@puddle/shared';
 import type { Account, AgentTurnSignal } from '@puddle/shared';
 import type { RuntimeByteAllowance } from '../runtime/resources/budget.js';
 
@@ -98,14 +99,23 @@ export interface LifecycleLaunchResource {
 }
 
 export interface AgentControl {
+  /** Exact native turn observations are delivered through reportNativeTurn. */
+  readonly nativeTurnEvents?: boolean;
   readonly ready: boolean;
-  ask(prompt: string, signal: AbortSignal, outputSchema?: Record<string, unknown>): Promise<string>;
+  ask(
+    prompt: string,
+    signal: AbortSignal,
+    outputSchema?: Record<string, unknown>,
+    context?: AgentTurnContext,
+  ): Promise<string>;
   signal?(event: AgentTurnSignal): 'working' | 'waiting_input' | undefined;
   lifecycle?(ref: string | undefined, ended: boolean): void;
   input?(): void;
 }
 
 export interface LifecycleLaunchContext {
+  reportNativeTurn?(event: AgentNativeTurn): void;
+  reportNativeTurnGap?(agentSessionRef: string, nativeTurnId: string): void;
   /** Puddle-owned bridge buffers share the runtime owner's managed allowance. */
   bufferAllowance?: RuntimeByteAllowance;
   /** Exact lifecycle delivery became unavailable; never claim a successful native sync. */

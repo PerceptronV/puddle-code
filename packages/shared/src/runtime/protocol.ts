@@ -1,7 +1,13 @@
 import { z } from 'zod';
+import {
+  runtimeNativeTurnCursorSchema,
+  runtimeNativeTurnPageSchema,
+  runtimeNativeTurnStatusSchema,
+  runtimeTurnOriginSchema,
+} from './native-turns.js';
 
 /** Private daemon ↔ runtime contract, independent of the application and remote protocols. */
-export const RUNTIME_PROTOCOL_VERSION = { major: 1, minor: 1 } as const;
+export const RUNTIME_PROTOCOL_VERSION = { major: 1, minor: 2 } as const;
 
 export const RUNTIME_LIMITS = {
   frameBytes: 8 * 1024 * 1024,
@@ -200,6 +206,7 @@ export const runtimeLifecycleSchema = z
 export type RuntimeLifecycle = z.infer<typeof runtimeLifecycleSchema>;
 
 export const runtimeAgentStateSchema = z.object({
+  native_turn_events: z.literal(1).optional(),
   provider: z.string().min(1).max(64),
   native_sync: z.enum(['full', 'fallback']),
   status: z.enum(['starting', 'running', 'waiting_input', 'exited']),
@@ -327,6 +334,7 @@ export const runtimeStateSchema = z.object({
   command_cursor: sequence,
   persistence_pending: z.boolean(),
   journal: runtimeJournalStatusSchema,
+  native_turns: runtimeNativeTurnStatusSchema.optional(),
   agent: runtimeAgentStateSchema.nullable(),
   turn: runtimeTurnSchema.nullable(),
   environment: runtimeEnvironmentStateSchema,
@@ -384,10 +392,17 @@ export const runtimeRequestSchema = z.discriminatedUnion('t', [
     enabled: z.boolean(),
   }),
   z.object({ t: z.literal('clear-env'), id, sequence, placement: runtimePlacementSchema }),
+  z.object({
+    t: z.literal('native-turns'),
+    id,
+    sequence,
+    after: runtimeNativeTurnCursorSchema.nullable(),
+  }),
   z.object({ t: z.literal('events'), id, sequence, after: sequence }),
   z.object({ t: z.literal('ack-events'), id, sequence, through: sequence }),
   z.object({
     t: z.literal('start-turn'),
+    origin: runtimeTurnOriginSchema.optional(),
     id,
     sequence,
     placement: runtimePlacementSchema,
@@ -472,6 +487,7 @@ export const runtimeResponseSchema = z.discriminatedUnion('t', [
     through: sequence,
     cleared: z.number().int().min(0).max(RUNTIME_LIMITS.environmentVariables),
   }),
+  z.object({ t: z.literal('native-turns'), id, page: runtimeNativeTurnPageSchema }),
   z.object({ t: z.literal('events'), id, page: runtimeEventPageSchema }),
   z.object({ t: z.literal('turn'), id, result: runtimeTurnResultSchema }),
   z.object({ t: z.literal('segment-snapshot'), id, checkpoint: runtimeCheckpointSchema }),

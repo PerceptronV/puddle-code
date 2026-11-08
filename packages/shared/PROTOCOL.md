@@ -1,5 +1,38 @@
 # The puddle communication protocol
 
+Private agent/terminal runtime protocol **1.2** adds a separate `native-turns`
+read request/response, optional `state.native_turns` source status and optional
+`agent.native_turn_events: 1` availability. Inspect both protocol and provider
+availability before subscribing; an older owner or an unsupported adapter is not
+upgraded or replaced automatically. The ordinary event union, acknowledgement
+stream and launch seed are unchanged. Older controllers ignore the added fields
+and never receive unsolicited new event kinds. Application 28.4, remote protocol 5,
+database 47 and huddle owner/ledger contracts are unchanged.
+
+Native observations use `runtime/native-turns.ts`: exact conversation and native-hook
+turn identity, segment id, currently bound placement (nullable before adoption),
+owner observation timestamp, event/outcome and attribution. `start-turn.origin` is
+optional huddle/execution/operation causation supplied by the trusted host caller
+only for supporting runtime protocols. The accepted ask passes immutable context
+into its adapter; completion/cancellation cannot borrow a later ask's identity.
+External observations carry no automated context. Missing automation context is
+explicitly unknown.
+
+The owner retains at most 128 observations and 2 MiB in its private
+`native-turns.json`, independently of ordinary event acknowledgement. Each source
+has an epoch, monotonic head and conservative loss floor; pages contain at most
+16 observations and 2 MiB. Null establishes a baseline. Epoch/retention/ahead gaps
+are explicit, as is pending persistence. Memory/disk failures do not terminate an
+unrelated agent PTY. Clients must not admit pending or gap pages as complete history.
+The hook-based interactive control reports started/completed/failed/interrupted
+observations, matching exact native turn ids and prompt hashes for automated asks.
+Unmatched completion proves a gap unless a terminal observation is still retained.
+Late acknowledgement of an already-ended ask retains its origin and reports
+interruption. Exhausted retired attribution reports a gap and unknown origin;
+it cannot reclassify a delayed automated prompt as external input.
+Codex structured-control and headless observation adapters, huddle completion-node
+delivery and native-provider acceptance remain pending.
+
 Database **47** retains bounded host session observations. Optional private huddle
 capability **`sessionEvents: 1`** enables `puddle.trigger.session@1`. Existing owners
 without it remain supported; older candidates cannot adopt owners requiring it.
@@ -14,7 +47,8 @@ observed scope and omit arbitrary audit payloads. Explicit baseline reads do not
 replay history; epoch mismatch, expired retention and ahead cursors report gaps.
 Rows are bounded to 8 KiB and 4,096 sequence positions; pages to 64 rows and 128 KiB.
 Readers must supply previously authorised profile/project/worktree scope. Status
-observations are not exact native turn completions. Native turn retention remains pending.
+observations are not exact native turn completions. The separate native source above
+is not yet connected to a huddle completion trigger.
 
 Private `session-sources`, `session-events` and `session-unavailable` messages are
 gated on the capability. Up to eight `session-sources` ledger slots retain exact

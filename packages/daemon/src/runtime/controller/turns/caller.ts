@@ -1,7 +1,8 @@
-import type { RuntimePlacement, RuntimeTurnResult } from '@puddle/shared';
+import type { RuntimePlacement, RuntimeTurnResult, RuntimeTurnOrigin } from '@puddle/shared';
 
 /** Host-owned admission adapter. This is not a serialisable credential or a public API. */
 export interface RuntimeTurnCaller {
+  origin?(): RuntimeTurnOrigin;
   check(runtimeId: string): void;
   reserve(
     runtimeId: string,

@@ -36,6 +36,7 @@ import { readRuntimeController } from './ownership/storage.js';
 import { RuntimeOwnerMemory } from './resources/host/owner.js';
 import { RuntimeTransportBuffers } from './transport/buffers.js';
 import { RuntimeJournal, type RuntimeJournalReservation } from './state/journal.js';
+import { RuntimeNativeTurnJournal } from './state/native-turns/journal.js';
 import { RuntimeStateFile } from './state/snapshot.js';
 import { RuntimeTurns, RuntimeTurnError } from './execution/turns.js';
 import { RuntimeAgent } from './execution/agent.js';
@@ -84,6 +85,7 @@ export class RuntimeHost {
   private terminalAgents: TerminalAgentMonitor | null = null;
   private terminalProcesses: TerminalProcessReader | null = null;
   private readonly titles = new RuntimeTitles();
+  private readonly nativeTurns: RuntimeNativeTurnJournal | null;
   private binding: RuntimePlacementBinding | null;
   private agent: RuntimeAgent | null = null;
   private releaseLifetime: (() => void) | null = null;
@@ -117,6 +119,9 @@ export class RuntimeHost {
       if (this.launch.theme) this.theme.set(this.launch.theme.fg, this.launch.theme.bg);
       this.stateFile = new RuntimeStateFile(this.directory);
       this.journal = new RuntimeJournal(this.directory, this.launch.identity);
+      this.nativeTurns = this.launch.provider
+        ? new RuntimeNativeTurnJournal(this.directory, this.launch.identity, memory.allowance)
+        : null;
       this.turns = new RuntimeTurns(this.journal, (event, reservation) => {
         this.event({ ...event, cursor: ++this.eventCursor }, reservation);
         if (event.t === 'turn-finished') this.persistState();
@@ -186,6 +191,8 @@ export class RuntimeHost {
       }
       if (!(await host.journal.flush()))
         throw new Error('Could not initialise runtime event journal');
+      // Optional observation persistence cannot prevent ordinary agent execution.
+      await host.nativeTurns?.flush();
       let command = host.launch.main;
       if (host.launch.provider) {
         let lastStatus: string | undefined;
@@ -207,6 +214,28 @@ export class RuntimeHost {
           {
             writeInput: (data) => host.ptys.write(id, 'agent', data, 'script'),
             screen: () => host.ptys.statusOutput(id),
+            nativeTurnGap: (ref, turn) => host.nativeTurns?.unmatched(ref, turn),
+            nativeTurn: (event) => {
+              if (!host.nativeTurns) return;
+              try {
+                const { automated, automation, ...observation } = event;
+                const segment = host.segments.state().current;
+                host.nativeTurns.append({
+                  ...observation,
+                  observedAt: new Date().toISOString(),
+                  segmentId: segment.id,
+                  sessionId:
+                    host.binding?.segment_id === segment.id ? host.binding.session_id : null,
+                  origin: automated
+                    ? automation
+                      ? { kind: 'automation', ...automation }
+                      : { kind: 'unknown' }
+                    : { kind: 'external' },
+                });
+              } catch {
+                host.nativeTurns.lose();
+              }
+            },
             lifecycle: (lifecycle) => {
               host.turns.lifecycle(lifecycle);
               const cursor = ++host.eventCursor;
@@ -274,6 +303,7 @@ export class RuntimeHost {
       command_cursor: this.commandCursor,
       persistence_pending: this.persistencePending || this.journal.status().persistence_pending,
       journal: this.journal.status(),
+      ...(this.nativeTurns ? { native_turns: this.nativeTurns.status() } : {}),
       agent: this.agent?.state() ?? null,
       turn: this.turns.state(),
       environment: this.observations.state(),
@@ -796,6 +826,32 @@ export class RuntimeHost {
       case 'cancel-turn':
         this.turns.cancel(request.turn);
         break;
+      case 'native-turns': {
+        if (!this.nativeTurns) {
+          fail('invalid_request', 'This runtime has no native turn source');
+          return;
+        }
+        const release = this.readWork.reserve(RUNTIME_READ_WORK_BYTES);
+        if (!release) {
+          fail('busy', 'Native turn read capacity unavailable');
+          return;
+        }
+        try {
+          await this.nativeTurns.flush();
+          if (this.owner !== owner || !this.authorised(owner.id, owner.epoch)) {
+            fail('fenced', 'Runtime controller is no longer current');
+            return;
+          }
+          this.reply(socket, {
+            t: 'native-turns',
+            id: request.id,
+            page: this.nativeTurns.read(request.after),
+          });
+        } finally {
+          release();
+        }
+        return;
+      }
       case 'events': {
         await this.journal.flush();
         // Persistence may yield across controller replacement. A stale reader
@@ -960,7 +1016,10 @@ export class RuntimeHost {
       await this.ptys.closeTerminalStates();
       this.logs.closeAll();
       // A refused relaunch must not rewrite the original journal either.
-      if (this.consumed) await this.journal.close();
+      if (this.consumed) {
+        await this.journal.close();
+        await this.nativeTurns?.close();
+      }
       if (this.status !== 'failed') this.status = 'exited';
       this.persistState();
       for (const socket of this.sockets) socket.destroy();

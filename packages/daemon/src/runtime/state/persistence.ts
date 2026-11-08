@@ -3,7 +3,7 @@ import { RUNTIME_LIMITS } from '@puddle/shared';
 import { privatePath } from '@puddle/shared/node';
 import { AtomicFileSlots } from '../../storage/atomic/slots.js';
 
-type Kind = 'journal' | 'checkpoint';
+type Kind = 'journal' | 'native-turns' | 'checkpoint';
 
 /**
  * One pool per owner/kind, protected by the existing lifetime owner claim.
@@ -18,9 +18,9 @@ export class RuntimeStateWriter {
     kind: Kind,
     options: { slots?: number; maxBytes?: number } = {},
   ) {
-    const slots = kind === 'journal' ? 1 : RUNTIME_LIMITS.pendingCheckpoints;
+    const slots = kind === 'checkpoint' ? RUNTIME_LIMITS.pendingCheckpoints : 1;
     const bytes =
-      kind === 'journal' ? RUNTIME_LIMITS.journalBytes : RUNTIME_LIMITS.frameBytes - 1024;
+      kind === 'checkpoint' ? RUNTIME_LIMITS.frameBytes - 1024 : RUNTIME_LIMITS.journalBytes;
     const selectedSlots = options.slots ?? slots;
     const maxBytes = options.maxBytes ?? bytes;
     if (

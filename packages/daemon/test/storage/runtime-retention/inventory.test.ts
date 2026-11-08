@@ -57,6 +57,8 @@ it('accounts known owner files incrementally without reading or changing their c
   f.put(`segments/${segment}.agent.${generation}.json`, 'checkpoint');
   f.put(`screens/${segment}/agent.terminal.json`, 'screen');
   f.put('launch.json', 'metadata');
+  f.put('native-turns.json', 'observations');
+  f.put('.native-turns-0.tmp', 'pending-native');
   f.put('shell-hooks/zsh/.zshrc', 'pinned');
   f.put(`logs/${segment}/shell-history`, 'history');
   f.put('hook-state/turn.json', 'native-state');
@@ -66,14 +68,14 @@ it('accounts known owner files incrementally without reading or changing their c
   expect(passes.every((pass) => pass.pass.entries <= 2)).toBe(true);
   expect(result).toMatchObject({
     state: 'complete',
-    files: 8,
+    files: 10,
     bytes: {
       rawLogs: 3,
       checkpoints: 10,
       screens: 6,
-      metadata: 8,
+      metadata: 20,
       protected: 25,
-      temporary: 7,
+      temporary: 21,
       unknown: 0,
     },
   });

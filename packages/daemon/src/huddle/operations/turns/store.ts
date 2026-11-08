@@ -93,6 +93,11 @@ export class HuddleTurnStore {
           )
         : null;
     const caller: RuntimeTurnCaller = {
+      origin: () => ({
+        huddleId: check(true),
+        executionId: scope.executionId,
+        operationId: scope.operationId,
+      }),
       check: (id) => {
         if (id !== target.runtimeId) throw new Error('Huddle turn target changed');
         check(true);

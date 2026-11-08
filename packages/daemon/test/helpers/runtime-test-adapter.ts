@@ -1,3 +1,4 @@
+import { InteractiveControl } from '../../src/agents/interactive/control.js';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { existsSync } from 'node:fs';
@@ -82,7 +83,20 @@ async function prepare(context: LifecycleLaunchContext) {
     },
   );
   const [ready] = (await once(child, 'message')) as [{ port: number }];
-  const control = new FixtureControl(context);
+  const control =
+    context.env?.['PUDDLE_TEST_NATIVE_TURNS'] === '1'
+      ? new InteractiveControl(
+          (data) => {
+            if (data.startsWith('\x1b[200~'))
+              atomicPrivateJson(join(context.account.config_dir, 'native-input.json'), { data });
+            context.writeInput?.(data);
+          },
+          '\x1b',
+          false,
+          context.reportNativeTurn,
+          context.reportNativeTurnGap,
+        )
+      : new FixtureControl(context);
   atomicPrivateJson(join(context.account.config_dir, `${context.opts.sessionId}.signals.json`), {
     url: context.signalUrl,
     nonce: context.signalNonce,

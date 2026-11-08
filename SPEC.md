@@ -1428,8 +1428,36 @@ paused observations are excluded. Lost acknowledgements cause cursor observation
 not blind redelivery. Stale activation/generation/cursor requests cannot poison a new
 subscription; genuine gaps/resource failures stop automatic admission visibly. Host
 observations can catch up only within retained feed history; this does not manufacture
-transitions the daemon never recorded. Native turn retention, full per-trigger
-health/backlog inspection and custom adapters remain unfinished.
+transitions the daemon never recorded. Runtime protocol 1.2 now supplies a separate bounded native-turn source described
+below; completion-node delivery, full per-trigger health/backlog inspection and
+custom adapters remain unfinished.
+
+Ordinary agent owners retain `native-turns.json` separately from their essential
+controller event journal. `runtime/state/native-turns/` bounds it to 128 observations
+and 2 MiB, with epoch/head/loss floor and independent cursors. Private `native-turns`
+reads return at most 16 records, explicit gaps and persistence status. Ordinary event
+acknowledgement cannot reclaim this stream. Buffered records and write snapshots
+spend managed memory; failed retention advances a visible loss floor, while failed
+persistence remains pending and retries with backoff. These failures do not own
+agent PTY lifetime. The new state fields are optional, ordinary event kinds and
+launch seeds are unchanged, and old controllers remain compatible.
+
+Hook-based interactive controls report exact started/completed/failed/interrupted
+turns. They reject foreign native identities, deduplicate active starts and terminate
+observations on human takeover, cancellation or native conversation changes. A late
+completion cannot become the old ask's successful result. An unmatched completion
+marks missing source history unless its terminal outcome remains retained. Records
+carry the exact native-hook turn/conversation id, segment and currently bound session
+(or null before placement adoption), observed time, bounded result and origin.
+`start-turn.origin` carries optional huddle/execution/operation ids only to runtime
+1.2+; immutable ask context is captured by the adapter at admission. Unknown origin
+is explicit, never guessed from a currently active ask. The adapter records
+no successful completion for an ask acknowledged after it ended: bounded retired
+attribution retains its origin and marks interruption. Attribution-capacity loss
+marks a gap and unknown origin for subsequent unmatched starts. The adapter advertises
+`native_turn_events: 1` only when its exact observation path exists. Codex structured
+control/headless observation and huddle native-completion delivery remain unfinished;
+this foundation does not enable a completion trigger or claim native/reboot acceptance.
 The runtime entry point selects a separate huddle owner from a strict private launch
 record. It reuses runtime/memory claims, host grants and lifetime checks; consumes
 launch intent once; and provides bounded authenticated controller commands.
@@ -1447,8 +1475,8 @@ third session kind and its definition id; older clients require a coordinated
 frontend/daemon update. Migration 43 gives huddles an immutable project/canonical
 worktree/definition identity and a role in the common runtime inventory. They have
 no placement-level provider, conversation, owned branch or terminal segment.
-Ordinary agent/terminal launch fingerprints, records and runtime protocol 1.1 are
-unchanged. The internal placement store does not launch an owner or grant project
+The huddle placement addition preserves ordinary agent/terminal launch fingerprints
+and control semantics; native turn observation uses additive runtime protocol 1.2. The internal placement store does not launch an owner or grant project
 authority. Application 27.1 exposes local/SSH inactive authoring through
 `/api/huddle/:profile`: availability, definition discovery/inspection, blank
 creation and placement opening. The service resolves an explicit registered

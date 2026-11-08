@@ -23,7 +23,94 @@ Optional `git: 1` adds worktree HEAD and repository ref observation.
 Migration 47 retains bounded host session observations. Optional `sessionEvents: 1`
 now delivers them to independent owners through durable subscriptions; Session
 lifecycle nodes and stopped/archived session selectors are available in the IDE.
+Runtime protocol 1.2 now retains an independent native-turn source for hook-based
+interactive controls; completion-trigger delivery remains pending.
 No user CLI command is enabled yet.
+
+## Implemented: native turn source retention
+
+This is the source foundation for selected-agent completion triggers; it does not
+yet enable a **Puddle turn completed** node. Agent/terminal runtime protocol **1.2**
+adds private `native-turns` reads and optional source status/provider availability.
+Application 28.4, database 47, remote protocol 5 and huddle owner/ledger contracts
+remain unchanged. No new unsolicited ordinary-runtime event is introduced, and
+ordinary event acknowledgement cannot discard native source history. Older owners
+remain usable for existing operations; callers must inspect protocol and explicit
+`agent.native_turn_events: 1` before relying on this observation path.
+
+`runtime/state/native-turns/` owns `native-turns.json`, with exact owner identity,
+epoch, monotonic head, loss floor and at most 128 records/2 MiB (including encoded
+JSON escaping). Private pages contain at most 16 records/2 MiB. Records retain native
+conversation/turn ids, segment id, currently bound Puddle session (null before
+placement adoption), owner observation time, outcome and attribution. Hook-derived
+turn ids correlate native admission/completion; they are not claimed to be a
+provider-issued id where that provider supplies none. Replies are bounded to 256 KiB.
+
+The hook-based InteractiveControl used by supported Claude Code, Gemini CLI and
+OpenCode integrations now emits started/completed/failed/interrupted observations.
+Foreign conversations and unmatched turns never become successful completions.
+Repeated active starts and retained outcomes do not create duplicates. Missing
+native admission followed by completion marks a gap; late completions of retained
+interrupted/completed turns are ignored. Missing reply data is a failed observation.
+Human input, cancellation, replacement turns and native conversation switches end
+the previous observation. Native-provider versions still need the existing adapter
+support checks and live acceptance; fake hooks do not establish installed-provider
+behaviour. Unsupported adapters do not advertise the availability flag.
+
+Automated `start-turn` requests may carry huddle/execution/operation ids from the
+trusted host caller, gated to protocol 1.2+. Immutable context follows the admitted
+ask into its adapter and survives cancellation. A later active ask cannot donate
+its identity to an earlier callback. External turns are explicit; automation without
+known context is unknown. No prompt, nonce or environment is retained in this stream.
+Rejected asks whose native start has not arrived retain up to 64 bounded, managed
+attribution records in the hook control. Delayed acknowledgement retains the original
+context and records interruption, never a successful result for the ended ask.
+If this attribution history cannot be retained, subsequent unmatched starts report
+a gap and unknown origin instead of being labelled human input.
+Future huddle delivery must suppress automation/unknown echoes by default and use
+explicit bounded feedback opt-in, as required by the roadmap.
+
+Retention and write buffers spend the owner memory allowance. Record or byte
+pressure evicts bounded oldest history with a durable conservative loss floor;
+invalid/conflicting observations and capacity refusal also report loss. Disk/write
+capacity failures remain `persistencePending` and retry with bounded backoff.
+A page with pending persistence cannot establish durable huddle admission. Source
+failures do not terminate the ordinary agent or reset essential turn dispatch.
+Writes use a separate bounded atomic-file slot, preserving normal runtime journal
+and checkpoint ownership. Close drains native observation persistence after adapter
+shutdown; passive reads validate exact owner identity and byte bounds.
+Runtime storage inventory accounts the source file as metadata and its single
+atomic-write slot as temporary storage; classification does not grant reclamation.
+
+Evidence includes actual private-file persistence, independent reader
+cursors, byte/count eviction, duplicate/conflicting observations, malformed outcomes,
+write failures/backoff, concurrent append during flush and memory refusal. Interactive
+control tests cover external turns, exact automated matching, takeover, cancellation,
+conversation switches, missing replies, delayed acknowledgement after timeout or
+interruption, and attribution retention exhaustion. Isolated independent-owner tests send
+native hooks while the controller is absent, reconnect and read retained completion,
+acknowledge ordinary events without consuming it, and verify exact huddle attribution,
+cancellation origin and unmatched-completion gaps.
+
+Verification on 2026-11-08: a fresh final execution/interactive-control/huddle-operation
+and native-schema run passed **105 tests in 20 files**, including cancellation before
+native acknowledgement and the two-agent feedback fixture. Storage inventory/retention
+checks passed **28 tests in two files**. Shared/daemon/CLI TypeScript, repository ESLint
+and formatting passed, followed by scoped checks for the final edits.
+The broader runtime/agents/huddle/updates/shared run passed **1,423 tests in 230 files**
+with 13 tests skipped across nine files. Five newly added attribution cases saw an
+earlier transformed control module in that running process; all passed in the fresh
+final run above. Its separate resource-ceiling suite could not collect because this
+checkout lacks `docs/reports/persistent-runtimes/resources/2026-11-04-native.json`
+and the other recorded native report fixtures. This remains missing regression
+evidence; no fabricated resource report or native acceptance result substitutes for it.
+
+Pending: Codex structured-control and headless observation adapters, scoped native
+source subscriptions/delivery into huddle owners, the completion-node UI and bounded
+feedback/echo policy, stopped-source inspection and full provider/SSH/native/reboot
+acceptance. Unreceived hooks cannot be reconstructed; detected missing admission is
+a gap, never a fabricated completion. Owner crash is a separate incarnation/recovery
+boundary, not automatic continuation of this process.
 
 ## Implemented: durable host session observations
 

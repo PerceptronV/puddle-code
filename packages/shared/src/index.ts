@@ -66,6 +66,7 @@ export * from './notebook-widget-state.js';
 export * from './api/storage.js';
 export * from './api/agents/runtime.js';
 export * from './runtime/protocol.js';
+export * from './runtime/native-turns.js';
 export * from './runtime/storage.js';
 export * from './runtime/huddle/state.js';
 export * from './runtime/huddle/routing.js';

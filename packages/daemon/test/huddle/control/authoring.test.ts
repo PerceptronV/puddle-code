@@ -1,3 +1,4 @@
+import { RUNTIME_PROTOCOL_VERSION } from '@puddle/shared';
 import { execFileSync } from 'node:child_process';
 import {
   existsSync,
@@ -62,7 +63,11 @@ function fixture() {
     fetch_enabled: false,
   });
   const project = projects.create({ profile_id: profile.id, repo_id: repo.id, name: 'Project' });
-  const release = runtimeRelease(home, '1.2.3', '1.1');
+  const release = runtimeRelease(
+    home,
+    '1.2.3',
+    `${RUNTIME_PROTOCOL_VERSION.major}.${RUNTIME_PROTOCOL_VERSION.minor}`,
+  );
   mkdirSync(join(release.release, 'daemon/huddle'));
   for (const name of ['runner.js', 'sdk.js'])
     writeFileSync(join(release.release, 'daemon/huddle', name), '// never execute');

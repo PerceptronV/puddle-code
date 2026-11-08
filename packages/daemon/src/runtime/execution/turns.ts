@@ -49,7 +49,7 @@ export class RuntimeTurns {
     actualRef: string | null,
     request: Pick<
       Extract<RuntimeRequest, { t: 'start-turn' }>,
-      'turn' | 'expected_ref' | 'prompt' | 'output_schema'
+      'turn' | 'expected_ref' | 'prompt' | 'output_schema' | 'origin'
     >,
   ): RuntimeTurnResult {
     if (request.turn <= (this.current?.turn ?? 0))
@@ -73,7 +73,10 @@ export class RuntimeTurns {
     // outcomes. The command has been admitted and must not be submitted again.
     let result: Promise<string>;
     try {
-      result = control.ask(request.prompt, abort.signal, request.output_schema);
+      result = control.ask(request.prompt, abort.signal, request.output_schema, {
+        turn: request.turn,
+        ...(request.origin ? { huddle: structuredClone(request.origin) } : {}),
+      });
     } catch (error) {
       result = Promise.reject(error);
     }

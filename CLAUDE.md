@@ -542,11 +542,21 @@ runtime claims, host memory grants and lifetime checks. Public lifecycle
 admission is exposed through the routes below; attach/ask dispatch now shares
 the ordinary runtime turn service.
 Do not infer support for an operation from entry-point existence.
+Runtime protocol 1.2 adds a separate native-turn source under
+`runtime/state/native-turns/`; keep it independent of ordinary event acknowledgement.
+Retain exact hook identities, segment/placement scope and immutable ask context.
+Do not infer completed turns from idle status or borrow attribution from a later ask.
+Retain bounded attribution for asks ended before hook acknowledgement; delayed
+starts must not become external input, even after attribution capacity is exhausted.
+Bound records/pages, charge retained/write memory and expose gaps/pending persistence
+without killing unrelated PTYs. Hook-based interactive controls currently report
+observations; structured Codex/headless adapters and huddle completion-node delivery
+remain unfinished. Inspect provider availability as well as protocol support.
 Application 27.0 adds the closed `huddle` session kind. Migration 43 and
 `db/stores/huddle/placements.ts` retain one immutable placement per
 project/canonical worktree/definition. The common runtime inventory records its
 role/capabilities without a terminal segment; preserve ordinary launch fingerprints
-and protocol 1.1. Application 27.1 exposes local/SSH inactive authoring
+and compatible runtime control. Application 27.1 exposes local/SSH inactive authoring
 through `huddle/control/service.ts` and `http/routes/execution/huddle/`. Require
 explicit registered project/worktree roots, recheck request authority and selected
 runtime support after async work, and never arm or launch during create/open.
@@ -690,7 +700,8 @@ before reviewed Arm/Apply; reconnect resumes retained cursors. Commit each page 
 its admitted roots together, re-observe after lost replies, and fail visibly on gaps.
 Stale generation/cursor requests must not fail a newer activation. Participate in
 maintenance drain and recheck exact owner/project/worktree scope before delivery.
-Native-turn retention and richer source health remain unfinished; no new public route.
+The separate native-turn source is not yet wired to huddle completion nodes; richer
+source health remains unfinished. No new public route.
 Optional `git: 1` adds owner-local ref/HEAD observation under `triggers/git/`.
 Group refs and metadata watches by canonical common directory; retain distinct
 worktree HEAD targets and OIDs. `state/git.ts` uses bounded `git-sources` slots
