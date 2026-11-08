@@ -32,6 +32,59 @@ delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 No user CLI command is enabled yet.
 
+## Implemented: host spawn readiness and cleanup
+
+`huddle/operations/spawns/service.ts` now composes the existing SessionService,
+RuntimeLauncher, exact native-turn inspector and RuntimeControls. Fresh dispatch
+creates one independent agent using the retained account/provider/mode/project/
+worktree choices. Duplicate or already admitted operations are refused. A copied
+scope and frozen request survive asynchronous creation. At most 64 host spawn
+calls may wait; readiness waiting is bounded to two minutes after creation returns.
+The normal launcher retains its own startup deadline.
+
+Readiness requires the original runtime identity, current bound placement/segment,
+reconciled provider control and no pending stop. Migration **49** adds a bounded
+retained readiness outcome and a consumed cleanup-attempt flag. The result and
+receipt are stored before returning a handle. Later inspection returns the same
+historical result, even after the runtime ends; it does not grant a new prompt or
+claim current liveness. An accepted launch survives controller disconnection and
+can acquire its readiness result under a later authorised observer, without another
+creation. Storage failure leaves readiness unknown until a later valid observation
+can persist it.
+
+Explicit cancellation fences an in-process pending creation and records durable
+stop intent for an admitted placement. Before-placement cancellation stays pending
+until its creation call exits; an unbound admitted placement cannot subsequently
+bind a runtime. Cleanup targets the exact original runtime, following its current
+placement only within that same owner identity. The existing queued stop control
+rechecks private authority and consumes the huddle stop attempt immediately before
+its stop request. Lost/uncertain replies never grant another stop send. Positive
+clean-exit evidence can subsequently confirm completion; an unrelated replacement
+in the original placement remains untouched. A readiness timeout or controller
+loss alone does not issue cleanup; the future owner dispatcher must apply the
+execution's explicit cancellation/retention policy.
+
+This service is not yet exposed to huddle script workers. Owner mailbox/dispatcher,
+dynamic handles, lifecycle cleanup policy and node templates remain pending before
+spawn support can be advertised. There is no new network message, capability or
+application protocol bump in this slice; application 28.7, ordinary runtime 1.2,
+remote 5 and huddle owner/ledger contracts are unchanged.
+
+Verification, 2026-11-08: all **24 focused spawn tests** passed, followed by
+**112 tests in 19 files** across huddle operations, database migration, session
+creation, programme spawns and compatibility preflight. The final eight host-service
+cases passed again after adding the post-stop authority check. Coverage includes
+lost creation replies, retained readiness after database/service replacement,
+cancel-before-creation, bounded readiness waiting, one consumed uncertain stop,
+queued/post-stop authority loss, a resumed replacement staying alive, persistence
+failure rollback and schema-48 migration without invented outcomes. Shared/daemon/
+CLI TypeScript, scoped ESLint and formatting checks passed.
+The source huddle in the host-service fixture is a synthetic private caller;
+agent runtime creation, provider control, session/launch stores and stop controls
+are real isolated processes using the test adapter and fake supervisor. These
+checks do not establish full huddle-owner IPC, real-provider, native-supervisor,
+SSH or reboot acceptance.
+
 ## Implemented: host spawn admission foundation
 
 Migration **48** adds `huddle_runtime_spawns`, separate from single-file puddlang

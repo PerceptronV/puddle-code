@@ -4,6 +4,7 @@ import {
   canonicalHuddleJson,
   huddleSpawnRequestSchema,
   huddleSpawnScopeSchema,
+  huddleSpawnOutcomeSchema,
   runtimeIdentitySchema,
   type HuddleSpawnRequest,
   type HuddleSpawnScope,
@@ -21,6 +22,8 @@ interface Mapping {
   session_id: string;
   runtime_id: string | null;
   stop_requested: number;
+  stop_attempted: number;
+  outcome: string | null;
 }
 
 /** Host-side spawn consumption. Missing/lost replies never authorise another creation. */
@@ -63,7 +66,7 @@ export class HuddleSpawnStore {
     const mapping = () => {
       const row = this.db
         .prepare(
-          `SELECT intent, session_id, runtime_id, stop_requested
+          `SELECT intent, session_id, runtime_id, stop_requested, stop_attempted, outcome
         FROM huddle_runtime_spawns WHERE owner_runtime_id = ? AND operation_id = ?`,
         )
         .get(scope.owner.runtime_id, scope.operationId) as Mapping | undefined;
@@ -74,6 +77,20 @@ export class HuddleSpawnStore {
       const row = mapping();
       if (!row) throw new Error('No admitted huddle spawn');
       return row;
+    };
+    const retainedOutcome = () => {
+      const row = mapping();
+      if (!row?.outcome) return null;
+      const outcome = huddleSpawnOutcomeSchema.parse(JSON.parse(row.outcome));
+      if (
+        outcome.agent.runtimeId !== row.runtime_id ||
+        outcome.agent.sessionId !== row.session_id ||
+        outcome.agent.projectId !== request.projectId ||
+        outcome.agent.worktree !== request.worktree ||
+        outcome.receipt !== digest(canonicalHuddleJson({ intent, agent: outcome.agent }))
+      )
+        throw new Error('Retained huddle spawn outcome changed');
+      return outcome;
     };
     const sessionMatches = (sessionId: string) =>
       this.db
@@ -173,6 +190,85 @@ export class HuddleSpawnStore {
     return {
       caller,
       request,
+      outcome: () => {
+        check('observe');
+        return retainedOutcome();
+      },
+      /** Called after exact live readiness inspection, without an intervening await. */
+      ready: (inputIdentity: RuntimeIdentity) =>
+        this.db.transaction(() => {
+          check('observe');
+          const identity = runtimeIdentitySchema.parse(inputIdentity);
+          const row = requireMapping();
+          if (
+            identity.runtime_id !== row.runtime_id ||
+            identity.session_id !== row.session_id ||
+            identity.project_id !== request.projectId ||
+            identity.profile_id !== scope.owner.profile_id ||
+            identity.canonical_worktree_path !== request.worktree
+          )
+            throw new Error('Ready agent differs from its retained spawn');
+          const agent = {
+            runtimeId: identity.runtime_id,
+            incarnation: identity.incarnation,
+            sessionId: identity.session_id,
+            projectId: identity.project_id,
+            worktree: identity.canonical_worktree_path,
+          };
+          const result = huddleSpawnOutcomeSchema.parse({
+            agent,
+            receipt: digest(canonicalHuddleJson({ intent, agent })),
+          });
+          const previous = retainedOutcome();
+          if (previous) {
+            if (canonicalHuddleJson(previous) !== canonicalHuddleJson(result))
+              throw new Error('Huddle spawn outcome conflicts with retained readiness');
+            return previous;
+          }
+          const live = this.db
+            .prepare(
+              `SELECT 1 FROM runtime_bindings WHERE runtime_id = ?
+          AND incarnation = ? AND launch_id = ? AND state = 'running' AND role = 'session'
+          AND active_session_id = ? AND profile_id = ? AND project_id = ? AND canonical_worktree_path = ?
+          AND account_id = ? AND agent_type = ?
+          AND NOT EXISTS (SELECT 1 FROM runtime_stop_requests WHERE runtime_id = ?)`,
+            )
+            .get(
+              identity.runtime_id,
+              identity.incarnation,
+              identity.launch_id,
+              row.session_id,
+              identity.profile_id,
+              identity.project_id,
+              identity.canonical_worktree_path,
+              request.accountId,
+              request.agent,
+              identity.runtime_id,
+            );
+          if (row.stop_requested || !live || !sessionMatches(row.session_id))
+            throw new Error('Spawned agent is no longer available for readiness settlement');
+          this.db
+            .prepare(
+              'UPDATE huddle_runtime_spawns SET outcome = ? WHERE owner_runtime_id = ? AND operation_id = ?',
+            )
+            .run(JSON.stringify(result), scope.owner.runtime_id, scope.operationId);
+          return result;
+        })(),
+      claimStop: () =>
+        this.db.transaction(() => {
+          check('observe');
+          const row = requireMapping();
+          if (!row.stop_requested || !row.runtime_id || row.stop_attempted)
+            throw new Error(
+              'Huddle spawn stop is unavailable or already attempted; inspect its outcome',
+            );
+          this.db
+            .prepare(
+              `UPDATE huddle_runtime_spawns SET stop_attempted = 1
+          WHERE owner_runtime_id = ? AND operation_id = ? AND stop_attempted = 0`,
+            )
+            .run(scope.owner.runtime_id, scope.operationId);
+        })(),
       observe: () => {
         check('observe');
         const row = mapping();

@@ -1418,7 +1418,15 @@ Retained ownership never follows a replacement runtime in the same placement.
 Per-execution/owner/host retention caps refuse new work without dropping consumed
 identities. This is a host integration foundation; no spawn role capability or
 network operation is advertised until mailbox, result settlement and cleanup are
-connected. User-facing spawn/resume/restart nodes remain unfinished.
+connected. Migration 49 adds bounded spawn readiness outcomes and consumed cleanup
+attempts. `huddle/operations/spawns/service.ts` now dispatches through SessionService
+and observes exact live identity, placement/segment and native-control readiness
+before retaining a receipt. Retained results remain historical after the agent ends.
+Explicit cleanup uses the existing queued RuntimeControls stop path, with current
+private authority and one exact-owner attempt; uncertain replies remain observation
+only. Cleanup never follows a replacement in the original placement. Source/daemon
+loss alone does not stop an accepted agent. Owner mailbox/dispatcher integration,
+lifecycle cleanup policy and user-facing spawn/resume/restart nodes remain unfinished.
 Private immutable revision documents and compare-and-swap activation records
 separate source publication from Apply/arming. Managed executions retain their
 accepted revision, variable values and resource bindings across later Apply.

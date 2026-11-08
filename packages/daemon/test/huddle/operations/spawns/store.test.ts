@@ -260,3 +260,59 @@ it('migrates schema 47 without changing retained session, owner, or huddle turn 
     migrated.close();
   }
 });
+
+it('migrates admitted schema-48 spawns without inventing readiness or a cleanup attempt', () => {
+  const f = fixture();
+  f.sessions.create(f.row, undefined, f.bound.caller);
+  f.runtimes.prepare(f.launch);
+  f.bound.requestStop();
+  const file = join(f.home, 'before-huddle-spawn-outcomes.sqlite');
+  writeHistoricalDatabase(f.db, file, 48);
+  const migrated = openDatabase(file);
+  try {
+    const bound = new HuddleSpawnStore(migrated).bind(f.scope, f.request, f.authority);
+    expect(bound.observe()).toEqual(f.bound.observe());
+    expect(bound.outcome()).toBeNull();
+    expect(
+      migrated.prepare('SELECT stop_requested, stop_attempted FROM huddle_runtime_spawns').get(),
+    ).toEqual({ stop_requested: 1, stop_attempted: 0 });
+  } finally {
+    migrated.close();
+  }
+});
+
+it('retains exactly one readiness result and refuses changed identity or corrupted receipts', () => {
+  const f = fixture();
+  f.sessions.create(f.row, undefined, f.bound.caller);
+  f.runtimes.prepare(f.launch);
+  f.db
+    .prepare("UPDATE runtime_bindings SET state = 'running' WHERE runtime_id = ?")
+    .run(f.launch.identity.runtime_id);
+  const result = f.bound.ready(f.launch.identity);
+  expect(f.bound.ready(f.launch.identity)).toEqual(result);
+  expect(() => f.bound.ready({ ...f.launch.identity, incarnation: randomUUID() })).toThrow(
+    'conflicts',
+  );
+  f.bound.requestStop();
+  expect(f.bound.outcome()).toEqual(result);
+  f.db
+    .prepare("UPDATE huddle_runtime_spawns SET outcome = json_set(outcome, '$.receipt', ?)")
+    .run('b'.repeat(64));
+  expect(() => f.bound.outcome()).toThrow('outcome changed');
+});
+
+it('keeps readiness unknown if persistence fails and records it only after a successful transaction', () => {
+  const f = fixture();
+  f.sessions.create(f.row, undefined, f.bound.caller);
+  f.runtimes.prepare(f.launch);
+  f.db
+    .prepare("UPDATE runtime_bindings SET state = 'running' WHERE runtime_id = ?")
+    .run(f.launch.identity.runtime_id);
+  f.db.exec(
+    "CREATE TRIGGER fail_spawn_outcome BEFORE UPDATE OF outcome ON huddle_runtime_spawns BEGIN SELECT RAISE(ABORT, 'outcome storage unavailable'); END",
+  );
+  expect(() => f.bound.ready(f.launch.identity)).toThrow('outcome storage unavailable');
+  expect(f.bound.outcome()).toBeNull();
+  f.db.exec('DROP TRIGGER fail_spawn_outcome');
+  expect(f.bound.ready(f.launch.identity)).toEqual(f.bound.outcome());
+});

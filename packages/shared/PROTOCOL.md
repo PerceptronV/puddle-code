@@ -1,5 +1,11 @@
 # The puddle communication protocol
 
+Database **49** adds retained huddle spawn readiness outcomes (bounded to 32 KiB)
+and consumed cleanup attempts. The internal `huddleSpawnOutcomeSchema` binds an
+exact agent target and receipt. These records support host observation after lost
+replies; they are not yet sent through owner IPC/HTTP and introduce no application,
+runtime or remote wire change. No spawn capability is advertised yet.
+
 Database **48** adds private host huddle spawn mappings. Internal
 `runtime/huddle/operations/spawns.ts` defines exact owner/execution/invocation
 scope and resolved creation settings for the host admission foundation. These

@@ -46,6 +46,7 @@ import { migration045 } from './045-huddle-runtime-turns.js';
 import { migration046 } from './046-huddle-turn-cancellation.js';
 import { migration047 } from './047-huddle-session-feed.js';
 import { migration048 } from './048-huddle-runtime-spawns.js';
+import { migration049 } from './049-huddle-spawn-outcomes.js';
 
 export interface Migration {
   version: number;
@@ -103,6 +104,7 @@ export const MIGRATIONS: Migration[] = [
   migration046,
   migration047,
   migration048,
+  migration049,
 ];
 
 /** Highest application database migration understood by this daemon build. */

@@ -609,8 +609,14 @@ Keep ordinary programme fingerprints unchanged, reject combined caller authority
 and recheck account/owner scope before preparation. Retain consumed mappings under
 bounded admission; do not evict them to permit another spawn. Boot must exclude
 unbound huddle spawn placements from automatic resume. The durable stop flag is
-intent, not exit evidence. Spawn mailbox/dispatch, outcome settlement, owned-agent
-cleanup and authoring remain pending; do not advertise spawn support yet.
+intent, not exit evidence. Migration 49 retains readiness receipts and one consumed
+stop attempt. `spawns/service.ts` shares normal session creation, exact native-control
+inspection and queued runtime stopping. Persist readiness before returning it;
+historical results never imply a currently usable agent. Check exact runtime identity
+and placement before readiness/cleanup. Consume cleanup in the queued stop review,
+never resend an uncertain stop or follow a replacement placement. Owner mailbox/
+dispatcher, lifecycle cleanup policy and authoring remain pending; do not advertise
+spawn support yet.
 Migration 45 adds `huddle_runtime_turns`. Host-side exact asks live under
 `huddle/operations/turns/`, reusing `RuntimeProgrammeTurns.askFor` and the common
 busy gate. Shared ordered allocation/result reservation lives in
