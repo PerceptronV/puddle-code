@@ -6,7 +6,7 @@ export function isShellTheme(value: unknown): value is ShellTheme {
   return value === 'light' || value === 'dark' || value === 'system';
 }
 
-/** Last cockpit preference, available before any host can connect. */
+/** Last frontend preference, available before any host can connect. */
 export function loadShellTheme(file: string): ShellTheme {
   try {
     const value: unknown = JSON.parse(readFileSync(file, 'utf8'));

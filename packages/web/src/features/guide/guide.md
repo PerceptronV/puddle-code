@@ -107,11 +107,11 @@ For example:
 
   This asks for confirmation and leaves daemons and their data in place.
 
-- In a local or SSH cockpit, open **Settings → Host → Updates** to inspect the daemon and runtime builds. Supporting hosts offer **Prepare daemon**, **Prepare runtime software** and **Prepare both** for a newer release. Preparation downloads and verifies the software; select **Review impact**, then explicitly apply it. If daemon-owned work must stop, the review lists the affected work and requires a separate interruption action. Existing persistent runtimes retain their processes and pinned builds. Each new window offers available updates again; dismissing an offer keeps the actions in Settings. Older hosts still need the CLI upgrade below before these controls are available.
+- In a local or SSH frontend, open **Settings → Host → Updates** to inspect the daemon and runtime builds. Supporting hosts offer **Prepare daemon**, **Prepare runtime software** and **Prepare both** for a newer release. Preparation downloads and verifies the software; select **Review impact**, then explicitly apply it. If daemon-owned work must stop, the review lists the affected work and requires a separate interruption action. Existing persistent runtimes retain their processes and pinned builds. Each new window offers available updates again; dismissing an offer keeps the actions in Settings. Older hosts still need the CLI upgrade below before these controls are available.
 
-  After installing a new cockpit, daemon or runtime release, its release notes open as a Markdown preview. The preview shows the corresponding **Cockpit**, **Daemon** or **Runtime** sections together when they share a release. The remote application also shows its **Remote** section. Notes describe installed software, including the runtime default for future launches; downloading an update alone does not open them. Read notes stay dismissed across reconnects in that browser, and a newer installed release opens its own notes.
+  After installing a new frontend, daemon or runtime release, its release notes open as a Markdown preview. The preview shows the corresponding **Frontend**, **Daemon** or **Runtime** sections together when they share a release. The remote application also shows its **Remote** section. Notes describe installed software, including the runtime default for future launches; downloading an update alone does not open them. Read notes stay dismissed across reconnects in that browser, and a newer installed release opens its own notes.
 
-  If the daemon disconnects, the cockpit can show the host's recorded update status and its last change time. Recorded completion does not confirm current service health or runtime adoption. For an unfinished update with supporting staged software, **Continue recovery on host** checks the host and continues pending steps. Keep the window open until the host accepts the request; accepted recovery runs independently. Refresh status after a lost response—the cockpit never repeats the action automatically. Older staged software still needs the CLI recovery commands below.
+  If the daemon disconnects, the frontend can show the host's recorded update status and its last change time. Recorded completion does not confirm current service health or runtime adoption. For an unfinished update with supporting staged software, **Continue recovery on host** checks the host and continues pending steps. Keep the window open until the host accepts the request; accepted recovery runs independently. Refresh status after a lost response—the frontend never repeats the action automatically. Older staged software still needs the CLI recovery commands below.
 
 - In order to update the default runtime software on a connected host from the CLI, run:
 
@@ -122,9 +122,9 @@ For example:
 
   Omit `user@host` for this machine. This changes the `puddler` build used by future launches; existing runtimes keep their pinned build and running processes. It requires a running daemon with host-update support (application protocol 25.7+) and an available user service manager. `install runtime` keeps an existing default unless you name a version. Local archive installation requires an explicit `runtime@X.Y.Z` and a verified checksum file beside the archive.
 
-  On hosts without a usable user service manager, runtimes have a limited host-session lifetime. Closing an SSH cockpit stops its attached daemon; the host may retain or reap its independent runtimes. Reconnecting adopts survivors and restores interrupted sessions according to the host’s auto-resume setting. Daemon replacement is blocked while limited runtimes run, and managed host updates require a supported service manager.
+  On hosts without a usable user service manager, runtimes have a limited host-session lifetime. Closing an SSH frontend stops its attached daemon; the host may retain or reap its independent runtimes. Reconnecting adopts survivors and restores interrupted sessions according to the host’s auto-resume setting. Daemon replacement is blocked while limited runtimes run, and managed host updates require a supported service manager.
 
-  To move an existing runtime onto the installed build, open its session menu → **Runtime** in a local or SSH cockpit. Review its build, target build and affected terminals, then choose **Restart on …**. This stops only that runtime, loses its shell jobs and process state, closes extra shell tabs and resumes the exact native conversation (or opens a fresh main shell for a terminal session). Unknown or changed runtime state requires another inspection. A software update alone never performs this restart.
+  To move an existing runtime onto the installed build, open its session menu → **Runtime** in a local or SSH frontend. Review its build, target build and affected terminals, then choose **Restart on …**. This stops only that runtime, loses its shell jobs and process state, closes extra shell tabs and resumes the exact native conversation (or opens a fresh main shell for a terminal session). Unknown or changed runtime state requires another inspection. A software update alone never performs this restart.
 
   `puddle upgrade daemon user@host` uses the same update coordinator on supporting hosts. Independently hosted agents keep running. If preflight identifies daemon-owned terminals, notebook kernels, compilation tasks or programmes that must stop, the CLI asks for explicit approval in an interactive terminal. Declining keeps the stage available without activating it. First installs and upgrades from older daemon-owned sessions still use the embedded installer and report the interruption count.
 
@@ -153,11 +153,11 @@ For example:
 ## Updating a host from a paired browser
 
 Remote host updates require application protocol 26.0 and remote protocol 5.
-Upgrade the target daemon/connector, cockpit and deployed service/application
+Upgrade the target daemon/connector, frontend and deployed service/application
 through local/SSH access first. Existing per-profile browser approvals are kept,
 but pairing alone never grants maintenance access.
 
-In a local or SSH cockpit for that host, open **Settings → Remote & Sync →
+In a local or SSH frontend for that host, open **Settings → Remote & Sync →
 Connected browsers**, expand the exact approved browser and choose **Allow host
 maintenance**. Reconnect that browser. Only local/SSH access can grant or revoke
 maintenance; a paired browser cannot grant it to itself or another device.
@@ -169,7 +169,7 @@ windows refresh host status every 60 seconds. Choose **Prepare daemon**,
 The review covers aggregate impact across every profile on this host. Stopping
 daemon-owned work requires the separate **Interrupt listed work and apply** action.
 Updating the runtime default never restarts existing agents or their shell jobs.
-Session runtime inspection and restart remain available through local/SSH cockpits.
+Session runtime inspection and restart remain available through local/SSH frontends.
 
 Keep the window connected until the host accepts the request. Revoking maintenance
 blocks unaccepted work; an accepted update continues independently. After a lost
@@ -215,4 +215,4 @@ removal commands before removing the CLI itself.
 
 2. Standalone CLI upgrades use the embedded installer, so they do not fetch the website's `install.sh` again. The hosted script resolves the latest release each time it runs; the deployment does not need updating for every release, only when the installer itself changes. npm and GitHub are separate release sources, so their latest published versions can differ.
 
-3. Daemon and runtime install/upgrade commands resolve their own latest published version from the release manifest; UI-only releases need no host update. Failed release discovery leaves the host unchanged. Automatic bootstrap when opening a workspace uses the component versions pinned by the cockpit build. Naming `@version` requests exactly that component version; a skipped version is reported as unavailable. Upgrade the cockpit and host through the first manifest-aware release before relying on selective releases.
+3. Daemon and runtime install/upgrade commands resolve their own latest published version from the release manifest; UI-only releases need no host update. Failed release discovery leaves the host unchanged. Automatic bootstrap when opening a workspace uses the component versions pinned by the frontend build. Naming `@version` requests exactly that component version; a skipped version is reported as unavailable. Upgrade the frontend and host through the first manifest-aware release before relying on selective releases.

@@ -235,7 +235,7 @@ it.each([
     try {
       const endpoint = await attached.start();
       controls.push(endpoint.authority);
-      expect(endpoint.daemonLifetime).toBe('cockpit');
+      expect(endpoint.daemonLifetime).toBe('frontend');
       db = new Database(join(home, 'puddle.db'), { readonly: true });
       const runtimes = new RuntimeStore(db);
       const projectPath = join(userHome, 'project');

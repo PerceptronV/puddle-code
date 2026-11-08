@@ -83,3 +83,22 @@ it('keeps offline recovery separate from disabled live controls', () => {
   expect(render(false)).not.toContain('Verify completion');
   expect(render(true)).toContain('disabled=');
 });
+
+it('uses frontend terminology for incompatibility reported by an older host', () => {
+  const status = statusFixture();
+  const reply = reviewFixture();
+  reply.review!.blockers = [{ code: 'cockpit_incompatible', target: 'cockpit' }];
+  reply.review!.can_apply = false;
+  status.result = reply;
+  const html = renderToStaticMarkup(
+    createElement(OperationReview, {
+      status,
+      reply,
+      disabled: false,
+      offlineDisabled: false,
+      act: () => {},
+    }),
+  );
+  expect(html).toContain('Check failed: frontend incompatible');
+  expect(html).not.toContain('cockpit');
+});

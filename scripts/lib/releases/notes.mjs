@@ -4,7 +4,7 @@ import { join } from 'node:path';
 
 const MAX_BYTES = 256 * 1024;
 
-/** One exact release's source, shared by the cockpit and host distribution. */
+/** One exact release's source, shared by the frontend and host distribution. */
 export function releaseNotes(repo, version) {
   if (!/^\d+\.\d+\.\d+(?:[-+][a-zA-Z0-9.-]+)?$/.test(version))
     throw new Error('Invalid release-notes version');

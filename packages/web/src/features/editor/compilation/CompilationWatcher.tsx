@@ -12,7 +12,7 @@ import { hasCompilationConflict, subscribeAllConflicts } from '../conflicts/conf
 /**
  * Browser bridge for one persisted eager source. The daemon owns filesystem
  * observation and build coalescing; this lightweight poll only delivers the
- * newest completed revision to the already-authenticated cockpit.
+ * newest completed revision to the already-authenticated frontend.
  * Status revisions advance when a build starts, while the retained result
  * still describes the last successful build. Deduplicate by result revision
  * so observing an in-flight build cannot consume its eventual PDF refresh.

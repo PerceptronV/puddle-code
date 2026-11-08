@@ -1249,7 +1249,7 @@ describe('tier-1 migration end-to-end (Workstream S / SPEC §5)', () => {
       const env = await c.json<SessionEnvResponse>('GET', `/api/sessions/${s.id}/env`);
       return env.vars.length === 1;
     });
-    // The authenticated cockpit receives the value so a name click can copy it.
+    // The authenticated frontend receives the value so a name click can copy it.
     expect((await c.json<SessionEnvResponse>('GET', `/api/sessions/${s.id}/env`)).vars).toEqual([
       { name: 'CAPTURED_PROBE', value: 'hunter2', bytes: 7 },
     ]);

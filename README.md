@@ -13,8 +13,8 @@ Puddle manages parallel agents on local and SSH hosts, isolates work in dedicate
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/cockpit-dark.png">
-    <img src="docs/assets/cockpit-light.png" alt="The Puddle desktop app: a live Claude Code session split beside the rendered README, with the file explorer on the left and parallel agent sessions on their own branches and accounts in the sidebar" width="920">
+    <source media="(prefers-color-scheme: dark)" srcset="docs/assets/frontend-dark.png">
+    <img src="docs/assets/frontend-light.png" alt="The Puddle desktop app: a live Claude Code session split beside the rendered README, with the file explorer on the left and parallel agent sessions on their own branches and accounts in the sidebar" width="920">
   </picture>
 </p>
 
@@ -76,7 +76,7 @@ puddle launch
 This installs the Puddle daemon under `~/.puddle` and serves the GUI at `http://localhost:7433`.
 
 Ctrl-C normally closes only the GUI while independently supervised runtimes keep running.
-Some SSH hosts require a cockpit-held daemon. Closing that cockpit stops the daemon and
+Some SSH hosts require a frontend-held daemon. Closing that frontend stops the daemon and
 detaches its independent owners; host policy may retain or reap those host-session runtimes.
 Reconnection adopts survivors and restores interrupted sessions according to the host's
 auto-resume setting. These limited hosts do not support managed updates without a usable
@@ -104,7 +104,7 @@ Runtime install/upgrade requires a running daemon with host-update support (appl
 
 **Desktop app (optional):**
 
-The same cockpit also ships as a standalone desktop app — identical UI and engine, plus a File → "Connect to SSH Host…" menu for remote hosts. Install it with `puddle install desktop` (macOS arm64 or Linux x64/arm64). Once installed, it runs independently of the CLI.
+The same frontend also ships as a standalone desktop app — identical UI and engine, plus a File → "Connect to SSH Host…" menu for remote hosts. Install it with `puddle install desktop` (macOS arm64 or Linux x64/arm64). Once installed, it runs independently of the CLI.
 
 An installed Puddle CLI manages the desktop app directly: quit Puddle, then `puddle install desktop`, `puddle upgrade desktop`, or `puddle remove desktop`. On macOS a fresh install goes to `/Applications` when writable, otherwise `~/Applications`; on Linux `install desktop` asks where to put the AppImage (default `~/puddle`) and opens the folder — later updates happen from inside the app.
 
@@ -115,7 +115,7 @@ auth prompts unless you use a key).
 
 ## How it works
 
-- **Puddle separates host management from live execution.** First connection installs a missing daemon on a supported local or SSH host. In the 0.4.0 architecture, `puddled` manages worktrees and application state, while one independent `puddler` per runtime owns agent and shell PTYs and provider sidecars. Supervised owners survive daemon replacement and cockpit disconnects. After machine reboot, saved conversations can resume according to host settings; live process state does not survive reboot. Hosts without a usable service manager retain the limited host-session fallback described above.
+- **Puddle separates host management from live execution.** First connection installs a missing daemon on a supported local or SSH host. In the 0.4.0 architecture, `puddled` manages worktrees and application state, while one independent `puddler` per runtime owns agent and shell PTYs and provider sidecars. Supervised owners survive daemon replacement and frontend disconnects. After machine reboot, saved conversations can resume according to host settings; live process state does not survive reboot. Hosts without a usable service manager retain the limited host-session fallback described above.
 - **Puddle orchestrates parallel isolated agents** each working in a unique git worktree and branch. You can choose the branch and worktree during session creation.
 - **Puddle's lightweight GUI** allows you to track agent progress, session usage, and active worktrees.
 - **Puddle's philosophy is that any good developer must stay grounded in their code.** Puddle natively integrates live terminals, file editing in Monaco, git commit grahps, diff views, and opens worktrees in your favourite IDE.
@@ -137,13 +137,13 @@ auth prompts unless you use a key).
                                         └───────────────────────────────────┘
 ```
 
-The CLI serves the UI at a stable local origin and reverse-proxies the API to the daemon, directly in local mode, through the tunnel in SSH mode. The daemon is headless and host-agnostic on `127.0.0.1:7434`. UI updates ship with the CLI. Compatible cockpit and daemon releases may differ; the launcher requires approval when an older application protocol is incompatible. Explicit daemon/runtime updates also use the CLI or supporting cockpit Host settings. Review distinguishes unaffected independent runtimes from work requiring interruption; first upgrades from daemon-owned sessions report their interruption count. Declining leaves the daemon running. `--no-upgrade` refuses before prompting, and non-interactive launches require an explicit `puddle upgrade daemon [user@host]` first. Short-lived host connection leases, separate browser authorisation and exact cockpit Host/Origin checks guard local access. Launch invitations are single-use; browser login survives cockpit restarts, while forwarded applications use a separate loopback origin. After upgrading from the old token flow, run `puddle launch` once to authorise existing tabs.
+The CLI serves the UI at a stable local origin and reverse-proxies the API to the daemon, directly in local mode, through the tunnel in SSH mode. The daemon is headless and host-agnostic on `127.0.0.1:7434`. UI updates ship with the CLI. Compatible frontend and daemon releases may differ; the launcher requires approval when an older application protocol is incompatible. Explicit daemon/runtime updates also use the CLI or supporting frontend Host settings. Review distinguishes unaffected independent runtimes from work requiring interruption; first upgrades from daemon-owned sessions report their interruption count. Declining leaves the daemon running. `--no-upgrade` refuses before prompting, and non-interactive launches require an explicit `puddle upgrade daemon [user@host]` first. Short-lived host connection leases, separate browser authorisation and exact frontend Host/Origin checks guard local access. Launch invitations are single-use; browser login survives frontend restarts, while forwarded applications use a separate loopback origin. After upgrading from the old token flow, run `puddle launch` once to authorise existing tabs.
 
 Everything lives under `~/.puddle` on the host, installed without sudo — and `puddle remove daemon` takes it apart again.
 
 ## Development & teardown
 
-**UI preview without a daemon.** Run `pnpm --filter @puddle/web dev:preview` and open <http://localhost:5174>. The real cockpit opens a sample project with coloured file icons, expandable folders and editable sample files. Appearance settings work normally. Sample saves last until reload; terminals, agents and host operations are unavailable. This mode uses browser-only fixtures, has no host gateway and is excluded from production builds. The sample `examples/` folder includes a notebook and PDF; Search, Changes, Worktrees and ended sample sessions exercise the navigator layouts. With the preview running, `pnpm --filter @puddle/web test:preview` checks the sample screens, repeated editor resizing, whole-pane dragging and inline diff close controls in Chromium. Use `pnpm --filter @puddle/web dev` to work against a compatible local daemon instead.
+**UI preview without a daemon.** Run `pnpm --filter @puddle/web dev:preview` and open <http://localhost:5174>. The real frontend opens a sample project with coloured file icons, expandable folders and editable sample files. Appearance settings work normally. Sample saves last until reload; terminals, agents and host operations are unavailable. This mode uses browser-only fixtures, has no host gateway and is excluded from production builds. The sample `examples/` folder includes a notebook and PDF; Search, Changes, Worktrees and ended sample sessions exercise the navigator layouts. With the preview running, `pnpm --filter @puddle/web test:preview` checks the sample screens, repeated editor resizing, whole-pane dragging and inline diff close controls in Chromium. Use `pnpm --filter @puddle/web dev` to work against a compatible local daemon instead.
 
 **One daemon, many clients.** There is a single local daemon per machine, living under `~/.puddle` and run by one supervised service (launchd's `dev.puddle.puddled` on macOS, systemd's `puddled` on Linux). The global `puddle` and a repo-run `node packages/cli/dist/index.js` are **both just clients** that talk to — and, when needed, install — that same daemon. Multiple clients can share that daemon; there is no automatically separate "dev daemon" alongside a "production daemon".
 
@@ -155,11 +155,11 @@ node packages/cli/dist/index.js upgrade daemon@X.Y.Z --tarball dist-release/pudd
 node packages/cli/dist/index.js launch --foreground
 ```
 
-Replace `X.Y.Z`, `PLATFORM` and `ARCH` with the version and target printed by `build:tarball`; keep the generated `.sha256` file beside the archive. Add `user@host` after the component for an SSH target. A modern stopped installation starts its selected service before an explicit upgrade; `launch --tarball` alone does not replace that selected build. A compatible running daemon also ignores the launch tarball. To select the same archive for future runtime launches, use `upgrade runtime@X.Y.Z --tarball …`; existing owners remain pinned until explicitly restarted. First installation and approved legacy transitions still use the embedded bootstrap. Both clients share the host's daemon and cockpit registry. Never launch the daemon from inside a coding-agent shell: it inherits the agent's environment and can break conversation resume; use a plain terminal.
+Replace `X.Y.Z`, `PLATFORM` and `ARCH` with the version and target printed by `build:tarball`; keep the generated `.sha256` file beside the archive. Add `user@host` after the component for an SSH target. A modern stopped installation starts its selected service before an explicit upgrade; `launch --tarball` alone does not replace that selected build. A compatible running daemon also ignores the launch tarball. To select the same archive for future runtime launches, use `upgrade runtime@X.Y.Z --tarball …`; existing owners remain pinned until explicitly restarted. First installation and approved legacy transitions still use the embedded bootstrap. Both clients share the host's daemon and frontend registry. Never launch the daemon from inside a coding-agent shell: it inherits the agent's environment and can break conversation resume; use a plain terminal.
 
-**Kill.** `puddle kill --all` (or Ctrl-C in a `--foreground` run) normally stops the local cockpit
+**Kill.** `puddle kill --all` (or Ctrl-C in a `--foreground` run) normally stops the local frontend
 UI only; a supervised daemon and its sessions keep running. When launch reported that it is keeping
-the daemon attached over SSH, killing that cockpit stops the daemon. Host-session owners may
+the daemon attached over SSH, killing that frontend stops the daemon. Host-session owners may
 survive or be reaped by host policy; the next launch adopts survivors and reconciles ended
 owners according to the host auto-resume setting.
 A supervised daemon is auto-restarting

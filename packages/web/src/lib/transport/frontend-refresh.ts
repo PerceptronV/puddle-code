@@ -1,10 +1,10 @@
 import {
-  cockpitRefreshResponseSchema,
-  cockpitStatusSchema,
-  type CockpitRefreshResponse,
+  frontendRefreshResponseSchema,
+  frontendStatusSchema,
+  type FrontendRefreshResponse,
 } from '@puddle/shared';
 import { tokenStore } from './auth';
-import { reloadCockpit } from '../desktop';
+import { reloadFrontend } from '../desktop';
 
 export type RefreshPhase = 'idle' | 'requesting' | 'waiting' | 'complete' | 'failed';
 
@@ -14,7 +14,7 @@ export class RefreshController {
   private pending: Promise<boolean> | null = null;
   constructor(
     private readonly transport: typeof fetch = fetch,
-    private readonly reload: () => void | Promise<void> = reloadCockpit,
+    private readonly reload: () => void | Promise<void> = reloadFrontend,
     private readonly pause = (ms: number) =>
       new Promise<void>((resolve) => setTimeout(resolve, ms)),
   ) {}
@@ -32,14 +32,14 @@ export class RefreshController {
       'content-type': 'application/json',
     };
     try {
-      const response = await this.transport('/cockpit/refresh', {
+      const response = await this.transport('/frontend/refresh', {
         method: 'POST',
         headers,
         signal: AbortSignal.timeout(10_000),
         body: JSON.stringify({ refreshId: crypto.randomUUID() }),
       });
       if (response.status !== 202) throw new Error('refresh rejected');
-      const accepted: CockpitRefreshResponse = cockpitRefreshResponseSchema.parse(
+      const accepted: FrontendRefreshResponse = frontendRefreshResponseSchema.parse(
         await response.json(),
       );
       this.phase = 'waiting';
@@ -47,13 +47,13 @@ export class RefreshController {
       while (Date.now() < deadline) {
         await this.pause(1000);
         try {
-          const result = await this.transport('/cockpit/status', {
+          const result = await this.transport('/frontend/status', {
             headers,
             cache: 'no-store',
             signal: AbortSignal.timeout(3000),
           });
           if (!result.ok) continue;
-          const status = cockpitStatusSchema.parse(await result.json());
+          const status = frontendStatusSchema.parse(await result.json());
           if (
             status.instance === accepted.instance ||
             status.refreshId !== accepted.refreshId ||

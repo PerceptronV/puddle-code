@@ -1,4 +1,4 @@
-import { ensureDaemon } from '../../../../../cli/src/lib/connection/cockpit.js';
+import { ensureDaemon } from '../../../../../cli/src/lib/connection/frontend.js';
 import { LocalTransport } from '../../../../../cli/src/lib/transport/local.js';
 import type { DaemonUpgradeRequest } from '../../../../../cli/src/lib/connection/handshake.js';
 

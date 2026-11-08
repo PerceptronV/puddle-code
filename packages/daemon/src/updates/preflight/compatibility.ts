@@ -17,7 +17,7 @@ type Protocol = HostReleaseCapabilities['application'];
 type Blocker = {
   code:
     | 'candidate_unavailable'
-    | 'cockpit_incompatible'
+    | 'frontend_incompatible'
     | 'connector_incompatible'
     | 'runtime_default_incompatible'
     | 'runtime_incompatible'
@@ -72,7 +72,7 @@ export class HostUpdateCompatibility {
 
   async inspect(
     input: HostUpdateOperation,
-    cockpit: Protocol,
+    frontend: Protocol,
     installedRuntime: Protocol | null,
     connectorRemote: number | null,
   ): Promise<UpdateCompatibility> {
@@ -98,8 +98,8 @@ export class HostUpdateCompatibility {
         result.blockers.push({ code: 'candidate_unavailable', target: stage.record.component });
       }
     }
-    if (daemon.application.major !== cockpit.major)
-      result.blockers.push({ code: 'cockpit_incompatible', target: 'cockpit' });
+    if (daemon.application.major !== frontend.major)
+      result.blockers.push({ code: 'frontend_incompatible', target: 'frontend' });
     // A daemon activation also selects its bundled connector. Existing remote peers
     // cannot be assumed ready for a different remote protocol.
     if (replacesDaemon && connectorRemote !== null && daemon.remote !== connectorRemote)

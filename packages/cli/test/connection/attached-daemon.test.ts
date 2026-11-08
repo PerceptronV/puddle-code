@@ -67,9 +67,9 @@ process.on('SIGTERM', stop); process.on('SIGHUP', stop);
   });
 
   // A full workspace run can briefly starve the fake SSH subprocesses on CI.
-  it('restarts with the cockpit while leaving host data intact', async () => {
+  it('restarts with the frontend while leaving host data intact', async () => {
     const endpoint = await attached.start();
-    expect(endpoint.daemonLifetime).toBe('cockpit');
+    expect(endpoint.daemonLifetime).toBe('frontend');
     expect(existsSync(join(puddleHome, 'runtime.json'))).toBe(true);
     expect(existsSync(join(puddleHome, 'puddled.pid'))).toBe(true);
     expect(readFileSync(join(puddleHome, 'saved-note'), 'utf8')).toBe('durable-state');

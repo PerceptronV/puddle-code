@@ -11,7 +11,7 @@ import { NewSessionProvider } from '../../src/features/shell/new-session-context
 import { TooltipProvider } from '../../src/components/ui/tooltip';
 import {
   installBrowserTransport,
-  type CockpitSocket,
+  type FrontendSocket,
 } from '../../src/lib/transport/browser-transport';
 import { previewRequest } from '../../src/dev/preview/requests';
 import { profile, project, sessions } from '../../src/dev/preview/data';
@@ -112,7 +112,7 @@ export function mountWorkspaceFixture() {
     socket: () => {
       const events = new EventTarget();
       sockets.add(events);
-      const socket: CockpitSocket = {
+      const socket: FrontendSocket = {
         readyState: WebSocket.OPEN,
         send: () => undefined,
         close: () => undefined,

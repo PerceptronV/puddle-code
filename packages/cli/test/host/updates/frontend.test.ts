@@ -2,14 +2,14 @@ import { expect, it, vi } from 'vitest';
 import { randomUUID } from 'node:crypto';
 import { PROTOCOL_VERSION } from '@puddle/shared';
 import { HostConnection } from '../../../src/lib/auth/connection-authority.js';
-import { cockpitUpdatesFixture } from '../../helpers/cockpit-updates.js';
+import { frontendUpdatesFixture } from '../../helpers/frontend-updates.js';
 import { presentHostUpdate } from '@puddle/shared';
 
 const stage = vi.hoisted(() => vi.fn());
 vi.mock('../../../src/lib/installation/host/staging.js', () => ({ stageHostComponent: stage }));
 
-it('reads status without spending the long-lived cockpit channel request budget', async () => {
-  const f = await cockpitUpdatesFixture('ssh');
+it('reads status without spending the long-lived frontend channel request budget', async () => {
+  const f = await frontendUpdatesFixture('ssh');
   const shared = vi
     .spyOn(f.authority, 'hostUpdate')
     .mockRejectedValue(new Error('Host update control limit reached'));
@@ -24,7 +24,7 @@ it('reads status without spending the long-lived cockpit channel request budget'
 it.each(['local', 'ssh'] as const)(
   'prepares, reviews and separately applies through %s host control',
   async (kind) => {
-    const f = await cockpitUpdatesFixture(kind);
+    const f = await frontendUpdatesFixture(kind);
     vi.stubEnv('PUDDLE_REPO', 'example/client-releases');
     f.store.stopBeforeDispatch(f.operation, 'cancelled', 'fixture preparation');
     stage.mockReset().mockResolvedValue(f.stage);
@@ -57,8 +57,8 @@ it.each(['local', 'ssh'] as const)(
     expect(f.dispatch).toHaveBeenCalledOnce();
     expect(f.authority.state).toBe('ready');
     expect(f.commands.filter(({ action }) => action === 'inspect' || action === 'apply')).toEqual([
-      expect.objectContaining({ action: 'inspect', cockpit: PROTOCOL_VERSION }),
-      expect.objectContaining({ action: 'apply', cockpit: PROTOCOL_VERSION }),
+      expect.objectContaining({ action: 'inspect', frontend: PROTOCOL_VERSION }),
+      expect.objectContaining({ action: 'apply', frontend: PROTOCOL_VERSION }),
     ]);
     const publicStatus = await f.control.status(undefined, () => true, f.signal.signal);
     expect(publicStatus.daemon_version).toBe('0.4.37');
@@ -77,7 +77,7 @@ it.each(['local', 'ssh'] as const)(
 );
 
 it('does not record a staged receipt after browser revocation during download', async () => {
-  const f = await cockpitUpdatesFixture();
+  const f = await frontendUpdatesFixture();
   f.store.stopBeforeDispatch(f.operation, 'cancelled', 'fixture preparation');
   stage.mockReset().mockImplementationOnce(async () => {
     f.signal.abort();
@@ -90,7 +90,7 @@ it('does not record a staged receipt after browser revocation during download', 
 });
 
 it('requires separate exact interruption consent and refuses stale review evidence', async () => {
-  const f = await cockpitUpdatesFixture();
+  const f = await frontendUpdatesFixture();
   f.inspection.impact.requiresInterruption = true;
   f.inspection.impact.affected.notebooks.push({
     instance: randomUUID(),
@@ -134,7 +134,7 @@ it('requires separate exact interruption consent and refuses stale review eviden
 });
 
 it('projects blocker codes and aggregate impact without private target paths', async () => {
-  const f = await cockpitUpdatesFixture();
+  const f = await frontendUpdatesFixture();
   const result = presentHostUpdate({
     ok: true,
     operation: f.operation,
@@ -159,7 +159,7 @@ it('projects blocker codes and aggregate impact without private target paths', a
 it.each(['browser', 'parent'] as const)(
   'revokes the pending mutation lease when its %s authority disappears',
   async (which) => {
-    const f = await cockpitUpdatesFixture();
+    const f = await frontendUpdatesFixture();
     const reviewed = await f.request({
       action: 'inspect',
       reference: { id: f.operation.id, revision: f.operation.revision },
@@ -200,7 +200,7 @@ it.each(['browser', 'parent'] as const)(
 );
 
 it('observes a committed update after a lost apply reply without another dispatch', async () => {
-  const f = await cockpitUpdatesFixture();
+  const f = await frontendUpdatesFixture();
   const review = await f.request({
     action: 'inspect',
     reference: { id: f.operation.id, revision: f.operation.revision },
@@ -232,7 +232,7 @@ it('observes a committed update after a lost apply reply without another dispatc
 it.each([0, 1, 20])(
   'retains existing maintenance controls at current-major minor %i without release equality',
   async (minor) => {
-    const f = await cockpitUpdatesFixture('local', minor);
+    const f = await frontendUpdatesFixture('local', minor);
     const status = await f.control.status(undefined, () => true, f.signal.signal);
     expect(status.availability).toBe('ready');
     expect(status.capabilities).toEqual({
@@ -246,8 +246,8 @@ it.each([0, 1, 20])(
   },
 );
 
-it('does not open a replacement mutation authority when the cockpit is disconnected', async () => {
-  const f = await cockpitUpdatesFixture('local');
+it('does not open a replacement mutation authority when the frontend is disconnected', async () => {
+  const f = await frontendUpdatesFixture('local');
   f.authority.close();
   const open = vi.spyOn(f.transport, 'openChannel');
   expect((await f.control.status(undefined, () => true, f.signal.signal)).availability).toBe(
@@ -261,7 +261,7 @@ it('does not open a replacement mutation authority when the cockpit is disconnec
 });
 
 it('only requests component catalogues from supporting hosts and opted-in browsers', async () => {
-  const f = await cockpitUpdatesFixture('ssh');
+  const f = await frontendUpdatesFixture('ssh');
   await f.control.status(undefined, () => true, f.signal.signal);
   expect(f.commands.at(-1)).not.toHaveProperty('include_component_releases');
   await f.control.status(undefined, () => true, f.signal.signal, true);

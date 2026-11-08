@@ -27,7 +27,7 @@ afterEach(() => {
   onlineManager.setOnline(true);
 });
 
-describe('cockpit host update requests', () => {
+describe('frontend host update requests', () => {
   it('coalesces concurrent window reads and validates the shared response', async () => {
     const queryClient = client();
     const status = statusFixture();
@@ -40,7 +40,7 @@ describe('cockpit host update requests', () => {
     expect(second).toEqual(status);
     expect(api).toHaveBeenCalledExactlyOnceWith(
       'GET',
-      '/cockpit/updates?components=1',
+      '/frontend/updates?components=1',
       undefined,
       expect.any(AbortSignal),
     );

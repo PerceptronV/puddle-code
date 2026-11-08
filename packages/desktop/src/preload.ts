@@ -115,7 +115,7 @@ contextBridge.exposeInMainWorld('puddleDesktop', {
   },
 });
 
-// Appearance is a shell concern, not an application API. Observe the cockpit's
+// Appearance is a shell concern, not an application API. Observe the frontend's
 // existing setting without exposing another callable bridge to page scripts.
 window.addEventListener('DOMContentLoaded', () => {
   const report = () => {

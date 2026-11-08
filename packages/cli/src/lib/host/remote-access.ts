@@ -1,10 +1,10 @@
 import {
-  cockpitRemoteRequestSchema,
+  frontendRemoteRequestSchema,
   profileId,
-  cockpitRemoteStatusSchema,
+  frontendRemoteStatusSchema,
   remoteAdminResponseSchema,
-  type CockpitRemoteRequest,
-  type CockpitRemoteStatus,
+  type FrontendRemoteRequest,
+  type FrontendRemoteStatus,
   type RemoteAdminResponse,
 } from '@puddle/shared';
 import { hostPaths } from '../paths.js';
@@ -17,7 +17,7 @@ export class RemoteAccessControl {
   constructor(private readonly transport: Transport) {}
 
   private async capabilities(): Promise<{
-    availability: CockpitRemoteStatus['availability'];
+    availability: FrontendRemoteStatus['availability'];
     canDeleteRegistration: boolean;
     canManageMaintenance: boolean;
   }> {
@@ -34,13 +34,16 @@ export class RemoteAccessControl {
     if (result.code !== 0)
       throw new Error('Host control is unavailable. Check the host connection.');
     return {
-      availability: result.stdout.includes('cockpit controls 2') ? 'ready' : 'upgrade_required',
+      // Existing hosts advertise the original capability marker.
+      availability: /(?:frontend|cockpit) controls 2/.test(result.stdout)
+        ? 'ready'
+        : 'upgrade_required',
       canDeleteRegistration: result.stdout.includes('delete registration 1'),
       canManageMaintenance: result.stdout.includes('maintenance grants 1'),
     };
   }
 
-  async status(profile: string): Promise<CockpitRemoteStatus> {
+  async status(profile: string): Promise<FrontendRemoteStatus> {
     profileId.parse(profile);
     const capabilities = await this.capabilities();
     if (capabilities.availability !== 'ready')
@@ -57,15 +60,15 @@ export class RemoteAccessControl {
       stdin: JSON.stringify({ profile }) + '\n',
     });
     if (result.code !== 0) throw new Error('Could not read remote access status on this host.');
-    return cockpitRemoteStatusSchema.parse({ ...JSON.parse(result.stdout), ...capabilities });
+    return frontendRemoteStatusSchema.parse({ ...JSON.parse(result.stdout), ...capabilities });
   }
 
   async request(
-    value: CockpitRemoteRequest,
+    value: FrontendRemoteRequest,
     authorised: () => boolean,
     profile: string,
   ): Promise<RemoteAdminResponse> {
-    const request = cockpitRemoteRequestSchema.parse(value);
+    const request = frontendRemoteRequestSchema.parse(value);
     profileId.parse(profile);
     const capabilities = await this.capabilities();
     if (capabilities.availability !== 'ready')

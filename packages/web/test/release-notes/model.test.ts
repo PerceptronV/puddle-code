@@ -8,7 +8,7 @@ import { releaseSection } from '../../src/features/release-notes/markdown/sectio
 
 const markdown = `# Changelog
 ## 0.4.0
-### Cockpit
+### Frontend
 Browser changes.
 ### Daemon
 Host changes.
@@ -39,6 +39,16 @@ function fixture() {
 }
 
 describe('installed release presentation', () => {
+  it('retains historical frontend presentation preferences without hiding newer notes', () => {
+    const saved = storage();
+    saved.setItem('puddle.release-notes.v1:["browser","cockpit","0.4.0"]', 'seen');
+    const queue = new ReleaseNotesQueue(new ReleaseNotesSeen(() => saved));
+    queue.enqueue('host-a', [{ component: 'frontend', version: '0.4.0', markdown }]);
+    expect(queue.snapshot()).toEqual([]);
+    queue.enqueue('host-a', [{ component: 'frontend', version: '0.4.1', markdown }]);
+    expect(queue.snapshot()).toHaveLength(1);
+  });
+
   it('opens first-use notes once and persists presentation across reconnects and new mounts', () => {
     const { saved, queue, notes } = fixture();
     queue.enqueue('host-a', notes);
@@ -65,25 +75,25 @@ describe('installed release presentation', () => {
     expect(reopened.snapshot().map((group) => group.version)).toEqual(['0.4.1']);
   });
 
-  it('merges delayed installed sections into an already rendered cockpit release', () => {
+  it('merges delayed installed sections into an already rendered frontend release', () => {
     const { queue, notes } = fixture();
-    queue.enqueue('browser', [{ ...notes[0]!, component: 'cockpit' }]);
+    queue.enqueue('browser', [{ ...notes[0]!, component: 'frontend' }]);
     queue.presented(queue.snapshot()[0]!);
     queue.enqueue('host-a', notes);
     expect(queue.snapshot()).toHaveLength(1);
     expect(queue.snapshot()[0]!.entries.map((entry) => entry.component)).toEqual([
-      'cockpit',
+      'frontend',
       'daemon',
       'runtime',
     ]);
     expect(queue.snapshot()[0]!.entries[1]!.markdown).not.toContain('Owner changes');
   });
 
-  it('scopes daemon/runtime versions to a stable host while cockpit is browser-wide', () => {
+  it('scopes daemon/runtime versions to a stable host while frontend is browser-wide', () => {
     const { queue, notes } = fixture();
-    queue.enqueue('host-a', [...notes, { ...notes[0]!, component: 'cockpit' }]);
+    queue.enqueue('host-a', [...notes, { ...notes[0]!, component: 'frontend' }]);
     queue.dismiss(queue.snapshot()[0]!);
-    queue.enqueue('host-b', [...notes, { ...notes[0]!, component: 'cockpit' }]);
+    queue.enqueue('host-b', [...notes, { ...notes[0]!, component: 'frontend' }]);
     expect(queue.snapshot()[0]!.entries.map((entry) => entry.component)).toEqual([
       'daemon',
       'runtime',
@@ -152,6 +162,12 @@ describe('installed release presentation', () => {
 });
 
 describe('component Markdown sections', () => {
+  it('reads unchanged archived component headings', () => {
+    expect(releaseSection('### Cockpit\nOld notes.\n### Daemon\nOther.', 'frontend')).toBe(
+      '### Cockpit\nOld notes.',
+    );
+  });
+
   it('keeps nested details but excludes all neighbouring components and release headings', () => {
     expect(releaseSection(markdown, 'daemon')).toBe(
       '### Daemon\nHost changes.\n#### Recovery\nMore detail.',

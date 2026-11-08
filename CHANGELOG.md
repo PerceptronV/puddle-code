@@ -8,3 +8,9 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Frontend
+
+#### Changed
+
+- Use frontend terminology throughout the application, documentation and future releases while retaining compatibility with published versions.

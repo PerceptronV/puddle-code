@@ -3,13 +3,13 @@ import { authHeaders } from '../transport/api';
 import { SYNC_GROUPS } from './settings-sync-manifest';
 
 /**
- * Client for the cockpit's machine-shared sync store (SPEC §11, "Sync
- * locally"): GET/PUT /cockpit/local-sync, a JSON file under the CLIENT
- * machine's ~/.puddle that every puddle cockpit on the box serves. That is
+ * Client for the frontend's machine-shared sync store (SPEC §11, "Sync
+ * locally"): GET/PUT /frontend/local-sync, a JSON file under the CLIENT
+ * machine's ~/.puddle that every puddle frontend on the box serves. That is
  * what carries the selected settings groups across windows on DIFFERENT ports
  * (separate localStorage origins) and across daemons. Entries are keyed by
  * profile NAME, so "vincent" on one host syncs with "vincent" on another.
- * Unavailable (404 — e.g. the vite dev server, or an embedded cockpit) simply
+ * Unavailable (404 — e.g. the vite dev server, or an embedded frontend) simply
  * hides the feature.
  */
 export interface LocalSyncEntry {
@@ -25,7 +25,7 @@ export interface LocalSyncFile {
   profiles: Record<string, LocalSyncEntry | undefined>;
 }
 export interface LocalSyncState {
-  /** False when this cockpit has no store (dev server / embedded). */
+  /** False when this frontend has no store (dev server / embedded). */
   available: boolean;
   file: LocalSyncFile;
 }
@@ -52,7 +52,7 @@ export function effectiveSyncEntry(file: LocalSyncFile, profileName: string): Lo
 
 async function fetchLocalSync(): Promise<LocalSyncState> {
   try {
-    const res = await fetch('/cockpit/local-sync', {
+    const res = await fetch('/frontend/local-sync', {
       headers: authHeaders(),
       cache: 'no-store',
     });
@@ -78,7 +78,7 @@ export function usePutLocalSync() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (body: { profile: string; entry: LocalSyncEntry }) => {
-      const res = await fetch('/cockpit/local-sync', {
+      const res = await fetch('/frontend/local-sync', {
         method: 'PUT',
         headers: { ...authHeaders(), 'content-type': 'application/json' },
         body: JSON.stringify(body),

@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { forwardingInvitation } from './forward-link';
 
-/** Reusable public link; authority is obtained only inside the trusted cockpit. */
+/** Reusable public link; authority is obtained only inside the trusted frontend. */
 export function ForwardLanding() {
   const [message, setMessage] = useState('Opening forwarded application…');
   useEffect(() => {

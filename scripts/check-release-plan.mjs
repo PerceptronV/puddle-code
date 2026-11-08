@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 import { execFileSync } from 'node:child_process';
-import { appendFileSync, copyFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
-import { readReleasePlan } from './lib/releases/plan.mjs';
+import { appendFileSync, mkdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { readReleasePlan, validateReleasePlan, legacyReleasePlan } from './lib/releases/plan.mjs';
 const version = process.argv[2]?.replace(/^v/, '');
 const plan = readReleasePlan(process.cwd(), version, true);
 if (process.argv.includes('--verify-history')) {
@@ -26,8 +26,8 @@ if (process.argv.includes('--verify-history')) {
     } catch {
       continue;
     } // Legacy all-component tags have no manifest.
-    const prior = JSON.parse(archived);
-    if (prior.format !== 1 || prior.version !== target || prior.components?.[component] !== target)
+    const prior = validateReleasePlan(JSON.parse(archived), target);
+    if (prior.components?.[component] !== target)
       throw new Error(`No ${component} was published at ${target}`);
   }
   const application = 'packages/shared/src/protocol.ts';
@@ -36,7 +36,7 @@ if (process.argv.includes('--verify-history')) {
     major(version, application, 'PROTOCOL_VERSION') !==
     major(plan.components.daemon, application, 'PROTOCOL_VERSION')
   )
-    throw new Error('The retained daemon is incompatible with this cockpit; publish a daemon');
+    throw new Error('The retained daemon is incompatible with this frontend; publish a daemon');
   if (
     major(plan.components.daemon, runtime, 'RUNTIME_PROTOCOL_VERSION') !==
     major(plan.components.runtime, runtime, 'RUNTIME_PROTOCOL_VERSION')
@@ -47,7 +47,11 @@ const host = plan.components.daemon === version || plan.components.runtime === v
 if (process.env.GITHUB_OUTPUT) appendFileSync(process.env.GITHUB_OUTPUT, `host=${host}\n`);
 if (process.argv.includes('--stage')) {
   mkdirSync('dist-release', { recursive: true });
-  copyFileSync('release-manifest.json', 'dist-release/release-manifest.json');
+  writeFileSync('dist-release/release-manifest-v2.json', JSON.stringify(plan, null, 2) + '\n');
+  writeFileSync(
+    'dist-release/release-manifest.json',
+    JSON.stringify(legacyReleasePlan(plan), null, 2) + '\n',
+  );
   for (const component of ['daemon', 'runtime'])
     writeFileSync(`dist-release/${component}-version`, plan.components[component] + '\n');
 }

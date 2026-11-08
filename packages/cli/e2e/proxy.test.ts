@@ -24,7 +24,7 @@ it('renews active terminals, HTTP streams and isolated proxy WebSockets across t
   const port = Number(/PORT:(\d+)/.exec(output)![1]);
   const proxyOrigin = `http://127.0.0.1:${f.uiPort}`;
   const prefix = `/proxy/${session.id}/${port}/`;
-  const response = await f.req('/cockpit/proxy-grant', {
+  const response = await f.req('/frontend/proxy-grant', {
     method: 'POST',
     body: JSON.stringify({ session: session.id, port, path: '/app?keep=yes' }),
   });
@@ -120,7 +120,7 @@ it('renews active terminals, HTTP streams and isolated proxy WebSockets across t
       Boolean,
     );
     const closed = new Promise((resolve) => proxy.once('close', resolve));
-    expect((await f.req('/cockpit/logout', { method: 'POST' })).status).toBe(200);
+    expect((await f.req('/frontend/logout', { method: 'POST' })).status).toBe(200);
     await closed;
     await consuming;
     expect((await fetch(`${proxyOrigin}${prefix}`, { headers: { cookie } })).status).toBe(401);

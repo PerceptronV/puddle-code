@@ -35,14 +35,14 @@ import {
   stageDesktopUpdate,
   startLocal,
   type Logger,
-  type RunningCockpit,
+  type RunningFrontend,
   type StagedDesktopUpdate,
 } from '@puddle-code/cli/lib';
 import { addRecentHost, loadRecentHosts, migrateRecentHosts } from './recent-hosts.js';
 import { reopenWindowId, type ReopenWindow, type WindowPlacement } from './reopen.js';
 import { createSshAuthPrompter } from './ssh-auth-prompt.js';
 import { startSshAskpass, type RunningSshAskpass } from './ssh-askpass.js';
-import { restoredCockpitBounds, type DisplayGeometry } from './window-bounds.js';
+import { restoredFrontendBounds, type DisplayGeometry } from './window-bounds.js';
 import { readX11Workspace, restoreX11Workspace } from './x11-workspace.js';
 import { refreshNavigation } from './refresh-navigation.js';
 import { hostUpdateApprovals } from './host-updates/approval.js';
@@ -67,17 +67,17 @@ import { registerWindowLayoutApplyIpc } from './windows/arrangements/ipc.js';
 
 /**
  * The desktop shell (SPEC §10): an Electron main process that drives the SAME
- * cockpit engine as the `puddle` bin — `startLocal`/`connectRemote` ensure the
+ * frontend engine as the `puddle` bin — `startLocal`/`connectRemote` ensure the
  * daemon, serve the built web UI over localhost with /api + /ws + /proxy
  * attached, and this file merely points BrowserWindows at the results. One
  * connection per target serves its independently owned native windows.
- * Everything the cockpit does lives in `@puddle-code/cli/lib`;
+ * Everything the frontend does lives in `@puddle-code/cli/lib`;
  * anything added here should be shell concerns only (windows, menus, OS
  * integration), or it belongs on the other side of the seam where both
  * shells inherit it.
  *
  * Daemons are supervised on their hosts (launchd/systemd via install.sh),
- * exactly as with the CLI: closing a window stops that cockpit's UI server
+ * exactly as with the CLI: closing a window stops that frontend's UI server
  * and tunnel only — never the daemon or its agents.
  *
  * Remote authentication stays with the system ssh binary. Because this shell
@@ -103,10 +103,10 @@ interface ShellWindow {
   trackingPlacement?: boolean;
 }
 
-type Shell = HostConnection<RunningCockpit, ShellWindow>;
-const connections = new HostConnections<RunningCockpit, ShellWindow>(
+type Shell = HostConnection<RunningFrontend, ShellWindow>;
+const connections = new HostConnections<RunningFrontend, ShellWindow>(
   (target, previous, refreshId) =>
-    openCockpit(target, previous ? Number(new URL(previous.origin).port) : undefined, refreshId),
+    openFrontend(target, previous ? Number(new URL(previous.origin).port) : undefined, refreshId),
 );
 const shells = connections.hosts;
 const notifications = new Map<number, DesktopNotifications>();
@@ -344,7 +344,7 @@ const sshAuthPrompter = createSshAuthPrompter({
   preloadPath: join(here, 'auth-preload.cjs'),
   isHostOpen: (target) => connections.has(target),
   // Focus may belong to another app or macOS Space during a reconnect; the
-  // host still owns its prompt, which must remain attached to its cockpit.
+  // host still owns its prompt, which must remain attached to its frontend.
   parent: (target) => preferredWindow(shells.get(target)) ?? promptWin ?? pickerWin,
 });
 let sshAskpassPromise: Promise<RunningSshAskpass> | null = null;
@@ -380,11 +380,11 @@ function sshAskpass(): Promise<RunningSshAskpass> {
   return sshAskpassPromise;
 }
 
-async function openCockpit(
+async function openFrontend(
   target: string,
   preferPort?: number,
   refreshId?: string,
-): Promise<RunningCockpit> {
+): Promise<RunningFrontend> {
   const common = {
     assetsDir: join(here, 'public'),
     preferPort,
@@ -396,7 +396,7 @@ async function openCockpit(
       active: () => !stopped,
     }),
     // The UI's connection banner and ⌘K "Refresh connection" POST
-    // /cockpit/refresh; in-process there is no process to swap, so refresh
+    // /frontend/refresh; in-process there is no process to swap, so refresh
     // is simply: close the UI server (and tunnel), re-run the same flow
     // (which restarts the daemon if it is down), keep the origin.
     onRefreshRequest: (id: string) => {
@@ -426,7 +426,7 @@ async function refreshShell(shell: Shell, refreshId?: string): Promise<void> {
             const navigation = refreshNavigation(
               win.webContents.getURL(),
               previous.origin,
-              shell.cockpit,
+              shell.frontend,
               refreshId,
             );
             if (navigation) navigations.push(win.loadURL(navigation));
@@ -511,12 +511,12 @@ function displayGeometries(): DisplayGeometry[] {
 
 function createWindow(
   target: string,
-  cockpit: RunningCockpit,
+  frontend: RunningFrontend,
   identity: DesktopWindowIdentity,
   placement?: WindowPlacement,
   route?: string,
 ): BrowserWindow {
-  const initialBounds = restoredCockpitBounds(process.platform, displayGeometries(), placement);
+  const initialBounds = restoredFrontendBounds(process.platform, displayGeometries(), placement);
   // An EWMH hint must exist before the X11 window is mapped. Create restored
   // workspace windows hidden for those few synchronous instructions, then map
   // them normally; every other path keeps Electron's ordinary immediate show.
@@ -694,7 +694,7 @@ function createWindow(
     if (!win.isDestroyed()) win.webContents.send('puddle:window-focus', false);
   });
 
-  // Links that leave the cockpit (terminal web links, the ports strip,
+  // Links that leave the frontend (terminal web links, the ports strip,
   // markdown previews) open in the system browser — never a chromeless
   // child window.
   win.webContents.setWindowOpenHandler(({ url }) => {
@@ -705,10 +705,10 @@ function createWindow(
   // Editor deep links (vscode://, cursor://) navigate via window.location in
   // the web app — in a browser the OS takes over and the tab stays put, but
   // Electron would try (and silently fail) to navigate the renderer. Hand
-  // anything that leaves this cockpit's origin to the OS instead. The origin
+  // anything that leaves this frontend's origin to the OS instead. The origin
   // is read through the shells map so a refresh that moved ports stays right.
   win.webContents.on('will-navigate', (event, url) => {
-    const origin = shells.get(target)?.cockpit.origin ?? cockpit.origin;
+    const origin = shells.get(target)?.frontend.origin ?? frontend.origin;
     if (new URL(url).origin === new URL(origin).origin) return;
     event.preventDefault();
     if (/^(vscode|cursor|https?):/.test(url)) void osShell.openExternal(url);
@@ -729,7 +729,7 @@ function createWindow(
     if (!connections.has(target)) sshAuthPrompter.cancel(target);
   });
 
-  const invitation = new URL(cockpit.createInvitation());
+  const invitation = new URL(frontend.createInvitation());
   invitation.pathname =
     route ?? (identity.kind === 'host' ? '/' : `/project/${identity.projectId}`);
   void win.loadURL(invitation.href);
@@ -760,7 +760,7 @@ async function openShell(
   try {
     const window = await connections.open(target, identity.id, (host) => ({
       identity,
-      win: createWindow(target, host.cockpit, identity, placement, restored?.route),
+      win: createWindow(target, host.frontend, identity, placement, restored?.route),
     }));
     if (!window || quitting || quitPending) return;
     if (window.trackingPlacement) {
@@ -888,7 +888,7 @@ ipcMain.on('puddle:connect-cancel', () => promptWin?.close());
 
 // ---------------------------------------------------------------------------
 // New-window host picker — the DEFAULT new-window behaviour: no window opens
-// a cockpit until the user says where the work is. Local sits on top, recents
+// a frontend until the user says where the work is. Local sits on top, recents
 // follow, and "Other SSH host…" hands over to the connect prompt.
 
 function openHostPicker(): void {
@@ -956,13 +956,13 @@ ipcMain.on('puddle:picker-cancel', () => pickerWin?.close());
 // A waiting-input notification's click must bring the app forward —
 // window.focus() cannot raise an OS window from the renderer (see the web's
 // use-waiting-notifications), so the preload bridges it here. Raises the
-// WINDOW THAT ASKED, not a global one — each cockpit window is its own shell.
+// WINDOW THAT ASKED, not a global one — each frontend window is its own shell.
 ipcMain.on('puddle:raise', (event) => {
   const win = BrowserWindow.fromWebContents(event.sender);
   if (win) raise(win);
 });
 
-// Only a cockpit's main frame can use its own notification channel.
+// Only a frontend's main frame can use its own notification channel.
 function windowContext(event: IpcMainInvokeEvent) {
   if (event.senderFrame !== event.sender.mainFrame) throw new Error('Invalid window sender');
   for (const host of shells.values()) {
@@ -970,7 +970,7 @@ function windowContext(event: IpcMainInvokeEvent) {
       ({ win }) => !win.isDestroyed() && win.webContents === event.sender,
     );
     if (!window) continue;
-    if (new URL(event.senderFrame.url).origin !== new URL(host.cockpit.origin).origin) break;
+    if (new URL(event.senderFrame.url).origin !== new URL(host.frontend.origin).origin) break;
     const staging = windowState?.staging(window.identity.id);
     const arrangement = windowState?.stagingArrangement(window.identity.id);
     return {
@@ -1199,7 +1199,7 @@ function buildMenu(): void {
         { type: 'separator' },
         {
           // The same stop-and-reconnect the UI's connection banner and ⌘K
-          // "Refresh connection" trigger via POST /cockpit/refresh — reachable
+          // "Refresh connection" trigger via POST /frontend/refresh — reachable
           // from the menu when the page itself is too wedged to serve it.
           // ⌘⇧R would collide with viewMenu's Force Reload, hence ⌥.
           label: 'Refresh Connection',
@@ -1323,7 +1323,7 @@ if (!app.requestSingleInstanceLock()) {
     void pruneDesktopUpdateCache([]);
     void pollForUpdate();
     setInterval(() => void pollForUpdate(), UPDATE_POLL_MS);
-    // Every launch reopens the remembered cockpit windows;
+    // Every launch reopens the remembered frontend windows;
     // remote authentication can surface through the same askpass modal as a
     // manual connect. If nothing comes back the picker takes over as usual.
     try {
@@ -1363,9 +1363,9 @@ if (!app.requestSingleInstanceLock()) {
 
   // Closing the last window quits the shell on every platform (no tray, no
   // hidden resident process — daemons and their agents run on regardless,
-  // exactly as when CLI cockpits are killed).
+  // exactly as when CLI frontends are killed).
   app.on('window-all-closed', () => {
-    // SSH authentication dialogues can close before the restored cockpit is
+    // SSH authentication dialogues can close before the restored frontend is
     // ready. The restore completion opens a picker if every connection fails.
     if (!restoringWindows) app.quit();
   });
@@ -1431,7 +1431,7 @@ if (!app.requestSingleInstanceLock()) {
     })();
   });
 
-  // Belt and braces: window 'closed' handlers stop their own cockpits; this
+  // Belt and braces: window 'closed' handlers stop their own frontends; this
   // catches a quit racing those stops (tunnels also die with the process).
   app.on('will-quit', (event) => {
     sshAuthPrompter.close();
@@ -1446,20 +1446,20 @@ if (!app.requestSingleInstanceLock()) {
   });
 }
 
-// Accept only a bounded preference from a registered cockpit's main frame.
+// Accept only a bounded preference from a registered frontend's main frame.
 ipcMain.on('puddle:appearance', (event, value: unknown) => {
   if (!isShellTheme(value) || event.senderFrame !== event.sender.mainFrame) return;
   const owner = [...shells.values()].find(({ windows }) =>
     [...windows.values()].some(({ win }) => !win.isDestroyed() && win.webContents === event.sender),
   );
-  if (!owner || new URL(event.senderFrame.url).origin !== new URL(owner.cockpit.origin).origin)
+  if (!owner || new URL(event.senderFrame.url).origin !== new URL(owner.frontend.origin).origin)
     return;
   if (promptTheme === value) return;
   promptTheme = value;
   saveShellTheme(appearanceFile(), value);
 });
 
-// Cache presentation only from the registered cockpit's exact main-frame origin.
+// Cache presentation only from the registered frontend's exact main-frame origin.
 ipcMain.on('puddle:host-identity', (event, value: unknown) => {
   if (event.senderFrame !== event.sender.mainFrame) return;
   const identity = parseHostIdentity(value);
@@ -1467,7 +1467,7 @@ ipcMain.on('puddle:host-identity', (event, value: unknown) => {
   const owner = [...shells.values()].find(({ windows }) =>
     [...windows.values()].some(({ win }) => !win.isDestroyed() && win.webContents === event.sender),
   );
-  if (!owner || new URL(event.senderFrame.url).origin !== new URL(owner.cockpit.origin).origin)
+  if (!owner || new URL(event.senderFrame.url).origin !== new URL(owner.frontend.origin).origin)
     return;
   saveHostIdentity(hostIdentitiesFile(), owner.target, identity);
   pickerWin?.webContents.send('puddle:picker-hosts', pickerHosts());

@@ -1174,7 +1174,7 @@ describe('captured env', () => {
     await f.service.kill(session.id);
   });
 
-  it('returns captured values and byte sizes in name order for the cockpit', async () => {
+  it('returns captured values and byte sizes in name order for the frontend', async () => {
     const f = fixture();
     const session = await liveSession(f);
     f.stores.sessions.mergeEnv(session.id, { ZED: 'plain', ALPHA: 'a\n✓' }, []);

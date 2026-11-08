@@ -4,16 +4,16 @@ import { join } from 'node:path';
 import { clientHome } from './paths.js';
 
 /**
- * The cockpit registry: one JSON file per target under ~/.puddle/cockpits/,
- * written by the running cockpit process (background or foreground alike) so
+ * The frontend registry: one JSON file per target in the shared launcher registry,
+ * written by the running frontend process (background or foreground alike) so
  * `puddle list` and `puddle kill` can find it after the launching terminal is
  * long gone. A record is a claim, not a guarantee — liveness is verified
  * against the process AND the UI server's nonce, never assumed (the lesson
  * of the daemon-port collision: identity, not reachability).
  */
 
-export interface CockpitRecord {
-  /** 'local', or the user@host argument the cockpit fronts. */
+export interface FrontendRecord {
+  /** 'local', or the user@host argument the frontend fronts. */
   target: string;
   pid: number;
   status: 'starting' | 'ready' | 'error';
@@ -23,10 +23,10 @@ export interface CockpitRecord {
   origin?: string;
   /** Protected launcher IPC address; contains no credentials. */
   launcherPath?: string;
-  /** Echoed by the UI server as X-Puddle-Cockpit; proves origin is this cockpit. */
+  /** Echoed by the UI server as X-Puddle-Frontend; proves origin is this frontend. */
   nonce?: string;
-  /** `cockpit` when the remote daemon is held by this process's SSH channel. */
-  daemonLifetime?: 'persistent' | 'cockpit';
+  /** `frontend` when the remote daemon is held by this process's SSH channel. */
+  daemonLifetime?: 'persistent' | 'frontend';
   logFile?: string;
   /** Set on status 'error' so the launcher can relay the failure. */
   message?: string;
@@ -36,12 +36,14 @@ export interface CockpitRecord {
 /**
  * 'dead' (pid gone) is the only state safe to prune. 'unverified' — pid
  * alive but the origin did not echo the nonce (a recycled pid, a stranger on
- * the port, or just a cockpit too busy to answer in time) — must never be
+ * the port, or just a frontend too busy to answer in time) — must never be
  * auto-deleted: the record is the only handle to a possibly-live process.
  */
-export type CockpitLiveness = 'running' | 'starting' | 'unverified' | 'dead';
+export type FrontendLiveness = 'running' | 'starting' | 'unverified' | 'dead';
 
-function cockpitsDir(env?: Record<string, string | undefined>): string {
+function frontendsDir(env?: Record<string, string | undefined>): string {
+  // Keep the deployed namespace so older live launchers and newer clients discover
+  // the same process claims during an upgrade; splitting it could launch duplicates.
   return join(clientHome(env), 'cockpits');
 }
 
@@ -50,47 +52,47 @@ function slug(target: string): string {
   return target.replace(/[^A-Za-z0-9@._-]/g, '_');
 }
 
-export function cockpitRecordPath(target: string): string {
-  return join(cockpitsDir(), `${slug(target)}.json`);
+export function frontendRecordPath(target: string): string {
+  return join(frontendsDir(), `${slug(target)}.json`);
 }
 
-/** Where a cockpit's own output lands when it runs detached. */
-export function cockpitLogPath(target: string): string {
-  return join(clientHome(), 'logs', `cockpit-${slug(target)}.log`);
+/** Where a frontend's own output lands when it runs detached. */
+export function frontendLogPath(target: string): string {
+  return join(clientHome(), 'logs', `frontend-${slug(target)}.log`);
 }
 
-export function writeCockpitRecord(record: CockpitRecord): void {
-  privateDirectory(cockpitsDir());
-  atomicPrivateJson(cockpitRecordPath(record.target), sanitise(record));
+export function writeFrontendRecord(record: FrontendRecord): void {
+  privateDirectory(frontendsDir());
+  atomicPrivateJson(frontendRecordPath(record.target), sanitise(record));
 }
 
-export function readCockpitRecord(target: string): CockpitRecord | null {
+export function readFrontendRecord(target: string): FrontendRecord | null {
   try {
-    const record = JSON.parse(readFileSync(cockpitRecordPath(target), 'utf8')) as CockpitRecord;
-    if ('browserUrl' in record) writeCockpitRecord(record);
+    const record = JSON.parse(readFileSync(frontendRecordPath(target), 'utf8')) as FrontendRecord;
+    if ('browserUrl' in record) writeFrontendRecord(record);
     return sanitise(record);
   } catch {
     return null;
   }
 }
 
-export function removeCockpitRecord(target: string): void {
-  rmSync(cockpitRecordPath(target), { force: true });
+export function removeFrontendRecord(target: string): void {
+  rmSync(frontendRecordPath(target), { force: true });
 }
 
-export function listCockpitRecords(): CockpitRecord[] {
+export function listFrontendRecords(): FrontendRecord[] {
   let names: string[];
   try {
-    names = readdirSync(cockpitsDir());
+    names = readdirSync(frontendsDir());
   } catch {
     return [];
   }
-  const records: CockpitRecord[] = [];
+  const records: FrontendRecord[] = [];
   for (const name of names) {
     if (!name.endsWith('.json')) continue;
     try {
-      const record = JSON.parse(readFileSync(join(cockpitsDir(), name), 'utf8')) as CockpitRecord;
-      if ('browserUrl' in record) writeCockpitRecord(record);
+      const record = JSON.parse(readFileSync(join(frontendsDir(), name), 'utf8')) as FrontendRecord;
+      if ('browserUrl' in record) writeFrontendRecord(record);
       records.push(sanitise(record));
     } catch {
       // A half-written or corrupt record reads as absent; verification would
@@ -111,11 +113,11 @@ export function isPidAlive(pid: number): boolean {
 }
 
 /**
- * Is the record's cockpit actually there? 'running' requires the process to
+ * Is the record's frontend actually there? 'running' requires the process to
  * be alive AND the recorded origin to echo the recorded nonce — identity,
  * never reachability alone.
  */
-export async function checkCockpit(record: CockpitRecord): Promise<CockpitLiveness> {
+export async function checkFrontend(record: FrontendRecord): Promise<FrontendLiveness> {
   if (!isPidAlive(record.pid)) return 'dead';
   if (record.status === 'starting') return 'starting';
   if (record.status !== 'ready' || record.origin === undefined || record.nonce === undefined) {
@@ -126,13 +128,15 @@ export async function checkCockpit(record: CockpitRecord): Promise<CockpitLivene
       method: 'HEAD',
       signal: AbortSignal.timeout(1500),
     });
-    return res.headers.get('x-puddle-cockpit') === record.nonce ? 'running' : 'unverified';
+    // Older running frontends expose only the legacy identity header.
+    const nonce = res.headers.get('x-puddle-frontend') ?? res.headers.get('x-puddle-cockpit');
+    return nonce === record.nonce ? 'running' : 'unverified';
   } catch {
     return 'unverified';
   }
 }
 
-function sanitise(record: CockpitRecord): CockpitRecord {
+function sanitise(record: FrontendRecord): FrontendRecord {
   const {
     target,
     pid,
@@ -142,11 +146,14 @@ function sanitise(record: CockpitRecord): CockpitRecord {
     origin,
     nonce,
     launcherPath,
-    daemonLifetime,
+    daemonLifetime: storedLifetime,
     logFile,
     message,
     hint,
   } = record;
+  // Records written by an older live launcher retain its original lifetime name.
+  const daemonLifetime =
+    (storedLifetime as string | undefined) === 'cockpit' ? 'frontend' : storedLifetime;
   return {
     target,
     pid,

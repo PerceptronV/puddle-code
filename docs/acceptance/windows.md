@@ -59,7 +59,7 @@ existing documented limits do not imply missing requested window functionality.
 
 ## Implemented foundation
 
-- `desktop/src/windows/hosts/connections.ts` owns one cockpit connection per target and
+- `desktop/src/windows/hosts/connections.ts` owns one frontend connection per target and
   multiple independent window identities. Opening windows shares pending connects;
   closing the last window retires the connection. Refresh and retirement are
   serialised, including late connections during app quit.
@@ -93,7 +93,7 @@ existing documented limits do not imply missing requested window functionality.
 - Native Reload/Force Reload, the refresh controller and the render-error reload
   action now checkpoint before replacing the renderer (application 26.10's
   optional reload bridge). Host refresh checkpoints all its windows before
-  stopping the shared cockpit and resumes same-origin survivors. Navigation is
+  stopping the shared frontend and resumes same-origin survivors. Navigation is
   serial per host, duplicate requests join one operation, and Command-Q drains
   it before checkpointing again. Failed saves preserve the original connection.
 - `web/features/windows/transfers/content/transfer-content.ts` provides the pane extraction
@@ -815,7 +815,7 @@ The focused native fixture passed on macOS arm64 with synthetic host/draft stora
   approved discard, and the shared preview connection is stopped exactly once.
 
 The fixture uses the actual main process and preloads with CLI implementation
-excluded. Its fake cockpit now implements the real `stop()` contract; last-window
+excluded. Its fake frontend now implements the real `stop()` contract; last-window
 teardown is checked explicitly. The command remains
 `PUDDLE_NATIVE_RECOVERY_ONLY=1 PREVIEW_URL=http://127.0.0.1:5186/ pnpm --filter @puddle-code/desktop test:native-windows`.
 Native OS focus/fullscreen remain explicitly omitted by this mode. The ordinary
@@ -1141,7 +1141,7 @@ from a synthetic bridge or headless browser.
    then navigate normally with its latest workspace state.
 4. Close the host window, retaining only project/pane windows. Keep editing and
    terminal input working; refresh the connection and exercise authentication
-   prompts. Reopen the host without another cockpit connection.
+   prompts. Reopen the host without another frontend connection.
 5. Transfer dirty and untitled files, duplicate views, notebook editors,
    source/preview pairs, and terminals. Verify text, view state, no accidental
    save, no repeated execution, and unchanged runtime identity. Record tested
@@ -1154,7 +1154,7 @@ from a synthetic bridge or headless browser.
    auto-resume and distinguish process survival from conversation recovery.
 8. Save/load project and profile arrangements from a host window, including old
    layouts, repeated loads, mixed-project panes, dirty-work cancellation, offline
-   hosts, missing resources, changed cockpit ports, and unrelated hosts/profiles.
+   hosts, missing resources, changed frontend ports, and unrelated hosts/profiles.
 9. Exercise notifications, update offers, menus, traffic lights, window drag,
    focus, fullscreen, monitor removal, keyboard navigation, themes, accents,
    density, and reduced motion on each supported desktop platform.

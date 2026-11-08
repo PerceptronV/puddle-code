@@ -1,11 +1,14 @@
 import { createRoot } from 'react-dom/client';
-import { installBrowserTransport, type CockpitSocket } from '../../lib/transport/browser-transport';
+import {
+  installBrowserTransport,
+  type FrontendSocket,
+} from '../../lib/transport/browser-transport';
 import { tokenStore } from '../../lib/transport/auth';
 import { profileStore } from '../../features/profile/profile-store';
 import { profile, project } from './data';
 import { previewRequest } from './requests';
 
-class PreviewSocket implements CockpitSocket {
+class PreviewSocket implements FrontendSocket {
   private events = new EventTarget();
   readyState: number = WebSocket.CONNECTING;
   constructor() {
@@ -40,12 +43,12 @@ export async function startPreview() {
       throw new Error('Terminals need a daemon.');
     },
   });
-  // Raw transfer/cockpit callers also terminate in fixtures. Vite's preview
+  // Raw transfer/frontend callers also terminate in fixtures. Vite's preview
   // mode has no gateway, so even an unhandled URL cannot reach the daemon.
   const nativeFetch = window.fetch.bind(window);
   window.fetch = (input, init) => {
     const url = new URL(input instanceof Request ? input.url : String(input), location.href);
-    if (url.origin === location.origin && /^\/(api|cockpit|proxy)(\/|$)/.test(url.pathname)) {
+    if (url.origin === location.origin && /^\/(api|frontend|proxy)(\/|$)/.test(url.pathname)) {
       return previewRequest(
         init?.method ?? (input instanceof Request ? input.method : 'GET'),
         url.href,

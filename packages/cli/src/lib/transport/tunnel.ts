@@ -31,7 +31,7 @@ const HEALTH_INTERVAL_MS = 1000;
  * a remote daemon needs the client's own port 1455 carried to the host
  * (codex's documented headless-SSH recipe). Unlike openTunnel this is not
  * load-bearing: no health loop, no reconnect, and a busy local port (another
- * cockpit, or a genuinely local login server) skips it with a warning rather
+ * frontend, or a genuinely local login server) skips it with a warning rather
  * than failing the connect. Returns a closer, or null when skipped.
  */
 export async function openCallbackForward(
@@ -201,7 +201,7 @@ export async function openTunnel(
         if (!(await ssh.isAlive())) {
           try {
             // May prompt on the TTY in --foreground mode or through an
-            // embedder-supplied askpass helper. A detached CLI cockpit has
+            // embedder-supplied askpass helper. A detached CLI frontend has
             // neither, so password/2FA re-auth keeps retrying in its log.
             await ssh.open();
           } catch {

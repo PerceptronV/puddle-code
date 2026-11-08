@@ -1,12 +1,12 @@
 import type { QueryClient } from '@tanstack/react-query';
-import type { CockpitHostUpdateStatus } from '@puddle/shared';
+import type { FrontendHostUpdateStatus } from '@puddle/shared';
 
 /** Observe the existing update poll, including runtime-only changes without reconnects. */
 export function watchInstalledReleases(client: QueryClient, scope: string): () => void {
-  const key = ['cockpit-host-updates', scope];
+  const key = ['frontend-host-updates', scope];
   let previous: string | undefined;
   const observe = () => {
-    const status = client.getQueryData<CockpitHostUpdateStatus>(key);
+    const status = client.getQueryData<FrontendHostUpdateStatus>(key);
     if (status?.availability !== 'ready' || status.observation === 'recorded' || !status.catalogue)
       return;
     const installed = JSON.stringify([

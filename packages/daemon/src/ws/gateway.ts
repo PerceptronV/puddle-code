@@ -396,7 +396,7 @@ export class WsGateway {
             this.statusSubs.add(ws);
             break;
           case 'theme':
-            // Last report wins, like stdin — one person's cockpit in practice.
+            // Last report wins, like stdin — one person's frontend in practice.
             this.deps.theme.set(msg.fg, msg.bg);
             break;
         }

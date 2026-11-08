@@ -11,7 +11,7 @@ export type Command =
       port?: number;
       /**
        * Start the UI-port probe here without insisting on it (unlike --port,
-       * which is strict). `refresh` uses this to land the new cockpit back on
+       * which is strict). `refresh` uses this to land the new frontend back on
        * the old origin so an open browser tab survives the swap.
        */
       preferPort?: number;
@@ -24,7 +24,7 @@ export type Command =
     }
   | {
       cmd: 'refresh';
-      /** 'local' or user@host; omitted → the sole running cockpit. */
+      /** 'local' or user@host; omitted → the sole running frontend. */
       target?: string;
       port?: number;
       remotePort?: number;
@@ -131,18 +131,18 @@ usage:
 --version lists the installed CLI, daemon, runtime default and desktop app with the protocol
 each speaks (daemon cN reports the connector’s remote protocol); absent local components are reported as not installed.
 
-launch serves the cockpit at http://localhost:7433 against the daemon on this
+launch serves the frontend at http://localhost:7433 against the daemon on this
 machine when no host (or 'local') is given — installing it under ~/.puddle if
 needed — and does the same for an SSH host through one tunnel. It keeps
 running in the background once ready, so the terminal may close (--foreground
-to stay attached; Ctrl-C then stops the cockpit). refresh stops a target's
-cockpit (even a wedged one) and runs the full launch flow again — tunnel,
+to stay attached; Ctrl-C then stops the frontend). refresh stops a target's
+frontend (even a wedged one) and runs the full launch flow again — tunnel,
 daemon restart if needed — keeping the old UI port so open tabs survive.
 An older host protocol prompts before updating its daemon; --no-upgrade
 aborts before prompting. Without a terminal, upgrade the daemon explicitly first.
 An installed independent-runtime host starts its selected service without
 reinstalling. Interrupted activation requires explicit update recovery.
-list shows running cockpits; kill stops one. Sessions keep running under a
+list shows running frontends; kill stops one. Sessions keep running under a
 persistent supervisor; an SSH-attached daemon keeps their state for the next launch.
 
 install puts a component in place: 'daemon' under ~/.puddle on this machine
@@ -488,7 +488,7 @@ export function parseArgs(argv: string[]): Command {
 /**
  * The argv that parses back to this launch command — what a detached re-exec
  * runs when the launching command was NOT launch itself (`refresh` kills the
- * old cockpit, then detaches the rebuilt command). Kept next to `parseArgs`
+ * old frontend, then detaches the rebuilt command). Kept next to `parseArgs`
  * so the two stay inverse of each other.
  */
 export function argvFor(command: Extract<Command, { cmd: 'launch' }>): string[] {

@@ -136,7 +136,7 @@ export function useWaitingNotifications(): void {
   );
 }
 
-/** Shared by the cockpit and the mobile workspace; each supplies its own navigation. */
+/** Shared by the frontend and the mobile workspace; each supplies its own navigation. */
 export function useAgentNotifications(
   openSession: (session: Session) => void,
   isSessionFocused: (session: Session) => boolean = () => document.hasFocus(),

@@ -43,7 +43,7 @@ export class RuntimeSignals {
           return;
         }
         // Provider hooks never send Origin. This dedicated endpoint has no browser
-        // callers and cannot inherit cockpit or connection-token authority.
+        // callers and cannot inherit frontend or connection-token authority.
         if (!isLocalHostHeader(req.headers.host) || req.headers.origin !== undefined) {
           finish(403);
           return;

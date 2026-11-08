@@ -139,7 +139,7 @@ import { app, BrowserWindow, dialog, ipcMain, Menu } from 'electron';
 const windows = (BrowserWindow as unknown as { windows: BrowserWindow[] }).windows;
 const file = () => join(mocks.home, 'reopen-windows.json');
 const targets = () => loadReopenWindows(file()).map((window) => window.target);
-const cockpit = (port = 7433) => ({
+const frontend = (port = 7433) => ({
   origin: `http://localhost:${port}`,
   createInvitation: () => `http://localhost:${port}/#invite=fresh`,
   stop: vi.fn().mockResolvedValue(undefined),
@@ -170,8 +170,8 @@ beforeEach(() => {
   (ipcMain as unknown as EventEmitter).removeAllListeners();
   windows.length = 0;
   mocks.home = mkdtempSync(join(tmpdir(), 'puddle-window-lifecycle-'));
-  mocks.startLocal.mockReset().mockResolvedValue(cockpit());
-  mocks.connectRemote.mockReset().mockResolvedValue(cockpit(7434));
+  mocks.startLocal.mockReset().mockResolvedValue(frontend());
+  mocks.connectRemote.mockReset().mockResolvedValue(frontend(7434));
   vi.mocked(app.whenReady).mockResolvedValue(undefined);
 });
 afterEach(() => {
@@ -263,7 +263,7 @@ describe('desktop quit and reopen lifecycle', () => {
 
   it('does not open the picker on macOS activation while saved hosts reconnect', async () => {
     saveReopenWindows(file(), [{ target: 'local' }]);
-    const pending = Promise.withResolvers<ReturnType<typeof cockpit>>();
+    const pending = Promise.withResolvers<ReturnType<typeof frontend>>();
     mocks.startLocal.mockReturnValue(pending.promise);
     await boot();
     app.emit('activate');
@@ -271,20 +271,20 @@ describe('desktop quit and reopen lifecycle', () => {
     app.emit('window-all-closed');
     expect(BrowserWindow.getAllWindows()).toHaveLength(0);
     expect(app.quit).not.toHaveBeenCalled();
-    pending.resolve(cockpit());
+    pending.resolve(frontend());
     await flush();
     expect(BrowserWindow.getAllWindows()).toHaveLength(1);
   });
 
   it('keeps pending hosts on early quit and stops connections that finish afterwards', async () => {
     saveReopenWindows(file(), [{ target: 'local' }]);
-    const pending = Promise.withResolvers<ReturnType<typeof cockpit>>();
+    const pending = Promise.withResolvers<ReturnType<typeof frontend>>();
     mocks.startLocal.mockReturnValue(pending.promise);
     await boot();
     quit();
     expect(targets()).toEqual(['local']);
 
-    const late = cockpit();
+    const late = frontend();
     pending.resolve(late);
     await flush();
     expect(late.stop).toHaveBeenCalledOnce();
@@ -355,7 +355,7 @@ describe('desktop quit and reopen lifecycle', () => {
   });
 });
 
-it('binds host appearance reports to a registered cockpit main frame and target', async () => {
+it('binds host appearance reports to a registered frontend main frame and target', async () => {
   saveReopenWindows(file(), [{ target: 'local' }]);
   await boot();
   const win = BrowserWindow.getAllWindows()[0]!;
@@ -444,7 +444,7 @@ it('retains host notification delivery until its last independent native window 
 });
 
 it('holds explicit closure and its connection until the renderer has saved', async () => {
-  const connection = cockpit();
+  const connection = frontend();
   mocks.startLocal.mockResolvedValue(connection);
   saveReopenWindows(file(), [{ target: 'local' }]);
   await boot();

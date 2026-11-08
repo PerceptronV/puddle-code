@@ -85,7 +85,7 @@ export async function previewRequest(
   }
   if (method !== 'GET') return unavailable();
   switch (route) {
-    case '/cockpit/local-sync':
+    case '/frontend/local-sync':
       return new Response(null, { status: 404 });
     case '/api/release-notes':
       return json({ releases: [] });

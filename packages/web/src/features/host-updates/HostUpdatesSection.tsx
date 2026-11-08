@@ -82,13 +82,13 @@ export function HostUpdatesSection() {
       {status.isError && (
         <p role="alert" className="text-sm text-warning">
           {missing
-            ? 'Update this cockpit and reopen the window to manage host updates.'
+            ? 'Update this frontend and reopen the window to manage host updates.'
             : 'Host status is unavailable. The last observation may be out of date. Refresh status before another action.'}
         </p>
       )}
       {data?.availability === 'upgrade_required' && (
         <p className="text-sm text-fg-secondary">
-          This daemon needs an upgrade before cockpit update controls are available.
+          This daemon needs an upgrade before frontend update controls are available.
         </p>
       )}
       {data?.availability === 'unavailable' && (

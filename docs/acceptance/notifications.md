@@ -1,6 +1,6 @@
 # Notification delivery
 
-Start the installed cockpit from an ordinary shell, outside any coding-agent session.
+Start the installed frontend from an ordinary shell, outside any coding-agent session.
 
 1. In Settings → Notifications, enable agent notifications and focused delivery.
    Use **Send test**. Check the visible result. On macOS, a rejected notification
@@ -15,7 +15,7 @@ Start the installed cockpit from an ordinary shell, outside any coding-agent ses
    succeed, but this check alone does not verify notification approval or delivery.
    Check the actual permission prompt, banner and click for each signing mode,
    including after an app upgrade. Removing quarantine is not a permission grant.
-2. Finish a managed agent turn while the cockpit is focused, then while unfocused.
+2. Finish a managed agent turn while the frontend is focused, then while unfocused.
    Check the desktop text order: `host · project`, session title, then message
    preview. macOS uses a native subtitle; Windows uses three native text blocks;
    Linux puts the session on the first body line, above the preview (wrapping

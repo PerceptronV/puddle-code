@@ -1,11 +1,11 @@
 import {
   PROTOCOL_VERSION,
   supportsApplicationFeature,
-  cockpitHostUpdateRequestSchema,
-  cockpitHostUpdateStatusSchema,
-  type CockpitHostUpdateReply,
-  type CockpitHostUpdateRequest,
-  type CockpitHostUpdateStatus,
+  frontendHostUpdateRequestSchema,
+  frontendHostUpdateStatusSchema,
+  type FrontendHostUpdateReply,
+  type FrontendHostUpdateRequest,
+  type FrontendHostUpdateStatus,
   type HostUpdateCommand,
 } from '@puddle/shared';
 import type { HostControlClient } from '@puddle/shared/node/host-control';
@@ -22,7 +22,7 @@ type Authority = Pick<
 >;
 
 /** Selected transport and browser authority; live mutations also retain a child daemon lease. */
-export class CockpitHostUpdates {
+export class FrontendHostUpdates {
   constructor(
     private readonly transport: Transport,
     private readonly authority: Authority,
@@ -60,7 +60,7 @@ export class CockpitHostUpdates {
     authorised: () => boolean,
     signal: AbortSignal,
     components = false,
-  ): Promise<CockpitHostUpdateStatus> {
+  ): Promise<FrontendHostUpdateStatus> {
     if (!authorised() || signal.aborted) throw new Error('Browser authorisation expired');
     const generation = this.authority.generation;
     const availability =
@@ -97,7 +97,7 @@ export class CockpitHostUpdates {
       (availability === 'unavailable' && this.authority.state === 'ready')
     )
       throw new Error('Host connection changed during status inspection');
-    return cockpitHostUpdateStatusSchema.parse({
+    return frontendHostUpdateStatusSchema.parse({
       availability,
       ...(availability === 'ready'
         ? { observation: 'live' }
@@ -120,11 +120,11 @@ export class CockpitHostUpdates {
   }
 
   async request(
-    input: CockpitHostUpdateRequest,
+    input: FrontendHostUpdateRequest,
     authorised: () => boolean,
     signal: AbortSignal,
-  ): Promise<CockpitHostUpdateReply> {
-    const request = cockpitHostUpdateRequestSchema.parse(input);
+  ): Promise<FrontendHostUpdateReply> {
+    const request = frontendHostUpdateRequestSchema.parse(input);
     if (request.action === 'continue-offline')
       return this.continueOffline(request.reference, authorised, signal);
     if (!this.supports(7)) throw new Error('Host update controls require a newer daemon');
@@ -154,7 +154,7 @@ export class CockpitHostUpdates {
         request.action === 'cancel'
           ? { ...request, reason: 'cancelled' }
           : request.action === 'inspect' || request.action === 'apply'
-            ? { ...request, cockpit: PROTOCOL_VERSION }
+            ? { ...request, frontend: PROTOCOL_VERSION }
             : request;
       // One explicit request. A lost reply is uncertain; status never dispatches a replacement.
       const reply = await authority.hostUpdate(command);
@@ -164,7 +164,7 @@ export class CockpitHostUpdates {
   }
 
   private async continueOffline(
-    reference: Extract<CockpitHostUpdateRequest, { action: 'continue-offline' }>['reference'],
+    reference: Extract<FrontendHostUpdateRequest, { action: 'continue-offline' }>['reference'],
     authorised: () => boolean,
     signal: AbortSignal,
   ) {
@@ -196,7 +196,7 @@ export class CockpitHostUpdates {
   private async withAuthority<T>(
     authorised: () => boolean,
     signal: AbortSignal,
-    action: (authority: ReturnType<CockpitHostUpdates['guarded']>) => Promise<T>,
+    action: (authority: ReturnType<FrontendHostUpdates['guarded']>) => Promise<T>,
   ): Promise<T> {
     const generation = this.authority.generation;
     const valid = () =>
@@ -206,7 +206,7 @@ export class CockpitHostUpdates {
       this.authority.state === 'ready' &&
       this.authority.generation === generation;
     if (!valid()) throw new Error('Host update authority is unavailable');
-    // The shared cockpit lease serves other windows. A child channel lets revocation
+    // The shared frontend lease serves other windows. A child channel lets revocation
     // reach the host's final pre-dispatch check without revoking those other viewers.
     // Status polls also use a short-lived channel so they cannot exhaust the shared
     // connection's bounded request-id history and permanently disable host control.

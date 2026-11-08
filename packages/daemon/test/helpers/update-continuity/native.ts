@@ -108,7 +108,7 @@ export function nativeJobs(home: string) {
   };
 }
 
-/** Normal cockpit terminal traffic, without competing with daemon runtime control. */
+/** Normal frontend terminal traffic, without competing with daemon runtime control. */
 export async function nativeViewer(
   control: HostControlClient,
   session: string,

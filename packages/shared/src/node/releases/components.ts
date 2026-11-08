@@ -9,7 +9,8 @@ import { githubRelease, latestGitHubRelease, type ReleaseAsset } from './github.
 
 type Options = { fetchFn?: typeof fetch; signal?: AbortSignal };
 type Release = { version: string; assets: ReleaseAsset[] };
-export const RELEASE_MANIFEST_ASSET = 'release-manifest.json';
+export const RELEASE_MANIFEST_ASSET = 'release-manifest-v2.json';
+const LEGACY_RELEASE_MANIFEST_ASSET = 'release-manifest.json';
 
 /** Absence alone means a legacy all-component release. Corrupt/unavailable metadata never falls back. */
 export async function releaseManifest(
@@ -20,14 +21,16 @@ export async function releaseManifest(
   releaseRepositorySchema.parse(repository);
   releaseVersionSchema.parse(release.version);
   const legacy = {
-    format: 1,
+    format: 2,
     version: release.version,
-    components: { cockpit: release.version, daemon: release.version, runtime: release.version },
+    components: { frontend: release.version, daemon: release.version, runtime: release.version },
   };
-  if (!release.assets.some((asset) => asset.name === RELEASE_MANIFEST_ASSET))
-    return releaseManifestSchema.parse(legacy);
+  const manifestAsset = [RELEASE_MANIFEST_ASSET, LEGACY_RELEASE_MANIFEST_ASSET].find((name) =>
+    release.assets.some((asset) => asset.name === name),
+  );
+  if (!manifestAsset) return releaseManifestSchema.parse(legacy);
   const response = await (options.fetchFn ?? fetch)(
-    `https://github.com/${repository}/releases/download/v${release.version}/${RELEASE_MANIFEST_ASSET}`,
+    `https://github.com/${repository}/releases/download/v${release.version}/${manifestAsset}`,
     {
       signal: options.signal
         ? AbortSignal.any([options.signal, AbortSignal.timeout(10_000)])
@@ -82,7 +85,7 @@ export async function latestComponentReleases(repository: string, options: Optio
   return {
     version: latest.version,
     components: {
-      cockpit: versions.get(manifest.components.cockpit)!,
+      frontend: versions.get(manifest.components.frontend)!,
       daemon: versions.get(manifest.components.daemon)!,
       runtime: versions.get(manifest.components.runtime)!,
     },

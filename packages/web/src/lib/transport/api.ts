@@ -16,7 +16,7 @@ export class ApiError extends Error {
 }
 
 /**
- * Authenticated JSON request through the cockpit. Only browser rejection
+ * Authenticated JSON request through the frontend. Only browser rejection
  * clears login; upstream recovery has an independent lifetime.
  */
 export async function api<T>(

@@ -13,7 +13,7 @@ export function ReleaseNotesHost({ remote = false }: { remote?: boolean }) {
   const current = groups[0];
   useEffect(() => {
     if (!__PUDDLE_RELEASE_NOTES__) return;
-    const components = remote ? (['cockpit', 'remote'] as const) : (['cockpit'] as const);
+    const components = remote ? (['frontend', 'remote'] as const) : (['frontend'] as const);
     releaseNotesQueue.enqueue(
       'browser',
       components.map((component) => ({

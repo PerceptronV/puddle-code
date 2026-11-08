@@ -44,7 +44,7 @@ export async function removeCli(yes: boolean, logger: Logger): Promise<number> {
   const standalone = standaloneInstallation();
   if (standalone) {
     const proceed = await confirm(
-      `Remove the standalone CLI at ${standalone.root} and its launcher in ${dirname(standalone.launcher)}? Close its cockpits first; daemons and their sessions are untouched.`,
+      `Remove the standalone CLI at ${standalone.root} and its launcher in ${dirname(standalone.launcher)}? Close its frontends first; daemons and their sessions are untouched.`,
       { skip: yes },
     );
     if (!proceed) {
@@ -70,7 +70,7 @@ export async function removeCli(yes: boolean, logger: Logger): Promise<number> {
     );
   }
   const proceed = await confirm(
-    `Remove the puddle CLI (npm uninstall -g @puddle-code/cli)? Running cockpits keep ` +
+    `Remove the puddle CLI (npm uninstall -g @puddle-code/cli)? Running frontends keep ` +
       `running until killed; daemons and their sessions are untouched.`,
     { skip: yes },
   );

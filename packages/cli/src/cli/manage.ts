@@ -27,7 +27,7 @@ import {
 import { waitForHttp } from '../lib/transport/net.js';
 import { latestReleaseVersion } from '../lib/installation/releases.js';
 import { removeDaemon, sweepDirtyWorktrees } from '../lib/installation/remove-daemon.js';
-import { checkCockpit, readCockpitRecord, removeCockpitRecord } from '../lib/registry.js';
+import { checkFrontend, readFrontendRecord, removeFrontendRecord } from '../lib/registry.js';
 import { openTunnel } from '../lib/transport/tunnel.js';
 import { LocalTransport } from '../lib/transport/local.js';
 import { SshTransport } from '../lib/transport/ssh.js';
@@ -39,7 +39,7 @@ import { upgradeHostComponent } from '../lib/installation/host/upgrade.js';
 import { restoreInstalledDaemon } from '../lib/installation/host/restore.js';
 import { cliVersion, pinnedDaemonVersion } from '../lib/version.js';
 import type { Command, Component } from './args.js';
-import { terminateCockpit } from './detach.js';
+import { terminateFrontend } from './detach.js';
 import { ask, confirm } from './prompt.js';
 import { hasPersistentHostInstallation } from '../lib/installation/host/presence.js';
 import { removePersistentDaemonCmd } from './manage-host-removal.js';
@@ -534,13 +534,13 @@ async function removeDaemonCmd(
       }
     }
 
-    // A cockpit for this target dies with its daemon.
-    const record = readCockpitRecord(target);
+    // A frontend for this target dies with its daemon.
+    const record = readFrontendRecord(target);
     if (record !== null) {
-      if ((await checkCockpit(record)) === 'dead') removeCockpitRecord(target);
+      if ((await checkFrontend(record)) === 'dead') removeFrontendRecord(target);
       else {
-        await terminateCockpit(record);
-        logger.info(`stopped the cockpit for ${target}`);
+        await terminateFrontend(record);
+        logger.info(`stopped the frontend for ${target}`);
       }
     }
     await tunnel?.close();

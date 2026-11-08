@@ -23,7 +23,7 @@ import {
   CommandShortcut,
 } from '../../components/ui/command';
 import { applyTheme } from '../../lib/appearance/theme';
-import { triggerConnectionRefresh } from '../../lib/transport/cockpit-refresh';
+import { triggerConnectionRefresh } from '../../lib/transport/frontend-refresh';
 import { registerCommandPalette } from '../../lib/navigation/command-palette';
 import {
   formatBinding,
@@ -199,7 +199,7 @@ export function CommandPalette({
         group: 'Actions',
         label: 'Refresh connection',
         icon: RefreshCw,
-        keywords: 'refresh connection reconnect restart cockpit tunnel ssh daemon',
+        keywords: 'refresh connection reconnect restart frontend tunnel ssh daemon',
         run: () => triggerConnectionRefresh(),
       },
     );

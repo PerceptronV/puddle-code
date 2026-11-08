@@ -3,7 +3,7 @@
 Puddlang runs small TypeScript programmes that manage Puddle agents. Claude Code,
 Codex, OpenCode and Gemini CLI support both **interactive** and **headless** modes.
 Both use the actual agent CLI, its selected account, tools, configuration and
-native conversation history. Agents remain visible in the cockpit.
+native conversation history. Agents remain visible in the frontend.
 
 ## Distribution and setup
 
@@ -101,7 +101,7 @@ Invalid output is an error; there is no implicit repair/retry.
 an existing branch or absolute worktree path; omission selects the registered
 clone. `path` must match exactly one registered canonical worktree root in the
 selected profile. Subdirectories, non-Git directories, unregistered paths and
-ambiguous mappings fail. Create worktrees in the cockpit first. Agents sharing a
+ambiguous mappings fail. Create worktrees in the frontend first. Agents sharing a
 worktree see the same uncommitted files; messages between different worktrees do
 not transfer changes.
 
@@ -149,7 +149,7 @@ Claude Stop and Gemini AfterAgent hooks can run before another user-installed
 hook requests continuation. Use headless mode for workflows requiring completion
 of the whole CLI invocation, including those additional hooks.
 
-Headless mode opens a readable transcript in the cockpit. Each ask starts a
+Headless mode opens a readable transcript in the frontend. Each ask starts a
 native non-interactive CLI invocation; subsequent asks resume the **exact same
 native conversation** under the same account. The transcript shows prompts and
 assistant text; the native TUI/composer is absent. Ctrl+C cancels the current
@@ -196,7 +196,7 @@ history are retained.
 States are `running`, `completed`, `failed`, `cancelled`, `interrupted`. Daemon
 shutdown/restart interrupts programmes; continuations are not resumed and turns
 are not replayed. Existing session recovery is independent. Supervised daemons
-can outlive clients; an SSH-attached fallback daemon still ends with its cockpit.
+can outlive clients; an SSH-attached fallback daemon still ends with its frontend.
 Profile removal requires runs to finish.
 
 From 0.4.0, independent runtimes are the standard backend. Interactive and headless

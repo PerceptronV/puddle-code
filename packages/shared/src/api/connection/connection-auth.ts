@@ -85,13 +85,13 @@ export const launcherRequestSchema = z
   .object({ t: z.literal('invite'), secret: z.string().max(128).optional() })
   .strict();
 export const launcherResponseSchema = z.object({ url: z.string().url() }).strict();
-export const cockpitStatusSchema = z.object({
+export const frontendStatusSchema = z.object({
   instance: z.string().uuid(),
   refreshId: z.string().uuid().nullable(),
   upstream: z.enum(['ready', 'upstream_expired', 'upstream_unavailable', 'protocol_mismatch']),
 });
 
-/** Private cockpit storage: verifiers only, scoped to one target and origin. */
+/** Private frontend storage: verifiers only, scoped to one target and origin. */
 export const browserRecordSchema = z.object({
   id: z.string(),
   hash: z.string(),

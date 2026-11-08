@@ -14,7 +14,7 @@ import { serviceOrigin, serviceRequest } from './service';
 const storageKey = 'puddle.pending-registration';
 
 // Strip the public handoff before OAuth or any network request. Only its hash survives
-// the provider redirect in this tab; the redeeming secret never leaves the cockpit.
+// the provider redirect in this tab; the redeeming secret never leaves the frontend.
 export function takeDesktopRegistration(): { request: DesktopRegistration | null; error: string } {
   const fragment = new URLSearchParams(location.hash.slice(1)).get('register');
   if (fragment !== null) history.replaceState(null, '', location.pathname);

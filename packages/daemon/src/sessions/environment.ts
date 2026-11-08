@@ -115,7 +115,7 @@ export class SessionEnvironment {
     );
   }
 
-  /** Captured vars for the authenticated cockpit's env strip (SPEC §4). */
+  /** Captured vars for the authenticated frontend's env strip (SPEC §4). */
   capturedEnv(id: string): SessionEnvResponse {
     const env = this.deps.sessions.getEnv(id); // 404s for an unknown session
     const vars = Object.entries(env)

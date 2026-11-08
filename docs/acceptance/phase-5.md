@@ -2,7 +2,7 @@
 
 Protocol 18.0 replaces the original same-origin/master-cookie proxy flow.
 Follow [connection authority acceptance](connection-authority.md#forwarded-applications)
-for the current manual procedure: trusted cockpit landing links, isolated
+for the current manual procedure: trusted frontend landing links, isolated
 `127.0.0.1` application content, target-scoped HttpOnly cookies, preserved
 application authentication and HTTP/WebSockets, detected-port restrictions,
 path recovery and credential stripping.

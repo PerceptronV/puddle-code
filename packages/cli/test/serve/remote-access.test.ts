@@ -6,7 +6,7 @@ import type { ExecOptions, Transport } from '../../src/lib/transport/transport.j
 function fixture(kind: 'local' | 'ssh' = 'ssh') {
   const exec = vi.fn(async (_command: string, _options?: ExecOptions) => ({
     code: 0,
-    stdout: 'cockpit controls 2',
+    stdout: 'frontend controls 2',
     stderr: '',
   }));
   const transport: Transport = {
@@ -32,7 +32,7 @@ describe('desktop remote control boundary', () => {
       expect(exec).toHaveBeenCalledTimes(1);
       exec.mockResolvedValue({
         code: 0,
-        stdout: 'cockpit controls 2; maintenance grants 1',
+        stdout: 'frontend controls 2; maintenance grants 1',
         stderr: '',
       });
       await expect(control.request(request, () => false, profile)).rejects.toThrow(
@@ -41,7 +41,7 @@ describe('desktop remote control boundary', () => {
       expect(exec).toHaveBeenCalledTimes(2);
       exec.mockResolvedValueOnce({
         code: 0,
-        stdout: 'cockpit controls 2; maintenance grants 1',
+        stdout: 'frontend controls 2; maintenance grants 1',
         stderr: '',
       });
       exec.mockResolvedValueOnce({ code: 0, stdout: '{"devices":[]}', stderr: '' });
@@ -63,14 +63,16 @@ describe('desktop remote control boundary', () => {
       supervisor: null,
       devices: [],
     };
-    for (const supported of [false, true]) {
-      exec.mockResolvedValueOnce({
-        code: 0,
-        stdout: `cockpit controls 2${supported ? '; maintenance grants 1' : ''}`,
-        stderr: '',
-      });
-      exec.mockResolvedValueOnce({ code: 0, stdout: JSON.stringify(status), stderr: '' });
-      expect((await control.status(profile)).canManageMaintenance).toBe(supported);
+    for (const marker of ['frontend controls 2', 'cockpit controls 2']) {
+      for (const supported of [false, true]) {
+        exec.mockResolvedValueOnce({
+          code: 0,
+          stdout: `${marker}${supported ? '; maintenance grants 1' : ''}`,
+          stderr: '',
+        });
+        exec.mockResolvedValueOnce({ code: 0, stdout: JSON.stringify(status), stderr: '' });
+        expect((await control.status(profile)).canManageMaintenance).toBe(supported);
+      }
     }
   });
   it('gates deletion by host capability and rechecks browser authority', async () => {
@@ -81,7 +83,7 @@ describe('desktop remote control boundary', () => {
     expect(exec).toHaveBeenCalledTimes(1);
     exec.mockResolvedValue({
       code: 0,
-      stdout: 'cockpit controls 2; delete registration 1',
+      stdout: 'frontend controls 2; delete registration 1',
       stderr: '',
     });
     await expect(
@@ -90,7 +92,7 @@ describe('desktop remote control boundary', () => {
     expect(exec).toHaveBeenCalledTimes(2);
     exec.mockResolvedValueOnce({
       code: 0,
-      stdout: 'cockpit controls 2; delete registration 1',
+      stdout: 'frontend controls 2; delete registration 1',
       stderr: '',
     });
     exec.mockResolvedValueOnce({
@@ -106,7 +108,7 @@ describe('desktop remote control boundary', () => {
 
   it('passes registration secrets only through stdin and uses managed supervision', async () => {
     const { exec, control } = fixture();
-    exec.mockResolvedValueOnce({ code: 0, stdout: 'cockpit controls 2', stderr: '' });
+    exec.mockResolvedValueOnce({ code: 0, stdout: 'frontend controls 2', stderr: '' });
     exec.mockResolvedValueOnce({ code: 0, stdout: JSON.stringify({ enabled: true }), stderr: '' });
     const registration = {
       service: 'https://relay.example.test',
@@ -141,7 +143,7 @@ describe('desktop remote control boundary', () => {
     });
     expect((await control.status(profile)).availability).toBe('upgrade_required');
     expect(exec).toHaveBeenCalledTimes(1);
-    exec.mockResolvedValueOnce({ code: 0, stdout: 'cockpit controls 2', stderr: '' });
+    exec.mockResolvedValueOnce({ code: 0, stdout: 'frontend controls 2', stderr: '' });
     exec.mockResolvedValueOnce({ code: 1, stdout: '', stderr: 'private-routing-credential' });
     await expect(control.request({ t: 'pair' }, () => true, profile)).rejects.toThrow(
       'Refresh status',

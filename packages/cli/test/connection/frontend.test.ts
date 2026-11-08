@@ -3,7 +3,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startDaemon, type RunningDaemon } from '../../../daemon/test/helpers/authorised-daemon.js';
-import { ensureDaemon } from '../../src/lib/connection/cockpit.js';
+import { ensureDaemon } from '../../src/lib/connection/frontend.js';
 import { findFreePort } from '../../src/lib/transport/net.js';
 import { startUiServer } from '../../src/lib/serve/ui-server.js';
 import { LocalTransport } from '../../src/lib/transport/local.js';
@@ -15,7 +15,7 @@ describe('ensureDaemon identity probe', () => {
 
   beforeAll(async () => {
     daemonPort = await findFreePort();
-    const homeA = mkdtempSync(join(tmpdir(), 'puddle-cockpit-a-'));
+    const homeA = mkdtempSync(join(tmpdir(), 'puddle-frontend-a-'));
     // Exercise startup and authenticated readiness from an actual legacy mode.
     chmodSync(homeA, 0o755);
     writeFileSync(join(homeA, 'config.json'), JSON.stringify({ port: daemonPort }) + '\n');
@@ -28,9 +28,9 @@ describe('ensureDaemon identity probe', () => {
 
   it("refuses to treat a daemon that rejects this host's token as ours", async () => {
     // Home B: a different token, but config points at daemon A's port — the
-    // shape of the port-collision incident (another cockpit or foreign
+    // shape of the port-collision incident (another frontend or foreign
     // daemon answering on the expected port).
-    const homeB = mkdtempSync(join(tmpdir(), 'puddle-cockpit-b-'));
+    const homeB = mkdtempSync(join(tmpdir(), 'puddle-frontend-b-'));
     mkdirSync(join(homeB, '.puddle'), { recursive: true, mode: 0o700 });
     writeFileSync(join(homeB, '.puddle', 'token'), 'b'.repeat(64) + '\n');
     writeFileSync(
@@ -118,15 +118,15 @@ describe('SSH daemon lifetime fallback', () => {
           port: 7434,
           authority: {} as import('../../src/lib/auth/connection-authority.js').HostConnection,
           bootstrapped: true,
-          daemonLifetime: 'cockpit',
+          daemonLifetime: 'frontend',
           lease: { async ensureRunning() {}, async stop() {} },
         };
       },
     });
 
-    expect(endpoint.daemonLifetime).toBe('cockpit');
+    expect(endpoint.daemonLifetime).toBe('frontend');
     expect(fallbackStarts).toBe(1);
-    expect(warnings).toEqual([expect.stringContaining('keeping it attached to this cockpit')]);
+    expect(warnings).toEqual([expect.stringContaining('keeping it attached to this frontend')]);
   });
 
   it.each([

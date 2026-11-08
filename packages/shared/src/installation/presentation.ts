@@ -1,14 +1,14 @@
 import type { HostUpdateReply } from '../api/connection/host-updates.js';
 import {
-  cockpitHostUpdateReplySchema,
-  type CockpitHostUpdateReply,
-} from '../api/connection/cockpit-updates.js';
+  frontendHostUpdateReplySchema,
+  type FrontendHostUpdateReply,
+} from '../api/connection/frontend-updates.js';
 
 /** Browser presentation contains no stage receipts, worker identities or private target paths. */
 export function presentHostUpdate(
   reply: HostUpdateReply,
   options: { redactMessage?: boolean } = {},
-): CockpitHostUpdateReply {
+): FrontendHostUpdateReply {
   const source = reply.operation;
   const operation = source
     ? {
@@ -25,7 +25,7 @@ export function presentHostUpdate(
         message: options.redactMessage ? null : source.message,
       }
     : null;
-  return cockpitHostUpdateReplySchema.parse(
+  return frontendHostUpdateReplySchema.parse(
     reply.ok
       ? {
           ok: true,

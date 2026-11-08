@@ -17,11 +17,11 @@ import { startInstalledDaemonForInspection } from '../installation/host/start.js
 import { upgradeDaemon } from '../installation/upgrade.js';
 
 /**
- * A running cockpit: the UI server (and tunnel, in SSH mode) behind one
+ * A running frontend: the UI server (and tunnel, in SSH mode) behind one
  * handle. This is the seam a future desktop shell builds on — stop() closes
  * only client-side pieces; the daemon and its agents keep running.
  */
-export interface RunningCockpit {
+export interface RunningFrontend {
   origin: string;
   /** Mint a single-use browser invitation. Never persist the returned URL. */
   createInvitation(): string;
@@ -29,8 +29,8 @@ export interface RunningCockpit {
   /** The UI server's per-instance identity (see UiServer.nonce). */
   nonce: string;
   daemon: VersionResponse;
-  /** Whether puddled outlives this cockpit or is held by its SSH connection. */
-  daemonLifetime: 'persistent' | 'cockpit';
+  /** Whether puddled outlives this frontend or is held by its SSH connection. */
+  daemonLifetime: 'persistent' | 'frontend';
   onEvent(cb: (e: CliEvent) => void): () => void;
   stop(): Promise<void>;
 }
@@ -38,7 +38,7 @@ export interface RunningCockpit {
 export interface DaemonLease {
   /** Re-establish the attached daemon after the SSH connection itself recovers. */
   ensureRunning(): Promise<void>;
-  /** Cleanly stop the daemon before closing the cockpit's SSH connection. */
+  /** Cleanly stop the daemon before closing the frontend's SSH connection. */
   stop(): Promise<void>;
 }
 
@@ -48,9 +48,9 @@ export interface DaemonEndpoint {
   authority: HostConnection;
   /** True when this call installed or restarted the daemon. */
   bootstrapped: boolean;
-  /** Persistent supervisor, or an SSH channel owned by this cockpit. */
-  daemonLifetime: 'persistent' | 'cockpit';
-  /** Present only when daemonLifetime is `cockpit`. */
+  /** Persistent supervisor, or an SSH channel owned by this frontend. */
+  daemonLifetime: 'persistent' | 'frontend';
+  /** Present only when daemonLifetime is `frontend`. */
   lease?: DaemonLease;
 }
 
@@ -157,7 +157,7 @@ async function waitAfterInstall(
       throw err;
     }
     logger.warn(
-      `puddled could not stay detached on ${transport.label} — keeping it attached to this cockpit; ` +
+      `puddled could not stay detached on ${transport.label} — keeping it attached to this frontend; ` +
         'session state stays on disk and can resume on the next launch',
     );
     return opts.attachedFallback();

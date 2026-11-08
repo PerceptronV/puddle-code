@@ -107,7 +107,7 @@ done`,
       const review = await client.hostUpdate({
         action: 'inspect',
         reference: reference(operation),
-        cockpit: PROTOCOL_VERSION,
+        frontend: PROTOCOL_VERSION,
       });
       if (!review.ok || !review.operation || !review.review?.fingerprint)
         throw new Error('No review');
@@ -116,7 +116,7 @@ done`,
         action: 'apply',
         reference: reference(review.operation),
         fingerprint: review.review.fingerprint,
-        cockpit: PROTOCOL_VERSION,
+        frontend: PROTOCOL_VERSION,
       });
       await expect
         .poll(() => {

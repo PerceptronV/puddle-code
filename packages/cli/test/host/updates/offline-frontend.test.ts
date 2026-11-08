@@ -5,7 +5,7 @@ import { afterEach, expect, it, vi } from 'vitest';
 import { HostUpdateOperations } from '../../../../daemon/src/updates/operations/store.js';
 import { HostConnection } from '../../../src/lib/auth/connection-authority.js';
 import * as controlChannel from '../../../src/lib/auth/control-channel.js';
-import { CockpitHostUpdates } from '../../../src/lib/host/updates/cockpit.js';
+import { FrontendHostUpdates } from '../../../src/lib/host/updates/frontend.js';
 import { LocalTransport } from '../../../src/lib/transport/local.js';
 import { presentHostUpdate } from '@puddle/shared';
 import { inspectStoredHostUpdate } from '../../../src/lib/host/updates/inspection.js';
@@ -18,7 +18,7 @@ afterEach(() => {
 });
 
 function fixture() {
-  const home = mkdtempSync(join(tmpdir(), 'puddle-cockpit-offline-'));
+  const home = mkdtempSync(join(tmpdir(), 'puddle-frontend-offline-'));
   homes.push(home);
   vi.stubEnv('PUDDLE_HOME', home);
   const store = new HostUpdateOperations(home);
@@ -28,7 +28,7 @@ function fixture() {
   authority.close(); // No automatic reconnection outside this isolated fixture.
   const live = vi.spyOn(authority, 'hostUpdate');
   const exec = vi.spyOn(transport, 'exec');
-  const control = new CockpitHostUpdates(transport, authority);
+  const control = new FrontendHostUpdates(transport, authority);
   const signal = new AbortController();
   return { home, store, operation, authority, live, exec, control, signal };
 }

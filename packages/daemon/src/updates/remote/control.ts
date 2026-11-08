@@ -12,7 +12,7 @@ import {
 } from '@puddle/shared';
 import { prepareHostUpdateOperation } from '@puddle/shared/node/host-control';
 
-/** Same coordinator and exact approvals as local cockpits, with host-owned preparation and public results. */
+/** Same coordinator and exact approvals as local frontends, with host-owned preparation and public results. */
 export class RemoteHostUpdates {
   constructor(
     private readonly deps: {
@@ -89,7 +89,7 @@ export class RemoteHostUpdates {
         command.action === 'cancel'
           ? { ...command, reason: 'cancelled' }
           : command.action === 'inspect' || command.action === 'apply'
-            ? { ...command, cockpit: PROTOCOL_VERSION }
+            ? { ...command, frontend: PROTOCOL_VERSION }
             : command;
       reply = await execute(request);
     }

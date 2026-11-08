@@ -44,7 +44,7 @@ function Gated() {
     !profiles.data.some((p) => p.id === profileId);
   const choosingProfile = profileId === null || unknownProfile;
   return (
-    <ContentMotion className="h-screen" motionKey={choosingProfile ? 'profiles' : 'cockpit'}>
+    <ContentMotion className="h-screen" motionKey={choosingProfile ? 'profiles' : 'frontend'}>
       {choosingProfile ? (
         <ProfilePicker />
       ) : (

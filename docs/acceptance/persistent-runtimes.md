@@ -20,7 +20,7 @@ of that manual follow-up. The available automated checks below still apply.
 ## Automated foundation checks
 
 Release notes use the four component sections in `CHANGELOG.md`. After installation,
-verify that cockpit notes survive the application restart, daemon notes follow the
+verify that frontend notes survive the application restart, daemon notes follow the
 running version after reconnection, and runtime notes follow the selected default
 without claiming that existing owners restarted. A combined installation must show
 both relevant sections. Repeated status events and reloads must not reopen already
@@ -332,7 +332,7 @@ The host supervision/update/recovery and shared installation regression run pass
 220 tests in 29 files, with three native supervisor tests skipped. Source and strict
 changed-test typechecks, lint, formatting and CLI/desktop builds passed.
 
-Disconnected cockpit continuation (25.17) uses the existing helper/dispatcher rather
+Disconnected frontend continuation (25.17) uses the existing helper/dispatcher rather
 than retrying live recovery. Built local and simulated-SSH helper fixtures use private
 temporary homes, sanitised subprocess environments and a deterministic dispatcher
 that shares production input-lifetime handling. They cover cancellation during helper
@@ -347,7 +347,7 @@ outcomes, not packaged systemd/launchd or real-provider upgrade acceptance.
 The focused suites, Chromium flow, source/changed-test typechecks, lint/formatting
 and web/CLI/desktop builds passed on macOS with Node 22.21.1.
 
-Recorded cockpit inspection (25.16) now has isolated tests for reads without a daemon
+Recorded frontend inspection (25.16) now has isolated tests for reads without a daemon
 or SQLite database, exact historical operation selection, corrupt ledgers, cancellation,
 browser revocation and reconnection races. The HTTP fixture preserves browser access
 checks while disconnected and refuses implicit live recovery. A built helper test uses the
@@ -376,7 +376,7 @@ did source/strict changed-test typechecks, lint, formatting and web/CLI/desktop 
 The agent fixture waits for its persisted startup checkpoint using inspection reads;
 it never repeats the restart mutation to work around startup timing.
 
-Cockpit UI checks cover independent component release comparison, window-lifetime
+Frontend UI checks cover independent component release comparison, window-lifetime
 offer deduplication, exact operation/revision approval, supported interruption consent,
 live recovery controls and exclusion from relay transports. Query tests use the real
 query/mutation cache to prove that an offline/lost apply reply cannot inherit retries
@@ -392,7 +392,7 @@ and returns to live status through the
 authenticated fixture WebSocket. Optional `PUDDLE_HOST_UPDATE_SCREENSHOT` saves the
 review and `PUDDLE_HOST_UPDATE_OFFLINE_SCREENSHOT` saves recorded status. This passed on
 macOS with Node 22.21.1; it proves browser behaviour, not supervisor/provider continuity.
-Legacy cockpit transition and relay maintenance still require implementation and their
+Legacy frontend transition and relay maintenance still require implementation and their
 own acceptance. Offline continuation still needs packaged platform acceptance.
 The focused UI/WS suites passed 18 tests; source and strict changed-test typechecks,
 lint, formatting and token/contrast checks passed. Web, CLI and desktop builds passed.
@@ -407,7 +407,7 @@ catalogue replies and cache reuse after restart, with mocked HTTP and no agent o
 service launch. Gateway tests retain target-host source selection despite a different
 client repository. Actual WS scope tests exclude profile viewers from host invalidations.
 These are discovery checks, not packaged update/provider acceptance or a finished UI.
-Selected catalogue, cockpit, coordinator, maintenance, scope and desktop/CLI release
+Selected catalogue, frontend, coordinator, maintenance, scope and desktop/CLI release
 tests passed, along with source/strict changed-test typechecks, lint and formatting.
 CLI/desktop builds passed. A temporary 0.4.0 host package built from the actual release
 script passed its passive daemon/runtime/connector and puddlang smoke checks, carried
@@ -415,7 +415,7 @@ application 25.14, runtime 1.0 and remote 4, and embedded the configured reposit
 It used cached Node and a sanitised temporary home; no installed service or agent was
 started. Actual upgrade continuity still requires the full acceptance matrix.
 
-Cockpit update fixtures use actual isolated HTTP gateways, private host-control
+Frontend update fixtures use actual isolated HTTP gateways, private host-control
 channels, leases, SQLite coordination and the shared staging orchestration. They
 check local/SSH targets, exact Origin/browser authentication, bounded commands,
 separate preparation and activation, interruption consent, stale reviews, compatible
@@ -425,8 +425,8 @@ dispatch. Status remains available during a mutation; a lost apply response is
 followed by observation without a second dispatch. Stage delivery and supervisor
 activation outcomes are simulated, so these checks do not prove packaged upgrades.
 Status requests use short-lived channels, with a separate concurrency bound, so
-polling cannot exhaust the long-lived cockpit channel's request-id history.
-The Settings UI, release offers and offline cockpit recovery remain unfinished.
+polling cannot exhaust the long-lived frontend channel's request-id history.
+The Settings UI, release offers and offline frontend recovery remain unfinished.
 The gateway/update/connection regression run passed 132 tests in 15 files; after
 adding status-channel isolation, concurrency and approval checks, the focused gateway
 run passed 20 tests in two files. Source and strict changed-test typechecks, lint,
@@ -521,7 +521,7 @@ fences the unstarted worker, then native title observations catch up with the sa
 shell PID. Host inspection and worker dispatch are simulated; this does not prove
 a complete packaged supervisor upgrade. Log-retention tests hold a real temporary
 copy before sync, verify no replacement during maintenance, and reject revival
-after shutdown. Production composition is now wired; cockpit confirmation and
+after shutdown. Production composition is now wired; frontend confirmation and
 supported recovery remain release gates.
 The final maintenance/programme/checkpoint run passed nine tests in three files.
 The remaining selected authority, coordinator, adoption, shutdown, notebook and
@@ -1073,7 +1073,7 @@ continued answers without a controller, retained PID/colours on adoption,
 placement-fenced changes and the same responder in extra shells. Reconciliation
 tests discard an applied colour-update acknowledgement and prove inspection
 avoids another change; simulated older state without theme support is skipped.
-`runtime/lifecycle/terminal-launch.test.ts` sends existing cockpit WebSocket theme reports
+`runtime/lifecycle/terminal-launch.test.ts` sends existing frontend WebSocket theme reports
 through a real isolated daemon, replaces the daemon and checks that colours stay
 intact until a new report, then verifies the latest pair seeds a resumed owner.
 The focused colour/protocol/daemon run passed 18 tests. This proves PTY response
@@ -1309,7 +1309,7 @@ authority expiry, stale fingerprints, changed connection generations and uncerta
 stage/dispatch replies without replay. TypeScript, scoped lint/formatting and both
 CLI and desktop builds passed. The coordinator's inspection and supervisor dispatch
 are deterministic fixtures; these results do not prove actual runtime activation
-through private control or complete daemon replacement. Public commands and cockpit
+through private control or complete daemon replacement. Public commands and frontend
 integration remain required for the standard 0.4.0 behaviour.
 
 Runtime CLI integration passed 80 checks across seven files, covering local/SSH
@@ -1417,7 +1417,7 @@ agent session. Retain logs and before/after identities for each result.
   its enforced memory/CPU/wakeup/descriptor/adoption ceilings. Establish matching
   native-provider workload evidence. Linux native runs remain deferred;
   macOS plain-shell ceilings do not establish their behaviour.
-- Run real packaging/update failure, cockpit notification, relay authority,
+- Run real packaging/update failure, frontend notification, relay authority,
   retention/removal and adjacent-execution cases from the roadmap's full matrix.
 
 These deferred manual release checks remain unverified until matching evidence

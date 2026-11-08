@@ -1,6 +1,6 @@
 import { useQuery } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { cockpitFileManagerSchema, type CockpitRevealRequest } from '@puddle/shared';
+import { frontendFileManagerSchema, type FrontendRevealRequest } from '@puddle/shared';
 import { ContextMenuItem } from '../../components/ui/context-menu';
 import { api } from '../../lib/transport/api';
 import { browserTransport } from '../../lib/transport/browser-transport';
@@ -9,8 +9,9 @@ import { browserTransport } from '../../lib/transport/browser-transport';
 export function RevealInFileManagerItem({ path }: { path: string }) {
   const remote = browserTransport();
   const manager = useQuery({
-    queryKey: ['cockpit-file-manager'],
-    queryFn: async () => cockpitFileManagerSchema.parse(await api('GET', '/cockpit/file-manager')),
+    queryKey: ['frontend-file-manager'],
+    queryFn: async () =>
+      frontendFileManagerSchema.parse(await api('GET', '/frontend/file-manager')),
     enabled: !remote,
     staleTime: Infinity,
     retry: false,
@@ -20,7 +21,7 @@ export function RevealInFileManagerItem({ path }: { path: string }) {
     <ContextMenuItem
       onSelect={() => {
         if (browserTransport()) return;
-        void api('POST', '/cockpit/file-manager', { path } satisfies CockpitRevealRequest).catch(
+        void api('POST', '/frontend/file-manager', { path } satisfies FrontendRevealRequest).catch(
           (error: unknown) =>
             toast.error(error instanceof Error ? error.message : 'Could not reveal this path.'),
         );

@@ -225,7 +225,7 @@ second project. Keep two browser windows open for the multi-viewer checks.
 6. Create two simultaneous native switches and two REST resumes of the same
    conversation. Exactly one runtime may remain. A REST loser must receive
    `409 conversation_live` with the existing session/project details, and the
-   cockpit must use those details to focus the owner.
+   frontend must use those details to focus the owner.
 7. Rename an inactive native conversation. Project activation or a watched
    store event must update its native title without changing its Puddle title.
    Delete its native data: only two successful scans may show “conversation

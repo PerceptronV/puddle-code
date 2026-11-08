@@ -3,16 +3,16 @@ import { lstat, stat } from 'node:fs/promises';
 import { dirname, isAbsolute, win32 } from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { promisify } from 'node:util';
-import type { CockpitFileManager } from '@puddle/shared';
+import type { FrontendFileManager } from '@puddle/shared';
 
 const execute = promisify(execFile);
 
 export interface LocalFileManager {
-  name: NonNullable<CockpitFileManager['name']>;
+  name: NonNullable<FrontendFileManager['name']>;
   reveal(path: string, authorised: () => boolean): Promise<void>;
 }
 
-/** Local OS integration shared by the browser cockpit and desktop shell. */
+/** Local OS integration shared by the browser frontend and desktop shell. */
 export function localFileManager(
   platform: NodeJS.Platform = process.platform,
 ): LocalFileManager | undefined {

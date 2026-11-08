@@ -1,5 +1,5 @@
 /** Local serving remains the default; remote transport is installed only after host selection. */
-export interface CockpitSocket {
+export interface FrontendSocket {
   readonly readyState: number;
   send(data: string): void;
   close(): void;
@@ -19,7 +19,7 @@ export interface BrowserTransport {
     body?: unknown,
     signal?: AbortSignal | null,
   ): Promise<Response>;
-  socket(): CockpitSocket;
+  socket(): FrontendSocket;
   input(session: string, term: string, data: string): Promise<void>;
 }
 let installed: BrowserTransport | null = null;

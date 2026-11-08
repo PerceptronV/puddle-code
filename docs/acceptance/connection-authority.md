@@ -9,7 +9,7 @@ browser cookie policy, rendering, keyboard activation or Electron behaviour.
 Run `pnpm lint`, `pnpm typecheck`, `pnpm test`, `pnpm build`,
 `pnpm test:e2e`, `pnpm test:ssh` and `pnpm build:tarball`. The process suite
 uses temporary Puddle homes/repositories, sanitised subprocess environments
-and deterministic fake agents. It runs built cockpit processes and real
+and deterministic fake agents. It runs built frontend processes and real
 replacement, including canonical terminal replay, upstream recovery with a
 changed daemon port, uploads/downloads, local sync, proxy HTTP/WebSockets and
 streams lasting beyond the first connection token. No installed daemon is
@@ -44,9 +44,9 @@ node packages/cli/dist/index.js launch --foreground --no-upgrade
 
 Do not read `PUDDLE_HOME/token` into browser tools: it is host-only authority,
 not a browser credential. For manual API probes, copy an authorised request
-from the cockpit's Network panel; keep its browser credential private and
-include the exact cockpit Origin for writes. Use `localhost`, not `127.0.0.1`,
-for cockpit routes. Remote and desktop checks require a disposable host/home
+from the frontend's Network panel; keep its browser credential private and
+include the exact frontend Origin for writes. Use `localhost`, not `127.0.0.1`,
+for frontend routes. Remote and desktop checks require a disposable host/home
 and the normal SSH credentials; do not substitute the installed personal daemon.
 
 ## Browser and refresh
@@ -67,14 +67,14 @@ and the normal SSH credentials; do not substitute the installed personal daemon.
    route and layout. Terminal replay restores the canonical screen once;
    previously sent input never executes twice.
 4. Delay replacement startup. The old process, rejected requests or an
-   unrelated replacement must not trigger reload. Watch `/cockpit/status`:
+   unrelated replacement must not trigger reload. Watch `/frontend/status`:
    the matching refresh id, a new instance and `upstream: ready` are required.
-5. Kill/restart only the disposable cockpit; retained browser login works.
+5. Kill/restart only the disposable frontend; retained browser login works.
    Stop the disposable daemon: local sync and authenticated status/refresh
    remain available, and login is retained. Restart it, including with its old
-   port occupied: the cockpit recovers with fresh authority. Input attempted
+   port occupied: the frontend recovers with fresh authority. Input attempted
    while disconnected is never replayed later.
-6. Revoke one browser through authenticated `POST /cockpit/logout`. Its active
+6. Revoke one browser through authenticated `POST /frontend/logout`. Its active
    terminal and proxy streams close; the separate browser remains authorised.
    Browser inactivity expiry asks for a fresh launch, while upstream expiry
    only reconnects. Do not change the machine clock to simulate lease expiry;
@@ -83,30 +83,30 @@ and the normal SSH credentials; do not substitute the installed personal daemon.
 ## Forwarded applications
 
 1. On a disposable SSH session, start an HTTP/WebSocket app and click its port
-   or a terminal localhost link. The reusable link is a trusted cockpit
+   or a terminal localhost link. The reusable link is a trusted frontend
    `/forward/…` route; final application content runs on `127.0.0.1` while the
-   cockpit remains on `localhost`. Neither address retains a credential.
+   frontend remains on `localhost`. Neither address retains a credential.
 2. Inspect browser cookies: the proxy grant is HttpOnly, host-only and scoped
    to `/proxy/<placement>/<port>/`, with SameSite=Strict. Reload the app, use
    its own authentication headers/cookies, and exercise WebSockets/HMR.
-   A copied landing link works from an already authorised cockpit browser.
-3. In application devtools, confirm the cockpit's localStorage is unavailable.
+   A copied landing link works from an already authorised frontend browser.
+3. In application devtools, confirm the frontend's localStorage is unavailable.
    Foreign/null-origin attempts to bootstrap, refresh, mutate the API or open
-   cockpit WebSockets fail. A proxy page cannot serve its HTML at `localhost`.
+   frontend WebSockets fail. A proxy page cannot serve its HTML at `localhost`.
    HTML editor previews retain their iframe sandbox.
 4. Check absolute asset-path recovery under the proxy prefix; an unobserved
    port remains forbidden. Inspect application request logs: no Puddle bearer,
    resource id, browser credential, proxy grant or legacy query credential
    reaches the app. Application headers and query parameters remain intact.
 5. Keep a download, terminal and proxy WebSocket active for more than 60 seconds.
-   Rotation preserves them. Stop their cockpit/control channel: those streams
-   close, while another cockpit and daemon-owned agents continue.
+   Rotation preserves them. Stop their frontend/control channel: those streams
+   close, while another frontend and daemon-owned agents continue.
 6. Repeat the port-chip and terminal-link checks from the desktop app with a
-   system browser that has never logged into this cockpit. Both open the
+   system browser that has never logged into this frontend. Both open the
    application without a Puddle login prompt. The desktop obtains the scoped
    invitation before opening the browser; the browser exchanges it on
    `127.0.0.1` and clears the fragment. Confirm an application path, query and
-   fragment survive, and the browser gains no cockpit localStorage credential.
+   fragment survive, and the browser gains no frontend localStorage credential.
 
 ## Real SSH, desktop and migration
 

@@ -11,7 +11,7 @@ import type { RuntimeTheme } from '@puddle/shared';
  * starts, so it is positioned to answer; clients report their
  * resolved colours over the WS (`theme`, on connect and on theme switches)
  * and the LAST report wins — a deliberate simplification for what is in
- * practice one person's cockpit, matching the stdin rule ("accepted from
+ * practice one person's frontend, matching the stdin rule ("accepted from
  * any viewer, last-writer-wins").
  * Independent owners receive the last report in launch context and subsequent
  * private state reconciliation, retaining it while the daemon is absent.

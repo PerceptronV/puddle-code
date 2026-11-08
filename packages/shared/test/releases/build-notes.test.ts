@@ -16,7 +16,7 @@ function fixture() {
   writeFileSync(join(repo, 'packages/daemon/package.json'), JSON.stringify({ version: '0.4.0' }));
   writeFileSync(
     join(repo, 'CHANGELOG.md'),
-    '# Changelog\n\n## [Unreleased]\n\n### Cockpit\n\n- Current\n\n## [0.3.14]\n\n- Previous\n',
+    '# Changelog\n\n## [Unreleased]\n\n### Frontend\n\n- Current\n\n## [0.3.14]\n\n- Previous\n',
   );
   return repo;
 }
@@ -30,7 +30,7 @@ it('uses an exact archived release before the current development section', () =
 });
 it('uses only Unreleased for the exact current version and never borrows another version', () => {
   const repo = fixture();
-  expect(releaseNotes(repo, '0.4.0')).toBe('## [Unreleased]\n\n### Cockpit\n\n- Current\n');
+  expect(releaseNotes(repo, '0.4.0')).toBe('## [Unreleased]\n\n### Frontend\n\n- Current\n');
   expect(releaseNotes(repo, '0.5.0')).toBeNull();
   expect(() => releaseNotes(repo, '../../private')).toThrow();
 });

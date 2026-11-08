@@ -37,7 +37,7 @@ it('persists verifiers, scopes identities and expires invitations and browsers a
 });
 
 describe('proxy ownership', () => {
-  it('binds grants to the browser and exact target, and persists them across cockpit restarts', () => {
+  it('binds grants to the browser and exact target, and persists them across frontend restarts', () => {
     const home = mkdtempSync(join(tmpdir(), 'puddle-proxy-authority-'));
     let store = new BrowserAuthority(home, 'http://localhost:7433', 'local');
     const credential = store.exchange(store.invite())!;

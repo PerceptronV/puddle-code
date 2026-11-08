@@ -12,7 +12,7 @@ afterEach(async () => {
   }
 });
 
-async function cockpit(identity: string, reveal = vi.fn(async () => {})) {
+async function frontend(identity: string, reveal = vi.fn(async () => {}), prefix = '/frontend') {
   const home = await mkdtemp(join(tmpdir(), 'puddle-reveal-'));
   await writeFile(join(home, 'index.html'), '<!doctype html>');
   const ui = await startUiServer({
@@ -37,14 +37,14 @@ async function cockpit(identity: string, reveal = vi.fn(async () => {})) {
   const invitation = new URLSearchParams(new URL(ui.createInvitation()).hash.slice(1)).get(
     'invite',
   );
-  const response = await fetch(ui.origin + '/cockpit/bootstrap', {
+  const response = await fetch(ui.origin + prefix + '/bootstrap', {
     method: 'POST',
     headers: { origin: ui.origin, 'content-type': 'application/json' },
     body: JSON.stringify({ invitation }),
   });
   const { credential } = (await response.json()) as { credential: string };
   const request = (method: string, body?: unknown, headers: Record<string, string> = {}) =>
-    fetch(ui.origin + '/cockpit/file-manager', {
+    fetch(ui.origin + prefix + '/file-manager', {
       method,
       headers: {
         origin: ui.origin,
@@ -58,31 +58,37 @@ async function cockpit(identity: string, reveal = vi.fn(async () => {})) {
 }
 
 describe('local file-manager gateway', () => {
-  it('requires browser authority, exact origin, and a bounded path before native dispatch', async () => {
-    const { request, reveal } = await cockpit('local');
-    expect(await (await request('GET')).json()).toEqual({ name: 'Finder' });
-    expect((await request('GET', undefined, { authorization: '' })).status).toBe(401);
-    const path = '/work/project/file.txt';
-    expect(
-      (await request('POST', { path }, { origin: 'https://foreign.example.test' })).status,
-    ).toBe(403);
-    expect((await request('POST', { path }, { origin: '' })).status).toBe(403);
-    expect((await request('POST', { path }, { authorization: '' })).status).toBe(401);
-    for (const body of [
-      { path: '' },
-      { path: 'x'.repeat(4097) },
-      { path: '/work/\0file' },
-      { path, command: 'open' },
-    ])
-      expect((await request('POST', body)).status).toBe(400);
-    expect(reveal).not.toHaveBeenCalled();
-    expect((await request('POST', { path })).status).toBe(204);
-    expect(reveal).toHaveBeenCalledExactlyOnceWith(path, expect.any(Function));
-    expect((await request('DELETE')).status).toBe(405);
-  });
+  it.each(['/frontend', '/cockpit'])(
+    'requires browser authority, exact origin, and a bounded path before dispatch through %s',
+    async (prefix) => {
+      const { request, reveal, ui } = await frontend('local', undefined, prefix);
+      const identity = await fetch(ui.origin, { method: 'HEAD' });
+      expect(identity.headers.get('x-puddle-frontend')).toBe(ui.nonce);
+      expect(identity.headers.get('x-puddle-cockpit')).toBe(ui.nonce);
+      expect(await (await request('GET')).json()).toEqual({ name: 'Finder' });
+      expect((await request('GET', undefined, { authorization: '' })).status).toBe(401);
+      const path = '/work/project/file.txt';
+      expect(
+        (await request('POST', { path }, { origin: 'https://foreign.example.test' })).status,
+      ).toBe(403);
+      expect((await request('POST', { path }, { origin: '' })).status).toBe(403);
+      expect((await request('POST', { path }, { authorization: '' })).status).toBe(401);
+      for (const body of [
+        { path: '' },
+        { path: 'x'.repeat(4097) },
+        { path: '/work/\0file' },
+        { path, command: 'open' },
+      ])
+        expect((await request('POST', body)).status).toBe(400);
+      expect(reveal).not.toHaveBeenCalled();
+      expect((await request('POST', { path })).status).toBe(204);
+      expect(reveal).toHaveBeenCalledExactlyOnceWith(path, expect.any(Function));
+      expect((await request('DELETE')).status).toBe(405);
+    },
+  );
 
-  it('refuses SSH-host paths even when the cockpit is served on localhost and a manager was supplied', async () => {
-    const { request, reveal } = await cockpit('developer@build-host');
+  it('refuses SSH-host paths even when the frontend is served on localhost and a manager was supplied', async () => {
+    const { request, reveal } = await frontend('developer@build-host');
     expect(await (await request('GET')).json()).toEqual({ name: null });
     expect((await request('POST', { path: '/work/file.txt' })).status).toBe(404);
     expect(reveal).not.toHaveBeenCalled();
@@ -102,7 +108,7 @@ describe('local file-manager gateway', () => {
       await pending;
       throw new Error('File is missing');
     });
-    const { request } = await cockpit('local', reveal);
+    const { request } = await frontend('local', reveal);
     const first = request('POST', { path: '/work/file.txt' });
     await started;
     const busy = await request('POST', { path: '/work/other.txt' });

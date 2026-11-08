@@ -41,7 +41,7 @@ export const registrationResponseSchema = z
 export const redeemRegistrationSchema = z.object({ code: remoteSecretSchema }).strict();
 /** Retire only the routing record identified by this host's existing credential. */
 export const unregisterHostRequestSchema = z.object({ credential: remoteSecretSchema }).strict();
-/** Public browser handoff. The secret whose SHA-256 hash is challenge stays in the cockpit. */
+/** Public browser handoff. The secret whose SHA-256 hash is challenge stays in the frontend. */
 export const desktopRegistrationSchema = z
   .object({
     challenge: remoteSecretSchema,

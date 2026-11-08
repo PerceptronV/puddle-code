@@ -7,8 +7,8 @@ import {
   finishHostRemoval,
   requireHostRemovalSupport,
 } from '../lib/installation/host/remove.js';
-import { checkCockpit, readCockpitRecord, removeCockpitRecord } from '../lib/registry.js';
-import { terminateCockpit } from './detach.js';
+import { checkFrontend, readFrontendRecord, removeFrontendRecord } from '../lib/registry.js';
+import { terminateFrontend } from './detach.js';
 import { inspectHostPurge, requireHostPurgeSupport } from '../lib/installation/host/purge.js';
 import { purgeRemovedHost } from './manage-host-purge.js';
 
@@ -65,10 +65,10 @@ export async function removePersistentDaemonCmd(
     disposition: stop ? 'stop' : 'retain',
   });
   const target = cmd.host ?? 'local';
-  const cockpit = readCockpitRecord(target);
-  if (cockpit) {
-    if ((await checkCockpit(cockpit)) === 'dead') removeCockpitRecord(target);
-    else await terminateCockpit(cockpit);
+  const frontend = readFrontendRecord(target);
+  if (frontend) {
+    if ((await checkFrontend(frontend)) === 'dead') removeFrontendRecord(target);
+    else await terminateFrontend(frontend);
   }
   if (cmd.purge && stop) {
     logger.info(

@@ -1,6 +1,6 @@
-import type { CockpitHostUpdateReply, CockpitHostUpdateStatus } from '@puddle/shared';
+import type { FrontendHostUpdateReply, FrontendHostUpdateStatus } from '@puddle/shared';
 
-export function statusFixture(): CockpitHostUpdateStatus {
+export function statusFixture(): FrontendHostUpdateStatus {
   return {
     availability: 'ready',
     daemon_version: '0.4.0',
@@ -22,7 +22,9 @@ export function statusFixture(): CockpitHostUpdateStatus {
   };
 }
 
-export function reviewFixture(interruption = false): Extract<CockpitHostUpdateReply, { ok: true }> {
+export function reviewFixture(
+  interruption = false,
+): Extract<FrontendHostUpdateReply, { ok: true }> {
   return {
     ok: true,
     operation: {

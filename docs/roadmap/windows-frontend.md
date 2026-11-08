@@ -1,4 +1,4 @@
-# Windows cockpit with WSL2 hosts
+# Windows frontend with WSL2 hosts
 
 Status: draft, 2026-11-06. This is a proposed implementation plan, not a claim
 that a Windows desktop release, WSL connection mode or the commands below exist.
@@ -7,7 +7,7 @@ this draft. Existing host/runtime ownership rules in [SPEC](../../SPEC.md) apply
 
 ## Outcome and scope
 
-Ship a native Windows Puddle desktop app that runs the existing cockpit and
+Ship a native Windows Puddle desktop app that runs the existing frontend and
 connects to a Linux host inside WSL2 or an existing Linux/macOS host over SSH.
 The daemon, independent runtimes, agents, git worktrees and native conversation
 stores stay on that host. The Windows app does not emulate Linux services or run
@@ -35,13 +35,13 @@ supervision, terminal execution and update recovery to Windows.
 ```text
 Windows user session
   Puddle.exe: windows, host picker, prompts, notifications and app updates
-    @puddle-code/cli/lib: cockpit server, authority, host connection and proxy
+    @puddle-code/cli/lib: frontend server, authority, host connection and proxy
       WSL transport: wsl.exe -> exact distribution + Linux user
         Linux host: puddled -> independent puddler owners -> agents and shells
       SSH transport: existing SSH connection -> Linux/macOS host
 ```
 
-Keep the Electron renderer on the existing Windows loopback cockpit origin.
+Keep the Electron renderer on the existing Windows loopback frontend origin.
 Reuse its invitation exchange, browser credentials, REST/WS proxy and reconnect
 behavior. Keep WSL invocation, host discovery, bootstrap, data forwarding and
 maintenance under `packages/cli/src/lib/`; both CLI and desktop consume them.
@@ -120,10 +120,10 @@ For local host archives, stream to private Linux staging and verify checksums
 there. Fix bootstrap's POSIX-only basename assumptions for Windows source paths;
 do not expose Windows paths as host paths or rely on a fixed `/mnt/c` mapping.
 
-### 3. Cockpit traffic, ports and authentication callbacks
+### 3. Frontend traffic, ports and authentication callbacks
 
 Add WSL connection composition beside `connection/start.ts` and `connect.ts`.
-Share existing cockpit setup where responsibilities match; do not duplicate
+Share existing frontend setup where responsibilities match; do not duplicate
 bootstrap, lease recovery or host-update logic in an Electron-only WSL path.
 
 Windows-to-WSL networking is an explicit phase-0 decision. NAT and mirrored
@@ -172,7 +172,7 @@ existing ownership and WSL lifetime. Do not promise agents survive app closure
 until real acceptance establishes the supported behavior.
 
 Phase 0 must decide whether the supported experience needs a separate, visible
-keep-running policy to maintain WSL activity after all cockpit windows close.
+keep-running policy to maintain WSL activity after all frontend windows close.
 Do not disguise a hidden keepalive process as durable OS supervision. Until
 resolved, describe process survival as bounded by WSL lifetime and distinguish
 retained conversations from live shell/process state.
@@ -182,7 +182,7 @@ recovery. A failed Windows bridge or HTTP probe cannot prove a Linux owner died.
 Detect changed boots through existing host evidence. Respect host auto-resume;
 never replay a pending automated turn or claim a lost shell variable survived.
 
-Cockpit host updates must retain exact review/approval, selected-release checks,
+Frontend host updates must retain exact review/approval, selected-release checks,
 participating authority, cancellation and observation-only handling after lost
 dispatch replies. Include read-only offline status and explicit continuation
 through the WSL host helper, without treating a failed live mutation as permission
@@ -264,7 +264,7 @@ connection code; keep `lib/index.ts` as the deliberate embedder API.
 | Area | Existing code to extend or audit |
 | --- | --- |
 | Target selection and persistence | `cli/src/cli/args.ts`, `cli/src/lib/transport/open.ts`, `desktop/src/main.ts`, `recent-hosts.ts`, `reopen.ts` |
-| WSL execution and data bridge | `cli/src/lib/transport/`, `connection/start.ts`, `connection/connect.ts`, `connection/cockpit.ts` |
+| WSL execution and data bridge | `cli/src/lib/transport/`, `connection/start.ts`, `connection/connect.ts`, `connection/frontend.ts` |
 | Host authority and maintenance | `cli/src/lib/auth/control-channel.ts`, `connection-authority.ts`, `host/updates/`, `installation/host/` |
 | Bootstrap and path delivery | `cli/src/lib/installation/bootstrap.ts`, `paths.ts`, `transport/transport.ts`, `host/file-manager.ts` |
 | Windows shell integration | `desktop/src/ssh-askpass.ts`, `main.ts`, notification and preload modules |
@@ -281,8 +281,8 @@ its behavior; fixture-only checks cannot close native Windows/WSL acceptance.
 | Phase | Work | Exit criteria |
 | --- | --- | --- |
 | 0. Native feasibility | Select test versions; prove exact distribution/user identity, user supervision, stdio behavior, network routing and WSL lifetime; benchmark bridge alternatives | Two distributions with overlapping ports cannot cross-route; document measured lifecycle and choose the bridge/keep-running policy |
-| 1. Shared connection | Add typed targets, WSL transport, private authority and cockpit composition; implement path-safe bootstrap and cancellation | CLI/library can launch/connect to an isolated WSL host, stream terminals/files and reconnect without a duplicate owner or Windows-side host state |
-| 2. Desktop experience | WSL picker, reopen migration, setup errors, authentication/browser callbacks, Explorer/editor boundaries and Windows SSH helper | Packaged Windows cockpit supports fresh account login, independent tabs, native session commands and exact host restoration |
+| 1. Shared connection | Add typed targets, WSL transport, private authority and frontend composition; implement path-safe bootstrap and cancellation | CLI/library can launch/connect to an isolated WSL host, stream terminals/files and reconnect without a duplicate owner or Windows-side host state |
+| 2. Desktop experience | WSL picker, reopen migration, setup errors, authentication/browser callbacks, Explorer/editor boundaries and Windows SSH helper | Packaged Windows frontend supports fresh account login, independent tabs, native session commands and exact host restoration |
 | 3. Ownership and maintenance | Exercise WSL shutdown/reboot, daemon/runtime upgrades, disconnected status, explicit recovery and client update teardown | Existing owner, approval and uncertain-dispatch guarantees hold across Windows/WSL failure boundaries |
 | 4. Distribution | Windows installer/signing/update/uninstall, current-user storage protections, native CI and support documentation | Fresh Windows machine works without Node/npm; installer/update recovery and native acceptance pass before stable release |
 

@@ -82,7 +82,7 @@ export function createSshAuthPrompter(opts: {
 
   return {
     prompt(request, signal) {
-      // An SSH child can outlive its cockpit while it unwinds. Reject late
+      // An SSH child can outlive its frontend while it unwinds. Reject late
       // requests from closed hosts before they can open another window.
       if (closed || signal.aborted || !opts.isHostOpen(request.target)) {
         return Promise.resolve(null);

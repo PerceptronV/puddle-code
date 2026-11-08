@@ -147,7 +147,7 @@ it('collects protocol and capacity blockers without producing approval evidence'
   );
   expect(result.blockers).toEqual(
     expect.arrayContaining([
-      { code: 'cockpit_incompatible', target: 'cockpit' },
+      { code: 'frontend_incompatible', target: 'frontend' },
       { code: 'state_not_saved', target: 'database' },
     ]),
   );

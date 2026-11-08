@@ -2,8 +2,8 @@ import { test, expect } from '@playwright/test';
 import { rmSync } from 'node:fs';
 import { fixture, createSession } from '../../cli/e2e/helpers';
 import type {
-  CockpitRemoteRequest,
-  CockpitRemoteStatus,
+  FrontendRemoteRequest,
+  FrontendRemoteStatus,
   DesktopRegistration,
 } from '@puddle/shared';
 import { createHash } from 'node:crypto';
@@ -28,7 +28,7 @@ test('desktop registration, re-enablement, recovery and confirmed deletion', asy
     );
     // The supervisor belongs to the operator. This UI-only fixture never installs
     // launchd/systemd units; separate host-control tests exercise command dispatch.
-    const state: CockpitRemoteStatus = {
+    const state: FrontendRemoteStatus = {
       availability: 'ready',
       configured: false,
       enabled: false,
@@ -37,12 +37,12 @@ test('desktop registration, re-enablement, recovery and confirmed deletion', asy
       supervisor: 'launchd',
       devices: [],
     };
-    const requests: CockpitRemoteRequest[] = [];
+    const requests: FrontendRemoteRequest[] = [];
     let signInReady = false;
     let verifier = '';
     let holdCheck = false;
     let checkHeld = false;
-    await page.route('**/cockpit/remote/registration', async (route) => {
+    await page.route('**/frontend/remote/registration', async (route) => {
       verifier = route.request().postDataJSON().code;
       if (holdCheck) {
         holdCheck = false;
@@ -74,7 +74,7 @@ test('desktop registration, re-enablement, recovery and confirmed deletion', asy
     let failDeletion = false;
     let holdRead = false;
     let readHeld = false;
-    await page.route('**/cockpit/remote?profile=*', async (route) => {
+    await page.route('**/frontend/remote?profile=*', async (route) => {
       expect(new URL(route.request().url()).searchParams.get('profile')).toBe(profiles[0].id);
       if (route.request().method() === 'GET') {
         if (holdRead) {
@@ -86,7 +86,7 @@ test('desktop registration, re-enablement, recovery and confirmed deletion', asy
         }
         return route.fulfill({ json: state });
       }
-      const request = route.request().postDataJSON() as CockpitRemoteRequest;
+      const request = route.request().postDataJSON() as FrontendRemoteRequest;
       requests.push(request);
       if (request.t === 'delete_registration' && failDeletion) {
         failDeletion = false;

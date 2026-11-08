@@ -1,11 +1,11 @@
 import { expect, it, vi } from 'vitest';
-import { cockpitHostUpdateStatusSchema } from '@puddle/shared';
+import { frontendHostUpdateStatusSchema } from '@puddle/shared';
 import { startUiServer } from '../../src/lib/serve/ui-server.js';
-import { cockpitUpdatesFixture } from '../helpers/cockpit-updates.js';
+import { frontendUpdatesFixture } from '../helpers/frontend-updates.js';
 import * as controlChannel from '../../src/lib/auth/control-channel.js';
 
 async function gateway(kind: 'local' | 'ssh' = 'local') {
-  const f = await cockpitUpdatesFixture(kind);
+  const f = await frontendUpdatesFixture(kind);
   const ui = await startUiServer({
     assetsDir: f.home,
     authHome: f.home,
@@ -19,7 +19,7 @@ async function gateway(kind: 'local' | 'ssh' = 'local') {
   const invitation = new URLSearchParams(new URL(ui.createInvitation()).hash.slice(1)).get(
     'invite',
   );
-  const admitted = await fetch(ui.origin + '/cockpit/bootstrap', {
+  const admitted = await fetch(ui.origin + '/frontend/bootstrap', {
     method: 'POST',
     headers: { origin: ui.origin, 'content-type': 'application/json' },
     body: JSON.stringify({ invitation }),
@@ -31,7 +31,7 @@ async function gateway(kind: 'local' | 'ssh' = 'local') {
     headers: Record<string, string> = {},
     query = '',
   ) =>
-    fetch(ui.origin + '/cockpit/updates' + query, {
+    fetch(ui.origin + '/frontend/updates' + query, {
       method,
       headers: {
         origin: ui.origin,
@@ -44,12 +44,12 @@ async function gateway(kind: 'local' | 'ssh' = 'local') {
   return { ...f, ui, credential, http: request };
 }
 
-it('retains browser protection while showing recorded status through a disconnected cockpit', async () => {
+it('retains browser protection while showing recorded status through a disconnected frontend', async () => {
   const f = await gateway();
   f.authority.close();
   const response = await f.http('GET');
   expect(response.status).toBe(200);
-  expect(cockpitHostUpdateStatusSchema.parse(await response.json())).toMatchObject({
+  expect(frontendHostUpdateStatusSchema.parse(await response.json())).toMatchObject({
     availability: 'unavailable',
     observation: 'recorded',
     result: { ok: true, operation: { id: f.operation.id } },
@@ -96,7 +96,7 @@ it('cancels offline helper participation when the browser logs out', async () =>
   expect(helper).not.toHaveBeenCalled();
   const pending = f.http('POST', request).catch(() => null);
   await started;
-  const logout = await fetch(f.ui.origin + '/cockpit/logout', {
+  const logout = await fetch(f.ui.origin + '/frontend/logout', {
     method: 'POST',
     headers: { origin: f.ui.origin, authorization: `Bearer ${f.credential}` },
   });
@@ -108,11 +108,11 @@ it('cancels offline helper participation when the browser logs out', async () =>
 });
 
 it.each(['local', 'ssh'] as const)(
-  'requires exact browser authority and bounded commands on the %s cockpit',
+  'requires exact browser authority and bounded commands on the %s frontend',
   async (kind) => {
     const f = await gateway(kind);
     expect(
-      cockpitHostUpdateStatusSchema.parse(await (await f.http('GET')).json()).availability,
+      frontendHostUpdateStatusSchema.parse(await (await f.http('GET')).json()).availability,
     ).toBe('ready');
     expect((await f.http('GET', undefined, { authorization: '' })).status).toBe(401);
     const request = {
@@ -127,7 +127,7 @@ it.each(['local', 'ssh'] as const)(
     const commands = f.commands.length;
     for (const body of [
       { ...request, host: 'another-host' },
-      { ...request, cockpit: { major: 1, minor: 0 } },
+      { ...request, frontend: { major: 1, minor: 0 } },
       { action: 'stage', reference: request.reference, receipt: f.stage },
       { action: 'prepare', targets: [{ component: 'daemon', version: '$(echo injected)' }] },
       { action: 'prepare', targets: f.operation.targets, tarball: '/private/archive.tar.gz' },
@@ -179,7 +179,7 @@ it('keeps reads available while serialising mutations and never reflects subproc
   expect(action).toHaveBeenCalledOnce();
 });
 
-it('cancels uncommitted host dispatch on browser logout while retaining the cockpit lease', async () => {
+it('cancels uncommitted host dispatch on browser logout while retaining the frontend lease', async () => {
   const f = await gateway();
   const reviewed = await f.request({
     action: 'inspect',
@@ -208,7 +208,7 @@ it('cancels uncommitted host dispatch on browser logout while retaining the cock
     .catch(() => null);
   await started;
   try {
-    const logout = await fetch(f.ui.origin + '/cockpit/logout', {
+    const logout = await fetch(f.ui.origin + '/frontend/logout', {
       method: 'POST',
       headers: { origin: f.ui.origin, authorization: `Bearer ${f.credential}` },
     });

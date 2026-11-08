@@ -6,7 +6,7 @@ import { afterAll, beforeAll, describe, expect, it } from 'vitest';
 import { startDaemon, type RunningDaemon } from '../../../daemon/test/helpers/authorised-daemon.js';
 import { connectRemote } from '../../src/lib/connection/connect.js';
 import { findFreePort } from '../../src/lib/transport/net.js';
-import type { RunningCockpit } from '../../src/lib/connection/cockpit.js';
+import type { RunningFrontend } from '../../src/lib/connection/frontend.js';
 import { SshTransport } from '../../src/lib/transport/ssh.js';
 
 const FAKE_SSH = join(dirname(fileURLToPath(import.meta.url)), '..', 'helpers', 'fake-ssh.mjs');
@@ -62,7 +62,7 @@ describe('puddle launch against a fake ssh + real daemon (SSH mode)', () => {
   const hostPuddle = join(fakeHostHome, '.puddle');
   const killFile = join(fakeHostHome, 'kill-tunnel');
   let daemon: RunningDaemon;
-  let cockpit: RunningCockpit;
+  let frontend: RunningFrontend;
   let daemonPort: number;
   let credential: string;
 
@@ -84,38 +84,38 @@ describe('puddle launch against a fake ssh + real daemon (SSH mode)', () => {
     symlinkSync(process.execPath, join(hostPuddle, 'bin', 'versions', '9.9.9', 'bin', 'node'));
     symlinkSync('versions/9.9.9', join(hostPuddle, 'bin', 'current'));
 
-    cockpit = await connectRemote({
+    frontend = await connectRemote({
       host: 'alice@devbox',
       assetsDir: withAssets(),
       sshBinary: FAKE_SSH,
       platform: 'darwin',
     });
-    const invite = new URLSearchParams(new URL(cockpit.createInvitation()).hash.slice(1)).get(
+    const invite = new URLSearchParams(new URL(frontend.createInvitation()).hash.slice(1)).get(
       'invite',
     );
-    const response = await fetch(cockpit.origin + '/cockpit/bootstrap', {
+    const response = await fetch(frontend.origin + '/frontend/bootstrap', {
       method: 'POST',
-      headers: { origin: cockpit.origin, 'content-type': 'application/json' },
+      headers: { origin: frontend.origin, 'content-type': 'application/json' },
       body: JSON.stringify({ invitation: invite }),
     });
     credential = ((await response.json()) as { credential: string }).credential;
   }, 30_000);
 
   afterAll(async () => {
-    await cockpit?.stop();
+    await frontend?.stop();
     await daemon?.stop();
     delete process.env.FAKE_SSH_HOME;
     delete process.env.FAKE_SSH_KILL;
     delete process.env.PUDDLE_HOME;
   });
 
-  const viaCockpit = (path: string, headers: Record<string, string> = {}) =>
-    fetch(`${cockpit.origin}${path}`, { headers });
+  const viaFrontend = (path: string, headers: Record<string, string> = {}) =>
+    fetch(`${frontend.origin}${path}`, { headers });
 
-  it('lands a working cockpit: UI + proxied API through the tunnel', async () => {
+  it('lands a working frontend: UI + proxied API through the tunnel', async () => {
     expect(daemonPort).toBe(daemon.port); // config.json really drove the bind
-    expect(await (await viaCockpit('/')).text()).toContain('puddle');
-    const version = await viaCockpit('/api/version', {
+    expect(await (await viaFrontend('/')).text()).toContain('puddle');
+    const version = await viaFrontend('/api/version', {
       authorization: `Bearer ${credential}`,
     });
     expect(version.status).toBe(200);
@@ -123,8 +123,8 @@ describe('puddle launch against a fake ssh + real daemon (SSH mode)', () => {
   });
 
   it('creates fresh, independent browser invitations', () => {
-    const one = cockpit.createInvitation();
-    const two = cockpit.createInvitation();
+    const one = frontend.createInvitation();
+    const two = frontend.createInvitation();
     expect(one).not.toBe(two);
     expect(one).toContain(`#invite=iv_`);
     expect(one).not.toContain(daemon.token);
@@ -132,17 +132,19 @@ describe('puddle launch against a fake ssh + real daemon (SSH mode)', () => {
 
   it('reconnects the tunnel after it drops, on the same local port', async () => {
     const events: string[] = [];
-    cockpit.onEvent((e) => events.push(e.t));
+    frontend.onEvent((e) => events.push(e.t));
     writeFileSync(killFile, ''); // the fake forward exits when this appears
     await waitUntil(() => events.includes('tunnel-down'), 5000);
     rmSync(killFile); // let the respawn survive
     await waitUntil(() => events.includes('tunnel-up'), 15_000);
     for (let n = 0; n < 100; n++) {
-      const status = await viaCockpit('/cockpit/status', { authorization: `Bearer ${credential}` });
+      const status = await viaFrontend('/frontend/status', {
+        authorization: `Bearer ${credential}`,
+      });
       if (((await status.json()) as { upstream: string }).upstream === 'ready') break;
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
-    const version = await viaCockpit('/api/version', {
+    const version = await viaFrontend('/api/version', {
       authorization: `Bearer ${credential}`,
     });
     expect(version.status).toBe(200);

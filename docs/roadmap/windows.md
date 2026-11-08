@@ -5,7 +5,7 @@ This document describes the full
 design intent; actual delivery and verification are tracked in the acceptance
 document below. This concerns multiple
 native app windows, independently of the Windows operating-system work in
-[windows-cockpit.md](windows-cockpit.md).
+[windows-frontend.md](windows-frontend.md).
 
 Completion scope updated by the user on 2026-11-08: finish the implementation and
 headless testing on macOS. Interactive native tests must not disrupt the user's
@@ -68,7 +68,7 @@ It should not become a second implementation of the editor or workspace.
 
 | Existing code | Reuse or required change |
 | --- | --- |
-| `packages/desktop/src/main.ts` | Currently combines one target, one cockpit, and one BrowserWindow. Separate the host connection from its windows. |
+| `packages/desktop/src/main.ts` | Currently combines one target, one frontend, and one BrowserWindow. Separate the host connection from its windows. |
 | `packages/desktop/src/reopen.ts`, `window-bounds.ts`, `refresh-navigation.ts` | Extend existing restore, placement, and refresh logic to several windows per host. |
 | `packages/desktop/src/preload.ts`, `packages/web/src/lib/desktop.ts` | Add bounded desktop window capabilities and window context. |
 | `packages/web/src/features/shell/ShellLayout.tsx` | Select chrome by window type while retaining connection/theme/error infrastructure. |
@@ -86,20 +86,20 @@ implemented as state handoff and remounting the same components.
 
 ## Host connections and window identity
 
-Introduce a desktop-owned host connection record with its existing RunningCockpit,
+Introduce a desktop-owned host connection record with its existing RunningFrontend,
 connection/refresh state, and a collection of window records. A window record has
 a stable ID, a kind (`host`, `project`, or `pane`), host association, profile/project
 context, working-set identity, and placement. Exact names are implementation
 choices; keep these responsibilities separate:
 
 ```text
-Host connection: cockpit, authority, refresh/reconnect
+Host connection: frontend, authority, refresh/reconnect
   Host window, if open
   Project windows
   Pane windows
 ```
 
-- Reuse one cockpit origin and transport per existing connection target. Do not
+- Reuse one frontend origin and transport per existing connection target. Do not
   create a new SSH tunnel or bootstrap a daemon for each detached window.
 - Keep the connection alive while any of its windows need it. Stop it through
   existing teardown when the last window closes or the app quits. Preserve
@@ -218,7 +218,7 @@ clients without making their ordinary layout changes commandeer desktop windows.
   Retain legacy saved layouts as single-tree layouts.
 - Persist arrangement changes during operation, not solely in Command-Q handlers.
   Use atomic snapshots and durable transfer outcomes to recover interrupted moves.
-  Stable window IDs must survive changed cockpit ports and new renderer sessions.
+  Stable window IDs must survive changed frontend ports and new renderer sessions.
 - On startup reconnect once per required host and recreate its remembered windows.
   Restore project/pane-only sets without creating a host window as a prerequisite.
   Keep offline/pending hosts' arrangements for retry.

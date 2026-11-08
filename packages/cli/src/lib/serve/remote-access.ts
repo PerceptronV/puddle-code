@@ -1,9 +1,9 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { cockpitRemoteRequestSchema, connectorProfileSchema } from '@puddle/shared';
+import { frontendRemoteRequestSchema, connectorProfileSchema } from '@puddle/shared';
 import type { RemoteAccessControl } from '../host/remote-access.js';
 import { fail, json, readJson } from './http-auth.js';
 
-/** Called only after exact cockpit Host/Origin and browser authentication. */
+/** Called only after exact frontend Host/Origin and browser authentication. */
 export function remoteAccessHandler(control: RemoteAccessControl | undefined) {
   let busy = false;
   return async (req: IncomingMessage, res: ServerResponse, authorised: () => boolean) => {
@@ -15,7 +15,7 @@ export function remoteAccessHandler(control: RemoteAccessControl | undefined) {
       return fail(res, 400, 'invalid_profile', 'Select the profile to manage remote access.');
     const { profile } = scope.data;
     const request =
-      req.method === 'POST' ? cockpitRemoteRequestSchema.parse(await readJson(req)) : null;
+      req.method === 'POST' ? frontendRemoteRequestSchema.parse(await readJson(req)) : null;
     if (!authorised()) return fail(res, 401, 'browser_rejected');
     if (busy)
       return fail(res, 409, 'remote_control_busy', 'A host operation is already in progress.');

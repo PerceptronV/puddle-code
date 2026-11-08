@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-// Package the built cockpit with its own Node; no npm or system Node at runtime.
+// Package the built frontend with its own Node; no npm or system Node at runtime.
 import { execFileSync } from 'node:child_process';
 import { sha256File } from './lib/file-hash.mjs';
 import {

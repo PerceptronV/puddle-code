@@ -33,7 +33,7 @@ export function createStaticHandler(
     }
     const pathname = new URL(req.url ?? '/', 'http://localhost').pathname;
     // decodeURIComponent throws on malformed escapes ("/100%_done.png") — a
-    // request must never be able to take the whole cockpit process down.
+    // request must never be able to take the whole frontend process down.
     let decoded: string;
     try {
       decoded = decodeURIComponent(pathname);

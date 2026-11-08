@@ -63,21 +63,21 @@ describe('resolvePreviewAsset', () => {
 
 describe('preview srcset', () => {
   it('parses and resolves the theme-aware source used by the Puddle README', () => {
-    const [candidate] = parsePreviewSrcset('docs/assets/cockpit-dark.png');
-    expect(candidate).toEqual({ ref: 'docs/assets/cockpit-dark.png', descriptor: '' });
-    expect(resolvePreviewAsset('README.md', candidate!.ref)).toBe('docs/assets/cockpit-dark.png');
+    const [candidate] = parsePreviewSrcset('docs/assets/frontend-dark.png');
+    expect(candidate).toEqual({ ref: 'docs/assets/frontend-dark.png', descriptor: '' });
+    expect(resolvePreviewAsset('README.md', candidate!.ref)).toBe('docs/assets/frontend-dark.png');
   });
 
   it('preserves density descriptors and commas inside data URLs', () => {
     const candidates = parsePreviewSrcset(
-      'data:image/png;base64,AAAA 1x, docs/assets/cockpit-dark.png 2x',
+      'data:image/png;base64,AAAA 1x, docs/assets/frontend-dark.png 2x',
     );
     expect(candidates).toEqual([
       { ref: 'data:image/png;base64,AAAA', descriptor: '1x' },
-      { ref: 'docs/assets/cockpit-dark.png', descriptor: '2x' },
+      { ref: 'docs/assets/frontend-dark.png', descriptor: '2x' },
     ]);
     expect(serialisePreviewSrcset(candidates)).toBe(
-      'data:image/png;base64,AAAA 1x, docs/assets/cockpit-dark.png 2x',
+      'data:image/png;base64,AAAA 1x, docs/assets/frontend-dark.png 2x',
     );
   });
 

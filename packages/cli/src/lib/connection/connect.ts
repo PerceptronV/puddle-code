@@ -2,13 +2,13 @@ import type { ConfirmHostUpdateInterruption } from '../installation/host/apply.j
 import { join } from 'node:path';
 import { AttachedDaemon } from './attached-daemon.js';
 import { DaemonClient, readDaemonPort } from './daemon-client.js';
-import { ensureDaemon, type RunningCockpit } from './cockpit.js';
+import { ensureDaemon, type RunningFrontend } from './frontend.js';
 import { verifyDaemonVersion, type ConfirmDaemonUpgrade } from './handshake.js';
 import { waitForHttp } from '../transport/net.js';
 import { clientHome } from '../paths.js';
 import { startUiServer } from '../serve/ui-server.js';
 import { RemoteAccessControl } from '../host/remote-access.js';
-import { CockpitHostUpdates } from '../host/updates/cockpit.js';
+import { FrontendHostUpdates } from '../host/updates/frontend.js';
 import { openCallbackForward, openTunnel } from '../transport/tunnel.js';
 import { LocalTransport } from '../transport/local.js';
 import { SshTransport } from '../transport/ssh.js';
@@ -31,7 +31,7 @@ export interface ConnectOptions {
   /** UI port; auto-picks the next free one when omitted (7433 default). */
   port?: number;
   /** Preferred (non-strict) UI port — where the probe starts. `refresh` passes
-   *  the old cockpit's port so an open browser tab keeps its origin. */
+   *  the old frontend's port so an open browser tab keeps its origin. */
   preferPort?: number;
   /** Daemon port on the host, when its config.json cannot be trusted. */
   remotePort?: number;
@@ -42,7 +42,7 @@ export interface ConnectOptions {
   confirmDaemonUpgrade?: ConfirmDaemonUpgrade;
   confirmInterruption?: ConfirmHostUpdateInterruption;
   logger?: Logger;
-  /** POST /cockpit/refresh (the UI's refresh button) invokes this — the CLI
+  /** POST /frontend/refresh (the UI's refresh button) invokes this — the CLI
    *  layer supplies the process-spawning behaviour; lib stays process-free. */
   onRefreshRequest?: (refreshId: string) => void;
   refreshId?: string;
@@ -61,7 +61,7 @@ export interface ConnectOptions {
  * supervised daemons keep running, while an attached fallback shuts down
  * cleanly and resumes its interrupted sessions on the next launch.
  */
-export async function connectRemote(opts: ConnectOptions): Promise<RunningCockpit> {
+export async function connectRemote(opts: ConnectOptions): Promise<RunningFrontend> {
   const logger = opts.logger ?? silentLogger;
   const platform = opts.platform ?? process.platform;
   const ssh = new SshTransport(opts.host, {
@@ -130,10 +130,10 @@ export async function connectRemote(opts: ConnectOptions): Promise<RunningCockpi
     };
     watchTunnel(tunnel);
 
-    // Carry the client's localhost:1455 to the host for the cockpit's lifetime,
+    // Carry the client's localhost:1455 to the host for the frontend's lifetime,
     // so the login URL a remote codex prints works AS PRINTED — clicked or
     // pasted — and the IdP's callback to the client lands on codex's login
-    // server. Best-effort by design; the cockpit works fully without it.
+    // server. Best-effort by design; the frontend works fully without it.
     const oauthForward = await openCallbackForward(ssh, CODEX_OAUTH_PORT, {
       sshBinary: opts.sshBinary,
       logger,
@@ -143,7 +143,7 @@ export async function connectRemote(opts: ConnectOptions): Promise<RunningCockpi
     const daemon = verifyDaemonVersion(await client.version());
 
     // Never squat the port a local `puddle launch` will probe for its own daemon,
-    // or that probe would find this cockpit's proxy answering for a different
+    // or that probe would find this frontend's proxy answering for a different
     // (remote) daemon and abort with a port conflict. That target is the LOCAL
     // daemon's configured port — read from this machine's config.json the same
     // way `start` does — not `endpoint.port`, which is the remote daemon's and
@@ -185,11 +185,11 @@ export async function connectRemote(opts: ConnectOptions): Promise<RunningCockpi
       ...(opts.onRefreshRequest !== undefined
         ? { control: { onRefresh: opts.onRefreshRequest } }
         : {}),
-      // The store lives on the CLIENT machine — every cockpit here shares it,
+      // The store lives on the CLIENT machine — every frontend here shares it,
       // whichever remote daemon each one drives.
       localSync: { file: join(clientHome(), 'local-sync.json') },
       remoteAccess: new RemoteAccessControl(ssh),
-      hostUpdates: new CockpitHostUpdates(ssh, endpoint.authority),
+      hostUpdates: new FrontendHostUpdates(ssh, endpoint.authority),
     });
     uiResource = ui;
 

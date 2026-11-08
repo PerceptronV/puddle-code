@@ -2,7 +2,7 @@ import { expect, it } from 'vitest';
 import {
   REMOTE_PROTOCOL_VERSION,
   remoteOriginSchema,
-  cockpitRemoteRequestSchema,
+  frontendRemoteRequestSchema,
   remoteServiceInfoSchema,
   remoteAdminRequestSchema,
   remoteMessageSchema,
@@ -26,12 +26,12 @@ it('rejects the previous email-login service contract', () => {
 
 it('allows registration deletion only through host-local controls', () => {
   const request = { t: 'delete_registration' };
-  expect(cockpitRemoteRequestSchema.safeParse(request).success).toBe(true);
+  expect(frontendRemoteRequestSchema.safeParse(request).success).toBe(true);
   expect(remoteAdminRequestSchema.safeParse(request).success).toBe(false);
   expect(
     remoteMessageSchema.safeParse({ t: 'admin', id: crypto.randomUUID(), request }).success,
   ).toBe(false);
-  expect(cockpitRemoteRequestSchema.safeParse({ ...request, host: 'another-host' }).success).toBe(
+  expect(frontendRemoteRequestSchema.safeParse({ ...request, host: 'another-host' }).success).toBe(
     false,
   );
 });
@@ -48,12 +48,12 @@ it.each([
 });
 
 it('requires all registration fields together and keeps host selection out of browser commands', () => {
-  expect(cockpitRemoteRequestSchema.safeParse({ t: 'enable' }).success).toBe(true);
+  expect(frontendRemoteRequestSchema.safeParse({ t: 'enable' }).success).toBe(true);
   expect(
-    cockpitRemoteRequestSchema.safeParse({ t: 'enable', registration: { code: 'a'.repeat(64) } })
+    frontendRemoteRequestSchema.safeParse({ t: 'enable', registration: { code: 'a'.repeat(64) } })
       .success,
   ).toBe(false);
-  expect(cockpitRemoteRequestSchema.safeParse({ t: 'disable', host: 'someone-else' }).success).toBe(
-    false,
-  );
+  expect(
+    frontendRemoteRequestSchema.safeParse({ t: 'disable', host: 'someone-else' }).success,
+  ).toBe(false);
 });

@@ -66,12 +66,12 @@ it('preserves browser authorisation on upstream rejection, and clears it only fo
         ),
       ),
   );
-  await expect(api('GET', '/cockpit/status')).rejects.toMatchObject({ code: 'browser_rejected' });
+  await expect(api('GET', '/frontend/status')).rejects.toMatchObject({ code: 'browser_rejected' });
   expect(tokenStore.get()).toBeNull();
 });
 
 it('coalesces refresh triggers and rejects old, unauthenticated, mismatched or unready status responses', async () => {
-  const { RefreshController } = await import('../../../src/lib/transport/cockpit-refresh');
+  const { RefreshController } = await import('../../../src/lib/transport/frontend-refresh');
   const instance = crypto.randomUUID();
   const next = crypto.randomUUID();
   const refreshId = crypto.randomUUID();
@@ -99,7 +99,7 @@ it('coalesces refresh triggers and rejects old, unauthenticated, mismatched or u
 });
 
 it('awaits one native reload checkpoint and does not repeat it after failure', async () => {
-  const { RefreshController } = await import('../../../src/lib/transport/cockpit-refresh');
+  const { RefreshController } = await import('../../../src/lib/transport/frontend-refresh');
   const instance = crypto.randomUUID();
   const refreshId = crypto.randomUUID();
   const fetcher = vi

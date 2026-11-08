@@ -14,7 +14,7 @@ vi.mock('../../src/lib/installation/bootstrap.js', () => ({
   installDaemon: install,
   installedVersion: async () => '0.1.13',
 }));
-import { ensureDaemon } from '../../src/lib/connection/cockpit.js';
+import { ensureDaemon } from '../../src/lib/connection/frontend.js';
 import { LocalTransport } from '../../src/lib/transport/local.js';
 import { ensureToken } from '../../../daemon/src/security/token.js';
 import { ensureHome, resolvePaths } from '../../../daemon/src/paths.js';

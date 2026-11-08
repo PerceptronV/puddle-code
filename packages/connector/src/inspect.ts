@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import {
   connectorConfigSchema,
   remoteIdentitySchema,
-  type CockpitRemoteStatus,
+  type FrontendRemoteStatus,
 } from '@puddle/shared';
 import { identityPeer } from '@puddle/remote-transport';
 import { readPrivateJson } from '@puddle/shared/node';
@@ -12,18 +12,18 @@ import { administrativeRequest } from './admin.js';
 import { supervisorKind } from './supervisor.js';
 import { DeviceStore } from './devices.js';
 
-/** Host-side projection: no private configuration is ever returned to the cockpit. */
+/** Host-side projection: no private configuration is ever returned to the frontend. */
 export async function inspectConnector(
   home: string,
   profile: string,
-): Promise<CockpitRemoteStatus> {
-  let supervisor: CockpitRemoteStatus['supervisor'] = null;
+): Promise<FrontendRemoteStatus> {
+  let supervisor: FrontendRemoteStatus['supervisor'] = null;
   try {
     supervisor = supervisorKind(home);
   } catch {
     // An externally supervised host can still inspect, revoke and disable.
   }
-  const result: CockpitRemoteStatus = {
+  const result: FrontendRemoteStatus = {
     availability: 'ready',
     canManageMaintenance: true,
     configured: false,

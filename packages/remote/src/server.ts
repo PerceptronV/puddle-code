@@ -160,7 +160,7 @@ export async function startRemoteService(config: RemoteConfig) {
   });
   app.post('/remote/registration-status', async (c) => {
     if (c.req.header('origin') !== undefined || c.req.header('cookie') !== undefined)
-      return c.json({ error: 'Registration status requires the local cockpit' }, 403);
+      return c.json({ error: 'Registration status requires the local frontend' }, 403);
     const body = redeemRegistrationSchema.safeParse(await c.req.json());
     if (!body.success) return c.json({ error: 'Invalid registration' }, 400);
     return c.json({ ready: store.registrationReady(body.data.code) });

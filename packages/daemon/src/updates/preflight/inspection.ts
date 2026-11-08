@@ -50,7 +50,7 @@ export class HostUpdateInspection {
 
   async inspect(
     input: HostUpdateOperation,
-    cockpit: HostReleaseCapabilities['application'],
+    frontend: HostReleaseCapabilities['application'],
     installedRuntime: HostReleaseCapabilities['runtime'] | null,
   ): Promise<UpdateInspection> {
     const operation = hostUpdateOperationSchema.parse(input);
@@ -62,7 +62,7 @@ export class HostUpdateInspection {
     const capacity = await this.deps.capacity.inspect(operation);
     const compatibility = await this.deps.compatibility.inspect(
       operation,
-      cockpit,
+      frontend,
       installedRuntime,
       connector.identity?.remote ?? null,
     );
@@ -93,7 +93,7 @@ export class HostUpdateInspection {
             operation: operation.id,
             targets: operation.targets,
             stages: operation.stages.map((stage) => stage.digest),
-            protocols: { cockpit, installedRuntime },
+            protocols: { frontend, installedRuntime },
             connector,
             candidates: compatibility.candidates,
             database_schema_version: compatibility.database_schema_version,

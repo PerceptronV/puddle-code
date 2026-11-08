@@ -45,7 +45,7 @@ it('denies ordinary pairing, offline execution, identity substitution and neighb
   ])
     expect(() => request(body)).toThrow();
   for (const path of [
-    '/cockpit/updates',
+    '/frontend/updates',
     '/api/host/updates/apply',
     '/api/host/updates?profile=0123456789',
     '/api/host/updates?path=/tmp',

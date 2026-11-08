@@ -148,7 +148,7 @@ export function buildApp(deps: AppDeps): Hono {
     // Agent-hook status side-channel (SPEC §4): deliberately OUTSIDE /api —
     // the caller is a hook process on this host with no bearer token; the
     // per-session nonce (injected into the agent PTY env) is the auth. Same
-    // Host/Origin discipline as everything else; never proxied by cockpits.
+    // Host/Origin discipline as everything else; never proxied by frontends.
     app.use('/agent-signal', hostOriginGuard());
     // Allow JSON escaping of a 256 KiB reply without unbounded hook bodies.
     app.use('/agent-signal', bodyLimit({ maxSize: 2 * 1024 * 1024 }));

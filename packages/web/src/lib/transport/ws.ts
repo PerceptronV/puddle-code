@@ -6,7 +6,7 @@ import type {
   WsServerMessage,
 } from '@puddle/shared';
 import { clearToken, tokenStore } from './auth';
-import { browserTransport, type CockpitSocket } from './browser-transport';
+import { browserTransport, type FrontendSocket } from './browser-transport';
 
 /**
  * Singleton WebSocket manager. One socket carries every terminal and the
@@ -76,7 +76,7 @@ function key(session: string, term: string): string {
 }
 
 export class WsManager {
-  private ws: CockpitSocket | null = null;
+  private ws: FrontendSocket | null = null;
   private open = false;
   private backoff = INITIAL_BACKOFF_MS;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -257,7 +257,7 @@ export class WsManager {
     const remote = browserTransport();
     if (!token && !remote) return; // the token gate is showing; nothing to do yet
     const proto = window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const ws: CockpitSocket = remote
+    const ws: FrontendSocket = remote
       ? remote.socket()
       : new WebSocket(`${proto}://${window.location.host}/ws`);
     this.ws = ws;

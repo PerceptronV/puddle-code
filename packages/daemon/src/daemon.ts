@@ -211,7 +211,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     const runtimes = new RuntimeStore(db);
     const conversations = new ConversationStore(db);
     const events = new EventStore(db);
-    // The last cockpit report seeds new owners and converges adopted ones.
+    // The last frontend report seeds new owners and converges adopted ones.
     const terminalTheme = new TerminalTheme(() => runtimeReconciler.refreshThemes());
     const runtimeReconciler = new RuntimeReconciler({
       home: paths.home,

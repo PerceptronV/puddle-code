@@ -14,7 +14,7 @@ export interface Logger {
 /** A logger that drops everything — the lib default when none is injected. */
 export const silentLogger: Logger = { info() {}, warn() {} };
 
-/** Lifecycle events a running cockpit emits (tunnel drops, upgrades, …). */
+/** Lifecycle events a running frontend emits (tunnel drops, upgrades, …). */
 export type CliEvent =
   | { t: 'tunnel-down' }
   | { t: 'tunnel-up' }
@@ -33,9 +33,9 @@ export type CliErrorCode =
   | 'attach_needs_tty'
   | 'unsupported_platform'
   | 'not_installed'
-  | 'no_cockpit'
+  | 'no_frontend'
   | 'already_running'
-  | 'cockpit_launch_failed'
+  | 'frontend_launch_failed'
   | 'token_rejected'
   | 'bad_arguments';
 

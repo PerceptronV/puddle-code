@@ -1,9 +1,9 @@
 import MarkdownIt from 'markdown-it';
 
-export const RELEASE_COMPONENTS = ['cockpit', 'daemon', 'runtime', 'remote'] as const;
+export const RELEASE_COMPONENTS = ['frontend', 'daemon', 'runtime', 'remote'] as const;
 export type ReleaseComponent = (typeof RELEASE_COMPONENTS)[number];
 export const COMPONENT_LABELS: Record<ReleaseComponent, string> = {
-  cockpit: 'Cockpit',
+  frontend: 'Frontend',
   daemon: 'Daemon',
   runtime: 'Runtime',
   remote: 'Remote',
@@ -19,7 +19,9 @@ export function releaseSection(markdown: string, component: ReleaseComponent): s
     if (
       token.type !== 'heading_open' ||
       token.tag !== 'h3' ||
-      tokens[index + 1]?.content.trim().toLowerCase() !== component ||
+      ![component, ...(component === 'frontend' ? ['cockpit'] : [])].includes(
+        tokens[index + 1]?.content.trim().toLowerCase() ?? '',
+      ) ||
       !token.map
     )
       continue;

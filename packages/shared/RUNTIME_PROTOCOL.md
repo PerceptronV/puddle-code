@@ -273,13 +273,13 @@ deduplication at native switches. Title observations coalesce within the trailin
 observation run; lifecycle/control events preserve earlier placement titles.
 The daemon validates segment and generation before committing `osc_title` with
 the observation cursor. User overrides and native conversation names are untouched.
-Existing session invalidation refreshes cockpit labels; extra-shell titles are
+Existing session invalidation refreshes frontend labels; extra-shell titles are
 excluded. This addition is part of the initial unshipped private 1.0 contract and
 changes neither public protocol.
 
 ## Terminal colours
 
-Optional launch `theme` seeds the latest cockpit foreground/background before
+Optional launch `theme` seeds the latest frontend foreground/background before
 the main PTY starts. Owner state exposes `theme: null` until a report exists, then
 the bounded `#RRGGBB` pair. Omission identifies older experimental owners without
 this support. Private `theme` requests require the current controller sequence and
@@ -287,7 +287,7 @@ exact placement, and replace the owner's colours without sending unsolicited
 terminal input. The PTY manager answers OSC 10/11 queries from that state for the
 main terminal and extra shells, including while puddled is absent.
 
-The daemon coalesces current cockpit reports into ordinary owner reconciliation.
+The daemon coalesces current frontend reports into ordinary owner reconciliation.
 It inspects after uncertain acknowledgements; a matching state requires no resend.
 A replacement daemon with no report leaves retained owner colours untouched.
 Colours are replaceable state, not essential lifecycle journal entries. The new

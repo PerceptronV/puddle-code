@@ -20,7 +20,7 @@ afterEach(async () => {
 });
 const setup = async () => (running = await fixture());
 
-describe('built cockpit and real isolated daemon processes', () => {
+describe('built frontend and real isolated daemon processes', () => {
   it('exchanges single-use invitations, persists independent browser login and isolates origins', async () => {
     const f = await setup();
     expect((await f.exchange(f.invitation)).status).toBe(401);
@@ -31,14 +31,14 @@ describe('built cockpit and real isolated daemon processes', () => {
     ).json()) as { credential: string };
     expect(second.credential).not.toBe(f.credential);
     expect((await f.req('/api/version', {}, second.credential)).status).toBe(200);
-    const rejected = await f.req('/cockpit/bootstrap', {
+    const rejected = await f.req('/frontend/bootstrap', {
       method: 'POST',
       headers: { origin: 'null' },
       body: JSON.stringify({ invitation: f.invitation }),
     });
     expect(rejected.status).toBe(403);
     expect(
-      (await f.req('/cockpit/status', { headers: { origin: 'http://localhost:1' } })).status,
+      (await f.req('/frontend/status', { headers: { origin: 'http://localhost:1' } })).status,
     ).toBe(403);
     expect(
       (
@@ -58,13 +58,13 @@ describe('built cockpit and real isolated daemon processes', () => {
     const other = await websocket(f.origin, f.credential);
     try {
       const closed = new Promise((resolve) => socket.ws.once('close', resolve));
-      expect((await f.req('/cockpit/logout', { method: 'POST' }, second.credential)).status).toBe(
+      expect((await f.req('/frontend/logout', { method: 'POST' }, second.credential)).status).toBe(
         200,
       );
       await closed;
       expect(other.ws.readyState).toBe(1);
-      expect((await f.req('/cockpit/status', {}, second.credential)).status).toBe(401);
-      expect((await f.req('/cockpit/status')).status).toBe(200);
+      expect((await f.req('/frontend/status', {}, second.credential)).status).toBe(401);
+      expect((await f.req('/frontend/status')).status).toBe(200);
     } finally {
       socket.close();
       other.close();
@@ -77,31 +77,31 @@ describe('built cockpit and real isolated daemon processes', () => {
       expect(disk).not.toContain(value);
       expect(registry).not.toContain(value);
     }
-    expect(f.cockpit.output()).not.toMatch(/cn_[a-f0-9]{64}/);
-    expect(f.cockpit.output()).not.toContain(
+    expect(f.frontend.output()).not.toMatch(/cn_[a-f0-9]{64}/);
+    expect(f.frontend.output()).not.toContain(
       JSON.parse(readFileSync(join(f.home, 'token'), 'utf8')).master,
     );
   });
 
   it('retains login across a crash and reinitialised browser client', async () => {
     const f = await setup();
-    await stop(f.cockpit.child, 'SIGKILL');
+    await stop(f.frontend.child, 'SIGKILL');
     const replacement = f.launch();
     try {
       await until(
         () => replacement.output(),
-        (value) => value.includes('Puddle cockpit at'),
+        (value) => value.includes('Puddle frontend at'),
       );
       expect((await f.req('/api/version')).status).toBe(200);
       expect(
         (
-          await f.req('/cockpit/local-sync', {
+          await f.req('/frontend/local-sync', {
             method: 'PUT',
             body: JSON.stringify({ profile: 'test', entry: { theme: 'light' } }),
           })
         ).status,
       ).toBe(200);
-      expect(await (await f.req('/cockpit/local-sync')).json()).toMatchObject({
+      expect(await (await f.req('/frontend/local-sync')).json()).toMatchObject({
         profiles: { test: { theme: 'light' } },
       });
     } finally {
@@ -109,7 +109,7 @@ describe('built cockpit and real isolated daemon processes', () => {
     }
   });
 
-  it('replaces the actual cockpit, validates correlated readiness and restores canonical terminal replay', async () => {
+  it('replaces the actual frontend, validates correlated readiness and restores canonical terminal replay', async () => {
     const f = await setup();
     const post = async (path: string, body: object) => {
       const response = await f.req(path, { method: 'POST', body: JSON.stringify(body) });
@@ -150,7 +150,7 @@ describe('built cockpit and real isolated daemon processes', () => {
     );
     const refreshId = crypto.randomUUID();
     const refresh = () =>
-      f.req('/cockpit/refresh', { method: 'POST', body: JSON.stringify({ refreshId }) });
+      f.req('/frontend/refresh', { method: 'POST', body: JSON.stringify({ refreshId }) });
     const [a, b] = await Promise.all([refresh(), refresh()]);
     expect(a.status).toBe(202);
     expect(b.status).toBe(202);
@@ -160,7 +160,7 @@ describe('built cockpit and real isolated daemon processes', () => {
     const state = await until(
       async () => {
         try {
-          const response = await f.req('/cockpit/status');
+          const response = await f.req('/frontend/status');
           return response.ok
             ? ((await response.json()) as { instance: string; refreshId: string; upstream: string })
             : null;
@@ -189,7 +189,7 @@ describe('built cockpit and real isolated daemon processes', () => {
     } finally {
       restored.close();
     }
-    const log = readFileSync(join(f.home, 'logs/cockpit-local.log'), 'utf8');
+    const log = readFileSync(join(f.home, 'logs/frontend-local.log'), 'utf8');
     expect(log).not.toMatch(/(?:cn_|br_|iv_)[a-f0-9]{64}/);
   });
 
@@ -197,14 +197,14 @@ describe('built cockpit and real isolated daemon processes', () => {
     const f = await setup();
     await stop(f.daemon);
     await until(
-      async () => (await f.req('/cockpit/status')).json() as Promise<{ upstream: string }>,
+      async () => (await f.req('/frontend/status')).json() as Promise<{ upstream: string }>,
       (state) => state.upstream !== 'ready',
     );
     const response = await f.req('/api/version');
     expect(response.status).toBe(503);
     expect(await response.json()).toMatchObject({ error: { code: 'upstream_unavailable' } });
-    expect((await f.req('/cockpit/local-sync')).status).toBe(200);
-    expect((await f.req('/cockpit/status')).status).toBe(200);
+    expect((await f.req('/frontend/local-sync')).status).toBe(200);
+    expect((await f.req('/frontend/status')).status).toBe(200);
     const replacement = await startFixtureDaemon(f.home);
     try {
       expect(replacement.port).not.toBe(f.port);

@@ -32,7 +32,7 @@ export function offersOfflineContinuation(operation: HostUpdateOperation | null)
   );
 }
 
-/** Trusted host OS/SSH entry. Cockpit callers must retain participation until acceptance. */
+/** Trusted host OS/SSH entry. Frontend callers must retain participation until acceptance. */
 export async function continueStoredHostUpdate(
   home: string,
   input: HostUpdateCommand,

@@ -72,7 +72,7 @@ describe('UI server in front of a real daemon', () => {
             code: 0,
             stderr: '',
             stdout: command.includes('--version')
-              ? 'cockpit controls 2'
+              ? 'frontend controls 2'
               : command.endsWith('--inspect')
                 ? JSON.stringify({
                     availability: 'ready',
@@ -90,7 +90,7 @@ describe('UI server in front of a real daemon', () => {
     const invitation = new URLSearchParams(new URL(ui.createInvitation()).hash.slice(1)).get(
       'invite',
     );
-    const response = await fetch(ui.origin + '/cockpit/bootstrap', {
+    const response = await fetch(ui.origin + '/frontend/bootstrap', {
       method: 'POST',
       headers: { origin: ui.origin, 'content-type': 'application/json' },
       body: JSON.stringify({ invitation }),
@@ -109,9 +109,9 @@ describe('UI server in front of a real daemon', () => {
 
   it('authenticates remote controls and rejects cross-origin, arbitrary and unreviewed operations before host dispatch', async () => {
     remoteCommands.length = 0;
-    expect((await get('/cockpit/remote?profile=0123456789')).status).toBe(401);
+    expect((await get('/frontend/remote?profile=0123456789')).status).toBe(401);
     const post = (body: unknown, origin: string | undefined = ui.origin) =>
-      fetch(ui.origin + '/cockpit/remote?profile=0123456789', {
+      fetch(ui.origin + '/frontend/remote?profile=0123456789', {
         method: 'POST',
         headers: {
           authorization: `Bearer ${credential}`,
@@ -125,13 +125,13 @@ describe('UI server in front of a real daemon', () => {
     expect((await post({ t: 'run', command: 'anything' })).status).toBe(400);
     expect((await post({ t: 'enable', managed: false })).status).toBe(400);
     for (const path of [
-      '/cockpit/remote',
-      '/cockpit/remote?profile=../other',
-      '/cockpit/remote?profile=0123456789&profile=aaaaaaaaaa',
+      '/frontend/remote',
+      '/frontend/remote?profile=../other',
+      '/frontend/remote?profile=0123456789&profile=aaaaaaaaaa',
     ])
       expect((await get(path, { authorization: `Bearer ${credential}` })).status).toBe(400);
     expect(remoteCommands).toEqual([]);
-    const status = await get('/cockpit/remote?profile=0123456789', {
+    const status = await get('/frontend/remote?profile=0123456789', {
       authorization: `Bearer ${credential}`,
     });
     expect(status.status).toBe(200);
@@ -141,8 +141,8 @@ describe('UI server in front of a real daemon', () => {
     expect(remoteCommands.at(-1)).toMatch(/--admin$/);
   });
 
-  it('protects registration polling with cockpit authority and exact origins', async () => {
-    const path = '/cockpit/remote/registration';
+  it('protects registration polling with frontend authority and exact origins', async () => {
+    const path = '/frontend/remote/registration';
     expect((await get(path)).status).toBe(401);
     const check = (
       origin?: string,
@@ -183,7 +183,7 @@ describe('UI server in front of a real daemon', () => {
 
   it('preserves application paths and fragments through a target-scoped proxy grant', async () => {
     const prefix = `/proxy/${crypto.randomUUID()}/3000/`;
-    const response = await fetch(ui.origin + '/cockpit/proxy-grant', {
+    const response = await fetch(ui.origin + '/frontend/proxy-grant', {
       method: 'POST',
       headers: {
         origin: ui.origin,
@@ -288,11 +288,11 @@ describe('UI server in front of a real daemon', () => {
     expect(badOrigin.status).toBe(403);
   });
 
-  it('POST /cockpit/refresh: token-gated, 202 fires the callback exactly once', async () => {
+  it('POST /frontend/refresh: token-gated, 202 fires the callback exactly once', async () => {
     const before = refreshes;
     // Wrong or missing token → 401, no callback.
     const post = (headers: Record<string, string> = {}) =>
-      fetch(`${ui.origin}/cockpit/refresh`, {
+      fetch(`${ui.origin}/frontend/refresh`, {
         method: 'POST',
         headers: {
           host: `localhost:${ui.port}`,
@@ -305,7 +305,7 @@ describe('UI server in front of a real daemon', () => {
     expect((await post()).status).toBe(401);
     expect((await post({ authorization: 'Bearer wrong' })).status).toBe(401);
     // Non-POST → 405; foreign Origin → 403 (same discipline as /api).
-    expect((await get('/cockpit/refresh', { authorization: `Bearer ${credential}` })).status).toBe(
+    expect((await get('/frontend/refresh', { authorization: `Bearer ${credential}` })).status).toBe(
       404,
     );
     expect(
@@ -325,9 +325,9 @@ describe('UI server in front of a real daemon', () => {
     expect(refreshes).toBe(before + 1);
   });
 
-  it('GET/PUT /cockpit/local-sync: token-gated, merges per profile key, survives rereads', async () => {
+  it('GET/PUT /frontend/local-sync: token-gated, merges per profile key, survives rereads', async () => {
     const call = (init: RequestInit & { headers?: Record<string, string> } = {}) =>
-      fetch(`${ui.origin}/cockpit/local-sync`, {
+      fetch(`${ui.origin}/frontend/local-sync`, {
         ...init,
         headers: { host: `localhost:${ui.port}`, origin: ui.origin, ...init.headers },
       });

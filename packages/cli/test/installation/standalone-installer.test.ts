@@ -304,17 +304,17 @@ it('selects a carried-forward runtime before a fresh selective daemon install', 
       async (input) =>
         new Response(
           JSON.stringify(
-            String(input).endsWith('release-manifest.json')
+            String(input).endsWith('release-manifest-v2.json')
               ? {
-                  format: 1,
+                  format: 2,
                   version: '1.2.3',
-                  components: { cockpit: '1.2.3', daemon: '1.2.3', runtime: '1.2.1' },
+                  components: { frontend: '1.2.3', daemon: '1.2.3', runtime: '1.2.1' },
                 }
               : {
                   tag_name: 'v1.2.3',
                   assets: [
                     {
-                      name: 'release-manifest.json',
+                      name: 'release-manifest-v2.json',
                       browser_download_url: 'https://github.com/example/puddle/manifest',
                     },
                   ],

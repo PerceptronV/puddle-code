@@ -4,7 +4,7 @@ import { readReleasePlan } from '../../../scripts/lib/releases/plan.mjs';
  * Builds the publishable CLI: one esbuild bundle (ws and @puddle/shared
  * inlined, so the published package has zero runtime dependencies), the
  * canonical install.sh beside it, and the built web UI under dist/public —
- * `npm i -g @puddle-code/cli` ships the whole cockpit (SPEC §2: UI updates
+ * `npm i -g @puddle-code/cli` ships the whole frontend (SPEC §2: UI updates
  * ride the CLI, hosts only update when the protocol breaks).
  */
 import { cpSync, existsSync, readFileSync, rmSync } from 'node:fs';

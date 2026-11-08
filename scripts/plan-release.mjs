@@ -15,7 +15,7 @@ const base = flag('--base');
 const selection = flag('--components') ?? 'auto';
 if (!version || !base || base.startsWith('-'))
   throw new Error(
-    'Usage: node scripts/plan-release.mjs --version X.Y.Z --base vX.Y.Z [--components auto|all|cockpit,daemon,runtime]',
+    'Usage: node scripts/plan-release.mjs --version X.Y.Z --base vX.Y.Z [--components auto|all|frontend,daemon,runtime]',
   );
 const git = (...command) =>
   execFileSync('git', command, {
@@ -34,13 +34,13 @@ try {
 } catch {
   transition = true;
   previous = {
-    format: 1,
+    format: 2,
     version: baseVersion,
-    components: { cockpit: baseVersion, daemon: baseVersion, runtime: baseVersion },
+    components: { frontend: baseVersion, daemon: baseVersion, runtime: baseVersion },
   };
 }
 if (previousText !== undefined) previous = JSON.parse(previousText);
-validateReleasePlan(previous, baseVersion);
+previous = validateReleasePlan(previous, baseVersion);
 const changesSince = (commit) =>
   [git('diff', '--name-only', commit, '--'), git('ls-files', '--others', '--exclude-standard')]
     .join('\n')
@@ -62,14 +62,14 @@ const changesSince = (commit) =>
       }
     });
 let selected;
-if (selection === 'all') selected = new Set(['cockpit', 'daemon', 'runtime']);
+if (selection === 'all') selected = new Set(['frontend', 'daemon', 'runtime']);
 else if (selection !== 'auto') {
   selected = new Set(selection.split(','));
-  if (![...selected].every((name) => ['cockpit', 'daemon', 'runtime'].includes(name)))
+  if (![...selected].every((name) => ['frontend', 'daemon', 'runtime'].includes(name)))
     throw new Error('Unknown release component');
-  selected.add('cockpit');
+  selected.add('frontend');
 } else {
-  selected = new Set(['cockpit']);
+  selected = new Set(['frontend']);
   // Analyse the actual shipped import closures, including shared source dependencies.
   const result = await build({
     absWorkingDir: root,
@@ -134,10 +134,10 @@ if (transition && (!selected.has('daemon') || !selected.has('runtime')))
   );
 const plan = validateReleasePlan(
   {
-    format: 1,
+    format: 2,
     version,
     components: Object.fromEntries(
-      ['cockpit', 'daemon', 'runtime'].map((name) => [
+      ['frontend', 'daemon', 'runtime'].map((name) => [
         name,
         selected.has(name) ? version : previous.components[name],
       ]),

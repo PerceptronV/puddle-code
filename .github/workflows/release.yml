@@ -288,6 +288,7 @@ jobs:
             dist-release/SHA256SUMS \
             dist-release/install.sh \
             dist-release/release-manifest.json \
+            dist-release/release-manifest-v2.json \
             dist-release/daemon-version \
             dist-release/runtime-version \
             --verify-tag --notes-file dist-release/RELEASE_NOTES.md

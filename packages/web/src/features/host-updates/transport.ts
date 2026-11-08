@@ -2,7 +2,7 @@ import {
   onlineHostUpdateRequestSchema,
   versionResponseSchema,
   supportsApplicationFeature,
-  type CockpitHostUpdateRequest,
+  type FrontendHostUpdateRequest,
 } from '@puddle/shared';
 import { api, ApiError } from '../../lib/transport/api';
 import { browserTransport } from '../../lib/transport/browser-transport';
@@ -15,13 +15,13 @@ export function hostUpdateScope() {
 export function hostUpdateTransport(allowed: boolean) {
   const remote = browserTransport();
   const generation = remote?.generation;
-  const path = remote ? '/api/host/updates' : '/cockpit/updates';
+  const path = remote ? '/api/host/updates' : '/frontend/updates';
   const current = () => {
     if (!allowed) throw new Error('Host updates require host-approved device access.');
     if (browserTransport() !== remote || remote?.generation !== generation)
       throw new Error('Host update connection changed. Refresh status before continuing.');
   };
-  return async (request?: CockpitHostUpdateRequest, signal?: AbortSignal) => {
+  return async (request?: FrontendHostUpdateRequest, signal?: AbortSignal) => {
     current();
     if (remote && request) onlineHostUpdateRequestSchema.parse(request);
     let readPath = path;
@@ -40,7 +40,7 @@ export function hostUpdateTransport(allowed: boolean) {
         ? await api('POST', path, request, signal)
         : await api('GET', readPath, undefined, signal);
     } catch (error) {
-      // An older connector/cockpit may reject the additive query even with a new host.
+      // An older connector/frontend may reject the additive query even with a new host.
       // Only the read is retried, never preparation or activation.
       if (
         request ||

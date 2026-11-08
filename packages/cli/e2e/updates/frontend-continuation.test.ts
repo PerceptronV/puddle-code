@@ -3,7 +3,7 @@ import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import { readUpdateRecoveryAttempts } from '@puddle/shared/node/host-control';
 import { HostConnection } from '../../src/lib/auth/connection-authority.js';
-import { CockpitHostUpdates } from '../../src/lib/host/updates/cockpit.js';
+import { FrontendHostUpdates } from '../../src/lib/host/updates/frontend.js';
 import { SshTransport } from '../../src/lib/transport/ssh.js';
 import { continuationFixture } from '../helpers/update-continuation.js';
 import { until } from '../helpers.js';
@@ -41,7 +41,7 @@ function fixture(protocol?: { major: number; minor: number }) {
   vi.spyOn(transport, 'spawnEnv').mockReturnValue(f.env);
   const authority = new HostConnection(transport);
   authority.close(); // Deliberately disconnected; no automatic connection attempt.
-  const control = new CockpitHostUpdates(transport, authority);
+  const control = new FrontendHostUpdates(transport, authority);
   const signal = new AbortController();
   const reference = { id: f.operation.id, revision: f.operation.revision };
   const request = (input = signal.signal) =>

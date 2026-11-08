@@ -330,7 +330,7 @@ export const runtimeStateSchema = z.object({
   agent: runtimeAgentStateSchema.nullable(),
   turn: runtimeTurnSchema.nullable(),
   environment: runtimeEnvironmentStateSchema,
-  /** Omitted by older experimental owners; null means no cockpit report yet. */
+  /** Omitted by older experimental owners; null means no frontend report yet. */
   theme: runtimeThemeSchema.nullable().optional(),
   attention: runtimeAttentionSchema.nullable().optional(),
   /** Transient foreground hint for a terminal placement; never a native binding. */

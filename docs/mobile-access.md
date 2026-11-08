@@ -3,7 +3,7 @@
 Puddle runs agents on your machine and connects outward to your own relay. An
 ordinary browser uses a separately served application. There is no Puddle-hosted
 service, VPN requirement or public daemon port. Use a persistently supervised
-daemon; an SSH-attached fallback stops with its cockpit and cannot provide
+daemon; an SSH-attached fallback stops with its frontend and cannot provide
 independent phone access.
 
 ## Deploy the service and application
@@ -13,7 +13,7 @@ Choose two HTTPS origins under the same site, such as `app.example.com` and
 443 must reach that ingress. Keep daemon ports 7433/7434 private.
 
 This release uses application protocol 26.0 and remote protocol 5. Upgrade the
-CLI/desktop cockpit, target daemon/connector and deployed service/application to
+CLI/desktop frontend, target daemon/connector and deployed service/application to
 support those protocols before using remote maintenance. Older remote clients
 cannot connect across the remote version boundary; use local/SSH access for the
 initial host upgrade. Compatible components need not have identical release versions.
@@ -215,7 +215,7 @@ The application and relay fields start with `https://puddle.waddlelabs.ai` and
 `https://charles.waddlelabs.ai`; both are editable for any self-hosted deployment.
 Choose a host name and **Sign in and enable**. Puddle opens the application in a
 browser on the machine displaying the UI, including when the host is reached over SSH. Electron uses that machine’s system
-browser; the web cockpit opens a new tab directly from your click. Sign in with
+browser; the web frontend opens a new tab directly from your click. Sign in with
 Google or GitHub, complete MFA if enabled, compare the request
 identifier with desktop, and choose **Confirm host**. Desktop finishes registration
 automatically; there is no registration code to copy. Keep settings open while
@@ -241,7 +241,7 @@ and expiry. Pending identities stay visible before approval. Each card has a
 **Revoke browser** icon; revoked browsers disappear from the list.
 Disable remote access detaches this profile’s remote viewers. Under Host identity recovery,
 Reset host identity performs the same local/SSH recovery as `puddle remote reset`
-after explicit confirmation. Codes and invitations are not stored in cockpit
+after explicit confirmation. Codes and invitations are not stored in frontend
 settings or logs. Disable, revoke and delete remain available when the relay is
 unavailable.
 
@@ -303,7 +303,7 @@ remote access and removes its supervisor too.
 For another persistent supervisor, `remote enable --foreground` writes the
 configuration and `puddle remote run` runs the connector in the foreground.
 Supervise **both** daemon and connector outside an agent session. No nohup or
-cockpit-bound fallback is silently selected for mobile access.
+frontend-bound fallback is silently selected for mobile access.
 
 ```sh
 puddle remote pair --profile <profile-id>                 # add user@host for an SSH host
@@ -330,7 +330,7 @@ Host updates are standard functionality in 0.4.0. A paired browser needs a separ
 host maintenance grant because an update can affect every profile on the machine.
 Pairing, account sign-in and approval by another paired browser never grant it.
 
-From a local or SSH cockpit for the target host, open **Settings → Remote & Sync →
+From a local or SSH frontend for the target host, open **Settings → Remote & Sync →
 Connected browsers**. Expand the approved browser, compare its full identity with
 the intended device, then choose **Allow host maintenance**. This binds permission
 to that browser, profile registration and account on this host. Grant management
@@ -338,7 +338,7 @@ is available only through local/SSH Settings; the remote app cannot grant itself
 or another browser maintenance access. Reconnect the browser after granting access.
 
 On the connected host's remote workspace, the **Host updates** button opens the
-same update review used by local/SSH cockpits. Available releases also offer
+same update review used by local/SSH frontends. Available releases also offer
 **Review update** in each new window. Dismissing an offer leaves the button
 available. The remote window reads host status every 60 seconds while idle and
 more often while an operation runs, and refreshes on reconnect; it does not poll
@@ -368,7 +368,7 @@ A daemon/connector replacement can disconnect the remote window. Reconnect and
 inspect status: a lost response is never permission to apply again automatically.
 **Verify completion** and **Continue recovery** are explicit online actions when
 the live host supports them. If the daemon or connector cannot reconnect, use
-local/SSH cockpit or CLI recovery; offline continuation is not available through
+local/SSH frontend or CLI recovery; offline continuation is not available through
 the relay. These controls are implemented, but full encrypted acceptance involving
 an actual connector replacement and real providers remains pending in the
 [acceptance checklist](acceptance/mobile-access.md#remote-host-maintenance).

@@ -9,7 +9,7 @@ import {
   type WsClientMessage,
 } from '@puddle/shared';
 import { secureChannel, SocketWire, type EncryptedChannel } from '@puddle/remote-transport';
-import type { BrowserTransport, CockpitSocket } from '../../lib/transport/browser-transport';
+import type { BrowserTransport, FrontendSocket } from '../../lib/transport/browser-transport';
 import type { BrowserHost } from './identity-store';
 import { RemoteSocket } from './socket';
 
@@ -283,7 +283,7 @@ export class RemoteClient implements BrowserTransport {
     this.streamId = crypto.randomUUID();
     await this.channel!.send({ t: 'stream', id: this.streamId });
   }
-  socket(): CockpitSocket {
+  socket(): FrontendSocket {
     return new RemoteSocket(this);
   }
   restartConnection(): void {

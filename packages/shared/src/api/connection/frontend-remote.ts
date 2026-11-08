@@ -18,8 +18,8 @@ export const connectorLocalRequestSchema = z.union([
 ]);
 export type ConnectorLocalRequest = z.infer<typeof connectorLocalRequestSchema>;
 
-/** Trusted local/SSH cockpit controls. Never admitted by the encrypted remote policy. */
-export const cockpitRemoteRequestSchema = z.union([
+/** Trusted local/SSH frontend controls. Never admitted by the encrypted remote policy. */
+export const frontendRemoteRequestSchema = z.union([
   connectorLocalRequestSchema,
   z
     .object({
@@ -32,15 +32,15 @@ export const cockpitRemoteRequestSchema = z.union([
     .strict(),
   z.object({ t: z.literal('reset') }).strict(),
 ]);
-export type CockpitRemoteRequest = z.infer<typeof cockpitRemoteRequestSchema>;
+export type FrontendRemoteRequest = z.infer<typeof frontendRemoteRequestSchema>;
 
 /** Read-only machine-side check; neither consumes the code nor returns a routing credential. */
-export const cockpitRegistrationCheckSchema = z
+export const frontendRegistrationCheckSchema = z
   .object({ service: remoteOriginSchema, code: remoteSecretSchema })
   .strict();
 
 /** Deliberately excludes routing credentials, account tokens and host private keys. */
-export const cockpitRemoteStatusSchema = z.object({
+export const frontendRemoteStatusSchema = z.object({
   availability: z.enum(['ready', 'not_installed', 'upgrade_required']),
   configured: z.boolean(),
   enabled: z.boolean(),
@@ -54,9 +54,9 @@ export const cockpitRemoteStatusSchema = z.object({
   app: remoteOriginSchema.optional(),
   devices: z.array(remoteDeviceSchema),
 });
-export type CockpitRemoteStatus = z.infer<typeof cockpitRemoteStatusSchema>;
+export type FrontendRemoteStatus = z.infer<typeof frontendRemoteStatusSchema>;
 
-/** The profile is selected by the trusted local/SSH cockpit, never the remote browser. */
+/** The profile is selected by the trusted local/SSH frontend, never the remote browser. */
 export const connectorProfileSchema = z.object({ profile: profileId }).strict();
 export const connectorAdminSchema = z
   .object({ profile: profileId, request: connectorLocalRequestSchema })

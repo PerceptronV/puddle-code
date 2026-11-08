@@ -113,7 +113,7 @@ try {
   assert.notEqual(after, before);
   assert.ok(
     existsSync(join(installRoot, before, 'cli/public/index.html')),
-    'keep assets for running cockpits',
+    'keep assets for running frontends',
   );
   assert.ok(run(join(installRoot, before, 'puddle'), ['--version']).includes(version));
   run(launcher, ['upgrade', 'cli']); // latest-version resolution

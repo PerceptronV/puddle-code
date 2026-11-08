@@ -12,7 +12,7 @@ const observers = (page) =>
     );
     return queryClient
       .getQueryCache()
-      .findAll({ queryKey: ['cockpit-host-updates'] })
+      .findAll({ queryKey: ['frontend-host-updates'] })
       .reduce((sum, query) => sum + query.getObserversCount(), 0);
   });
 const counts = (page) =>

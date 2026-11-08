@@ -44,7 +44,7 @@ describe('standalone UI preview', () => {
     try {
       for (const [method, path] of [
         ['POST', '/api/sessions'],
-        ['POST', '/cockpit/updates'],
+        ['POST', '/frontend/updates'],
         ['PUT', '/api/worktrees/preview/file?path=/etc/passwd'],
         ['GET', '/api/not-a-fixture'],
       ]) {

@@ -24,7 +24,7 @@ export function QrCode({ value, label }: { value: string; label: string }) {
     <svg
       role="img"
       aria-label={label}
-      // The white scan surface uses light-theme ink even inside a dark cockpit.
+      // The white scan surface uses light-theme ink even inside a dark frontend.
       data-theme="light"
       className="block h-auto max-w-full rounded-lg bg-paper text-fg"
       xmlns="http://www.w3.org/2000/svg"

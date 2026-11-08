@@ -2,13 +2,13 @@ import { existsSync, readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import { HostConnection } from '../../src/lib/auth/connection-authority.js';
-import { CockpitHostUpdates } from '../../src/lib/host/updates/cockpit.js';
+import { FrontendHostUpdates } from '../../src/lib/host/updates/frontend.js';
 import { SshTransport } from '../../src/lib/transport/ssh.js';
 import { offlineUpdateFixture } from '../helpers/host-updates.js';
 
 afterEach(() => vi.restoreAllMocks());
 
-it('reads recorded cockpit status through the built SSH helper without connecting to a daemon', async () => {
+it('reads recorded frontend status through the built SSH helper without connecting to a daemon', async () => {
   const f = offlineUpdateFixture();
   const before = readFileSync(f.ledger);
   // No multiplexing directory is needed by the fake SSH executable. Each subprocess
@@ -22,7 +22,7 @@ it('reads recorded cockpit status through the built SSH helper without connectin
   const exec = vi.spyOn(transport, 'exec');
   const authority = new HostConnection(transport);
   authority.close();
-  const control = new CockpitHostUpdates(transport, authority);
+  const control = new FrontendHostUpdates(transport, authority);
   const signal = new AbortController().signal;
   const status = await control.status(f.operation.id, () => true, signal);
   expect(status).toMatchObject({

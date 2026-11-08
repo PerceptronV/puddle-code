@@ -10,7 +10,7 @@ import { PROTOCOL_VERSION } from '@puddle/shared';
 import { ipcPath } from '@puddle/shared/node';
 import { startHostControl } from '../../../daemon/src/security/control.js';
 import { LeaseRegistry } from '../../../daemon/src/security/leases.js';
-import { ensureDaemon } from '../../src/lib/connection/cockpit.js';
+import { ensureDaemon } from '../../src/lib/connection/frontend.js';
 import type { Transport } from '../../src/lib/transport/transport.js';
 
 const hostUpgrade = vi.hoisted(() => vi.fn());

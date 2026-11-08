@@ -1,7 +1,7 @@
 import { hostParamStore } from '../navigation/editor-links';
 
 /**
- * Whether this window reached the cockpit through an SSH tunnel — the
+ * Whether this window reached the frontend through an SSH tunnel — the
  * `?host=` boot param the CLI sends at connect time (Phase 6), captured by
  * `captureHostParam`. Null in local mode. Drives the SSH-only behaviours:
  * terminal localhost-URL rewriting to the tier-2 proxy and the ports strip's

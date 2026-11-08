@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { CockpitRemoteRequest } from '@puddle/shared';
+import type { FrontendRemoteRequest } from '@puddle/shared';
 import { Button } from '../../../components/ui/button';
 import { Input } from '../../../components/ui/input';
 import { useRegistration } from './use-registration';
@@ -18,7 +18,7 @@ export function RegistrationForm({
   hostName: string;
   busy: boolean;
   disabled: boolean;
-  enable(request: CockpitRemoteRequest): Promise<boolean>;
+  enable(request: FrontendRemoteRequest): Promise<boolean>;
   cancel?: () => void;
 }) {
   const [serviceOrigin, setServiceOrigin] = useState(service);

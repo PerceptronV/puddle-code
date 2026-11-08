@@ -71,7 +71,7 @@ function GroupChecklist({
 /**
  * Settings → Remote & Sync (SPEC §11). Three sync blocks:
  *  - "Sync locally": mirror the selected groups through the machine-shared
- *    cockpit store, so every Puddle window (any port, any daemon) follows —
+ *    frontend store, so every Puddle window (any port, any daemon) follows —
  *    the checklist then governs BOTH directions;
  *  - Export: one click encodes, shows, and copies the string.
  *  - Import: paste an exported string.
@@ -204,7 +204,8 @@ export function SyncSection() {
         <h3 className="text-sm font-medium text-fg">Sync locally</h3>
         {localSync.data?.available === false ? (
           <p className="mt-1 text-xs text-fg-muted">
-            Not available in this cockpit — start the UI with the Puddle CLI to sync across windows.
+            Not available in this frontend — start the UI with the Puddle CLI to sync across
+            windows.
           </p>
         ) : (
           <>

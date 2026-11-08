@@ -46,7 +46,7 @@ query.setQueryData(root ? ['wt-git-status', session.id, root] : ['wt-git-status'
 });
 if (params.has('remote')) {
   // Even a stale local capability must never leak into a remote host's menus.
-  query.setQueryData(['cockpit-file-manager'], { name: 'Finder' });
+  query.setQueryData(['frontend-file-manager'], { name: 'Finder' });
   installBrowserTransport({
     scope: 'remote-fixture',
     request: async () => {

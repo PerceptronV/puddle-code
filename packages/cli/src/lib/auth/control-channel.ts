@@ -13,6 +13,7 @@ import {
   hostUpdateControlRequestSchema,
   hostUpdateControlResponseSchema,
   hostUpdateCommandSchema,
+  serializeHostUpdateCommand,
   type HostInspection,
   type HostUpdateReply,
   type HostUpdateCommand,
@@ -147,7 +148,8 @@ async function requestHostUpdate(
   const result = await transport.exec(
     `${await helper(transport)} ${continuing ? '--continue-update' : '--updates'}`,
     {
-      stdin: JSON.stringify(request) + '\n',
+      stdin:
+        JSON.stringify({ ...request, command: serializeHostUpdateCommand(request.command) }) + '\n',
       timeoutMs: continuing ? 135_000 : 10_000,
     },
   );

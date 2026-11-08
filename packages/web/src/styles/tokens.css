@@ -15,7 +15,7 @@
  */
 
 :root {
-  /* Shared cockpit rhythm; scales with the user's UI font size. */
+  /* Shared frontend rhythm; scales with the user's UI font size. */
   --ui-row-height: 1.875rem;
   --ui-tab-strip-height: 2.75rem;
   --ui-control-height: 1.75rem;

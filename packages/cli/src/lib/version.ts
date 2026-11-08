@@ -26,7 +26,7 @@ export function cliVersion(): string {
 }
 
 /**
- * The daemon baseline pinned by the release plan; unchanged hosts may skip cockpit tags.
+ * The daemon baseline pinned by the release plan; unchanged hosts may skip frontend tags.
  */
 export function pinnedDaemonVersion(): string {
   return pinnedHostVersion('daemon');

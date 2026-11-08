@@ -14,7 +14,7 @@ import { profile, sessions } from '../../src/dev/preview/data';
 import { previewRequest } from '../../src/dev/preview/requests';
 import {
   installBrowserTransport,
-  type CockpitSocket,
+  type FrontendSocket,
 } from '../../src/lib/transport/browser-transport';
 import { tokenStore } from '../../src/lib/transport/auth';
 import { profileStore } from '../../src/features/profile/profile-store';
@@ -74,7 +74,7 @@ const messages: WsClientMessage[] = [];
 const openedFiles: FileLinkTarget[] = [];
 const resolvedPaths: string[] = [];
 let socket: FixtureSocket;
-class FixtureSocket implements CockpitSocket {
+class FixtureSocket implements FrontendSocket {
   private events = new EventTarget();
   readyState: number = WebSocket.CONNECTING;
   constructor() {

@@ -9,7 +9,7 @@ import { proxyRequest, type ProxyTarget } from './proxy.js';
 export const proxyPrefix = (path: string): string | null =>
   /^\/proxy\/[a-f0-9-]{36}\/\d+\//.exec(path)?.[0] ?? null;
 
-/** No cockpit routes or assets are ever served at the application origin. */
+/** No frontend routes or assets are ever served at the application origin. */
 export async function handleProxy(
   req: IncomingMessage,
   res: ServerResponse,

@@ -169,7 +169,7 @@ export class ProxySocketTracker {
 }
 
 /**
- * Authenticated application WebSocket splice. The main cockpit WebSocket
+ * Authenticated application WebSocket splice. The main frontend WebSocket
  * uses WsBridge instead. Preserve handshake headers while substituting
  * connection authority and stripping proxy credentials.
  */

@@ -9,12 +9,12 @@ import { LocalTransport } from '../../cli/src/lib/transport/local';
 import { startUiServer, type UiServer } from '../../cli/src/lib/serve/ui-server';
 import { RemoteAccessControl } from '../../cli/src/lib/host/remote-access';
 import { localFileManager } from '../../cli/src/lib/host/file-manager';
-import { CockpitHostUpdates } from '../../cli/src/lib/host/updates/cockpit';
+import { FrontendHostUpdates } from '../../cli/src/lib/host/updates/frontend';
 
 /** Development uses the production browser boundary, including the isolated proxy origin. */
-export function cockpitGateway(): Plugin {
+export function frontendGateway(): Plugin {
   return {
-    name: 'puddle-cockpit-gateway',
+    name: 'puddle-frontend-gateway',
     configureServer(vite) {
       let gateway: UiServer | undefined;
       let ready: Promise<void>;
@@ -40,7 +40,7 @@ export function cockpitGateway(): Plugin {
             localSync: { file: join(clientHome(), 'local-sync.json') },
             fileManager: localFileManager(),
             remoteAccess: new RemoteAccessControl(transport),
-            hostUpdates: new CockpitHostUpdates(transport, authority),
+            hostUpdates: new FrontendHostUpdates(transport, authority),
             authority,
             target: { host: '127.0.0.1', port: authority.port },
           });
@@ -66,7 +66,7 @@ export function cockpitGateway(): Plugin {
         const route = req.url ?? '/';
         if (
           !req.headers.host?.startsWith('127.0.0.1:') &&
-          !/^\/(api|cockpit|proxy)(\/|$)/.test(route)
+          !/^\/(api|frontend|cockpit|proxy)(\/|$)/.test(route)
         )
           return next();
         void (async () => {

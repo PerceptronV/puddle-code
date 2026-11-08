@@ -37,7 +37,7 @@ reviewer: the coder implements a task, the reviewer inspects the result, and the
 coder addresses the feedback until the reviewer declares the work complete.
 
 Both agents retain their own native conversations across iterations. They are
-ordinary Puddle agents, visible in the cockpit, with their terminals and history
+ordinary Puddle agents, visible in the frontend, with their terminals and history
 available for inspection and human intervention. Each agent can start in a
 specified project and worktree, or at a filesystem path on the host.
 
@@ -59,7 +59,7 @@ The core operations are:
 
 Spawning an agent and attaching to an existing agent converge on the same
 interface. A workflow is a program over these handles; an agent may be created
-by the script, selected from the cockpit, or passed into the program. Ownership
+by the script, selected from the frontend, or passed into the program. Ownership
 and existing activity affect lifecycle policy, rather than the available
 message operations.
 
@@ -102,8 +102,8 @@ account in a spawn call takes precedence.
 The daemon supervises a separate runner process on the selected host. The
 program and its agents execute there; the client can disconnect after accepted
 submission while a supervised daemon remains available. An SSH-attached
-fallback daemon retains its existing cockpit lifetime, so it cannot promise
-continued execution when that cockpit closes.
+fallback daemon retains its existing frontend lifetime, so it cannot promise
+continued execution when that frontend closes.
 
 The script filename is local to the invoking CLI. Submit a captured source
 bundle and explicit inputs to the host, recording their version/hash. Agent
@@ -152,7 +152,7 @@ the caller and validate delegated scope through a separate control resource.
 Do not reuse the lifecycle signal nonce or expose the host master credential.
 External agents receive an explicitly configured host/profile connection.
 
-Record parent run/runtime relationships so the cockpit can show who spawned
+Record parent run/runtime relationships so the frontend can show who spawned
 which worker. Further delegation uses the same operations, with descendants
 sharing the root run's configured concurrency, turn and lifetime limits. An
 agent may inspect its own context, but asking its own active turn or creating a
@@ -164,7 +164,7 @@ for the shared API, rather than an independent orchestration implementation.
 ## Profiles, accounts and scope
 
 A run has one host and one Puddle profile. Select the profile through explicit
-CLI configuration, the cockpit that starts the run, or the verified parent
+CLI configuration, the frontend that starts the run, or the verified parent
 agent context. Outside those contexts, an interactive CLI may offer a picker;
 unattended calls fail clearly if the selection is ambiguous. Never read a
 browser's last-selected profile as an implicit automation identity.
@@ -344,7 +344,7 @@ Define execution policies for:
   a script and stopping its agents are separate actions; attached agents need
   an explicit cleanup policy.
 - **Bounds:** optional turn limits, deadlines and cancellation, with outcomes
-  visible in the cockpit.
+  visible in the frontend.
 - **Recovery:** retain request identities and recorded results so reconnecting
   can discover what happened. Never blindly replay an instruction or spawn
   whose delivery is uncertain.
@@ -379,7 +379,7 @@ Likely implementation seams:
 - `packages/cli/`: the `pudl` executable and MCP bridge, reusing shared
   connection libraries. Business logic stays in host services.
 - `packages/web/`: run inspection and controls, with agents visible in the
-  existing cockpit.
+  existing frontend.
 
 Scripts use the existing connection authority and profile boundaries. They do
 not gain access through terminal icon detection, inherit host master credentials,
@@ -431,7 +431,7 @@ it is a feature comparison, not an end-to-end operational benchmark.
 | Capability                                                             | Current Puddle position and remaining work                                                                                                                                                                                                                                                                                                                                                                                                          |
 | ---------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
 | Concurrent agents, worktrees, terminals, editor, diffs and port access | Existing foundation; the CLI/MCP scripting bindings still need implementation. [Superset overview](https://superset.sh/).                                                                                                                                                                                                                                                                                                                           |
-| Agent-control CLI, SDK and MCP                                         | Puddle's CLI currently centres on host/cockpit management, attach and logs. Add discovery, spawning, structured turn requests, inspection and control. Superset already exposes [CLI operations](https://docs.superset.sh/cli/cli-reference), a [TypeScript SDK](https://docs.superset.sh/sdk/reference) and [MCP tools](https://github.com/superset-sh/superset/blob/main/apps/docs/content/docs/mcp-server.mdx). Its SDK is labelled early alpha. |
+| Agent-control CLI, SDK and MCP                                         | Puddle's CLI currently centres on host/frontend management, attach and logs. Add discovery, spawning, structured turn requests, inspection and control. Superset already exposes [CLI operations](https://docs.superset.sh/cli/cli-reference), a [TypeScript SDK](https://docs.superset.sh/sdk/reference) and [MCP tools](https://github.com/superset-sh/superset/blob/main/apps/docs/content/docs/mcp-server.mdx). Its SDK is labelled early alpha. |
 | Transcript reads, state waits, resume, fork and hand-off               | Puddle has status, native conversation lifecycle, resume and account/agent continuation foundations. It lacks a unified scripting surface and exact request/reply contract. Superset documents reads, waits, diagnostic state explanations and capability-dependent resume/fork in its [CLI](https://docs.superset.sh/cli/cli-reference).                                                                                                           |
 | Supported agents and launch configuration                              | Puddle has four managed adapters: Claude Code, Codex, OpenCode and Gemini CLI. Other CLIs can run in terminals. Superset documents [more integrations](https://docs.superset.sh/supported-agents), with varying depth. More adapters and capability-checked model/effort controls are separate work.                                                                                                                                                |
 | Scheduled runs                                                         | No general agent scheduler in Puddle. Superset has [recurring automations](https://docs.superset.sh/automations). Add persisted schedules, timezone handling and run history later. External cron could invoke `pudl` sooner, but would not provide the same product experience.                                                                                                                                                                    |

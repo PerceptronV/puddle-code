@@ -27,8 +27,8 @@ takes a CLIENT-side path and delivers it over scp.
 
 1. **Local mode, fresh machine.** With no `~/.puddle` (or `PUDDLE_HOME` set to
    a scratch dir): `puddle launch --tarball dist-release/puddled-v*-<os>-<arch>.tar.gz`.
-   Expect: installer output, then `puddle cockpit at http://localhost:7433`,
-   the browser opening a working cockpit (no authorisation gate — the `#invite=`
+   Expect: installer output, then `puddle frontend at http://localhost:7433`,
+   the browser opening a working frontend (no authorisation gate — the `#invite=`
    fragment authenticates and is stripped from the address bar). Create a
    project and a session; the agent runs. `~/.puddle/bin/current` points at
    `versions/<v>`; on macOS `launchctl list | grep puddle` shows the agent,
@@ -36,10 +36,10 @@ takes a CLIENT-side path and delivers it over scp.
 2. **Ctrl-C detaches, not kills.** Ctrl-C the `puddle launch` process — it
    prints that sessions keep running. The daemon still answers (`puddle
    status` — expect the version line and your session). Re-run `puddle launch`:
-   the same cockpit returns without reinstalling.
+   the same frontend returns without reinstalling.
 3. **SSH mode, fresh host.** On a box with no puddle installed:
    `puddle launch user@host [--tarball <linux tarball>]`. Expect: one ssh
-   auth prompt at most (key or password), installer output, then a cockpit at
+   auth prompt at most (key or password), installer output, then a frontend at
    `http://localhost:7433` (or the next free port) whose top bar shows
    `user@host`. The browser URL carried `?host=user@host` (stripped after
    load). Create a session; it runs on the host.
@@ -52,13 +52,13 @@ takes a CLIENT-side path and delivers it over scp.
 5. **Sessions survive the laptop.** Ctrl-C `puddle launch`, close the
    browser. On the host the agent keeps working (`puddle status user@host`
    from the client, or `systemctl --user status puddled` on the host).
-   `puddle launch user@host` again: the cockpit returns, terminals replay.
+   `puddle launch user@host` again: the frontend returns, terminals replay.
    This step assumes a working persistent supervisor.
 6. **SSH-attached fallback.** Repeat SSH mode against a host with no usable
     systemd/launchd whose login service reaps a detached nohup child. Expect a
-    warning that Puddle is keeping the daemon attached to this cockpit, then a
+    warning that Puddle is keeping the daemon attached to this frontend, then a
     working UI. Create a session and note a durable file or database-backed
-    setting; Ctrl-C the foreground cockpit. Expect a clean interruption
+    setting; Ctrl-C the foreground frontend. Expect a clean interruption
     message, `~/.puddle/puddle.db`, worktrees, logs, and agent configuration to
     remain. Launch again: the daemon starts on entry, the same data appears,
     and interrupted sessions auto-resume when the host setting is enabled.
@@ -74,13 +74,13 @@ takes a CLIENT-side path and delivers it over scp.
    asks `Update and connect? [y/N]` on the launching terminal (check both
    default background and `--foreground`). Answer no: no install or restart.
    Retry and answer yes: one install, fresh compatible authority, and a
-   working cockpit with resumable history. `--no-upgrade` aborts before any
+   working frontend with resumable history. `--no-upgrade` aborts before any
    prompt. A non-interactive launch refuses the update with manual upgrade
    guidance. Repeat from the desktop host picker: **Update and connect**
-   opens the cockpit after updating; **Cancel** leaves the host untouched.
+   opens the frontend after updating; **Cancel** leaves the host untouched.
    Repeat against a newer-major host: client-update guidance, no daemon
    update offer. A failed/incompatible update must report an error without
-   prompting again or opening the cockpit. Run these on both a modern
+   prompting again or opening the frontend. Run these on both a modern
    control-socket host and a pre-protocol-18 legacy host.
 9. **Mode switching on one origin.** After the SSH session, run a local
    `puddle launch` on the same machine. The ports strip now offers **Open
@@ -105,7 +105,7 @@ takes a CLIENT-side path and delivers it over scp.
     **Connect to SSH Host…** and target a host that requires password plus
     keyboard-interactive/2FA authentication (with no warm ControlMaster).
     Expect a masked SSH Authentication dialogue for each response, then the
-    normal cockpit window. Cancel one prompt and confirm the connection fails
+    normal frontend window. Cancel one prompt and confirm the connection fails
     without saving the host as a recent. Repeat with a previously unknown test
     host and confirm its authenticity is presented as explicit Yes/No buttons.
     With a connected password/2FA host, interrupt its network connection and
@@ -115,11 +115,11 @@ takes a CLIENT-side path and delivers it over scp.
     while its prompt is open: the prompt must disappear within about a second.
     Connect another host with identical password prompt text and confirm it
     waits independently; finish authentication and verify password/2FA steps
-    still work in sequence. Focus the other host's cockpit while the first
+    still work in sequence. Focus the other host's frontend while the first
     reconnects: authentication must name the first host and attach to its own
-    window. Repeat with another app focused and with the host's cockpit on a
+    window. Repeat with another app focused and with the host's frontend on a
     different macOS Space: reconnect prompts must remain attached to that
-    cockpit, without creating standalone windows with traffic-light controls.
+    frontend, without creating standalone windows with traffic-light controls.
     Close a host while its authentication is visible or queued behind
     another host: its request must disappear and late helpers must not reopen
     it. Quit with prompts waiting and confirm none remain.
@@ -131,7 +131,7 @@ takes a CLIENT-side path and delivers it over scp.
     the network, and relaunch to confirm both hosts still reopen. Quit again
     while reconnection is pending and verify the next launch still remembers
     those hosts. Explicitly close one host window, then quit: only the remaining
-    window returns. Explicitly close the last cockpit window and relaunch:
+    window returns. Explicitly close the last frontend window and relaunch:
     the host picker appears. With only an offline SSH host remembered, close
     the fallback picker, restore the network, and relaunch: the host returns.
 

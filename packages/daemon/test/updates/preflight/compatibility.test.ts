@@ -224,7 +224,7 @@ it('rejects an inventory that gains a runtime while owners are being inspected',
   });
 });
 
-it('checks the installed default, cockpit and active connector independently', async () => {
+it('checks the installed default, frontend and active connector independently', async () => {
   const candidate = hostReleaseCapabilities('0.4.0');
   candidate.application.major++;
   candidate.remote++;
@@ -232,7 +232,7 @@ it('checks the installed default, cockpit and active connector independently', a
   const f = fixture('daemon', candidate);
   expect((await f.inspect(f.current.remote)).blockers.map((b) => b.code)).toEqual(
     expect.arrayContaining([
-      'cockpit_incompatible',
+      'frontend_incompatible',
       'connector_incompatible',
       'runtime_default_incompatible',
       'runtime_incompatible',

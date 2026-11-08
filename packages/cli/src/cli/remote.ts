@@ -126,7 +126,8 @@ export async function runRemote(command: RemoteCommand): Promise<number> {
         `puddle upgrade daemon${command.host ? ` ${command.host}` : ''}`,
       );
     const capabilities = await transport.exec(`${base} --version`, { timeoutMs: 10_000 });
-    if (capabilities.code !== 0 || !capabilities.stdout.includes('cockpit controls 2'))
+    // Existing hosts advertise the original capability marker.
+    if (capabilities.code !== 0 || !/(?:frontend|cockpit) controls 2/.test(capabilities.stdout))
       throw new CliError(
         'protocol_mismatch',
         'Upgrade the host daemon before managing profile registrations.',

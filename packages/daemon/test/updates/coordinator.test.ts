@@ -39,7 +39,7 @@ it('rejects lost authority after async inspection without committing approval', 
     await f.execute({
       action: 'inspect',
       reference: operation,
-      cockpit: f.capabilities.application,
+      frontend: f.capabilities.application,
     }),
   ).toEqual({ ok: false, code: 'rejected', operation: null });
   expect(f.store.read()?.phase).toBe('staged');
@@ -107,7 +107,7 @@ it('serialises competing mutations while status remains readable', async () => {
   const pending = f.execute({
     action: 'inspect',
     reference: operation,
-    cockpit: f.capabilities.application,
+    frontend: f.capabilities.application,
   });
   expect(
     await f.execute({ action: 'cancel', reference: operation, reason: 'cancelled' }),
@@ -126,7 +126,11 @@ it('repairs only during authorised staging, never status or review', async () =>
   expect(f.repair).not.toHaveBeenCalled();
   const operation = await f.prepare();
   expect(f.repair).toHaveBeenCalledOnce();
-  await f.execute({ action: 'inspect', reference: operation, cockpit: f.capabilities.application });
+  await f.execute({
+    action: 'inspect',
+    reference: operation,
+    frontend: f.capabilities.application,
+  });
   expect(f.repair).toHaveBeenCalledOnce();
   expect(f.dispatch).not.toHaveBeenCalled();
 });
@@ -404,7 +408,7 @@ it('retains the old blocked review shape for clients without interruption suppor
   const reply = await f.execute({
     action: 'inspect',
     reference: operation,
-    cockpit: { major: 25, minor: 9 },
+    frontend: { major: 25, minor: 9 },
   });
   expect(reply).toMatchObject({
     ok: true,

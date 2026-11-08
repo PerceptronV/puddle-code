@@ -2,7 +2,10 @@ import { PassThrough } from 'node:stream';
 import { randomUUID } from 'node:crypto';
 import { afterEach, expect, it, vi } from 'vitest';
 import { HostUpdateRequests } from '../src/node/control/updates.js';
-import { hostUpdateCommandSchema } from '../src/api/connection/host-updates.js';
+import {
+  hostUpdateCommandSchema,
+  serializeHostUpdateCommand,
+} from '../src/api/connection/host-updates.js';
 import { HostControlClient } from '../src/node/host-control.js';
 
 afterEach(() => vi.useRealTimers());
@@ -78,7 +81,7 @@ it('does not send interruption approval to an older host', async () => {
       client.hostUpdate({
         action: 'apply',
         reference: { id: randomUUID(), revision: 1 },
-        cockpit: { major: 25, minor: 10 },
+        frontend: { major: 25, minor: 10 },
         fingerprint: 'a'.repeat(64),
         interruption_approval: 'a'.repeat(64),
       }),
@@ -92,7 +95,7 @@ it('accepts only bounded exact interruption consent on apply commands', () => {
   const command = {
     action: 'apply',
     reference: { id: randomUUID(), revision: 1 },
-    cockpit: { major: 25, minor: 10 },
+    frontend: { major: 25, minor: 10 },
     fingerprint: 'a'.repeat(64),
   };
   expect(hostUpdateCommandSchema.parse(command)).toEqual(command);
@@ -198,4 +201,57 @@ it('rejects command injection and arbitrary installation locations at the shared
   expect(hostUpdateCommandSchema.safeParse({ action: 'exec', command: 'anything' }).success).toBe(
     false,
   );
+});
+
+it('normalizes legacy private version fields and rejects ambiguous mixed commands', () => {
+  const frontend = { major: 26, minor: 23 };
+  for (const command of [
+    { action: 'inspect', reference: { id: randomUUID(), revision: 1 }, frontend },
+    {
+      action: 'apply',
+      reference: { id: randomUUID(), revision: 1 },
+      frontend,
+      fingerprint: 'a'.repeat(64),
+    },
+  ]) {
+    const canonical = hostUpdateCommandSchema.parse(command);
+    const wire = serializeHostUpdateCommand(canonical);
+    expect(wire).toMatchObject({ cockpit: frontend });
+    expect(wire).not.toHaveProperty('frontend');
+    expect(hostUpdateCommandSchema.parse(wire)).toEqual(canonical);
+    expect(hostUpdateCommandSchema.safeParse({ ...command, cockpit: frontend }).success).toBe(
+      false,
+    );
+    expect(
+      hostUpdateCommandSchema.safeParse({ ...command, frontend: undefined, cockpit: frontend })
+        .success,
+    ).toBe(false);
+  }
+});
+
+it('serializes one compatible private request for existing hosts', async () => {
+  const channel = new PassThrough();
+  const messages: Array<{ request_id: string; command: unknown }> = [];
+  channel.on('data', (data: Buffer) => messages.push(JSON.parse(data.toString())));
+  const requests = new HostUpdateRequests(channel);
+  const command = hostUpdateCommandSchema.parse({
+    action: 'inspect',
+    reference: { id: randomUUID(), revision: 1 },
+    frontend: { major: 26, minor: 23 },
+  });
+  try {
+    const pending = requests.request(command);
+    expect(messages).toHaveLength(1);
+    expect(messages[0]!.command).toEqual(serializeHostUpdateCommand(command));
+    requests.receive({
+      t: 'host-update-result',
+      request_id: messages[0]!.request_id,
+      result: { ok: true, operation: null },
+    });
+    await expect(pending).resolves.toEqual({ ok: true, operation: null });
+    expect(messages).toHaveLength(1);
+  } finally {
+    requests.close();
+    channel.destroy();
+  }
 });

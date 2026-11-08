@@ -94,7 +94,7 @@ export function updateCoordinatorFixture(
     return execute({
       action: 'inspect',
       reference: operation,
-      cockpit: f.capabilities.application,
+      frontend: f.capabilities.application,
     });
   };
   const apply = (reply: HostUpdateReply, interruption_approval?: string) => {
@@ -106,7 +106,7 @@ export function updateCoordinatorFixture(
       reference: reply.operation,
       fingerprint,
       ...(interruption_approval !== undefined ? { interruption_approval } : {}),
-      cockpit: f.capabilities.application,
+      frontend: f.capabilities.application,
     });
   };
   return {

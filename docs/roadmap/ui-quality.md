@@ -109,7 +109,7 @@ island outlines. Palette tables should remain subordinate to `tokens.css`.
 `ssh-auth-prompt.html:15` define their own light/dark colours. The connection and SSH
 prompts use blue primary actions (`#2f6feb` / `#4c82f0`), independent neutral and
 danger colours, and literal white action text. Fields and buttons have local 6px
-radii. These are user-facing parts of the product, but do not inherit the cockpit's
+radii. These are user-facing parts of the product, but do not inherit the frontend's
 palette or geometry.
 
 **Recommendation:** Generate or package a small shared semantic stylesheet for
@@ -118,7 +118,7 @@ to run before a daemon connection; sharing styling does not require mounting the
 React application. Apply the saved theme when available, otherwise the system theme.
 
 **Acceptance:** Compare connection, host picker, and SSH authentication windows in
-both themes with the cockpit, including errors, disabled actions, and focus states.
+both themes with the frontend, including errors, disabled actions, and focus states.
 
 ### 2. Gold selected text exposes a gap in the contrast guard
 
@@ -341,7 +341,7 @@ selection contrast, native prompt packaging and bounded tray identities.
 
 | Finding | Implementation |
 | --- | --- |
-| 1. Native prompts | `desktop/scripts/prompt-assets.mjs` embeds master tokens and shared prompt controls; a bounded, main-frame-only preference report retains the last cockpit theme for subsequent prompts. No network resources or CSP expansion. |
+| 1. Native prompts | `desktop/scripts/prompt-assets.mjs` embeds master tokens and shared prompt controls; a bounded, main-frame-only preference report retains the last frontend theme for subsequent prompts. No network resources or CSP expansion. |
 | 2. Selection contrast | Dedicated `--nav-selection` / `--nav-selection-ink` tokens; the checker now covers 56 foreground/background combinations per theme, including tray, selected text, action hover and danger. |
 | 3. Overlays | Menus, submenus, selects and tooltips share motion and rounded overlay recipes with popovers; inset surface edges survive Radix's inline focus styling. |
 | 4. Geometry | Buttons, fields, menus and compact actions use semantic size/radius tokens, retaining deliberate size variants. |

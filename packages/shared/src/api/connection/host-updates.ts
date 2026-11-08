@@ -14,7 +14,7 @@ const reference = hostUpdateReferenceSchema;
 const fingerprint = hostUpdateFingerprintSchema;
 
 /** Private local/SSH control only; never a remote-connector or browser command surface. */
-export const hostUpdateCommandSchema = z.discriminatedUnion('action', [
+const canonicalHostUpdateCommandSchema = z.discriminatedUnion('action', [
   z
     .object({
       action: z.literal('status'),
@@ -45,14 +45,14 @@ export const hostUpdateCommandSchema = z.discriminatedUnion('action', [
     .object({
       action: z.literal('inspect'),
       reference,
-      cockpit: hostStageRecordSchema.shape.protocol,
+      frontend: hostStageRecordSchema.shape.protocol,
     })
     .strict(),
   z
     .object({
       action: z.literal('apply'),
       reference,
-      cockpit: hostStageRecordSchema.shape.protocol,
+      frontend: hostStageRecordSchema.shape.protocol,
       fingerprint,
       /** Explicit consent to the exact reviewed daemon-owned interruption inventory (25.10). */
       interruption_approval: fingerprint.optional(),
@@ -66,6 +66,22 @@ export const hostUpdateCommandSchema = z.discriminatedUnion('action', [
     })
     .strict(),
 ]);
+
+/** Previously published private clients use the old protocol field spelling. */
+export const hostUpdateCommandSchema = z.preprocess((value) => {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return value;
+  if (!('action' in value) || !['inspect', 'apply'].includes(String(value.action))) return value;
+  if (!('cockpit' in value) || 'frontend' in value) return value;
+  const { cockpit, ...command } = value;
+  return { ...command, frontend: cockpit };
+}, canonicalHostUpdateCommandSchema);
+
+/** Keep the existing wire key at this boundary so older hosts remain updatable. */
+export function serializeHostUpdateCommand(command: HostUpdateCommand): unknown {
+  if (command.action !== 'inspect' && command.action !== 'apply') return command;
+  const { frontend, ...fields } = command;
+  return { ...fields, cockpit: frontend };
+}
 
 /** A blocked interruption review may offer exact evidence for a separate confirmation. */
 export const hostUpdateReviewSchema = z

@@ -15,7 +15,7 @@ export async function bootstrapToken(): Promise<void> {
   }
   if (!invitation) return;
   try {
-    const response = await fetch('/cockpit/bootstrap', {
+    const response = await fetch('/frontend/bootstrap', {
       method: 'POST',
       headers: { 'content-type': 'application/json' },
       body: JSON.stringify({ invitation }),

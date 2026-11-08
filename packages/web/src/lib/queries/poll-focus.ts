@@ -8,7 +8,7 @@ import { focusManager } from '@tanstack/react-query';
  * is a daemon round-trip (and for ports, an `lsof` on the host).
  *
  * The compromise: while the window is unfocused, intervals stretch by
- * `UNFOCUSED_FACTOR` instead of stopping (the cockpit stays truthful, just
+ * `UNFOCUSED_FACTOR` instead of stopping (the frontend stays truthful, just
  * slower), and a refocus snaps back immediately — the window `focus` event is
  * fed to the focusManager so stale queries refetch at once and interval
  * functions are re-evaluated.

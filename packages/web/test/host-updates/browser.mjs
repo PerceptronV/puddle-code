@@ -146,7 +146,7 @@ try {
     });
   });
   if (remote) status.catalogue.releases.repository = null;
-  await context.route(remote ? '**/api/host/updates' : '**/cockpit/updates', async (route) => {
+  await context.route(remote ? '**/api/host/updates' : '**/frontend/updates', async (route) => {
     const request = route.request();
     if (request.method() === 'GET') return route.fulfill({ json: status });
     const input = request.postDataJSON();

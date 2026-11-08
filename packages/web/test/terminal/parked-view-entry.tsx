@@ -4,7 +4,7 @@ import { Terminal as XTerm } from '@xterm/xterm';
 import type { WsClientMessage, WsServerMessage } from '@puddle/shared';
 import {
   installBrowserTransport,
-  type CockpitSocket,
+  type FrontendSocket,
 } from '../../src/lib/transport/browser-transport';
 import { wsManager } from '../../src/lib/transport/ws';
 import { KeepAliveHost, useKeepAliveSlot } from '../../src/features/workspace/keep-alive';
@@ -32,7 +32,7 @@ XTerm.prototype.open = function (element) {
 let automaticReplay = true;
 let online = true;
 const sent: WsClientMessage[] = [];
-class Socket extends EventTarget implements CockpitSocket {
+class Socket extends EventTarget implements FrontendSocket {
   readyState: number = WebSocket.OPEN;
   constructor() {
     super();

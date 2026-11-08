@@ -1,15 +1,15 @@
 import type { IncomingMessage, ServerResponse } from 'node:http';
-import { cockpitRegistrationCheckSchema, registrationStatusSchema } from '@puddle/shared';
+import { frontendRegistrationCheckSchema, registrationStatusSchema } from '@puddle/shared';
 import { fail, json, readJson } from './http-auth.js';
 
-/** Behind the cockpit's exact Host/Origin and browser authorisation checks. */
+/** Behind the frontend's exact Host/Origin and browser authorisation checks. */
 export async function checkRemoteRegistration(
   req: IncomingMessage,
   res: ServerResponse,
   authorised: () => boolean,
 ) {
   if (req.method !== 'POST') return fail(res, 405, 'method_not_allowed');
-  const { service, code } = cockpitRegistrationCheckSchema.parse(await readJson(req));
+  const { service, code } = frontendRegistrationCheckSchema.parse(await readJson(req));
   if (!authorised()) return fail(res, 401, 'browser_rejected');
   try {
     const response = await fetch(`${service}/remote/registration-status`, {

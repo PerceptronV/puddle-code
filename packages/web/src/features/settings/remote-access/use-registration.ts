@@ -3,7 +3,7 @@ import {
   desktopRegistrationSchema,
   registrationStatusSchema,
   REMOTE_POLICY,
-  type CockpitRemoteRequest,
+  type FrontendRemoteRequest,
   type DesktopRegistration,
 } from '@puddle/shared';
 import { api } from '../../../lib/transport/api';
@@ -13,7 +13,7 @@ const hex = (bytes: Uint8Array) =>
 
 export function useRegistration(
   disabled: boolean,
-  enable: (request: CockpitRemoteRequest) => Promise<boolean>,
+  enable: (request: FrontendRemoteRequest) => Promise<boolean>,
 ) {
   const [attempt, setAttempt] = useState<{
     request: DesktopRegistration;
@@ -80,7 +80,7 @@ export function useRegistration(
       try {
         if (attempt.request.expires <= Date.now()) throw new Error('Sign-in expired. Try again.');
         const { ready } = registrationStatusSchema.parse(
-          await api('POST', '/cockpit/remote/registration', {
+          await api('POST', '/frontend/remote/registration', {
             service: attempt.request.service,
             code: attempt.code,
           }),

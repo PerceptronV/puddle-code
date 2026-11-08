@@ -22,8 +22,8 @@ export interface DisplayGeometry {
 
 const PREFERRED = { width: 1440, height: 900 };
 
-/** Initial cockpit geometry; macOS always meets the work area's bottom edge. */
-export function initialCockpitBounds(
+/** Initial frontend geometry; macOS always meets the work area's bottom edge. */
+export function initialFrontendBounds(
   platform: NodeJS.Platform,
   workArea?: DisplayWorkArea,
 ): WindowBounds {
@@ -51,13 +51,13 @@ function clamp(value: number, low: number, high: number): number {
  * Native Wayland may ignore x/y at the compositor boundary; returning honest
  * geometry here keeps the policy independent of that platform limitation.
  */
-export function restoredCockpitBounds(
+export function restoredFrontendBounds(
   platform: NodeJS.Platform,
   displays: DisplayGeometry[],
   placement?: WindowPlacement,
 ): WindowBounds {
   const primary = displays[0];
-  const fallback = initialCockpitBounds(platform, primary?.workArea);
+  const fallback = initialFrontendBounds(platform, primary?.workArea);
   if (!placement || !primary) return fallback;
 
   const display =

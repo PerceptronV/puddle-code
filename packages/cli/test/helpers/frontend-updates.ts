@@ -9,7 +9,7 @@ import type { UpdateInspection } from '../../../daemon/src/updates/preflight/ins
 import { startHostControl } from '../../../daemon/src/security/control.js';
 import { LeaseRegistry } from '../../../daemon/src/security/leases.js';
 import { HostConnection } from '../../src/lib/auth/connection-authority.js';
-import { CockpitHostUpdates } from '../../src/lib/host/updates/cockpit.js';
+import { FrontendHostUpdates } from '../../src/lib/host/updates/frontend.js';
 import type { Transport } from '../../src/lib/transport/transport.js';
 
 const cleanup: Array<() => void | Promise<void>> = [];
@@ -20,7 +20,7 @@ afterEach(async () => {
 });
 
 /** Actual private leases/coordinator; metadata stages and supervisor outcomes are simulated. */
-export async function cockpitUpdatesFixture(
+export async function frontendUpdatesFixture(
   kind: 'local' | 'ssh' = 'local',
   minor: number = PROTOCOL_VERSION.minor,
 ) {
@@ -123,7 +123,7 @@ export async function cockpitUpdatesFixture(
   const authority = new HostConnection(transport);
   cleanup.push(() => authority.close());
   await authority.establish();
-  const control = new CockpitHostUpdates(transport, authority);
+  const control = new FrontendHostUpdates(transport, authority);
   const signal = new AbortController();
   return {
     ...f,

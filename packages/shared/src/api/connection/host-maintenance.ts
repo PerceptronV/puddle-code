@@ -1,9 +1,9 @@
 import { z } from 'zod';
 import {
-  cockpitHostUpdateReplySchema,
-  cockpitHostUpdateStatusSchema,
+  frontendHostUpdateReplySchema,
+  frontendHostUpdateStatusSchema,
   onlineHostUpdateRequestSchema,
-} from './cockpit-updates.js';
+} from './frontend-updates.js';
 
 /** Private host control: only bounded, public update inputs; never stage receipts or paths. */
 export const hostMaintenanceCommandSchema = z.discriminatedUnion('action', [
@@ -17,8 +17,8 @@ export const hostMaintenanceCommandSchema = z.discriminatedUnion('action', [
   ...onlineHostUpdateRequestSchema.options,
 ]);
 export const hostMaintenanceReplySchema = z.discriminatedUnion('kind', [
-  z.object({ kind: z.literal('status'), status: cockpitHostUpdateStatusSchema }).strict(),
-  z.object({ kind: z.literal('result'), result: cockpitHostUpdateReplySchema }).strict(),
+  z.object({ kind: z.literal('status'), status: frontendHostUpdateStatusSchema }).strict(),
+  z.object({ kind: z.literal('result'), result: frontendHostUpdateReplySchema }).strict(),
 ]);
 export const hostMaintenanceControlRequestSchema = z
   .object({

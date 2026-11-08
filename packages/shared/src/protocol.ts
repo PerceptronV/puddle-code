@@ -202,7 +202,7 @@
 // client cannot feature-detect or work around: a 13.x daemon still spawns
 // `claude auth login` (no method picker — subscription only) and `codex
 // login` (a browser + localhost callback on the daemon host, i.e. an empty
-// panel from any remote cockpit), trusts exit-code 0 instead of verifying
+// panel from any remote frontend), trusts exit-code 0 instead of verifying
 // via the agent's own auth status, and sends no login `hint`. Retiring 13.x
 // makes the first-run-TUI login the flow every deployment serves.
 // 14.1 (2026-08-06): `theme` client WS message — the client's resolved
@@ -258,7 +258,7 @@
 // command palette's Open path action to reveal and expand it in the existing
 // Files tree instead of replacing that tree with a pinned external browse.
 // 16.2 (2026-08-15): additive — GET /api/sessions/:id/env entries carry the
-// optional captured `value`, allowing the authenticated cockpit to copy it by
+// optional captured `value`, allowing the authenticated frontend to copy it by
 // clicking the variable name. Older daemons omit it and the UI leaves those
 // names non-interactive; older clients ignore the unknown response field.
 // 16.3 (2026-08-16): additive — POST /api/worktrees/:sid/transfer copies or
@@ -282,8 +282,8 @@
 // command settings, with independent manual/eager overrides and provider-owned
 // command templates/placeholders.
 // 18.0: separate browser authorisation and host-controlled connection leases.
-// 18.1: additive — authenticated cockpit-local remote-access administration.
-// 19.0: remove email login and move cockpit pairing invitations to remote protocol 2.
+// 18.1: additive — authenticated frontend-local remote-access administration.
+// 19.0: remove email login and move frontend pairing invitations to remote protocol 2.
 // 19.1: additive — local/SSH registration deletion with connector capability discovery.
 // 20.0: desktop-initiated account registration with a browser-approved, hashed handoff.
 // 21.0: host-authenticated retirement of deleted/replaced remote registrations.
@@ -301,7 +301,7 @@
 // 23.1: per-agent interactive/scripted modes and correlated native turn signals.
 // 24.0: rename the scripted execution mode to headless; no legacy wire alias.
 // 24.1: optional desktop notification subtitles for host/project and session headings.
-// 24.2: authenticated local-cockpit file-manager discovery and reveal requests.
+// 24.2: authenticated local-frontend file-manager discovery and reveal requests.
 // 24.3: optional compilation-provider action distinguishes code runs from builds.
 // 24.4: profile language defaults and inherited per-file compilation commands.
 // 24.5: optional project colours drawn from the profile icon palette.
@@ -319,11 +319,11 @@
 // 25.10: explicit daemon-owned interruption approval tied to exact update inspection.
 // 25.11: explicit local/SSH recovery verification without replaying component commands.
 // 25.12: explicit host-update continuation and recorded recovery inspection.
-// 25.13: authenticated cockpit-local host-update preparation, review and explicit actions.
+// 25.13: authenticated frontend-local host-update preparation, review and explicit actions.
 // 25.14: optional host version/release catalogue and host-only update invalidations.
 // 25.15: placement-scoped runtime inspection and exact reviewed restart.
-// 25.16: labelled recorded cockpit update inspection while the daemon is unavailable.
-// 25.17: explicit cockpit continuation through participating local/SSH recovery helpers.
+// 25.16: labelled recorded frontend update inspection while the daemon is unavailable.
+// 25.17: explicit frontend continuation through participating local/SSH recovery helpers.
 // 25.18: trusted local/SSH removal inspection and explicit service restoration.
 // 25.19: trusted host removal with exact offline runtime disposition and remote disablement.
 // 25.20: bounded host purge and explicit runtime lifetime presentation/update checks.
@@ -350,7 +350,8 @@
 // 26.20: coordinated native arrangement apply, renderer planning and outcome observation.
 // 26.21: native host-effect ownership and bounded notification claims.
 // 26.22: private pane-window tab review followed by a guarded final checkpoint.
-export const PROTOCOL_VERSION = { major: 26, minor: 22 } as const;
+// 26.23: frontend terminology with legacy private host-update command normalization.
+export const PROTOCOL_VERSION = { major: 26, minor: 23 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

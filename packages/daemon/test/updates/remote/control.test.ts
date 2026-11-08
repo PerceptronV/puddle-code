@@ -205,7 +205,7 @@ it('uses the same exact interruption review and apply approval without inventing
   const submitted = f.executeRemote.mock.calls.at(-1)?.[0];
   expect(submitted).toMatchObject({
     action: 'apply',
-    cockpit: PROTOCOL_VERSION,
+    frontend: PROTOCOL_VERSION,
     interruption_approval: f.observed.fingerprint,
   });
 });

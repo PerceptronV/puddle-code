@@ -7,7 +7,7 @@ import type {
 } from '@puddle/shared';
 
 /** Native reload must save this renderer's working set before replacing it. */
-export async function reloadCockpit(): Promise<void> {
+export async function reloadFrontend(): Promise<void> {
   const reload = desktopBridge()?.windows?.reload;
   if (reload) await reload();
   else window.location.reload();
@@ -16,7 +16,7 @@ export async function reloadCockpit(): Promise<void> {
 /**
  * The desktop shell's preload bridge (packages/desktop/src/preload.ts). Its
  * presence IS the "running inside the desktop app" signal; everything else
- * about the app is identical to the browser cockpit (same origin, same
+ * about the app is identical to the browser frontend (same origin, same
  * protocol), so this surface must stay tiny — a capability the renderer
  * genuinely cannot provide for itself, or it doesn't belong here.
  */

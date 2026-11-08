@@ -222,7 +222,7 @@ versions and must be reissued when incompatible. Never extend grant expiry
 merely because the transport upgraded.
 
 Apply [shared protocol rules](../../packages/shared/PROTOCOL.md) to any changed
-invitation literals or cockpit authentication contracts; a daemon/cockpit major
+invitation literals or frontend authentication contracts; a daemon/frontend major
 bump may accompany the remote change. Allocate actual version numbers at
 implementation time. Update SPEC, deployment/acceptance documentation, release
 compatibility metadata and the changelog in the implementation change.
@@ -292,7 +292,7 @@ former cannot produce an admitted channel or expose the internal rejection flag;
 inspect error paths and backend side-channel evidence rather than treating a
 passing functional or timing test as proof of constant-time execution.
 
-Run the existing remote/authority suites, built cockpit/SSH suites and real
+Run the existing remote/authority suites, built frontend/SSH suites and real
 browser flow, following their isolated-home and sanitised-environment rules.
 Obtain independent review of the selected handshake and Puddle integration,
 including the later-key-compromise model, quantitative security targets and every
@@ -428,7 +428,7 @@ returns only a fully verified canonical identity to admission. The daemon keeps
 using host-issued leases; it does not gain a second PQ credential mechanism.
 
 Stage 3 requires a remote protocol bump and reviewed storage migrations. Follow
-the daemon/cockpit major-version rules for changed authentication and invitation
+the daemon/frontend major-version rules for changed authentication and invitation
 contracts. Once migrated, a peer must reject classical-only identities even if
 the relay advertises an older capability. Recovery must not be an automatic
 downgrade route.

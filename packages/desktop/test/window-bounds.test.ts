@@ -1,9 +1,9 @@
 import { describe, expect, it } from 'vitest';
-import { initialCockpitBounds, restoredCockpitBounds } from '../src/window-bounds';
+import { initialFrontendBounds, restoredFrontendBounds } from '../src/window-bounds';
 
-describe('desktop cockpit launch bounds', () => {
+describe('desktop frontend launch bounds', () => {
   it('bottom-aligns a preferred-size macOS window in a slightly taller work area', () => {
-    expect(initialCockpitBounds('darwin', { x: 0, y: 29, width: 1440, height: 903 })).toEqual({
+    expect(initialFrontendBounds('darwin', { x: 0, y: 29, width: 1440, height: 903 })).toEqual({
       x: 0,
       y: 32,
       width: 1440,
@@ -12,7 +12,7 @@ describe('desktop cockpit launch bounds', () => {
   });
 
   it('clamps to a smaller macOS work area and meets every edge', () => {
-    expect(initialCockpitBounds('darwin', { x: 10, y: 24, width: 1280, height: 780 })).toEqual({
+    expect(initialFrontendBounds('darwin', { x: 10, y: 24, width: 1280, height: 780 })).toEqual({
       x: 10,
       y: 24,
       width: 1280,
@@ -21,11 +21,11 @@ describe('desktop cockpit launch bounds', () => {
   });
 
   it('keeps non-macOS launch sizing independent of display geometry', () => {
-    expect(initialCockpitBounds('linux')).toEqual({ width: 1440, height: 900 });
+    expect(initialFrontendBounds('linux')).toEqual({ width: 1440, height: 900 });
   });
 });
 
-describe('restored desktop cockpit bounds', () => {
+describe('restored desktop frontend bounds', () => {
   const displays = [
     { id: 1, workArea: { x: 0, y: 25, width: 1440, height: 875 } },
     { id: 2, workArea: { x: 1440, y: 0, width: 1920, height: 1080 } },
@@ -33,7 +33,7 @@ describe('restored desktop cockpit bounds', () => {
 
   it('returns a window to the same display and monitor-relative offset', () => {
     expect(
-      restoredCockpitBounds('darwin', displays, {
+      restoredFrontendBounds('darwin', displays, {
         bounds: { x: -1800, y: 80, width: 1200, height: 800 },
         displayId: 2,
         // The display sat left of primary before it was rearranged to the right.
@@ -44,7 +44,7 @@ describe('restored desktop cockpit bounds', () => {
 
   it('clamps oversized or offscreen bounds inside the restored display', () => {
     expect(
-      restoredCockpitBounds('linux', displays, {
+      restoredFrontendBounds('linux', displays, {
         bounds: { x: 3000, y: 900, width: 2400, height: 1400 },
         displayId: 2,
         displayWorkArea: { x: 1440, y: 0, width: 1920, height: 1080 },
@@ -54,7 +54,7 @@ describe('restored desktop cockpit bounds', () => {
 
   it('falls back safely to primary when the saved display disappeared', () => {
     expect(
-      restoredCockpitBounds('linux', displays, {
+      restoredFrontendBounds('linux', displays, {
         bounds: { x: 1800, y: 200, width: 1000, height: 700 },
         displayId: 99,
         displayWorkArea: { x: 1440, y: 0, width: 1920, height: 1080 },
@@ -64,7 +64,7 @@ describe('restored desktop cockpit bounds', () => {
 
   it('uses the display label when its numeric id changed across boots', () => {
     expect(
-      restoredCockpitBounds('linux', [{ ...displays[1], id: 42, label: 'External Display' }], {
+      restoredFrontendBounds('linux', [{ ...displays[1], id: 42, label: 'External Display' }], {
         bounds: { x: 1560, y: 80, width: 1200, height: 800 },
         displayId: 2,
         displayLabel: 'External Display',

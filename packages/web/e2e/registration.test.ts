@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 import { dismissReleaseNotes } from './fixtures/release-notes';
 import { mobileFixture } from './mobile-fixture';
-import { cockpitRemoteRequestSchema, desktopRegistrationSchema } from '@puddle/shared';
+import { frontendRemoteRequestSchema, desktopRegistrationSchema } from '@puddle/shared';
 import { createHash } from 'node:crypto';
 
 test.beforeEach(async ({ page }) => dismissReleaseNotes(page));
@@ -37,12 +37,12 @@ test('desktop sign-in survives OAuth and enables through a private one-use verif
     );
     // Only process supervision is substituted: use the real connector's --configure,
     // HTTPS redemption and runtime, but never install an OS service from this fixture.
-    await page.route('**/cockpit/remote?profile=*', async (route) => {
+    await page.route('**/frontend/remote?profile=*', async (route) => {
       if (route.request().method() === 'GET') {
         const response = await route.fetch();
         return route.fulfill({ json: { ...(await response.json()), supervisor: 'launchd' } });
       }
-      const request = cockpitRemoteRequestSchema.parse(route.request().postDataJSON());
+      const request = frontendRemoteRequestSchema.parse(route.request().postDataJSON());
       if (request.t !== 'enable' || !request.registration) return route.continue();
       verifier = request.registration.code;
       await fixture.enable('', verifier);

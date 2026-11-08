@@ -9,7 +9,7 @@ import {
 import type { HostControlClient } from '@puddle/shared/node/host-control';
 import { CliError } from '../../types.js';
 
-/** Shell/cockpit-owned UI; absence never grants interruption consent. */
+/** Shell/frontend-owned UI; absence never grants interruption consent. */
 export type ConfirmHostUpdateInterruption = (request: {
   operation: HostUpdateOperation;
   review: HostUpdateReview;
@@ -92,7 +92,7 @@ export async function applyHostUpdate(
     const review = await authority.hostUpdate({
       action: 'inspect',
       reference: reference(operation),
-      cockpit: PROTOCOL_VERSION,
+      frontend: PROTOCOL_VERSION,
     });
     operation = accepted(review, operation);
     onProgress(operation);
@@ -129,7 +129,7 @@ export async function applyHostUpdate(
       applied = await authority.hostUpdate({
         action: 'apply',
         reference: reference(operation),
-        cockpit: PROTOCOL_VERSION,
+        frontend: PROTOCOL_VERSION,
         fingerprint,
         ...(interruption ? { interruption_approval: interruption } : {}),
       });

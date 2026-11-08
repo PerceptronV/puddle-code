@@ -16,7 +16,7 @@ const { chromium, expect } = await import(
 const scratch = await mkdtemp(join(tmpdir(), 'puddle-release-notes-ui-'));
 const markdown = `# Changelog
 ## 0.4.0
-### Cockpit
+### Frontend
 **Browser changes** with \`inline code\`.
 <script>window.notesUnsafe = true</script>
 
@@ -168,7 +168,7 @@ try {
   );
   releasePreview();
   await expect(dialog).toHaveCount(1);
-  await expect(dialog.getByRole('heading', { name: 'Cockpit', exact: true })).toBeVisible();
+  await expect(dialog.getByRole('heading', { name: 'Frontend', exact: true })).toBeVisible();
   await expect(dialog.getByRole('heading', { name: 'Daemon', exact: true })).toHaveCount(0);
   admit();
   await expect(dialog.getByRole('heading', { name: 'Runtime', exact: true })).toBeVisible();
@@ -221,7 +221,7 @@ try {
     { releases },
   );
   await expect(dialog.getByRole('heading', { name: 'What’s new in 0.4.0' })).toBeVisible();
-  await expect(dialog.getByRole('heading', { name: 'Cockpit', exact: true })).toHaveCount(0);
+  await expect(dialog.getByRole('heading', { name: 'Frontend', exact: true })).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Close', exact: true }).click();
 
   // A new mobile/remote browser gets the Remote section before selecting any project.
@@ -234,7 +234,7 @@ try {
   await phone.goto(origin + '/?remote');
   await expect(phone.getByRole('dialog')).toHaveCount(1);
   await expect(phone.getByRole('heading', { name: 'Remote', exact: true })).toBeVisible();
-  await expect(phone.getByRole('heading', { name: 'Cockpit', exact: true })).toBeVisible();
+  await expect(phone.getByRole('heading', { name: 'Frontend', exact: true })).toBeVisible();
   assert.ok(
     await phone
       .getByRole('dialog')

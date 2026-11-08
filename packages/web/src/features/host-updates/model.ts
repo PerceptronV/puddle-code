@@ -1,16 +1,16 @@
 import {
   hostUpdateTerminal,
   isNewerVersion,
-  type CockpitHostUpdateReply,
-  type CockpitHostUpdateRequest,
-  type CockpitHostUpdateStatus,
+  type FrontendHostUpdateReply,
+  type FrontendHostUpdateRequest,
+  type FrontendHostUpdateStatus,
   type HostUpdateTargets,
 } from '@puddle/shared';
 
-export type UpdateOperation = NonNullable<CockpitHostUpdateReply['operation']>;
+export type UpdateOperation = NonNullable<FrontendHostUpdateReply['operation']>;
 
 export function availableHostUpdates(
-  status: CockpitHostUpdateStatus | undefined,
+  status: FrontendHostUpdateStatus | undefined,
 ): HostUpdateTargets {
   const catalogue = status?.catalogue;
   const latest = catalogue?.releases.latest;
@@ -39,9 +39,9 @@ export function canReview(operation: UpdateOperation): boolean {
 
 /** A review is usable only for the exact operation revision currently displayed. */
 export function reviewedApply(
-  status: CockpitHostUpdateStatus | undefined,
-  reply: CockpitHostUpdateReply | undefined,
-): Extract<CockpitHostUpdateRequest, { action: 'apply' }> | null {
+  status: FrontendHostUpdateStatus | undefined,
+  reply: FrontendHostUpdateReply | undefined,
+): Extract<FrontendHostUpdateRequest, { action: 'apply' }> | null {
   const current = status?.result?.operation;
   if (
     status?.availability !== 'ready' ||
@@ -67,14 +67,14 @@ export function reviewedApply(
   };
 }
 
-export function updateInProgress(status: CockpitHostUpdateStatus | undefined): boolean {
+export function updateInProgress(status: FrontendHostUpdateStatus | undefined): boolean {
   const operation = status?.result?.operation;
   return !!operation && !hostUpdateTerminal(operation.phase);
 }
 
 export function offlineRecoveryRequest(
-  status: CockpitHostUpdateStatus,
-): Extract<CockpitHostUpdateRequest, { action: 'continue-offline' }> | null {
+  status: FrontendHostUpdateStatus,
+): Extract<FrontendHostUpdateRequest, { action: 'continue-offline' }> | null {
   const operation = status.result?.operation;
   return status.availability === 'unavailable' &&
     status.observation === 'recorded' &&

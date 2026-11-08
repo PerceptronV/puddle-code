@@ -8,11 +8,11 @@ import {
   type QueryClient,
 } from '@tanstack/react-query';
 import {
-  cockpitHostUpdateReplySchema,
-  cockpitHostUpdateStatusSchema,
+  frontendHostUpdateReplySchema,
+  frontendHostUpdateStatusSchema,
   versionResponseSchema,
-  type CockpitHostUpdateRequest,
-  type CockpitHostUpdateStatus,
+  type FrontendHostUpdateRequest,
+  type FrontendHostUpdateStatus,
 } from '@puddle/shared';
 import { api, ApiError } from '../../lib/transport/api';
 import { browserTransport } from '../../lib/transport/browser-transport';
@@ -21,7 +21,7 @@ import { hostUpdateScope, hostUpdateTransport } from './transport';
 import { watchInstalledReleases } from '../release-notes/state/installed';
 
 function queryKey() {
-  return ['cockpit-host-updates', hostUpdateScope()] as const;
+  return ['frontend-host-updates', hostUpdateScope()] as const;
 }
 
 /** Capability comes from the connector's current admitted device, never a browser preference. */
@@ -47,7 +47,7 @@ export function hostUpdateQuery(allowed = !browserTransport()) {
   return queryOptions({
     queryKey: queryKey(),
     queryFn: async ({ signal }) => {
-      return cockpitHostUpdateStatusSchema.parse(await request(undefined, signal));
+      return frontendHostUpdateStatusSchema.parse(await request(undefined, signal));
     },
     enabled: allowed,
     retry: false,
@@ -68,18 +68,18 @@ export function hostUpdateMutation(client: QueryClient, allowed = !browserTransp
   const key = queryKey();
   const requestUpdate = hostUpdateTransport(allowed);
   return {
-    mutationKey: ['cockpit-host-update-action', hostUpdateScope()],
+    mutationKey: ['frontend-host-update-action', hostUpdateScope()],
     // Never inherit an application's mutation retries or queue writes for later reconnect.
     retry: false as const,
     networkMode: 'always' as const,
-    mutationFn: async (request: CockpitHostUpdateRequest) => {
-      return cockpitHostUpdateReplySchema.parse(await requestUpdate(request));
+    mutationFn: async (request: FrontendHostUpdateRequest) => {
+      return frontendHostUpdateReplySchema.parse(await requestUpdate(request));
     },
     onMutate: async () => {
       await client.cancelQueries({ queryKey: key });
     },
-    onSuccess: (result: ReturnType<typeof cockpitHostUpdateReplySchema.parse>) => {
-      client.setQueryData<CockpitHostUpdateStatus>(key, (status) =>
+    onSuccess: (result: ReturnType<typeof frontendHostUpdateReplySchema.parse>) => {
+      client.setQueryData<FrontendHostUpdateStatus>(key, (status) =>
         status ? { ...status, result } : status,
       );
     },
@@ -97,14 +97,14 @@ export function useHostUpdates() {
 export function useHostUpdateAction() {
   const client = useQueryClient();
   const allowed = useHostUpdateAccess();
-  const mutationKey = ['cockpit-host-update-action', hostUpdateScope()];
+  const mutationKey = ['frontend-host-update-action', hostUpdateScope()];
   const pending = useIsMutating({ mutationKey });
   // Settings may remount while a request runs. The transport owns its browser/host lifetime.
   const mutation = useMutation(hostUpdateMutation(client, allowed));
   return {
     ...mutation,
     busy: pending > 0,
-    act: (request: CockpitHostUpdateRequest) => {
+    act: (request: FrontendHostUpdateRequest) => {
       // Synchronous cache check also catches a double click before React re-renders.
       if (!client.isMutating({ mutationKey })) mutation.mutate(request);
     },
@@ -116,7 +116,7 @@ export function useHostUpdateEvents() {
   const client = useQueryClient();
   const scope = hostUpdateScope();
   useEffect(() => {
-    const key = ['cockpit-host-updates', scope];
+    const key = ['frontend-host-updates', scope];
     const refresh = () => {
       void client.invalidateQueries({ queryKey: key });
       void client.invalidateQueries({ queryKey: ['release-notes'] });

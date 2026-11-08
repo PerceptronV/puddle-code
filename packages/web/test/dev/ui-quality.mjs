@@ -268,7 +268,7 @@ try {
 
   await phone.close();
 
-  // Packaged standalone pages: no cockpit/daemon, same palette and saved preference.
+  // Packaged standalone pages: no frontend/daemon, same palette and saved preference.
   const prompts = await browser.newContext();
   await prompts.addInitScript(() => {
     window.puddlePrompt = { submit() {}, cancel() {}, onStatus() {} };

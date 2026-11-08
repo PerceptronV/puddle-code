@@ -2,7 +2,7 @@
  * Terminal localhost-URL rewriting (SPEC §7): in SSH mode a URL an agent
  * prints — `http://localhost:5173/` — points at the HOST machine, which the
  * client's browser cannot reach directly. Rewrite it to a reusable trusted
- * cockpit landing page, which obtains an invitation for the isolated proxy
+ * frontend landing page, which obtains an invitation for the isolated proxy
  * origin (SPEC §2). Local mode returns the URI untouched.
  */
 

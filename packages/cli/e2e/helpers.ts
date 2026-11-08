@@ -4,7 +4,7 @@ import { tmpdir } from 'node:os';
 import { resolve, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import WebSocket from 'ws';
-import { cockpitStatusSchema, type WsServerMessage } from '@puddle/shared';
+import { frontendStatusSchema, type WsServerMessage } from '@puddle/shared';
 import { findFreePort } from '../src/lib/transport/net.js';
 
 export const root = fileURLToPath(new URL('../../../', import.meta.url));
@@ -78,13 +78,13 @@ export async function fixture(options: { caCert?: string } = {}) {
     child.stderr.on('data', (c) => (output += String(c)));
     return { child, output: () => output };
   };
-  const cockpit = launch();
+  const frontend = launch();
   const invitation = await until(
-    () => /#invite=(iv_[a-f0-9]{64})/.exec(cockpit.output())?.[1],
+    () => /#invite=(iv_[a-f0-9]{64})/.exec(frontend.output())?.[1],
     (value) => !!value,
   );
   const exchange = async (value: string) =>
-    fetch(`${origin}/cockpit/bootstrap`, {
+    fetch(`${origin}/frontend/bootstrap`, {
       method: 'POST',
       headers: { origin, 'content-type': 'application/json' },
       body: JSON.stringify({ invitation: value }),
@@ -108,13 +108,13 @@ export async function fixture(options: { caCert?: string } = {}) {
     port,
     uiPort,
     origin,
-    cockpit,
+    frontend,
     credential,
     invitation: invitation!,
     exchange,
     launch,
     req,
-    state: async () => cockpitStatusSchema.parse(await (await req('/cockpit/status')).json()),
+    state: async () => frontendStatusSchema.parse(await (await req('/frontend/status')).json()),
     registry: () =>
       JSON.parse(readFileSync(join(home, 'cockpits/local.json'), 'utf8')) as {
         pid: number;
@@ -125,11 +125,11 @@ export async function fixture(options: { caCert?: string } = {}) {
       // A refresh created a different process; stop the registered replacement too.
       try {
         const record = this.registry();
-        if (record.pid !== cockpit.child.pid) process.kill(record.pid, 'SIGTERM');
+        if (record.pid !== frontend.child.pid) process.kill(record.pid, 'SIGTERM');
       } catch {
         /* Already stopped. */
       }
-      await stop(cockpit.child);
+      await stop(frontend.child);
       await stop(daemon);
     },
   };

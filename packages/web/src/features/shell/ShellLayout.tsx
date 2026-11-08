@@ -383,7 +383,7 @@ function ShellBody() {
     return onThemeChange(report);
   }, [themeToDaemon]);
   return (
-    // The cockpit owns exactly one viewport; routed views provide the scroll
+    // The frontend owns exactly one viewport; routed views provide the scroll
     // surfaces within it. Clip any missed descendant constraint here and stop
     // a nested surface at its limit from rubber-banding the whole window.
     <div

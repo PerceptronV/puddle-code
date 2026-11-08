@@ -32,7 +32,7 @@ it('uses the production browser boundary in Vite development mode', async () => 
   try {
     const invitation = await until(() => /#invite=(iv_[a-f0-9]{64})/.exec(output)?.[1], Boolean);
     expect((await fetch(origin + '/api/version')).status).toBe(401);
-    const exchange = await fetch(origin + '/cockpit/bootstrap', {
+    const exchange = await fetch(origin + '/frontend/bootstrap', {
       method: 'POST',
       headers: { origin, 'content-type': 'application/json' },
       body: JSON.stringify({ invitation }),
@@ -40,7 +40,7 @@ it('uses the production browser boundary in Vite development mode', async () => 
     const { credential } = (await exchange.json()) as { credential: string };
     const headers = { origin, authorization: `Bearer ${credential}` };
     expect((await fetch(origin + '/api/version', { headers })).status).toBe(200);
-    expect((await fetch(origin + '/cockpit/local-sync', { headers })).status).toBe(200);
+    expect((await fetch(origin + '/frontend/local-sync', { headers })).status).toBe(200);
     expect((await fetch(`http://127.0.0.1:${port}/api/version`, { headers })).status).toBe(403);
     expect(
       (

@@ -3,7 +3,7 @@ import { isLocalHostHeader } from './guard.js';
 /**
  * Recovery for proxied apps that reference absolute paths. A page served from
  * /proxy/<sid>/<port>/ resolves absolute URLs — <script src="/assets/main.js">,
- * fetch('/api/…') — against the cockpit origin, escaping the proxy prefix; the
+ * fetch('/api/…') — against the frontend origin, escaping the proxy prefix; the
  * request would otherwise be answered by puddle's own SPA fallback (an HTML
  * body where a module script was expected). The Referer names the proxied page
  * the request came from, so strays are sent back under their prefix with a 307
@@ -39,7 +39,7 @@ export function recoverProxiedPath(
   } catch {
     return null;
   }
-  // Only pages this cockpit itself served can claim a stray (defence in
+  // Only pages this frontend itself served can claim a stray (defence in
   // depth — a foreign page cannot forge a localhost Referer, but be strict).
   if (!isLocalHostHeader(ref.host)) return null;
   const match = PROXY_PAGE.exec(ref.pathname);

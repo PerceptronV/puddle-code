@@ -1,8 +1,8 @@
 import {
   hostUpdateTerminal,
-  type CockpitHostUpdateReply,
-  type CockpitHostUpdateRequest,
-  type CockpitHostUpdateStatus,
+  type FrontendHostUpdateReply,
+  type FrontendHostUpdateRequest,
+  type FrontendHostUpdateStatus,
 } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { canReview, phaseLabel, reviewedApply, offlineRecoveryRequest } from './model';
@@ -14,11 +14,11 @@ export function OperationReview({
   offlineDisabled,
   act,
 }: {
-  status: CockpitHostUpdateStatus;
-  reply: CockpitHostUpdateReply | undefined;
+  status: FrontendHostUpdateStatus;
+  reply: FrontendHostUpdateReply | undefined;
   disabled: boolean;
   offlineDisabled: boolean;
-  act: (request: CockpitHostUpdateRequest) => void;
+  act: (request: FrontendHostUpdateRequest) => void;
 }) {
   const operation = status.result?.operation;
   if (!operation) return null;
@@ -80,7 +80,7 @@ export function OperationReview({
               <p key={`${code}-${index}`} className="text-xs text-warning">
                 {code === 'runtime_lifetime_unverified'
                   ? 'A runtime has a limited or unverified host lifetime. Daemon replacement is blocked while it runs. Updating also requires a supported host service manager.'
-                  : `Check failed: ${code.replaceAll('_', ' ')}`}
+                  : `Check failed: ${(code === 'cockpit_incompatible' ? 'frontend_incompatible' : code).replaceAll('_', ' ')}`}
               </p>
             ))}
           {review.more_blockers > 0 && (

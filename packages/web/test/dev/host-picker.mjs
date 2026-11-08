@@ -5,25 +5,25 @@ import { renderPrompt } from '../../../desktop/scripts/prompt-assets.mjs';
 
 const browser = await chromium.launch({ headless: true });
 try {
-  const cockpit = await browser.newPage({ viewport: { width: 1440, height: 900 } });
-  await cockpit.goto(process.env.PREVIEW_URL ?? 'http://localhost:5174/');
-  await cockpit.getByRole('button', { name: 'Close', exact: true }).click();
-  await cockpit.getByRole('button', { name: 'Settings', exact: true }).click();
-  await cockpit
+  const frontend = await browser.newPage({ viewport: { width: 1440, height: 900 } });
+  await frontend.goto(process.env.PREVIEW_URL ?? 'http://localhost:5174/');
+  await frontend.getByRole('button', { name: 'Close', exact: true }).click();
+  await frontend.getByRole('button', { name: 'Settings', exact: true }).click();
+  await frontend
     .getByRole('group', { name: 'Settings sections' })
     .getByRole('button', { name: 'Host', exact: true })
     .click();
-  await cockpit.getByRole('button', { name: 'Choose a host icon' }).click();
-  await cockpit.getByRole('button', { name: 'origami', exact: true }).click();
-  await cockpit
+  await frontend.getByRole('button', { name: 'Choose a host icon' }).click();
+  await frontend.getByRole('button', { name: 'origami', exact: true }).click();
+  await frontend
     .getByRole('group', { name: 'Host accent', exact: true })
     .getByRole('button', { name: 'green', exact: true })
     .click();
-  await cockpit.waitForFunction(
+  await frontend.waitForFunction(
     () =>
       JSON.parse(document.documentElement.dataset.desktopHostIdentity ?? '{}').colour === 'green',
   );
-  const identity = await cockpit.evaluate(() =>
+  const identity = await frontend.evaluate(() =>
     JSON.parse(document.documentElement.dataset.desktopHostIdentity),
   );
   assert.ok(identity.name);

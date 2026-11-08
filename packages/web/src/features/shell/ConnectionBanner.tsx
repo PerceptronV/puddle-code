@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from 'react';
 import { RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '../../components/ui/button';
-import { registerRefreshTrigger, refreshController } from '../../lib/transport/cockpit-refresh';
+import { registerRefreshTrigger, refreshController } from '../../lib/transport/frontend-refresh';
 import { wsManager } from '../../lib/transport/ws';
 
 /** A blip this short (the WS manager's own reconnect usually wins) shows nothing. */
@@ -13,7 +13,7 @@ type Phase = 'hidden' | 'lost' | 'refreshing';
 /**
  * The connection banner (SPEC §10): appears at the bottom of the shell when
  * the daemon WebSocket stays down past a grace period, offering the same
- * cockpit refresh `puddle refresh` runs — kill the cockpit, reopen the
+ * frontend refresh `puddle refresh` runs — kill the frontend, reopen the
  * tunnel, restart the daemon if needed — after which this page reloads
  * itself. Also the registered target of the ⌘K "Refresh connection" command,
  * so a refresh can be driven while nominally connected too.
@@ -51,7 +51,7 @@ export function ConnectionBanner() {
     const settle = () => setPhase(wsManager.isConnected() ? 'hidden' : 'lost');
     if (await refreshController.refresh()) return;
     toast.error(
-      'The cockpit has not come back — it may need a terminal (ssh re-auth): puddle refresh',
+      'The frontend has not come back — it may need a terminal (ssh re-auth): puddle refresh',
     );
     settle();
   }, []);
@@ -63,7 +63,7 @@ export function ConnectionBanner() {
   return (
     <div className="flex shrink-0 items-center gap-3 bg-elevated px-3 py-2">
       <span className="text-xs text-fg-secondary">
-        {phase === 'refreshing' ? 'Restarting the cockpit.' : 'Connection to the daemon lost.'}
+        {phase === 'refreshing' ? 'Restarting the frontend.' : 'Connection to the daemon lost.'}
       </span>
       {phase === 'lost' && (
         <Button size="sm" className="ml-auto" onClick={() => void refresh()}>

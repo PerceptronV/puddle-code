@@ -1,7 +1,7 @@
 import { ipcPath, listenPrivate } from '@puddle/shared/node';
 import { profileId } from '@puddle/shared';
 
-/** Serialise local/SSH writers across cockpit windows and CLI processes. */
+/** Serialise local/SSH writers across frontend windows and CLI processes. */
 export async function profileMutation<T>(
   home: string,
   profile: string,

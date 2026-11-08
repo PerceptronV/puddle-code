@@ -116,7 +116,7 @@ describe('remote surface', () => {
   });
   it.each([
     '/proxy/a/3000',
-    '/cockpit/refresh',
+    '/frontend/refresh',
     '/agent-signal',
     '/api/config/../accounts',
     '/api/%73essions',

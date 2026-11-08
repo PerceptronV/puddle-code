@@ -1,6 +1,6 @@
 import type { HostConnection } from '../auth/connection-authority.js';
 import { randomUUID } from 'node:crypto';
-import type { DaemonEndpoint, DaemonLease } from './cockpit.js';
+import type { DaemonEndpoint, DaemonLease } from './frontend.js';
 import { waitForStartedDaemon } from '../auth/readiness.js';
 import { sleep } from '../transport/net.js';
 import { hostPaths } from '../paths.js';
@@ -31,7 +31,7 @@ export class AttachedDaemon implements DaemonLease {
     return {
       ...started,
       bootstrapped: true,
-      daemonLifetime: 'cockpit',
+      daemonLifetime: 'frontend',
       lease: this,
     };
   }
@@ -138,7 +138,7 @@ export class AttachedDaemon implements DaemonLease {
       throw new CliError(
         'daemon_start_timeout',
         `another puddled process won the startup race on ${this.ssh.label}`,
-        'close the other cockpit or wait for its daemon to stop, then launch again',
+        'close the other frontend or wait for its daemon to stop, then launch again',
       );
     }
     this.pid = claimedPid;

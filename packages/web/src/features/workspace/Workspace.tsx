@@ -328,7 +328,7 @@ function WorkspaceInner() {
   );
   const { setHandler } = useNewSession();
 
-  // A cockpit transition schedules one coalesced native-store refresh. The
+  // A frontend transition schedules one coalesced native-store refresh. The
   // project renders from its normal cache while discovery runs in the daemon;
   // `sessions-changed` invalidates the catalogue only when rows actually move.
   useEffect(() => {

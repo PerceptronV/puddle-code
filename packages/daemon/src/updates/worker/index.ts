@@ -39,7 +39,7 @@ if (args.length === 1 && args[0] === '--version') {
       'Usage: host-update --home <private-home> --operation <accepted-operation-id> [--recovery <attempt-id> | --dispatch-recovery <revision> | --participating-recovery <revision>]',
     );
   const home = args[1]!;
-  // Only trusted host OS/SSH access selects executable paths. Cockpit continuation
+  // Only trusted host OS/SSH access selects executable paths. Frontend continuation
   // uses a participating helper; ordinary relay leases cannot reach this entry.
   if (args[4] === '--dispatch-recovery' || args[4] === '--participating-recovery') {
     const participation =

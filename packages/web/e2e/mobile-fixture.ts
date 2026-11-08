@@ -13,7 +13,7 @@ import { administrativeRequest } from '../../connector/src/admin.js';
 import { fixture, createSession, env, stop, until, root } from '../../cli/e2e/helpers.js';
 import { findFreePort } from '../../cli/src/lib/transport/net.js';
 
-/** Real daemon, cockpit, service and connector; only the coding agent and GitHub are fixtures. */
+/** Real daemon, frontend, service and connector; only the coding agent and GitHub are fixtures. */
 export async function mobileFixture() {
   const directory = mkdtempSync(join(tmpdir(), 'puddle-mobile-browser-'));
   const servicePort = await findFreePort();
@@ -44,7 +44,7 @@ export async function mobileFixture() {
     { stdio: 'ignore' },
   );
   const local = await fixture({ caCert: certPath });
-  // Make the actual connector entry point available to the built desktop cockpit.
+  // Make the actual connector entry point available to the built desktop frontend.
   // No supervisor is installed or invoked; this fixture owns the connector process.
   mkdirSync(join(local.home, 'bin/current/bin'), { recursive: true });
   mkdirSync(join(local.home, 'bin/current/daemon'), { recursive: true });

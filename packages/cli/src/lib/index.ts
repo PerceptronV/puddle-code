@@ -1,6 +1,6 @@
 /**
  * The embedder seam (SPEC §10): everything a non-terminal shell needs to run
- * a puddle cockpit in-process. The `puddle` bin and the desktop app
+ * a puddle frontend in-process. The `puddle` bin and the desktop app
  * (`packages/desktop`) are both thin consumers of these exports — one
  * codebase, two downstream builds. Nothing here touches the process
  * (no console, no TTY, no process.exit); loggers and behaviour are injected.
@@ -11,7 +11,7 @@
 
 export { startLocal, type StartOptions } from './connection/start.js';
 export { connectRemote, type ConnectOptions } from './connection/connect.js';
-export type { RunningCockpit } from './connection/cockpit.js';
+export type { RunningFrontend } from './connection/frontend.js';
 export {
   daemonUpgradeMessage,
   type ConfirmDaemonUpgrade,

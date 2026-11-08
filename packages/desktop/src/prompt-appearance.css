@@ -1,4 +1,4 @@
-/* Packaged from the cockpit tokens; no daemon or web-server dependency. */
+/* Packaged from the frontend tokens; no daemon or web-server dependency. */
 button,
 input {
   min-height: var(--ui-field-height);

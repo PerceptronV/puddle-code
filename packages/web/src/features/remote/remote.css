@@ -298,7 +298,7 @@
   padding: 1rem;
   color: var(--text-muted);
 }
-/* The local cockpit still mounts its existing mobile selector above this pane. */
+/* The local frontend still mounts its existing mobile selector above this pane. */
 .phone-selectors {
   display: flex;
   gap: 0.5rem;

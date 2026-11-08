@@ -1,21 +1,21 @@
 import { describe, expect, it, vi } from 'vitest';
-import { HostConnections, type WindowCockpit } from '../../../src/windows/hosts/connections.js';
+import { HostConnections, type WindowFrontend } from '../../../src/windows/hosts/connections.js';
 
-function cockpit(port = 7433) {
+function frontend(port = 7433) {
   return { origin: `http://localhost:${port}`, stop: vi.fn().mockResolvedValue(undefined) };
 }
 
 describe('host connection ownership across independent windows', () => {
   it('shares one pending connection and stops only after its final window closes', async () => {
-    const pending = Promise.withResolvers<ReturnType<typeof cockpit>>();
+    const pending = Promise.withResolvers<ReturnType<typeof frontend>>();
     const connect = vi.fn(() => pending.promise);
-    const registry = new HostConnections<WindowCockpit, string>(connect);
+    const registry = new HostConnections<WindowFrontend, string>(connect);
     const host = registry.open('host', 'host-window', () => 'host');
     const project = registry.open('host', 'project-window', () => 'project');
     const pane = registry.open('host', 'pane-window', () => 'pane');
     await Promise.resolve();
     expect(connect).toHaveBeenCalledOnce();
-    const connection = cockpit();
+    const connection = frontend();
     pending.resolve(connection);
     expect(await Promise.all([host, project, pane])).toEqual(['host', 'project', 'pane']);
     await registry.close('host', 'host-window');
@@ -27,8 +27,8 @@ describe('host connection ownership across independent windows', () => {
   });
 
   it('creates a restored pane without a host window and deduplicates repeated opens', async () => {
-    const connection = cockpit();
-    const registry = new HostConnections<WindowCockpit, string>(async () => connection);
+    const connection = frontend();
+    const registry = new HostConnections<WindowFrontend, string>(async () => connection);
     const create = vi.fn(() => 'pane');
     expect(
       await Promise.all([
@@ -43,14 +43,14 @@ describe('host connection ownership across independent windows', () => {
   });
 
   it('shares refresh and reports the replacement to all remaining windows', async () => {
-    const first = cockpit();
-    const second = cockpit(7435);
-    const replacement = Promise.withResolvers<ReturnType<typeof cockpit>>();
+    const first = frontend();
+    const second = frontend(7435);
+    const replacement = Promise.withResolvers<ReturnType<typeof frontend>>();
     const connect = vi
       .fn()
       .mockResolvedValueOnce(first)
       .mockImplementationOnce(() => replacement.promise);
-    const registry = new HostConnections<WindowCockpit, string>(connect);
+    const registry = new HostConnections<WindowFrontend, string>(connect);
     await registry.open('host', 'host', () => 'host');
     await registry.open('host', 'pane', () => 'pane');
     const host = registry.hosts.get('host')!;
@@ -62,7 +62,7 @@ describe('host connection ownership across independent windows', () => {
     await refresh;
     expect(connect).toHaveBeenLastCalledWith('host', first, 'refresh-id');
     expect(changed).toHaveBeenCalledExactlyOnceWith(first);
-    expect(host.cockpit).toBe(second);
+    expect(host.frontend).toBe(second);
     expect([...host.windows.keys()]).toEqual(['pane']);
     await registry.dispose();
     expect(first.stop).toHaveBeenCalledOnce();
@@ -70,11 +70,11 @@ describe('host connection ownership across independent windows', () => {
   });
 
   it('stops a replacement arriving after the last window closes', async () => {
-    const first = cockpit();
-    const second = cockpit(7435);
-    const replacement = Promise.withResolvers<ReturnType<typeof cockpit>>();
+    const first = frontend();
+    const second = frontend(7435);
+    const replacement = Promise.withResolvers<ReturnType<typeof frontend>>();
     const started = Promise.withResolvers<void>();
-    const registry = new HostConnections<WindowCockpit, string>(async (_target, previous) => {
+    const registry = new HostConnections<WindowFrontend, string>(async (_target, previous) => {
       if (!previous) return first;
       started.resolve();
       return replacement.promise;
@@ -92,11 +92,11 @@ describe('host connection ownership across independent windows', () => {
     expect(registry.has('host')).toBe(false);
   });
 
-  it('does not reconnect when the last window closes while the old cockpit stops', async () => {
+  it('does not reconnect when the last window closes while the old frontend stops', async () => {
     const stopping = Promise.withResolvers<void>();
     const first = { origin: 'http://localhost:7433', stop: vi.fn(() => stopping.promise) };
     const connect = vi.fn(async () => first);
-    const registry = new HostConnections<WindowCockpit, string>(connect);
+    const registry = new HostConnections<WindowFrontend, string>(connect);
     await registry.open('host', 'pane', () => 'pane');
     const refresh = registry.refresh(registry.hosts.get('host')!);
     const closed = registry.close('host', 'pane');
@@ -106,12 +106,12 @@ describe('host connection ownership across independent windows', () => {
     expect(first.stop).toHaveBeenCalledOnce();
   });
 
-  it('waits for retirement before opening another cockpit for the same host', async () => {
+  it('waits for retirement before opening another frontend for the same host', async () => {
     const stopping = Promise.withResolvers<void>();
     const first = { origin: 'http://localhost:7433', stop: vi.fn(() => stopping.promise) };
-    const second = cockpit();
+    const second = frontend();
     const connect = vi.fn().mockResolvedValueOnce(first).mockResolvedValueOnce(second);
-    const registry = new HostConnections<WindowCockpit, string>(connect);
+    const registry = new HostConnections<WindowFrontend, string>(connect);
     await registry.open('host', 'pane', () => 'pane');
     const closed = registry.close('host', 'pane');
     const opened = registry.open('host', 'host', () => 'host');
@@ -125,9 +125,9 @@ describe('host connection ownership across independent windows', () => {
   });
 
   it('disposes late initial connections without creating a window', async () => {
-    const pending = Promise.withResolvers<ReturnType<typeof cockpit>>();
-    const connection = cockpit();
-    const registry = new HostConnections<WindowCockpit, string>(() => pending.promise);
+    const pending = Promise.withResolvers<ReturnType<typeof frontend>>();
+    const connection = frontend();
+    const registry = new HostConnections<WindowFrontend, string>(() => pending.promise);
     const create = vi.fn(() => 'pane');
     const opened = registry.open('host', 'pane', create);
     await Promise.resolve();
@@ -141,9 +141,9 @@ describe('host connection ownership across independent windows', () => {
   });
 
   it('keeps other hosts independent and cleans up failed window creation', async () => {
-    const first = cockpit();
-    const second = cockpit(7435);
-    const registry = new HostConnections<WindowCockpit, string>(async (target) =>
+    const first = frontend();
+    const second = frontend(7435);
+    const registry = new HostConnections<WindowFrontend, string>(async (target) =>
       target === 'a' ? first : second,
     );
     await registry.open('a', 'pane-a', () => 'a');

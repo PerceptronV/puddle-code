@@ -2,7 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { createServer, type Server } from 'node:http';
 import {
   browserBootstrapSchema,
-  cockpitRefreshRequestSchema,
+  frontendRefreshRequestSchema,
   proxyGrantRequestSchema,
 } from '@puddle/shared';
 import type { ConnectionAuthority } from '../auth/connection-authority.js';
@@ -27,7 +27,7 @@ import { remoteAccessHandler } from './remote-access.js';
 import { checkRemoteRegistration } from './remote-registration.js';
 import { fileManagerHandler } from './file-manager.js';
 import type { LocalFileManager } from '../host/file-manager.js';
-import type { CockpitHostUpdates } from '../host/updates/cockpit.js';
+import type { FrontendHostUpdates } from '../host/updates/frontend.js';
 import { hostUpdatesHandler } from './host-updates.js';
 
 export interface UiServerOptions {
@@ -47,7 +47,7 @@ export interface UiServerOptions {
   localSync?: LocalSyncOptions;
   remoteAccess?: RemoteAccessControl;
   fileManager?: LocalFileManager;
-  hostUpdates?: CockpitHostUpdates;
+  hostUpdates?: FrontendHostUpdates;
 }
 export interface UiServer {
   port: number;
@@ -77,6 +77,8 @@ export async function startUiServer(opts: UiServerOptions): Promise<UiServer> {
   let browsers: BrowserAuthority;
   let refreshing: string | null = null;
   const server = createServer((req, res) => {
+    res.setHeader('x-puddle-frontend', nonce);
+    // Existing launchers must still be able to verify a replacement frontend.
     res.setHeader('x-puddle-cockpit', nonce);
     res.setHeader('referrer-policy', 'no-referrer');
     void (async () => {
@@ -86,7 +88,11 @@ export async function startUiServer(opts: UiServerOptions): Promise<UiServer> {
       if (!exactOrigin(req, origin, !['GET', 'HEAD'].includes(req.method ?? '')))
         return fail(res, 403, 'forbidden_origin');
       const url = new URL(req.url ?? '/', origin);
-      if (url.pathname === '/cockpit/bootstrap' && req.method === 'POST') {
+      // Existing browser tabs keep their authenticated control URLs after refresh.
+      // Alias before dispatch so both spellings retain identical authority checks.
+      if (url.pathname.startsWith('/cockpit/'))
+        url.pathname = '/frontend/' + url.pathname.slice('/cockpit/'.length);
+      if (url.pathname === '/frontend/bootstrap' && req.method === 'POST') {
         if (!exactOrigin(req, origin, true)) return fail(res, 403, 'forbidden_origin');
         const body = browserBootstrapSchema.parse(await readJson(req));
         const credential = browsers.exchange(body.invitation);
@@ -96,7 +102,7 @@ export async function startUiServer(opts: UiServerOptions): Promise<UiServer> {
       const protectedPath =
         url.pathname === '/api' ||
         url.pathname.startsWith('/api/') ||
-        url.pathname.startsWith('/cockpit/');
+        url.pathname.startsWith('/frontend/');
       if (!protectedPath) {
         serveStatic(req, res);
         return;
@@ -108,25 +114,25 @@ export async function startUiServer(opts: UiServerOptions): Promise<UiServer> {
         return fail(res, 401, 'browser_rejected', 'Run puddle launch to authorise this browser.');
       const unbind = browsers.bind(browser, () => res.destroy());
       res.once('close', unbind);
-      if (url.pathname === '/cockpit/logout' && req.method === 'POST') {
+      if (url.pathname === '/frontend/logout' && req.method === 'POST') {
         unbind();
         browsers.revoke(browser);
         return json(res, 200, { status: 'revoked' });
       }
-      if (url.pathname === '/cockpit/status' && req.method === 'GET') {
+      if (url.pathname === '/frontend/status' && req.method === 'GET') {
         return json(res, 200, {
           instance: nonce,
           refreshId: opts.refreshId ?? null,
           upstream: authority.state,
         });
       }
-      if (url.pathname === '/cockpit/local-sync')
+      if (url.pathname === '/frontend/local-sync')
         return handleLocalSync(req, res, opts.localSync, () => browsers.valid(browser));
-      if (url.pathname === '/cockpit/file-manager')
+      if (url.pathname === '/frontend/file-manager')
         return handleFileManager(req, res, () => browsers.valid(browser));
-      if (url.pathname === '/cockpit/remote')
+      if (url.pathname === '/frontend/remote')
         return handleRemoteAccess(req, res, () => browsers.valid(browser));
-      if (url.pathname === '/cockpit/updates') {
+      if (url.pathname === '/frontend/updates') {
         const cancellation = new AbortController();
         const cancel = () => cancellation.abort();
         const unbindUpdate = browsers.bind(browser, cancel);
@@ -143,13 +149,13 @@ export async function startUiServer(opts: UiServerOptions): Promise<UiServer> {
           res.off('close', cancel);
         }
       }
-      if (url.pathname === '/cockpit/remote/registration') {
+      if (url.pathname === '/frontend/remote/registration') {
         if (!opts.remoteAccess) return fail(res, 404, 'remote_controls_unavailable');
         return checkRemoteRegistration(req, res, () => browsers.valid(browser));
       }
-      if (url.pathname === '/cockpit/refresh' && req.method === 'POST') {
+      if (url.pathname === '/frontend/refresh' && req.method === 'POST') {
         if (!opts.control) return fail(res, 404, 'refresh_unavailable');
-        const body = cockpitRefreshRequestSchema.parse(await readJson(req));
+        const body = frontendRefreshRequestSchema.parse(await readJson(req));
         if (!browsers.valid(browser)) return fail(res, 401, 'browser_rejected');
         const first = refreshing === null;
         refreshing ??= body.refreshId;
@@ -158,7 +164,7 @@ export async function startUiServer(opts: UiServerOptions): Promise<UiServer> {
         if (first) setImmediate(() => opts.control?.onRefresh(refreshing!));
         return;
       }
-      if (url.pathname === '/cockpit/proxy-grant' && req.method === 'POST') {
+      if (url.pathname === '/frontend/proxy-grant' && req.method === 'POST') {
         if (authority.state !== 'ready') return fail(res, 503, authority.state);
         const body = proxyGrantRequestSchema.parse(await readJson(req));
         if (!browsers.valid(browser)) return fail(res, 401, 'browser_rejected');

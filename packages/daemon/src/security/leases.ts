@@ -46,7 +46,7 @@ export class LeaseRegistry {
   renew(id: string, resources: string[]): { generation: string; token?: string } | null {
     const lease = this.leases.get(id);
     if (!lease || !this.live(lease)) return null;
-    // Bound duplicate-id tombstones without leaving a busy cockpit permanently
+    // Bound duplicate-id tombstones without leaving a busy frontend permanently
     // unusable: the control client recovers with a fresh generation.
     if (lease.used.size >= 100_000) {
       this.revoke(id);

@@ -13,7 +13,7 @@ export function usePreviewAssets(
   // endpoint: image elements carry no bearer header, so the bytes travel as a
   // fetch → object URL (the MediaViewer pattern). Both `src` and `srcset` are
   // covered: a README's theme-aware <picture><source srcset=…> must not bypass
-  // the rewrite and ask the browser for a raw cockpit-relative URL.
+  // the rewrite and ask the browser for a raw frontend-relative URL.
   useEffect(() => {
     const container = body.current;
     if (!container) return;

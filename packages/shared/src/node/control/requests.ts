@@ -26,6 +26,7 @@ export class HostControlRequests<Command, Reply> {
     private readonly options: {
       type: 'host-update' | 'host-maintenance';
       parse(value: unknown): Command;
+      serialize?(command: Command): unknown;
       timeoutMs?: number;
     },
   ) {}
@@ -40,7 +41,8 @@ export class HostControlRequests<Command, Reply> {
     )
       return Promise.reject(new Error('Host update control limit reached'));
     const request_id = randomUUID();
-    const frame = JSON.stringify({ t: this.options.type, request_id, command }) + '\n';
+    const wire = this.options.serialize ? this.options.serialize(command) : command;
+    const frame = JSON.stringify({ t: this.options.type, request_id, command: wire }) + '\n';
     if (Buffer.byteLength(frame) > CONTROL_MAX_BYTES)
       return Promise.reject(new Error('Host control request exceeds its limit'));
     this.issued++;

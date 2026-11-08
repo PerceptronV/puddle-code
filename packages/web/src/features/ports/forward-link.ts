@@ -2,11 +2,11 @@ import { proxyGrantResponseSchema } from '@puddle/shared';
 import { api } from '../../lib/transport/api';
 import { desktopBridge } from '../../lib/desktop';
 
-/** Obtain an application-scoped invitation using this cockpit's authorisation. */
+/** Obtain an application-scoped invitation using this frontend's authorisation. */
 export async function forwardingInvitation(url: URL): Promise<string> {
   const match = /^\/forward\/([^/]+)\/(\d+)$/.exec(url.pathname);
   if (!match) throw new Error('This forwarding link is invalid.');
-  const body = await api('POST', '/cockpit/proxy-grant', {
+  const body = await api('POST', '/frontend/proxy-grant', {
     session: match[1],
     port: Number(match[2]),
     path: url.searchParams.get('path') ?? '/',

@@ -3,19 +3,19 @@ import { dirname } from 'node:path';
 import type { IncomingMessage, ServerResponse } from 'node:http';
 
 /**
- * The cockpit-local settings-sync store (SPEC §10/§11): one JSON file under
- * the CLIENT machine's ~/.puddle, shared by every cockpit on the box — that is
+ * The frontend-local settings-sync store (SPEC §10/§11): one JSON file under
+ * the CLIENT machine's ~/.puddle, shared by every frontend on the box — that is
  * what lets "Sync locally" reach every puddle window regardless of its port
  * (localStorage cannot: localhost:7433 and :7435 are separate origins) or of
  * which daemon it drives. The CLI treats each profile's entry as an opaque
  * JSON object; the web owns its shape and semantics (settings-sync-manifest).
  *
- *   GET /cockpit/local-sync            → the whole file { version, profiles }
- *   PUT /cockpit/local-sync            ← { profile, entry } merges one profile key
+ *   GET /frontend/local-sync            → the whole file { version, profiles }
+ *   PUT /frontend/local-sync            ← { profile, entry } merges one profile key
  *
- * Same discipline as /cockpit/refresh: exact cockpit Host/Origin and browser
+ * Same discipline as /frontend/refresh: exact frontend Host/Origin and browser
  * authorisation, independently of upstream availability. Writes are read-merge-rename so
- * concurrent cockpits never tear the file (last write per profile key wins).
+ * concurrent frontends never tear the file (last write per profile key wins).
  */
 export interface LocalSyncOptions {
   file: string;
@@ -80,7 +80,7 @@ export function handleLocalSync(
     send(status, { error: { code, message } });
 
   if (opts === undefined) {
-    return fail(404, 'local_sync_unavailable', 'this cockpit has no local sync store');
+    return fail(404, 'local_sync_unavailable', 'this frontend has no local sync store');
   }
   if (!authorised()) {
     return fail(401, 'browser_rejected', 'browser authorisation expired');

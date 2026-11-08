@@ -10,7 +10,7 @@ import { latestComponentReleases } from '@puddle/shared/node/host-control';
  * CLI has already committed to running it.
  */
 export async function latestReleaseVersion(
-  opts: { fetchFn?: typeof fetch; component?: 'cockpit' | 'daemon' | 'runtime' } = {},
+  opts: { fetchFn?: typeof fetch; component?: 'frontend' | 'daemon' | 'runtime' } = {},
 ): Promise<string> {
   const slug = repoSlug();
   if (slug === undefined) {

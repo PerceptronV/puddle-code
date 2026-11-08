@@ -1,6 +1,6 @@
 # LaTeX compilation acceptance — local tools, eager builds and SyncTeX
 
-Run this manually against a built Puddle cockpit on every supported host family
+Run this manually against a built Puddle frontend on every supported host family
 before release. Unit tests use fake tools and fixture output; this script covers
 the behaviours that need a real TeX installation, filesystem watcher, PDF.js
 canvas and Monaco instance.
@@ -15,7 +15,7 @@ export PUDDLE_HOME=$(mktemp -d)
 node packages/daemon/dist/index.js
 ```
 
-Connect the CLI/cockpit to that daemon through the normal development launch
+Connect the CLI/frontend to that daemon through the normal development launch
 path. Create a project containing this fixture:
 
 ```text
@@ -59,7 +59,7 @@ An accepted result cites \cite{puddle}.
 2. Hover each control. The play tooltip says it compiles on demand. The
    lightning tooltip says it enables eager compilation; its accent state
    reflects the persisted mode.
-3. Confirm the capability comes from the daemon host. For an SSH cockpit, a TeX
+3. Confirm the capability comes from the daemon host. For an SSH frontend, a TeX
    installation on the browser machine alone must not enable the controls, and
    an installation only on the remote daemon host must enable them.
 4. Verify discovery on the host's ordinary `PATH`. Also test one sparse service
@@ -158,13 +158,13 @@ Repeat with source/root paths containing spaces and non-ASCII characters.
    source in the background without stealing focus. If it is already open, only
    that tab refreshes.
 7. Disable eager mode, then change a dependency: no build occurs. Re-enable it,
-   reload/reconnect the cockpit and confirm the persisted source tab registers
+   reload/reconnect the frontend and confirm the persisted source tab registers
    again. Closing the last eager copy retires the watcher.
 
 ## 5. PDF rendering and inverse SyncTeX
 
 1. Generated LaTeX PDFs and ordinary PDFs use the owned PDF.js viewer. Only
-   generated LaTeX output enables inverse source navigation. In a packaged CLI/desktop cockpit, confirm the
+   generated LaTeX output enables inverse source navigation. In a packaged CLI/desktop frontend, confirm the
    emitted `pdf.worker*.mjs` request succeeds with a JavaScript content type;
    module workers must never be served as `application/octet-stream`.
 2. Resize the pane and use a multi-page document. Pages remain fitted and crisp

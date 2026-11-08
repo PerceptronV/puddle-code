@@ -16,8 +16,9 @@ import {
 
 const home = process.env.PUDDLE_HOME ?? join(homedir(), '.puddle');
 if (process.argv.includes('--version')) {
+  // Older installed clients require the legacy capability marker before remote administration.
   process.stdout.write(
-    `puddle-connector remote protocol ${REMOTE_PROTOCOL_VERSION}; daemon protocol ${PROTOCOL_VERSION.major}.${PROTOCOL_VERSION.minor}; cockpit controls 2; delete registration 1; maintenance grants 1\n`,
+    `puddle-connector remote protocol ${REMOTE_PROTOCOL_VERSION}; daemon protocol ${PROTOCOL_VERSION.major}.${PROTOCOL_VERSION.minor}; frontend controls 2; legacy cockpit controls 2; delete registration 1; maintenance grants 1\n`,
   );
 } else if (process.argv.includes('--disable-all')) {
   await disableAllProfiles(home);

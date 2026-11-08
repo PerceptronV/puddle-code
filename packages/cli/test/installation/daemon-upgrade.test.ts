@@ -23,7 +23,7 @@ const hostUpgrade = vi.hoisted(() => vi.fn());
 vi.mock('../../src/lib/installation/host/upgrade.js', () => ({
   upgradeHostComponent: hostUpgrade,
 }));
-import { ensureDaemon } from '../../src/lib/connection/cockpit.js';
+import { ensureDaemon } from '../../src/lib/connection/frontend.js';
 import { startLocal } from '../../src/lib/connection/start.js';
 
 let home: string;
@@ -130,13 +130,13 @@ it.each(['local', 'ssh'] as const)(
   },
 );
 
-it('opens the cockpit after one approved update and no second handshake upgrade', async () => {
+it('opens the frontend after one approved update and no second handshake upgrade', async () => {
   writeFileSync(join(home, 'index.html'), '<!doctype html><title>test</title>');
   const confirmDaemonUpgrade = vi.fn(async () => true);
-  const cockpit = await startLocal({ assetsDir: home, confirmDaemonUpgrade });
-  cleanup.push(() => cockpit.stop());
-  expect((await fetch(cockpit.origin)).status).toBe(200);
-  expect(cockpit.daemon.protocol.major).toBe(PROTOCOL_VERSION.major);
+  const frontend = await startLocal({ assetsDir: home, confirmDaemonUpgrade });
+  cleanup.push(() => frontend.stop());
+  expect((await fetch(frontend.origin)).status).toBe(200);
+  expect(frontend.daemon.protocol.major).toBe(PROTOCOL_VERSION.major);
   expect(confirmDaemonUpgrade).toHaveBeenCalledOnce();
   expect(install).toHaveBeenCalledOnce();
 });
@@ -216,9 +216,9 @@ it.each([true, false])(
     });
     const pending = startLocal({ assetsDir: home, confirmDaemonUpgrade, confirmInterruption });
     if (approved) {
-      const cockpit = await pending;
-      cleanup.push(() => cockpit.stop());
-      expect(cockpit.daemon.protocol.major).toBe(PROTOCOL_VERSION.major);
+      const frontend = await pending;
+      cleanup.push(() => frontend.stop());
+      expect(frontend.daemon.protocol.major).toBe(PROTOCOL_VERSION.major);
     } else {
       await expect(pending).rejects.toThrow('Exact interruption declined');
       expect(major).toBe(PROTOCOL_VERSION.major - 1);

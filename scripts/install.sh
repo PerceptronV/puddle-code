@@ -356,13 +356,17 @@ else
 fi
 # The archive may contain shared host executables, but only advertised components
 # may be selected. Legacy archives have no manifest and retain their old meaning.
-if [ -e "$DEST/release-manifest.json" ]; then
-  "$DEST/bin/node" --input-type=commonjs - "$DEST/release-manifest.json" "$COMPONENT" "$VERSION" <<'NODE'
+RELEASE_MANIFEST="$DEST/release-manifest.json"
+if [ -e "$DEST/release-manifest-v2.json" ] || [ -L "$DEST/release-manifest-v2.json" ]; then
+  RELEASE_MANIFEST="$DEST/release-manifest-v2.json"
+fi
+if [ -e "$RELEASE_MANIFEST" ] || [ -L "$RELEASE_MANIFEST" ]; then
+  "$DEST/bin/node" --input-type=commonjs - "$RELEASE_MANIFEST" "$COMPONENT" "$VERSION" <<'NODE'
 const fs = require('node:fs');
 const [file, component, version] = process.argv.slice(2);
 if (fs.statSync(file).size > 16384) throw new Error('Release manifest too large');
 const manifest = JSON.parse(fs.readFileSync(file, 'utf8'));
-if (manifest.format !== 1 || manifest.version !== version || manifest.components?.[component] !== version)
+if (![1, 2].includes(manifest.format) || manifest.version !== version || manifest.components?.[component] !== version)
   throw new Error(`No ${component} was published for v${version}`);
 NODE
 fi
@@ -498,12 +502,12 @@ if [ "$COMPONENT" = daemon ] && [ -z "$ACTIVATE" ] &&
     die "initial runtime fails its own --version smoke test (details: $SMOKE_LOG)"
   fi
   rm -f "$SMOKE_LOG"
-  if [ -e "$DEST/release-manifest.json" ]; then
-    "$DEST/bin/node" --input-type=commonjs - "$DEST/release-manifest.json" "$VERSION" <<'NODE'
+  if [ -e "$RELEASE_MANIFEST" ] || [ -L "$RELEASE_MANIFEST" ]; then
+    "$DEST/bin/node" --input-type=commonjs - "$RELEASE_MANIFEST" "$VERSION" <<'NODE'
 const fs = require('node:fs');
 const manifest = JSON.parse(fs.readFileSync(process.argv[2], 'utf8'));
 if (manifest.components.runtime !== process.argv[3])
-  throw new Error(`Install runtime ${manifest.components.runtime} before bootstrapping this daemon (use an updated cockpit)`);
+  throw new Error(`Install runtime ${manifest.components.runtime} before bootstrapping this daemon (use an updated frontend)`);
 NODE
   fi
   INITIAL_RUNTIME=1

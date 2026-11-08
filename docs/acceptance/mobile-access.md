@@ -79,7 +79,7 @@ recovery instructions: [self-hosted mobile access](../mobile-access.md).
   supervision is scripted and stage downloading uses an exact local archive/checksum.
   This is process continuity evidence, not native-manager or real-provider acceptance.
 - `pnpm test:e2e` and `pnpm test:ssh`: preserve local/SSH foundation behaviour,
-  cockpit replacement, connection leases and isolated loopback SSH integration.
+  frontend replacement, connection leases and isolated loopback SSH integration.
 - The isolated mobile pairing fixture decodes actual QR frames, checks separate
   browser-context identities and confirmation before key creation, camera denial,
   cancellation, backgrounding, timeout and late permission grants. It also checks
@@ -140,7 +140,7 @@ review, production OAuth-provider acceptance or physical-phone acceptance.
   independent host execution. Reset identity locally and require fresh pins and
   approvals. Verify logs/registry records do not contain credentials/invitations.
 - Saturate handshake, connection, request and output limits with slow peers;
-  memory remains bounded and local cockpit operations remain available.
+  memory remains bounded and local frontend operations remain available.
 
 ## Remote host maintenance
 
@@ -149,7 +149,7 @@ fixture passes actual connector replacement with scripted supervision. Native
 supervisor and real-provider continuity remain **pending**. Complete and record
 the following on disposable hosts; fixture results do not complete those gates.
 
-1. Deploy application 26.0/remote 5 across the cockpit, daemon/connector, service
+1. Deploy application 26.0/remote 5 across the frontend, daemon/connector, service
    and app. Upgrade an existing per-profile registration from remote 4: its
    approved browser must retain ordinary access and have no maintenance grant.
    Pair a new browser and confirm it also has no grant. Incompatible older clients

@@ -196,7 +196,7 @@ it('upgrades bundled daemon and runtime through host authority while the existin
     const reviewed = await firstControl.hostUpdate({
       action: 'inspect',
       reference: reference(operation),
-      cockpit: PROTOCOL_VERSION,
+      frontend: PROTOCOL_VERSION,
     });
     expect(reviewed, JSON.stringify(reviewed)).toMatchObject({
       ok: true,
@@ -207,7 +207,7 @@ it('upgrades bundled daemon and runtime through host authority while the existin
       action: 'apply',
       reference: reference(reviewed.operation!),
       fingerprint: reviewed.review!.fingerprint!,
-      cockpit: PROTOCOL_VERSION,
+      frontend: PROTOCOL_VERSION,
     });
     expect(applied, JSON.stringify(applied)).toMatchObject({ ok: true });
     firstControl.close();

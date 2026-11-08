@@ -1,5 +1,5 @@
 import { execFileSync } from 'node:child_process';
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -53,12 +53,12 @@ function fixture() {
         { cwd: root, encoding: 'utf8', stdio: 'pipe' },
       ),
     );
-  return { put, git, plan };
+  return { root, put, git, plan };
 }
-it('skips both hosts for a cockpit-only change', () => {
+it('skips both hosts for a frontend-only change', () => {
   const f = fixture();
   f.put('packages/web/src/ui.ts', 'new UI');
-  expect(f.plan().components).toEqual({ cockpit: '1.0.1', daemon: '1.0.0', runtime: '1.0.0' });
+  expect(f.plan().components).toEqual({ frontend: '1.0.1', daemon: '1.0.0', runtime: '1.0.0' });
 });
 it.each(['daemon', 'runtime'] as const)(
   'publishes only the changed %s import closure',
@@ -71,7 +71,7 @@ it.each(['daemon', 'runtime'] as const)(
       'console.log(2);',
     );
     expect(f.plan().components).toEqual({
-      cockpit: '1.0.1',
+      frontend: '1.0.1',
       daemon: '1.0.0',
       runtime: '1.0.0',
       [component]: '1.0.1',
@@ -81,12 +81,12 @@ it.each(['daemon', 'runtime'] as const)(
 it('retains deferred changes by comparing against the last component publication', () => {
   const f = fixture();
   f.put('packages/daemon/src/index.ts', 'console.log(2);');
-  f.put('release-manifest.json', JSON.stringify(f.plan('1.0.1', 'v1.0.0', 'cockpit')));
+  f.put('release-manifest.json', JSON.stringify(f.plan('1.0.1', 'v1.0.0', 'frontend')));
   f.git('add', '.');
   f.git('commit', '-qm', 'deliberately defer host');
   f.git('tag', 'v1.0.1');
   expect(f.plan('1.0.2', 'v1.0.1').components).toEqual({
-    cockpit: '1.0.2',
+    frontend: '1.0.2',
     daemon: '1.0.2',
     runtime: '1.0.0',
   });
@@ -94,7 +94,7 @@ it('retains deferred changes by comparing against the last component publication
 it('publishes both hosts for a shared installer change', () => {
   const f = fixture();
   f.put('scripts/install.sh', '# changed');
-  expect(f.plan().components).toEqual({ cockpit: '1.0.1', daemon: '1.0.1', runtime: '1.0.1' });
+  expect(f.plan().components).toEqual({ frontend: '1.0.1', daemon: '1.0.1', runtime: '1.0.1' });
 });
 
 it('requires a complete transition release before excluding components', () => {
@@ -102,10 +102,38 @@ it('requires a complete transition release before excluding components', () => {
   f.git('rm', 'release-manifest.json');
   f.git('commit', '-qm', 'legacy release');
   f.git('tag', 'v1.0.1');
-  expect(() => f.plan('1.0.2', 'v1.0.1', 'cockpit')).toThrow();
+  expect(() => f.plan('1.0.2', 'v1.0.1', 'frontend')).toThrow();
   expect(f.plan('1.0.2', 'v1.0.1', 'all').components).toEqual({
-    cockpit: '1.0.2',
+    frontend: '1.0.2',
     daemon: '1.0.2',
     runtime: '1.0.2',
+  });
+});
+
+it('stages canonical and compatible manifests from the same validated plan', () => {
+  const f = fixture();
+  const plan = f.plan();
+  expect(plan.format).toBe(2);
+  f.put('release-manifest.json', JSON.stringify(plan));
+  execFileSync(
+    process.execPath,
+    [
+      fileURLToPath(new URL('../../../../scripts/check-release-plan.mjs', import.meta.url)),
+      plan.version,
+      '--stage',
+    ],
+    { cwd: f.root, stdio: 'pipe' },
+  );
+  const read = (name: string) =>
+    JSON.parse(readFileSync(join(f.root, 'dist-release', name), 'utf8'));
+  expect(read('release-manifest-v2.json')).toEqual(plan);
+  expect(read('release-manifest.json')).toEqual({
+    format: 1,
+    version: plan.version,
+    components: {
+      cockpit: plan.components.frontend,
+      daemon: plan.components.daemon,
+      runtime: plan.components.runtime,
+    },
   });
 });

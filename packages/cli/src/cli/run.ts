@@ -12,19 +12,19 @@ import {
   installedComponentVersions,
 } from '../lib/installation/component-versions.js';
 import { connectRemote } from '../lib/connection/connect.js';
-import { type RunningCockpit } from '../lib/connection/cockpit.js';
+import { type RunningFrontend } from '../lib/connection/frontend.js';
 import { DaemonClient, readDaemonPort } from '../lib/connection/daemon-client.js';
 import { showLogs } from '../lib/logs.js';
 import { waitForHttp } from '../lib/transport/net.js';
 import { openTunnel } from '../lib/transport/tunnel.js';
 import {
-  checkCockpit,
-  cockpitLogPath,
-  listCockpitRecords,
-  readCockpitRecord,
-  removeCockpitRecord,
-  writeCockpitRecord,
-  type CockpitRecord,
+  checkFrontend,
+  frontendLogPath,
+  listFrontendRecords,
+  readFrontendRecord,
+  removeFrontendRecord,
+  writeFrontendRecord,
+  type FrontendRecord,
 } from '../lib/registry.js';
 import { startLocal } from '../lib/connection/start.js';
 import { statusReport } from '../lib/connection/status.js';
@@ -37,11 +37,11 @@ import { argvFor, USAGE, type Command } from './args.js';
 import { runInstall, runRemove, runUpgrade } from './manage.js';
 import { runUpdates } from './management/updates.js';
 import {
-  isCockpitChild,
+  isFrontendChild,
   killHint,
   launchDetached,
   spawnDetachedRefresh,
-  terminateCockpit,
+  terminateFrontend,
 } from './detach.js';
 import { terminalLogger, timestampedLogger } from './output.js';
 
@@ -121,28 +121,28 @@ export async function run(command: Command): Promise<number> {
       const target = command.target;
       // Background by default: re-exec detached, follow the child's log until
       // its registry record turns ready, then hand the terminal back.
-      if (!command.foreground && !isCockpitChild()) {
+      if (!command.foreground && !isFrontendChild()) {
         return launchDetached({ target, noBrowser: command.noBrowser, logger });
       }
-      return runCockpit(command, target, logger);
+      return runFrontend(command, target, logger);
     }
 
     case 'refresh': {
-      // Resolve the target the way `kill` does: explicit, else the sole cockpit.
+      // Resolve the target the way `kill` does: explicit, else the sole frontend.
       let target = command.target;
       if (target === undefined) {
-        const records = listCockpitRecords();
+        const records = listFrontendRecords();
         if (records.length === 1) target = records[0]!.target;
         else if (records.length === 0) {
           throw new CliError(
-            'no_cockpit',
-            'no cockpits are running — name the target to refresh',
+            'no_frontend',
+            'no frontends are running — name the target to refresh',
             'puddle refresh <local | user@host>',
           );
         } else {
           throw new CliError(
             'bad_arguments',
-            'several cockpits are running — name the one to refresh',
+            'several frontends are running — name the one to refresh',
             `puddle refresh <${records.map((r) => r.target).join(' | ')}>`,
           );
         }
@@ -151,22 +151,22 @@ export async function run(command: Command): Promise<number> {
         throw new CliError('bad_arguments', '--remote-port only applies to a remote target');
       }
 
-      // Stop the old cockpit first — running, starting, or unverified alike
+      // Stop the old frontend first — running, starting, or unverified alike
       // (refresh exists precisely for the wedged ones); a dead record is just
-      // pruned. Remember its UI port so the new cockpit lands on the same
+      // pruned. Remember its UI port so the new frontend lands on the same
       // origin and any open browser tab survives the swap.
-      const existing = readCockpitRecord(target);
+      const existing = readFrontendRecord(target);
       let oldPort: number | undefined;
       if (existing !== null) {
         if (existing.origin !== undefined) {
           const parsed = Number(new URL(existing.origin).port);
           if (Number.isInteger(parsed) && parsed > 0) oldPort = parsed;
         }
-        if ((await checkCockpit(existing)) === 'dead') {
-          removeCockpitRecord(target);
+        if ((await checkFrontend(existing)) === 'dead') {
+          removeFrontendRecord(target);
         } else {
-          await terminateCockpit(existing);
-          logger.info(`stopped the old cockpit for ${target}`);
+          await terminateFrontend(existing);
+          logger.info(`stopped the old frontend for ${target}`);
         }
       }
 
@@ -187,7 +187,7 @@ export async function run(command: Command): Promise<number> {
           : {}),
       };
 
-      if (!command.foreground && !isCockpitChild()) {
+      if (!command.foreground && !isFrontendChild()) {
         // The detached child must run the rebuilt launch, not refresh
         // again — hence the explicit argv.
         return launchDetached({
@@ -197,21 +197,21 @@ export async function run(command: Command): Promise<number> {
           argv: argvFor(next),
         });
       }
-      return runCockpit(next, target, logger);
+      return runFrontend(next, target, logger);
     }
 
     case 'list': {
-      const rows: Array<{ record: CockpitRecord; liveness: string }> = [];
-      for (const record of listCockpitRecords()) {
-        const liveness = await checkCockpit(record);
+      const rows: Array<{ record: FrontendRecord; liveness: string }> = [];
+      for (const record of listFrontendRecords()) {
+        const liveness = await checkFrontend(record);
         if (liveness === 'dead') {
-          removeCockpitRecord(record.target); // pid gone — the only safe prune
+          removeFrontendRecord(record.target); // pid gone — the only safe prune
           continue;
         }
         rows.push({ record, liveness });
       }
       if (rows.length === 0) {
-        process.stdout.write('no cockpits are running\n');
+        process.stdout.write('no frontends are running\n');
         return 0;
       }
       process.stdout.write(
@@ -227,15 +227,15 @@ export async function run(command: Command): Promise<number> {
     }
 
     case 'kill': {
-      const live: CockpitRecord[] = [];
-      for (const record of listCockpitRecords()) {
-        if ((await checkCockpit(record)) === 'dead') removeCockpitRecord(record.target);
+      const live: FrontendRecord[] = [];
+      for (const record of listFrontendRecords()) {
+        if ((await checkFrontend(record)) === 'dead') removeFrontendRecord(record.target);
         else live.push(record); // running, starting, or unverified — all killable
       }
-      let victims: CockpitRecord[];
+      let victims: FrontendRecord[];
       if (command.all) {
         if (live.length === 0) {
-          logger.info('no cockpits are running');
+          logger.info('no frontends are running');
           return 0;
         }
         victims = live;
@@ -243,8 +243,8 @@ export async function run(command: Command): Promise<number> {
         const found = live.find((r) => r.target === command.target);
         if (found === undefined) {
           throw new CliError(
-            'no_cockpit',
-            `no cockpit is running for ${command.target}`,
+            'no_frontend',
+            `no frontend is running for ${command.target}`,
             live.length > 0
               ? `running: ${live.map((r) => r.target).join(', ')}`
               : 'see: puddle list',
@@ -252,23 +252,23 @@ export async function run(command: Command): Promise<number> {
         }
         victims = [found];
       } else {
-        if (live.length === 0) throw new CliError('no_cockpit', 'no cockpits are running');
+        if (live.length === 0) throw new CliError('no_frontend', 'no frontends are running');
         if (live.length > 1) {
           throw new CliError(
             'bad_arguments',
-            'several cockpits are running — name the one to kill',
+            'several frontends are running — name the one to kill',
             `puddle kill <${live.map((r) => r.target).join(' | ')}>  (or --all)`,
           );
         }
         victims = live;
       }
       for (const victim of victims) {
-        await terminateCockpit(victim);
+        await terminateFrontend(victim);
         const where = victim.target === 'local' ? 'this machine' : victim.target;
         logger.info(
-          victim.daemonLifetime === 'cockpit'
-            ? `stopped the cockpit for ${victim.target} — daemon data remains on ${where}; interrupted sessions can resume on the next launch`
-            : `stopped the cockpit for ${victim.target} — sessions keep running on ${where}`,
+          victim.daemonLifetime === 'frontend'
+            ? `stopped the frontend for ${victim.target} — daemon data remains on ${where}; interrupted sessions can resume on the next launch`
+            : `stopped the frontend for ${victim.target} — sessions keep running on ${where}`,
         );
       }
       return 0;
@@ -371,47 +371,47 @@ export async function run(command: Command): Promise<number> {
 }
 
 /**
- * The cockpit process itself — the detached child, or a --foreground run.
+ * The frontend process itself — the detached child, or a --foreground run.
  * Both keep a registry record so `puddle list`/`kill` see them: 'starting'
  * while bootstrapping (what the detached launcher polls), then 'ready' with
  * origin + nonce, or 'error' with the failure relayed to the launcher.
  */
-async function runCockpit(
+async function runFrontend(
   command: Extract<Command, { cmd: 'launch' }>,
   target: string,
   terminal: Logger,
 ): Promise<number> {
-  const detached = isCockpitChild();
+  const detached = isFrontendChild();
   const logger = detached ? timestampedLogger() : terminal;
 
-  const existing = readCockpitRecord(target);
+  const existing = readFrontendRecord(target);
   if (existing !== null && existing.pid !== process.pid) {
-    if ((await checkCockpit(existing)) !== 'dead') {
+    if ((await checkFrontend(existing)) !== 'dead') {
       throw new CliError(
         'already_running',
-        `a cockpit for ${target} is already running at ${existing.origin ?? `pid ${existing.pid}`}`,
+        `a frontend for ${target} is already running at ${existing.origin ?? `pid ${existing.pid}`}`,
         killHint(target).replace('stop it', 'stop it first'),
       );
     }
-    removeCockpitRecord(target);
+    removeFrontendRecord(target);
   }
 
-  const base: CockpitRecord = {
+  const base: FrontendRecord = {
     target,
     pid: process.pid,
     status: 'starting',
     startedAt: new Date().toISOString(),
     cliVersion: cliVersion(),
-    ...(detached ? { logFile: cockpitLogPath(target) } : {}),
+    ...(detached ? { logFile: frontendLogPath(target) } : {}),
   };
-  writeCockpitRecord(base);
+  writeFrontendRecord(base);
 
-  // The UI's "refresh connection" button: replace this cockpit wholesale. A
+  // The UI's "refresh connection" button: replace this frontend wholesale. A
   // detached `puddle refresh` takes over — it stops this process, then starts
-  // a fresh cockpit on the same UI port — carrying the original flags so a
+  // a fresh frontend on the same UI port — carrying the original flags so a
   // --tarball/--no-upgrade dev run refreshes into the same configuration.
   const onRefreshRequest = (refreshId: string) => {
-    logger.info('refresh requested from the UI — replacing this cockpit');
+    logger.info('refresh requested from the UI — replacing this frontend');
     spawnDetachedRefresh(
       target,
       [
@@ -427,7 +427,7 @@ async function runCockpit(
     );
   };
 
-  let cockpit: RunningCockpit;
+  let frontend: RunningFrontend;
   try {
     const common = {
       ...command,
@@ -442,36 +442,36 @@ async function runCockpit(
       onRefreshRequest,
       refreshId: process.env.PUDDLE_REFRESH_ID,
     };
-    cockpit =
+    frontend =
       command.target === 'local'
         ? await startLocal(common)
         : await connectRemote({ ...common, host: command.target });
   } catch (err) {
     if (err instanceof CliError) {
-      writeCockpitRecord({
+      writeFrontendRecord({
         ...base,
         status: 'error',
         message: err.message,
         ...(err.hint !== undefined ? { hint: err.hint } : {}),
       });
     } else {
-      removeCockpitRecord(target);
+      removeFrontendRecord(target);
     }
     throw err;
   }
-  writeCockpitRecord({
+  writeFrontendRecord({
     ...base,
     status: 'ready',
-    origin: cockpit.origin,
-    launcherPath: cockpit.launcherPath,
-    nonce: cockpit.nonce,
-    daemonLifetime: cockpit.daemonLifetime,
+    origin: frontend.origin,
+    launcherPath: frontend.launcherPath,
+    nonce: frontend.nonce,
+    daemonLifetime: frontend.daemonLifetime,
   });
 
   const arrow = command.target === 'local' ? '' : ` → ${command.target}`;
-  logger.info(`Puddle cockpit at ${cockpit.origin}${arrow} (daemon ${cockpit.daemon.version})`);
+  logger.info(`Puddle frontend at ${frontend.origin}${arrow} (daemon ${frontend.daemon.version})`);
   if (!detached && process.env.PUDDLE_INTERNAL_REFRESH !== '1') {
-    const url = cockpit.createInvitation();
+    const url = frontend.createInvitation();
     if (command.noBrowser) logger.info(`open: ${url}`);
     else openBrowser(url);
   }
@@ -479,12 +479,12 @@ async function runCockpit(
   const where = command.target === 'local' ? 'this machine' : command.target;
   await runUntilInterrupted(
     async () => {
-      await cockpit.stop();
-      removeCockpitRecord(target);
+      await frontend.stop();
+      removeFrontendRecord(target);
     },
-    cockpit.daemonLifetime === 'cockpit'
-      ? `cockpit closed — daemon data remains on ${where}; interrupted sessions can resume on the next launch`
-      : `cockpit closed — sessions keep running on ${where}`,
+    frontend.daemonLifetime === 'frontend'
+      ? `frontend closed — daemon data remains on ${where}; interrupted sessions can resume on the next launch`
+      : `frontend closed — sessions keep running on ${where}`,
   );
   return 0;
 }

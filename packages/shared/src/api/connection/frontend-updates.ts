@@ -8,7 +8,7 @@ import {
   hostUpdateReviewSchema,
 } from './host-updates.js';
 
-/** Bounded online controls shared by cockpits and explicitly authorised maintenance devices. */
+/** Bounded online controls shared by frontends and explicitly authorised maintenance devices. */
 export const onlineHostUpdateRequestSchema = z.discriminatedUnion('action', [
   z.object({ action: z.literal('prepare'), targets: hostUpdateTargetsSchema }).strict(),
   z.object({ action: z.literal('inspect'), reference: hostUpdateReferenceSchema }).strict(),
@@ -30,20 +30,20 @@ export const onlineHostUpdateRequestSchema = z.discriminatedUnion('action', [
     .strict(),
 ]);
 
-/** Offline continuation requires the local/SSH cockpit's host authority. */
-export const cockpitHostUpdateRequestSchema = z.discriminatedUnion('action', [
+/** Offline continuation requires the local/SSH frontend's host authority. */
+export const frontendHostUpdateRequestSchema = z.discriminatedUnion('action', [
   ...onlineHostUpdateRequestSchema.options,
   z
     .object({ action: z.literal('continue-offline'), reference: hostUpdateReferenceSchema })
     .strict(),
 ]);
 
-export const cockpitHostUpdateQuerySchema = z
+export const frontendHostUpdateQuerySchema = z
   .object({ id: z.uuid().optional(), components: z.literal('1').optional() })
   .strict();
 
 const operation = hostUpdateOperationSchema.shape;
-export const cockpitHostUpdateOperationSchema = z
+export const frontendHostUpdateOperationSchema = z
   .object({
     id: operation.id,
     revision: operation.revision,
@@ -58,16 +58,16 @@ export const cockpitHostUpdateOperationSchema = z
   .strict();
 
 /** Keep bounded impact and approval evidence, excluding private blocker target paths. */
-export const cockpitHostUpdateReviewSchema = hostUpdateReviewSchema.extend({
+export const frontendHostUpdateReviewSchema = hostUpdateReviewSchema.extend({
   blockers: z.array(z.object({ code: z.string().min(1).max(64) }).strict()).max(32),
 });
 
-export const cockpitHostUpdateReplySchema = z.discriminatedUnion('ok', [
+export const frontendHostUpdateReplySchema = z.discriminatedUnion('ok', [
   z
     .object({
       ok: z.literal(true),
-      operation: cockpitHostUpdateOperationSchema.nullable(),
-      review: cockpitHostUpdateReviewSchema.optional(),
+      operation: frontendHostUpdateOperationSchema.nullable(),
+      review: frontendHostUpdateReviewSchema.optional(),
       recovery: hostUpdateRecoveryStatusSchema.optional(),
     })
     .strict(),
@@ -75,12 +75,12 @@ export const cockpitHostUpdateReplySchema = z.discriminatedUnion('ok', [
     .object({
       ok: z.literal(false),
       code: z.enum(['rejected', 'unavailable', 'unsupported', 'conflict', 'failed']),
-      operation: cockpitHostUpdateOperationSchema.nullable(),
+      operation: frontendHostUpdateOperationSchema.nullable(),
     })
     .strict(),
 ]);
 
-export const cockpitHostUpdateStatusSchema = z
+export const frontendHostUpdateStatusSchema = z
   .object({
     availability: z.enum(['ready', 'unavailable', 'upgrade_required']),
     /** Recorded operations do not establish current service health or adoption. */
@@ -94,11 +94,11 @@ export const cockpitHostUpdateStatusSchema = z
         offline_continuation: z.boolean().optional(),
       })
       .strict(),
-    result: cockpitHostUpdateReplySchema.nullable(),
+    result: frontendHostUpdateReplySchema.nullable(),
     catalogue: hostUpdateCatalogueSchema.optional(),
   })
   .strict();
 
-export type CockpitHostUpdateRequest = z.infer<typeof cockpitHostUpdateRequestSchema>;
-export type CockpitHostUpdateReply = z.infer<typeof cockpitHostUpdateReplySchema>;
-export type CockpitHostUpdateStatus = z.infer<typeof cockpitHostUpdateStatusSchema>;
+export type FrontendHostUpdateRequest = z.infer<typeof frontendHostUpdateRequestSchema>;
+export type FrontendHostUpdateReply = z.infer<typeof frontendHostUpdateReplySchema>;
+export type FrontendHostUpdateStatus = z.infer<typeof frontendHostUpdateStatusSchema>;

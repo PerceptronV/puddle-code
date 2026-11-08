@@ -1,4 +1,4 @@
-import type { CockpitRemoteRequest, RemoteDevice } from '@puddle/shared';
+import type { FrontendRemoteRequest, RemoteDevice } from '@puddle/shared';
 import { Disclosure } from '../../../components/ui/disclosure';
 import { BrowserCards } from '../../remote/BrowserCards';
 
@@ -13,7 +13,7 @@ export function DeviceList({
   now: number;
   busy: boolean;
   canManageMaintenance: boolean;
-  act(request: CockpitRemoteRequest): Promise<boolean>;
+  act(request: FrontendRemoteRequest): Promise<boolean>;
 }) {
   return (
     <Disclosure className="mt-6 text-sm" summary="Connected browsers" summaryClassName="py-2">

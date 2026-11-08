@@ -15,7 +15,7 @@ node packages/cli/dist/index.js launch --foreground --no-upgrade
 ```
 
 First load: the single-use invitation is cleared from the fragment and
-exchanged for cockpit-only browser authorisation, then the profile picker appears. Create a profile, then a project
+exchanged for frontend-only browser authorisation, then the profile picker appears. Create a profile, then a project
 against a real git repo, and add + login a claude-code account in Settings →
 Accounts (the login terminal opens in-app; the account flips to "logged in"
 when the OAuth flow completes).

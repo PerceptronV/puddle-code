@@ -261,7 +261,7 @@ it.runIf(!!process.env.PUDDLE_TEST_RUNTIME_RELEASE)(
     expect(readdirSync(f.home).sort()).toEqual(before);
 
     if (archive) {
-      // Select the manifest's published runtime first, just like fresh cockpit
+      // Select the manifest's published runtime first, just like fresh frontend
       // bootstrap. A selective daemon archive cannot supply an unpublished runtime.
       stage = await install('runtime');
       daemonStage = await install('daemon');

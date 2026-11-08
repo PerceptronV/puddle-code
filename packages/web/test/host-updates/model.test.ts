@@ -29,7 +29,7 @@ it('offers offline continuation only for an explicitly supported recorded unfini
 });
 
 describe('host update offers', () => {
-  it('compares components independently without imposing cockpit release equality', () => {
+  it('compares components independently without imposing frontend release equality', () => {
     const status = statusFixture();
     expect(availableHostUpdates(status)).toEqual([
       { component: 'daemon', version: '0.4.1' },
@@ -110,7 +110,7 @@ describe('reviewed activation', () => {
   });
 });
 
-it('only offers changed components when cockpit release numbers advance', () => {
+it('only offers changed components when frontend release numbers advance', () => {
   const status = statusFixture();
   status.catalogue!.releases.latest = { version: '0.4.9', host_asset: false };
   status.catalogue!.releases.components = {

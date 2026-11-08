@@ -1,7 +1,7 @@
 #!/bin/sh
 # Standalone CLI installer, published as install.sh. Daemon bootstrap stays embedded.
 # Release/app builds bake @@REPO@@; source runs accept --repo or PUDDLE_REPO.
-# Keep old releases: running cockpits still serve assets from their own tree.
+# Keep old releases: running frontends still serve assets from their own tree.
 set -eu
 
 say() { printf 'puddle install: %s\n' "$1"; }
@@ -176,7 +176,7 @@ try {
   for (const file of [record + tmp, launcher + tmp, scriptLauncher + tmp, current + tmp]) fs.rmSync(file, { force: true });
 }
 NODE
-  STAGE="" # Published releases stay intact, including those serving live cockpits.
+  STAGE="" # Published releases stay intact, including those serving live frontends.
   say "installed CLI $VERSION at $BIN_DIR/puddle"
   case ":$PATH:" in *":$BIN_DIR:"*) ;; *) say "add $BIN_DIR to PATH (for example in your shell profile)" ;; esac
   RESOLVED=$(command -v puddle || true)

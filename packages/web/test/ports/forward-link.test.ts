@@ -34,7 +34,7 @@ describe('forwarded application browser hand-off', () => {
     fetcher.mockImplementationOnce(() => new Promise<Response>((done) => (resolve = done)));
     const pending = openBrowserLink(forwarding);
     expect(open).not.toHaveBeenCalled();
-    expect(fetcher).toHaveBeenCalledExactlyOnceWith('/cockpit/proxy-grant', {
+    expect(fetcher).toHaveBeenCalledExactlyOnceWith('/frontend/proxy-grant', {
       method: 'POST',
       headers: { authorization: `Bearer ${credential}`, 'content-type': 'application/json' },
       body: JSON.stringify({ session, port: 3000, path: '/app?x=1#section' }),
@@ -45,7 +45,7 @@ describe('forwarded application browser hand-off', () => {
     expect(open.mock.calls[0]?.[0]).not.toContain(credential);
   });
 
-  it('opens browser cockpit links during the original gesture without requesting a grant', async () => {
+  it('opens browser frontend links during the original gesture without requesting a grant', async () => {
     delete window.puddleDesktop;
     const pending = openBrowserLink(forwarding);
     expect(open).toHaveBeenCalledExactlyOnceWith(forwarding, '_blank', 'noopener,noreferrer');

@@ -1,4 +1,4 @@
-/** Preserve the route when a replacement cockpit must use a different origin. */
+/** Preserve the route when a replacement frontend must use a different origin. */
 export function refreshNavigation(
   previous: string,
   oldOrigin: string,

@@ -2,7 +2,7 @@ import { mkdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname } from 'node:path';
 import { PROFILE_ICON_COLOURS } from '@puddle/shared';
 
-/** A bounded drawing snapshot of the cockpit's chosen Lucide glyph. No SVG markup or URLs. */
+/** A bounded drawing snapshot of the frontend's chosen Lucide glyph. No SVG markup or URLs. */
 export interface HostIconNode {
   tag: string;
   attrs: Record<string, string>;

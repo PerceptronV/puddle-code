@@ -135,7 +135,7 @@ it('observes only the exact staged replacement after one apply and never returns
   await f.client.hostUpdate({
     action: 'apply',
     reference,
-    cockpit: PROTOCOL_VERSION,
+    frontend: PROTOCOL_VERSION,
     fingerprint: 'a'.repeat(64),
     interruption_approval: 'a'.repeat(64),
   });
@@ -147,7 +147,7 @@ it('observes only the exact staged replacement after one apply and never returns
     f.client.hostUpdate({
       action: 'apply',
       reference,
-      cockpit: PROTOCOL_VERSION,
+      frontend: PROTOCOL_VERSION,
       fingerprint: 'a'.repeat(64),
     }),
   ).rejects.toThrow('observation-only');
@@ -165,7 +165,7 @@ it.each(['early', 'version', 'minor'] as const)(
       await f.client.hostUpdate({
         action: 'apply',
         reference: { id: f.review.operation.id, revision: 2 },
-        cockpit: PROTOCOL_VERSION,
+        frontend: PROTOCOL_VERSION,
         fingerprint: 'a'.repeat(64),
       });
     f.client.setTransportAvailable(false);
@@ -227,7 +227,7 @@ it('observes a lost apply acknowledgement through the exact replacement without 
   const apply = {
     action: 'apply' as const,
     reference: { id: f.review.operation.id, revision: 2 },
-    cockpit: PROTOCOL_VERSION,
+    frontend: PROTOCOL_VERSION,
     fingerprint: 'a'.repeat(64),
   };
   await expect(f.client.hostUpdate(apply)).rejects.toThrow();

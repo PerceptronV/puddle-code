@@ -13,7 +13,7 @@ async function askToUpgrade(message: string): Promise<boolean> {
   return confirm(`${message}\n\nUpdate and connect?`);
 }
 
-/** Foreground prompts directly; a detached cockpit uses its launching terminal's IPC pipe. */
+/** Foreground prompts directly; a detached frontend uses its launching terminal's IPC pipe. */
 export const confirmDaemonUpgrade: ConfirmDaemonUpgrade = async (request) => {
   const message = daemonUpgradeMessage(request);
   if (!process.send || !process.connected) return askToUpgrade(message);

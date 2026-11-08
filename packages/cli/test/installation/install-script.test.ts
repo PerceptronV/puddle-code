@@ -374,11 +374,11 @@ describe('install.sh tree validation', () => {
 it('rejects selecting an excluded component even when its executable shares the host archive', () => {
   const f = fixture();
   writeFileSync(
-    join(f.staged, 'release-manifest.json'),
+    join(f.staged, 'release-manifest-v2.json'),
     JSON.stringify({
-      format: 1,
+      format: 2,
       version: '1.2.3',
-      components: { cockpit: '1.2.3', daemon: '1.2.2', runtime: '1.2.3' },
+      components: { frontend: '1.2.3', daemon: '1.2.2', runtime: '1.2.3' },
     }),
   );
   f.pack();
@@ -389,15 +389,57 @@ it('rejects selecting an excluded component even when its executable shares the 
 it('does not seed an unpublished runtime during selective daemon bootstrap', () => {
   const f = fixture();
   writeFileSync(
-    join(f.staged, 'release-manifest.json'),
+    join(f.staged, 'release-manifest-v2.json'),
     JSON.stringify({
-      format: 1,
+      format: 2,
       version: '1.2.3',
-      components: { cockpit: '1.2.3', daemon: '1.2.3', runtime: '1.2.2' },
+      components: { frontend: '1.2.3', daemon: '1.2.3', runtime: '1.2.2' },
     }),
   );
   f.pack();
   expect(() => f.install()).toThrow('Install runtime 1.2.2');
   expect(existsSync(join(f.puddleHome, 'bin/current'))).toBe(false);
   expect(existsSync(join(f.puddleHome, 'bin/runtime-current'))).toBe(false);
+});
+
+it('uses the current manifest even when a legacy compatibility manifest disagrees', () => {
+  const f = fixture();
+  writeFileSync(
+    join(f.staged, 'release-manifest.json'),
+    JSON.stringify({
+      format: 1,
+      version: '1.2.3',
+      components: { cockpit: '1.2.3', daemon: '1.2.3', runtime: '1.2.3' },
+    }),
+  );
+  writeFileSync(
+    join(f.staged, 'release-manifest-v2.json'),
+    JSON.stringify({
+      format: 2,
+      version: '1.2.3',
+      components: { frontend: '1.2.3', daemon: '1.2.2', runtime: '1.2.3' },
+    }),
+  );
+  f.pack();
+  expect(() => f.install()).toThrow('No daemon was published');
+  expect(existsSync(join(f.puddleHome, 'bin/current'))).toBe(false);
+});
+
+it('retains legacy-only archive support without falling back from a malformed current manifest', () => {
+  const f = fixture();
+  writeFileSync(
+    join(f.staged, 'release-manifest.json'),
+    JSON.stringify({
+      format: 1,
+      version: '1.2.3',
+      components: { cockpit: '1.2.3', daemon: '1.2.3', runtime: '1.2.3' },
+    }),
+  );
+  f.pack();
+  f.install();
+  const previous = f.selected();
+  writeFileSync(join(f.staged, 'release-manifest-v2.json'), '{}');
+  f.pack();
+  expect(() => f.install('--force')).toThrow();
+  expect(f.selected()).toBe(previous);
 });

@@ -11,7 +11,16 @@ export class ReleaseNotesSeen {
   has(identity: string): boolean {
     if (this.memory.has(identity)) return true;
     try {
-      return this.storage().getItem(this.key(identity)) === 'seen';
+      const storage = this.storage();
+      if (storage.getItem(this.key(identity)) === 'seen') return true;
+      // Retain presentation preferences recorded before the component was renamed.
+      const parts: unknown = JSON.parse(identity);
+      if (Array.isArray(parts) && parts.length === 3 && parts[1] === 'frontend') {
+        return (
+          storage.getItem(this.key(JSON.stringify([parts[0], 'cockpit', parts[2]]))) === 'seen'
+        );
+      }
+      return false;
     } catch {
       return false;
     }

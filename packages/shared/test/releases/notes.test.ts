@@ -9,7 +9,7 @@ it('bounds public notes by component, record count and UTF-8 size', () => {
   expect(releaseNotesSchema.safeParse({ releases: [note, note] }).success).toBe(false);
   expect(releaseNotesSchema.safeParse({ releases: [note, note, note] }).success).toBe(false);
   expect(
-    releaseNotesSchema.safeParse({ releases: [{ ...note, component: 'cockpit' }] }).success,
+    releaseNotesSchema.safeParse({ releases: [{ ...note, component: 'frontend' }] }).success,
   ).toBe(false);
   expect(
     releaseNotesSchema.safeParse({

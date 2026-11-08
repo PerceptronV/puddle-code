@@ -1,5 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from 'react';
-import { reloadCockpit } from '../lib/desktop';
+import { reloadFrontend } from '../lib/desktop';
 
 /**
  * The net under a render throw. React unmounts the whole tree it cannot render,
@@ -86,7 +86,7 @@ export class ErrorBoundary extends Component<
           <button
             type="button"
             onClick={() => {
-              void reloadCockpit().catch((error: unknown) =>
+              void reloadFrontend().catch((error: unknown) =>
                 this.setState({
                   error: error instanceof Error ? error : new Error('Could not reload this window'),
                 }),

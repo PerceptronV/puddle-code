@@ -1,33 +1,41 @@
 import { expect, it, vi } from 'vitest';
-import { componentReleaseAt, latestComponentReleases } from '../../src/node/releases/components.js';
+import {
+  componentReleaseAt,
+  latestComponentReleases,
+  releaseManifest,
+} from '../../src/node/releases/components.js';
 import { releaseManifestSchema } from '../../src/installation/release-manifest.js';
 
 const asset = (name: string) => ({
   name,
   browser_download_url: `https://github.com/example/puddle/${name}`,
 });
-const release = (version: string, manifest = false) => ({
+const release = (
+  version: string,
+  manifest = false,
+  manifestAsset = 'release-manifest-v2.json',
+) => ({
   tag_name: `v${version}`,
   assets: [
     asset(`puddled-v${version}-linux-x64.tar.gz`),
     asset('SHA256SUMS'),
-    ...(manifest ? [asset('release-manifest.json')] : []),
+    ...(manifest ? [asset(manifestAsset)] : []),
   ],
 });
 const plan = {
-  format: 1,
+  format: 2,
   version: '0.4.10',
-  components: { cockpit: '0.4.10', daemon: '0.4.8', runtime: '0.4.5' },
+  components: { frontend: '0.4.10', daemon: '0.4.8', runtime: '0.4.5' },
 };
 const response = (value: unknown) => new Response(JSON.stringify(value));
-function fixture(manifest: unknown = plan) {
+function fixture(manifest: unknown = plan, manifestAsset = 'release-manifest-v2.json') {
   return vi.fn(async (input: string | URL | Request) => {
     const url = String(input);
-    if (url.endsWith('/latest')) return response(release('0.4.10', true));
-    if (url.endsWith('/release-manifest.json')) return response(manifest);
+    if (url.endsWith('/latest')) return response(release('0.4.10', true, manifestAsset));
+    if (url.endsWith(`/${manifestAsset}`)) return response(manifest);
     if (url.endsWith('/tags/v0.4.8')) return response(release('0.4.8'));
     if (url.endsWith('/tags/v0.4.5')) return response(release('0.4.5'));
-    if (url.endsWith('/tags/v0.4.10')) return response(release('0.4.10', true));
+    if (url.endsWith('/tags/v0.4.10')) return response(release('0.4.10', true, manifestAsset));
     throw new Error(`Unexpected URL ${url}`);
   });
 }
@@ -36,7 +44,7 @@ it('resolves each component without inventing skipped versions or scanning relea
   const result = await latestComponentReleases('example/puddle', { fetchFn });
   expect(result.components.daemon.version).toBe('0.4.8');
   expect(result.components.runtime.version).toBe('0.4.5');
-  expect(result.components.cockpit.version).toBe('0.4.10');
+  expect(result.components.frontend.version).toBe('0.4.10');
   expect(fetchFn).toHaveBeenCalledTimes(4);
 });
 it('reads pre-manifest releases unchanged with one request', async () => {
@@ -52,11 +60,11 @@ it('rejects an explicit skipped component version instead of substituting anothe
   ).rejects.toThrow('No daemon was published');
 });
 it.each([
-  { ...plan, format: 2 },
+  { ...plan, format: 3 },
   { ...plan, version: '0.4.9' },
   { ...plan, components: { ...plan.components, daemon: '0.4.11' } },
   { ...plan, components: { ...plan.components, daemon: '../private' } },
-  { ...plan, components: { cockpit: '0.4.10', daemon: '0.4.8' } },
+  { ...plan, components: { frontend: '0.4.10', daemon: '0.4.8' } },
 ])('does not treat invalid manifests as legacy releases %#', async (manifest) => {
   await expect(
     latestComponentReleases('example/puddle', { fetchFn: fixture(manifest) }),
@@ -108,4 +116,59 @@ it('suppresses component metadata for old strict catalogue readers', async () =>
   expect(presentHostCatalogue(catalogue, true).releases.components).toEqual(
     catalogue.releases.components,
   );
+});
+
+it('normalizes immutable format 1 metadata into frontend component identity', async () => {
+  const legacy = {
+    format: 1,
+    version: plan.version,
+    components: {
+      cockpit: plan.components.frontend,
+      daemon: plan.components.daemon,
+      runtime: plan.components.runtime,
+    },
+  };
+  expect(releaseManifestSchema.parse(legacy)).toEqual(plan);
+  const result = await latestComponentReleases('example/puddle', {
+    fetchFn: fixture(legacy, 'release-manifest.json'),
+  });
+  expect(result.components.frontend.version).toBe(plan.version);
+});
+
+it('prefers the canonical asset over the compatibility asset', async () => {
+  const fetchFn = vi.fn(async (_input: string | URL | Request) => response(plan));
+  expect(
+    await releaseManifest(
+      'example/puddle',
+      {
+        version: plan.version,
+        assets: [asset('release-manifest.json'), asset('release-manifest-v2.json')],
+      },
+      { fetchFn },
+    ),
+  ).toEqual(plan);
+  expect(String(fetchFn.mock.calls[0]?.[0])).toContain('/release-manifest-v2.json');
+  expect(fetchFn).toHaveBeenCalledOnce();
+});
+
+it('does not fall back to legacy metadata after advertised canonical metadata is invalid', async () => {
+  const fetchFn = vi.fn(async () => response({ ...plan, format: 99 }));
+  await expect(
+    releaseManifest(
+      'example/puddle',
+      {
+        version: plan.version,
+        assets: [asset('release-manifest.json'), asset('release-manifest-v2.json')],
+      },
+      { fetchFn },
+    ),
+  ).rejects.toThrow();
+  expect(fetchFn).toHaveBeenCalledOnce();
+});
+
+it.each([
+  { ...plan, format: 1 },
+  { ...plan, components: { ...plan.components, cockpit: plan.version } },
+])('rejects mixed component naming instead of silently choosing a value %#', (manifest) => {
+  expect(releaseManifestSchema.safeParse(manifest).success).toBe(false);
 });

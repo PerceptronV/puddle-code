@@ -1,5 +1,5 @@
 /* global window */
-// Synthetic terminal input only. No daemon, cockpit, account or local report data.
+// Synthetic terminal input only. No daemon, frontend, account or local report data.
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { readFileSync } from 'node:fs';

@@ -2,9 +2,9 @@ import { useCallback, useState } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import { RefreshCw } from 'lucide-react';
 import {
-  cockpitRemoteStatusSchema,
+  frontendRemoteStatusSchema,
   remoteAdminResponseSchema,
-  type CockpitRemoteRequest,
+  type FrontendRemoteRequest,
 } from '@puddle/shared';
 import { api, ApiError } from '../../../lib/transport/api';
 import { useCurrentProfileId } from '../../profile/profile-store';
@@ -30,7 +30,7 @@ export function RemoteAccessSection() {
   const profile = useCurrentProfileId();
   const profiles = useProfiles();
   const profileName = profiles.data?.find((row) => row.id === profile)?.name ?? 'this profile';
-  const path = `/cockpit/remote?profile=${encodeURIComponent(profile ?? '')}`;
+  const path = `/frontend/remote?profile=${encodeURIComponent(profile ?? '')}`;
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
@@ -40,8 +40,8 @@ export function RemoteAccessSection() {
   const [invitation, setInvitation] = useState<{ url: string; expires: number } | null>(null);
   const dismiss = useCallback(() => setInvitation(null), []);
   const status = useQuery({
-    queryKey: ['cockpit-remote', profile],
-    queryFn: async () => cockpitRemoteStatusSchema.parse(await api('GET', path)),
+    queryKey: ['frontend-remote', profile],
+    queryFn: async () => frontendRemoteStatusSchema.parse(await api('GET', path)),
     refetchInterval: busy ? false : 5000,
     refetchOnWindowFocus: !busy,
     refetchOnReconnect: !busy,
@@ -49,14 +49,14 @@ export function RemoteAccessSection() {
     gcTime: 0,
     enabled: !!profile,
   });
-  const act = async (request: CockpitRemoteRequest): Promise<boolean> => {
+  const act = async (request: FrontendRemoteRequest): Promise<boolean> => {
     if (busy || !profile) return false;
     setBusy(true);
     setError('');
     setMessage('');
     try {
       // Keep background reads quiet, but let them finish before the serial host mutation.
-      if (queryClient.isFetching({ queryKey: ['cockpit-remote', profile], exact: true })) {
+      if (queryClient.isFetching({ queryKey: ['frontend-remote', profile], exact: true })) {
         const latest = await status.refetch({ cancelRefetch: false });
         if (latest.isError) throw latest.error;
       }
@@ -145,7 +145,7 @@ export function RemoteAccessSection() {
       {status.isError && (
         <p role="alert" className="mt-3 text-sm text-danger">
           {unavailable
-            ? 'This cockpit does not provide remote controls. Update Puddle and reopen this window.'
+            ? 'This frontend does not provide remote controls. Update Puddle and reopen this window.'
             : status.error.message}
         </p>
       )}

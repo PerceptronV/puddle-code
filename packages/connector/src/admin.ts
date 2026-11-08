@@ -131,7 +131,7 @@ async function configureUnlocked(
 ): Promise<RemoteAdminResponse> {
   requireNoHostRemoval(home);
   const setup = connectorSetupSchema.parse(value);
-  if (setup.managed) supervisorKind(home); // Refuse cockpit-bound lifetimes before consuming the code.
+  if (setup.managed) supervisorKind(home); // Refuse frontend-bound lifetimes before consuming the code.
   const path = join(profileDirectory(home, profile), 'config.json');
   const existing = existsSync(path) ? connectorConfigSchema.parse(readPrivateJson(path)) : null;
   if (existing?.enabled)

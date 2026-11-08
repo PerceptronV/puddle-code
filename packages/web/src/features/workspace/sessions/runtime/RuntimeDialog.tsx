@@ -52,7 +52,7 @@ export function RuntimeDialog({ session, onClose }: { session: Session; onClose:
         client.invalidateQueries({ queryKey: key }),
         client.invalidateQueries({ queryKey: ['sessions'] }),
         client.invalidateQueries({ queryKey: ['project', session.project_id] }),
-        client.invalidateQueries({ queryKey: ['cockpit-host-updates'] }),
+        client.invalidateQueries({ queryKey: ['frontend-host-updates'] }),
       ]);
     },
   });

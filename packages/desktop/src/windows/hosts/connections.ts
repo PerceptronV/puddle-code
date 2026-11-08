@@ -1,20 +1,20 @@
 /**
- * One cockpit per host, independent of the number or kind of native windows.
+ * One frontend per host, independent of the number or kind of native windows.
  * No Electron dependency: connection lifetime and races are exercised in isolation.
  */
-export interface WindowCockpit {
+export interface WindowFrontend {
   origin: string;
   stop(): Promise<void>;
 }
 
-export interface HostConnection<C extends WindowCockpit, W> {
+export interface HostConnection<C extends WindowFrontend, W> {
   target: string;
-  cockpit: C;
+  frontend: C;
   windows: Map<string, W>;
   refreshing: Promise<void> | null;
 }
 
-export class HostConnections<C extends WindowCockpit, W> {
+export class HostConnections<C extends WindowFrontend, W> {
   readonly hosts = new Map<string, HostConnection<C, W>>();
   private readonly connecting = new Map<string, Promise<HostConnection<C, W> | undefined>>();
   private readonly retiring = new Map<string, Promise<void>>();
@@ -25,11 +25,11 @@ export class HostConnections<C extends WindowCockpit, W> {
     private readonly connect: (target: string, previous?: C, refreshId?: string) => Promise<C>,
   ) {}
 
-  private stop(cockpit: C): Promise<void> {
-    let operation = this.stops.get(cockpit);
+  private stop(frontend: C): Promise<void> {
+    let operation = this.stops.get(frontend);
     if (!operation) {
-      operation = Promise.resolve().then(() => cockpit.stop());
-      this.stops.set(cockpit, operation);
+      operation = Promise.resolve().then(() => frontend.stop());
+      this.stops.set(frontend, operation);
     }
     return operation;
   }
@@ -47,14 +47,14 @@ export class HostConnections<C extends WindowCockpit, W> {
     const start = async () => {
       await this.retiring.get(target);
       if (this.disposed) return undefined;
-      const cockpit = await this.connect(target);
+      const frontend = await this.connect(target);
       if (this.disposed) {
-        await this.stop(cockpit);
+        await this.stop(frontend);
         return undefined;
       }
       const host: HostConnection<C, W> = {
         target,
-        cockpit,
+        frontend,
         windows: new Map(),
         refreshing: null,
       };
@@ -102,13 +102,13 @@ export class HostConnections<C extends WindowCockpit, W> {
   ): Promise<void> {
     if (this.disposed || this.hosts.get(host.target) !== host) return Promise.resolve();
     if (host.refreshing) return host.refreshing;
-    const previous = host.cockpit;
+    const previous = host.frontend;
     const operation = (async () => {
       await this.stop(previous);
       // Closing the last window while stopping must not reconnect the host.
       if (this.disposed || this.hosts.get(host.target) !== host) return;
       const next = await this.connect(host.target, previous, refreshId);
-      host.cockpit = next;
+      host.frontend = next;
       // Retirement waits for this operation, then stops the replacement too.
       if (this.disposed || this.hosts.get(host.target) !== host) return;
       replaced?.(previous);
@@ -126,7 +126,7 @@ export class HostConnections<C extends WindowCockpit, W> {
     const operation = (async () => {
       // A replacement that completes after close still belongs to this retirement.
       await host.refreshing?.catch(() => undefined);
-      await this.stop(host.cockpit);
+      await this.stop(host.frontend);
     })().finally(() => {
       if (this.retiring.get(host.target) === operation) this.retiring.delete(host.target);
     });

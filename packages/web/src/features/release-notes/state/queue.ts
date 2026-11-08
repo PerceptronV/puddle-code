@@ -15,7 +15,7 @@ export interface ReleaseNotesGroup {
   entries: readonly QueuedReleaseNote[];
 }
 
-/** Stable presentation scope, independent of cockpit ports and editable host labels. */
+/** Stable presentation scope, independent of frontend ports and editable host labels. */
 export function localReleaseHostKey(host: HostInfo): string {
   return JSON.stringify(['host', host.username, host.hostname, host.home]);
 }
@@ -33,7 +33,7 @@ export class ReleaseNotesQueue {
   enqueue(hostKey: string, releases: readonly InstalledReleaseNote[]): void {
     let changed = false;
     for (const release of releases) {
-      const scope = ['cockpit', 'remote'].includes(release.component) ? 'browser' : hostKey;
+      const scope = ['frontend', 'remote'].includes(release.component) ? 'browser' : hostKey;
       const identity = JSON.stringify([scope, release.component, release.version]);
       if (
         this.seen.has(identity) ||

@@ -72,7 +72,7 @@
   --font-sans: 'Ubuntu Sans', system-ui, sans-serif;
   --font-mono: 'Ubuntu Sans Mono', ui-monospace, 'SF Mono', monospace;
 
-  /* Compact type scale: an information-dense cockpit, not a marketing page. */
+  /* Compact type scale: an information-dense frontend, not a marketing page. */
   --text-2xs: 0.6875rem;
   --text-2xs--line-height: 1rem;
   --text-xs: 0.75rem;

@@ -5,7 +5,7 @@ import { nextStoredHost } from '../../../src/lib/navigation/editor-links';
 const SID = 'abc123';
 
 describe('rewriteTerminalUri (SPEC §7 — SSH mode localhost rewrite)', () => {
-  it('rewrites host-localhost URLs to the trusted cockpit forwarding landing page', () => {
+  it('rewrites host-localhost URLs to the trusted frontend forwarding landing page', () => {
     expect(rewriteTerminalUri('http://localhost:5173/', SID, true)).toBe(
       `/forward/${SID}/5173?path=%2F`,
     );

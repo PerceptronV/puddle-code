@@ -24,7 +24,7 @@ for (const name of ['Finder', 'File Explorer', 'File Manager']) {
     const errors: string[] = [];
     let discoveries = 0;
     page.on('pageerror', (error) => errors.push(error.message));
-    await page.route(`${origin}/cockpit/file-manager`, async (route) => {
+    await page.route(`${origin}/frontend/file-manager`, async (route) => {
       if (route.request().method() === 'GET') {
         discoveries += 1;
         await route.fulfill({ json: { name } });
@@ -61,7 +61,7 @@ for (const name of ['Finder', 'File Explorer', 'File Manager']) {
 
 test('uses the current browse root and reports native failures', async ({ page }) => {
   const paths: string[] = [];
-  await page.route(`${origin}/cockpit/file-manager`, async (route) => {
+  await page.route(`${origin}/frontend/file-manager`, async (route) => {
     if (route.request().method() === 'GET') return route.fulfill({ json: { name: 'Finder' } });
     paths.push(route.request().postDataJSON().path);
     return route.fulfill({
@@ -79,13 +79,13 @@ test('uses the current browse root and reports native failures', async ({ page }
 for (const unavailable of ['ssh', 'older', 'remote']) {
   test(`omits native reveal for ${unavailable} connections`, async ({ page }) => {
     let requests = 0;
-    await page.route(`${origin}/cockpit/file-manager`, async (route) => {
+    await page.route(`${origin}/frontend/file-manager`, async (route) => {
       requests += 1;
       return route.fulfill({ status: unavailable === 'older' ? 404 : 200, json: { name: null } });
     });
     await page.goto(`${origin}/e2e/fixtures/file-manager.html?${unavailable}`);
     const response =
-      unavailable === 'remote' ? null : page.waitForResponse('**/cockpit/file-manager');
+      unavailable === 'remote' ? null : page.waitForResponse('**/frontend/file-manager');
     await page.getByRole('button', { name: 'External file tab' }).click({ button: 'right' });
     await response;
     await expect(

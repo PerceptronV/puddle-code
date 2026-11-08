@@ -12,7 +12,7 @@ export function terminalLogger(): Logger {
   };
 }
 
-/** A detached cockpit's stderr is a log file: stamp lines so outages can be dated. */
+/** A detached frontend's stderr is a log file: stamp lines so outages can be dated. */
 export function timestampedLogger(): Logger {
   const line = (message: string) => `${new Date().toISOString()} ${message}\n`;
   return {

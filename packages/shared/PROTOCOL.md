@@ -1,5 +1,15 @@
 # The puddle communication protocol
 
+Application **26.23** names the UI frontend throughout current application code.
+Private host-update inspect/apply commands accept canonical `frontend` version
+fields and normalize the historical `cockpit` spelling on receipt. Mixed spellings
+remain invalid. New clients retain the historical spelling on the private wire
+so existing hosts can process exactly one request without retry or fallback.
+The frontend gateway serves `/frontend/*` and retains authenticated legacy route
+aliases for already-running clients. Authority and remote framing are unchanged.
+Release manifests separately use format 2 with a `frontend` component; readers
+normalize historical format 1, and publishers retain a format 1 compatibility asset.
+
 Application **26.22** adds private native pane-close review dispatch and optional
 `closeReviewedPane` completion. User review does not hold a command reply open.
 Only a registered same-origin pane main frame can request completion; main still
@@ -189,7 +199,7 @@ input, kernel control and remote authority are unchanged; remote protocol is 5.
 
 Application **26.2** adds opt-in component release catalogues. Private status and
 remote maintenance status accept `include_component_releases: true`; supporting
-cockpits/connectors request it only for opted-in reads (`?components=1`). Older
+frontends/connectors request it only for opted-in reads (`?components=1`). Older
 readers receive the original strict catalogue shape. `releases.components`
 contains separate daemon/runtime version and platform-asset availability; the
 legacy unified offer is disabled when components do not share the release tag.
@@ -330,16 +340,16 @@ remote 4 and runtime 1.0 remain unchanged. Application 25.19 adds public removal
 orchestration; full platform/provider acceptance, reference-aware collection and purge
 remain open.
 
-Protocol 25.17 adds the explicit `continue-offline` cockpit update action and optional
+Protocol 25.17 adds the explicit `continue-offline` frontend update action and optional
 `offline_continuation` capability. The action carries only an exact operation id/revision;
-it uses the selected local/SSH transport and existing cockpit browser authority/Origin
+it uses the selected local/SSH transport and existing frontend browser authority/Origin
 checks. It never follows automatically from a failed live request. Compatible staged
 daemon metadata must advertise 25.17 or newer before invoking the pinned participating
 recovery entry. Earlier staged builds retain CLI recovery but are not offered this action.
 
 The existing private host-update request/reply envelope travels over a dedicated helper
 channel whose input stays open through validation. EOF, browser/request cancellation,
-helper interruption or cockpit reconnection revokes uncommitted dispatch. The worker
+helper interruption or frontend reconnection revokes uncommitted dispatch. The worker
 checks participation immediately before durable acceptance; accepted independent work
 continues even when the viewing request ends. Exact repeated accepted requests observe
 their recorded result. No daemon lease is minted or renewed, no browser/host credential
@@ -347,7 +357,7 @@ flow changes, and no relay grant or operation is added. The capability is an off
 not fresh admission or service-health proof. Application 25.17 is additive; remote 4
 and runtime 1.0 remain unchanged.
 
-Protocol 25.16 adds optional `observation: live | recorded` to local/SSH cockpit
+Protocol 25.16 adds optional `observation: live | recorded` to local/SSH frontend
 host-update status. When the daemon connection is unavailable, the selected
 transport's existing OS/SSH helper reads the bounded operation ledger, including
 the requested historical operation. Public projection still excludes private
@@ -382,17 +392,17 @@ across replacement and retaining last-known success after failed checks. Lookup
 uses the shared bounded CLI/desktop GitHub helper, never downloads or activates,
 and reports host archive/checksum availability separately from verified staging.
 An unconfigured build performs no lookup. Host archives now embed the publishing
-repository in both platform release jobs; cockpit preparation obtains that source
+repository in both platform release jobs; frontend preparation obtains that source
 from private host status rather than a browser field or client-side override.
 
-Cockpit status optionally carries the catalogue after capability detection.
+Frontend status optionally carries the catalogue after capability detection.
 `host-updates-changed` invalidates host-wide status viewers after release discovery
 or control mutations. Profile-scoped remote leases receive neither the catalogue
 nor this event, and no remote maintenance permission is added. Older status requests
 retain their exact reply shape. Settings controls and window offers consume these reads;
 remote 4 and runtime 1.0 are unchanged.
 
-Protocol 25.13 adds capability-detected local/SSH `GET/POST /cockpit/updates`.
+Protocol 25.13 adds capability-detected local/SSH `GET/POST /frontend/updates`.
 GET returns daemon availability/version, supported approval/recovery actions and a
 bounded public operation summary. POST accepts preparation of exact release targets,
 inspection, exact-fingerprint application, cancellation and supported live recovery.
@@ -401,11 +411,11 @@ gateway stamps its own protocol and excludes browser-supplied receipts, paths,
 tarballs, commands and host selection. It strips private stage/worker evidence and
 blocker target paths from replies. Browser authority and exact mutation Origin are
 required. Each request opens a cancellable channel through the existing host-control
-client, bounded by the original cockpit connection and browser request lifetime;
+client, bounded by the original frontend connection and browser request lifetime;
 revocation before host dispatch closes that lease without revoking other viewers.
 Accepted host dispatch remains durable. Lost replies are observed, never retried or
 sent through an offline fallback. Older compatible daemons remain usable and expose
-only supported actions; old cockpits return 404. Offline cockpit recovery remains
+only supported actions; old frontends return 404. Offline frontend recovery remains
 unfinished. This is an additive application route,
 not a new maintenance protocol; remote 4 and runtime 1.0 are unchanged.
 Concurrent reads are bounded separately from mutations. Short-lived status channels
@@ -622,12 +632,12 @@ Its introduction changes no wire shape or protocol version.
 - **Public remote signup (2026-09-21)**: remove the deployment email allowlist
   and fix registration policy to the already supported open-signup behaviour.
   OAuth verification, cookies, host authority and all wire shapes are unchanged;
-  remote protocol remains 2 and daemon/cockpit protocol remains 19.0.
+  remote protocol remains 2 and daemon/frontend protocol remains 19.0.
 - **Follow-clone default (2026-09-30)**: repository registration now defaults
   to the already supported empty base-branch setting, and migration 023 resets
   existing saved defaults once. Explicit empty/non-empty values, PATCH omission,
   session requests and response shapes are unchanged. This changes the default
-  policy, not the meaning of a supplied value; daemon/cockpit remains 22.0 and
+  policy, not the meaning of a supplied value; daemon/frontend remains 22.0 and
   remote protocol remains 3.
 
 ## Remote transport
@@ -637,54 +647,54 @@ contract in `src/remote/`. Its strict envelopes and Noise prologue require an
 exact match; incompatible peers fail closed. Its introduction did not change
 daemon protocol 18.0. Turning the existing server WS union into an equivalent
 zod schema did not change that wire contract. Protocol 18.1 adds local/SSH
-`/cockpit/remote` administration; it does not change the remote envelope or
+`/frontend/remote` administration; it does not change the remote envelope or
 host-authority semantics. Older connector builds are capability-detected before
-the cockpit invokes their administrative commands.
+the frontend invokes their administrative commands.
 
 Breaking changes to daemon operations exposed by the remote allowlist also
 require a remote protocol bump: an unchanged envelope does not make changed
 application messages compatible with a previously deployed browser build.
 
 Remote protocol 2 removes email login from the service discovery/auth contract.
-Daemon/cockpit protocol 19.0 accompanies its changed pairing invitation literal
-in `/cockpit/remote`; host lease and operation semantics remain unchanged.
+Daemon/frontend protocol 19.0 accompanies its changed pairing invitation literal
+in `/frontend/remote`; host lease and operation semantics remain unchanged.
 Deploy the service, browser and host connectors together.
 
-Daemon/cockpit protocol 19.1 adds local/SSH registration deletion and an optional
-capability in cockpit status. Older connectors keep their existing controls;
+Daemon/frontend protocol 19.1 adds local/SSH registration deletion and an optional
+capability in frontend status. Older connectors keep their existing controls;
 deletion is hidden and rejected until the host advertises support. The encrypted
 remote admin schema excludes deletion, so remote protocol remains 2.
 
-Daemon/cockpit protocol 20.0 adds desktop-initiated registration: an authenticated
-cockpit polls a machine-only service endpoint with an ephemeral verifier, while
+Daemon/frontend protocol 20.0 adds desktop-initiated registration: an authenticated
+frontend polls a machine-only service endpoint with an ephemeral verifier, while
 the signed-in application approves its public SHA-256 hash. This is a new token
-flow, so the cockpit major advances. The existing connector code redemption,
+flow, so the frontend major advances. The existing connector code redemption,
 Noise envelopes, pairing and host leases are unchanged; remote protocol remains 2.
 The service and application must be updated to expose the new handoff endpoints.
 
-Daemon/cockpit protocol 21.0 adds host-authenticated registration retirement via
+Daemon/frontend protocol 21.0 adds host-authenticated registration retirement via
 machine-only `POST /remote/unregister`. The existing routing credential authorises
 removal of its own service record only; browser Origin/cookies are rejected and
-retries are idempotent. This adds an authentication flow, so the cockpit major
+retries are idempotent. This adds an authentication flow, so the frontend major
 advances. Noise envelopes, pairing and host leases are unchanged; remote protocol
 remains 2. Update the service and host connector for automatic cleanup; an older
 service leaves private retirement requests queued until it is upgraded.
 
-Daemon/cockpit protocol 21.1 adds `GET /api/worktrees/:sid/preview-asset`:
+Daemon/frontend protocol 21.1 adds `GET /api/worktrees/:sid/preview-asset`:
 bounded base64 JSON for read-only remote previews. It uses the existing browse
 root and host lease; the connector explicitly allowlists it. Existing operations
 and remote envelopes are unchanged, so remote protocol remains 2. Update the
 host daemon, connector and static app (including the sandboxed preview shell's
 response CSP); newer clients hide the toggle below daemon 21.1.
 
-Daemon/cockpit protocol 21.2 adds connector-local chunked image uploads and the
+Daemon/frontend protocol 21.2 adds connector-local chunked image uploads and the
 optional `remote_image_uploads` version capability. New browsers check that flag
 before calling `/api/worktrees/:sid/paste-upload`; older connectors retain small
 legacy pastes. Each chunk uses the existing bounded encrypted request envelope,
 and finish uses the existing host-local paste route. Noise, authentication and
 host leases are unchanged; remote protocol remains 2.
 
-Daemon/cockpit protocol 21.3 accepts an empty `default_base_branch` on repository
+Daemon/frontend protocol 21.3 accepts an empty `default_base_branch` on repository
 creation and update to follow the clone's current branch for each new session.
 At introduction, this added a previously rejected request value while non-empty
 values and omitted fields retained their existing meaning (registration captured
@@ -693,36 +703,36 @@ as described in the follow-clone default note above. Settings only offers cleari
 the default on 21.3 or newer. Session requests, remote operations and authentication
 were unchanged, so remote protocol remained 2.
 
-Daemon/cockpit protocol 22.0 adds an optional profile to host-control `open` and
+Daemon/frontend protocol 22.0 adds an optional profile to host-control `open` and
 binds that profile to every resource in the lease. Remote connectors always
-request this scope; local/SSH cockpit leases remain host-wide. The daemon filters
+request this scope; local/SSH frontend leases remain host-wide. The daemon filters
 discovery and WebSocket events and checks direct session/project operations.
-`/cockpit/remote` requires a profile query parameter; connector administration
-uses validated profile envelopes on stdin (`cockpit controls 2`). This changes
+`/frontend/remote` requires a profile query parameter; connector administration
+uses validated profile envelopes on stdin (`frontend controls 2`). This changes
 authority semantics, so the daemon major advances. Remote protocol 3 accompanies
 the change from host-wide to profile-only access. Upgrade the service, app,
 daemon and connector together. Legacy host-wide registrations are deleted and
 their approvals revoked; users register and pair each profile afresh.
 
-Daemon/cockpit protocol 22.1 adds optional `Session.detected_agent_type`: a
+Daemon/frontend protocol 22.1 adds optional `Session.detected_agent_type`: a
 transient icon hint for a recognised foreground agent inside a terminal session.
 It leaves session kind, account, conversation identity and status unchanged.
 Updates reuse the profile-filtered `sessions-changed` event; no remote operation
 or authority changes, so remote protocol remains 3. Older daemons omit the hint
 and newer clients retain the terminal glyph.
 
-Daemon/cockpit protocol 22.2 adds the optional `notifications.when_focused`
+Daemon/frontend protocol 22.2 adds the optional `notifications.when_focused`
 profile preference (default true). Older peers retain their existing policy;
 native notification delivery and its bounded result use capability-detected
 desktop IPC only. Remote envelopes and host authority are unchanged.
 
-Daemon/cockpit protocol 22.3 adds the `agent-notification` WS event for waiting
+Daemon/frontend protocol 22.3 adds the `agent-notification` WS event for waiting
 and unrequested agent exits, including observed agents in terminal placements.
 It shares the existing session/profile-filtered status subscription. Older clients
 ignore it; newer clients use status transitions on daemons below 22.3. Remote
 protocol remains 3: envelopes, authority and allowed operations are unchanged.
 
-Daemon/cockpit protocol 22.4 adds capability-detected connector-local push
+Daemon/frontend protocol 22.4 adds capability-detected connector-local push
 subscription/test operations and private profile IPC attention signals. The remote
 service adds optional `push_public_key` discovery and machine-only push operations
 using the existing host routing credential; the connector binds registration to
@@ -739,7 +749,7 @@ in the release archive (or a known historical release). It is display-only:
 comparisons never parse or compare the suffix. Unknown connector versions are
 omitted rather than inferred from the running CLI.
 
-Daemon/cockpit protocol 22.5 adds optional bounded content to `agent-notification`,
+Daemon/frontend protocol 22.5 adds optional bounded content to `agent-notification`,
 validated project/session notification destinations, and capability-detected
 end-to-end encrypted push previews. New browsers send a preview key only when
 the connector advertises `remote_notification_previews` and the service advertises
@@ -748,7 +758,7 @@ The private connector IPC retries the legacy id-only request only after an expli
 rejection. Old clients ignore optional event content; old subscriptions retain generic
 push. Noise admission, remote envelopes and host leases are unchanged (remote 3).
 
-Daemon/cockpit protocol 23.0 adds local/SSH puddlang context, submission, status,
+Daemon/frontend protocol 23.0 adds local/SSH puddlang context, submission, status,
 events and cancellation endpoints. Shared schemas also define runner IPC and
 stdio MCP inputs. Existing authority/token flows are reused; remote profile
 leases and the connector allowlist reject this namespace (remote protocol 3).
@@ -757,7 +767,7 @@ endpoints. Upgrade daemon, CLI/desktop, and the remote connector/application to
 matching daemon protocol 23.0. Existing launcher upgrade approval still applies;
 puddlang itself requires an already compatible daemon and never upgrades one.
 
-Daemon/cockpit protocol 23.1 adds optional `Session.agent_mode`, optional per-spawn
+Daemon/frontend protocol 23.1 adds optional `Session.agent_mode`, optional per-spawn
 Puddlang `mode` (omission retains interactive), advertised adapter modes and
 bounded native turn signals under the existing per-runtime nonce. Migration 025
 preserves existing placements as interactive. `pudl` requires 23.1 so older runners
@@ -765,7 +775,7 @@ cannot silently discard the requested mode. Session creation through the public
 REST API remains interactive; no remote operation or authority is added. Remote
 protocol remains 3 and Puddlang remains excluded from remote leases/allowlists.
 
-Daemon/cockpit protocol 24.0 renames the execution mode enum value `scripted` to
+Daemon/frontend protocol 24.0 renames the execution mode enum value `scripted` to
 `headless` in Puddlang spawn/context and `Session.agent_mode`. This removes an
 accepted value, so the major advances with no legacy wire alias. Migration 026
 converts persisted placements and replaces the SQLite constraint; interactive
@@ -788,12 +798,12 @@ browsers retain the session title and body. Daemon REST/WS
 messages, remote envelopes and host authority are unchanged; remote protocol
 remains 4.
 
-Protocol 24.2 adds cockpit-local `GET /cockpit/file-manager` capability discovery
-and `POST /cockpit/file-manager` with a bounded absolute path to reveal. Both
-require browser authorisation; POST also requires the exact cockpit Origin.
-Only local-host cockpits advertise or invoke a file manager. SSH cockpits refuse
+Protocol 24.2 adds frontend-local `GET /frontend/file-manager` capability discovery
+and `POST /frontend/file-manager` with a bounded absolute path to reveal. Both
+require browser authorisation; POST also requires the exact frontend Origin.
+Only local-host frontends advertise or invoke a file manager. SSH frontends refuse
 the operation even though their UI also lives on localhost; remote browser
-transports never call these routes. Older cockpits return 404 and the UI omits
+transports never call these routes. Older frontends return 404 and the UI omits
 the menu action. No daemon or connector operation is added; remote protocol
 remains 4.
 

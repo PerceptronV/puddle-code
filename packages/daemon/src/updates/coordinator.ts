@@ -25,7 +25,7 @@ import { inspectRecordedRecovery } from '@puddle/shared/node/host-control';
 class Rejected extends Error {}
 class Unsupported extends Error {}
 
-/** One host-authorised coordinator for CLI and cockpit control requests. */
+/** One host-authorised coordinator for CLI and frontend control requests. */
 export class HostUpdateCoordinator {
   private closed = false;
   private maintenance: { operationId: string; release(): void } | undefined;
@@ -158,14 +158,15 @@ export class HostUpdateCoordinator {
       }
       const inspection = await this.deps.inspection.inspect(
         operation,
-        command.cockpit,
+        command.frontend,
         this.deps.installedRuntime(),
       );
       requireAuthority();
       const review = this.review(
         inspection,
         runtimeOnly || !!this.deps.pauseDaemon,
-        command.cockpit.major > 25 || (command.cockpit.major === 25 && command.cockpit.minor >= 10),
+        command.frontend.major > 25 ||
+          (command.frontend.major === 25 && command.frontend.minor >= 10),
       );
       const fingerprint = review.fingerprint ?? review.interruption_fingerprint;
       if (!fingerprint) {

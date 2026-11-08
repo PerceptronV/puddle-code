@@ -26,7 +26,7 @@ const render = (canManageMaintenance: boolean, change: Partial<RemoteDevice> = {
     }),
   );
 
-it('shows host maintenance controls only for a capable local/SSH cockpit and approved active browser', () => {
+it('shows host maintenance controls only for a capable local/SSH frontend and approved active browser', () => {
   expect(render(false)).not.toContain('Allow host maintenance');
   expect(render(true)).toContain('Allow host maintenance for Phone');
   expect(render(true)).toContain('Updates can affect every profile');
