@@ -37,7 +37,7 @@ packages/
 │   │   ├── state/       # retained journal/segments, shell observations, titles and attention
 │   │   ├── controller/  # daemon reconciliation, placement controls, viewers and notifications
 │   │   ├── lifecycle/   # launch, supervision and ended-service cleanup
-│   │   └── huddle/      # state/ ledger, execution/ correlated graph routing and bounded feedback
+│   │   └── huddle/      # state/ ledger, execution/ graph routing, workers/ captured-source execution
 │   └── src/worktrees/    # worktree lifecycle plus repository-aware Git inspection/mutations
 ├── web/       # React UI: Tailwind v4 + owned shadcn-style components (src/components/ui/)
 │   ├── src/styles/tokens.css   # THE colour source; scripts/check-tokens.mjs guards it in lint/CI
@@ -537,6 +537,10 @@ the lifecycle caller has fenced outgoing workers; it is not process-death proof.
 never join different root events, event emissions or feedback activations, or
 acknowledge fan-out before every downstream admission commits. Routing errors
 still require owner-scheduler handling; these helpers do not start workers.
+`runtime/huddle/workers/` executes captured component closures in isolated children;
+pin its runtime assets and preserve bounded owner acknowledgements. Unknown child
+termination never permits replay. Shared agent client semantics live in
+`puddlang/client.ts`; archive helper entries live in `scripts/lib/puddlang-build.mjs`.
 The user permits breaking puddlang redesign during huddle work, while existing
 agent/terminal runtime compatibility remains required. Organise each layer by
 responsibility and keep UI, runtime, source definitions and private state separate.

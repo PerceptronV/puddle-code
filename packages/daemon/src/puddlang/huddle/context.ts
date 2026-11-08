@@ -12,7 +12,7 @@ export interface HuddleNodeContext {
   parameters: HuddleValues;
   /** Resolved host references are still rechecked at operation dispatch. */
   bindings: Readonly<Record<string, string>>;
-  puddlang: Pick<typeof import('../runtime-api.js'), 'spawn' | 'attach'>;
+  puddlang: import('../client.js').PuddlangClient;
   signal: AbortSignal;
   /** Resolves only after the owner durably records this exact event-port emission. */
   emit(port: string, value: HuddleJson): Promise<void>;

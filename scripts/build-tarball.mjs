@@ -47,6 +47,8 @@ import { build } from 'esbuild';
 
 import { stageNodeRuntime } from './lib/node-runtime.mjs';
 import { smokePuddlang } from './lib/puddlang-smoke.mjs';
+import { smokeHuddleWorker } from './lib/huddle-smoke.mjs';
+import { puddlangEntryPoints } from './lib/puddlang-build.mjs';
 import { readReleasePlan, legacyReleasePlan } from './lib/releases/plan.mjs';
 import { releaseNotes } from './lib/releases/notes.mjs';
 
@@ -296,9 +298,7 @@ rmSync(stage, { recursive: true, force: true });
 mkdirSync(stage, { recursive: true });
 await bundleHostProcesses();
 await build({
-  entryPoints: ['runner', 'runtime-api', 'zod'].map((name) =>
-    join(repoRoot, `packages/daemon/src/puddlang/${name}.ts`),
-  ),
+  entryPoints: puddlangEntryPoints(repoRoot),
   outdir: join(stage, 'daemon'),
   bundle: true,
   splitting: true,
@@ -346,4 +346,6 @@ writeMetadata();
 smokeTest();
 await smokePuddlang(stage);
 log('puddlang runner smoke test passed');
+await smokeHuddleWorker(stage);
+log('huddle worker smoke test passed');
 if (!stageOnly) await pack();

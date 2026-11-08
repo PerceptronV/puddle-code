@@ -67,11 +67,9 @@ emission prevents node completion; late emissions after the invocation closes fa
 The callback contract requires durable acknowledgement, but the durable owner
 implementation is still pending. There is no automatic repair or retry.
 
-The executor is intended for an isolated worker. It is not wired into `pudl run`
-or registered as the `puddlang/huddle` import yet; no code executes on discovery,
-and no capability is advertised based on these internal helpers. The worker must
-also match the module's contract path to the exact captured manifest and bind
-operations to the authorised owner before invoking it.
+The executor now runs inside the isolated worker described below, where
+`puddlang/huddle` is registered. It is not wired into `pudl run`; no code executes
+on discovery and no application capability is advertised by these helpers.
 
 ## Implemented: private execution ledger
 
@@ -157,6 +155,55 @@ revisions, automatically settle failures, or create an owner service. The eventu
 owner must supply the pinned revision and handle routing errors visibly before
 this feature can be enabled.
 
+## Implemented: captured-source node workers
+
+`runtime/huddle/workers/` runs one local script component per Node child process.
+The owner supplies a pinned Node/worker path and explicit cwd/environment; the
+worker does not inherit the parent's environment by default. Transport reuses
+the existing bounded runtime framing over a private inherited descriptor, not
+Node's unbounded structured IPC. These helper messages belong to one pinned
+runtime build; no independently negotiated huddle-owner protocol is enabled yet.
+
+Worker jobs select one component's exact manifest, entry and declared dependency
+closure from the captured revision. Preparation rechecks the revision digest and
+the parsed graph against captured `huddle.json`; changes to either source or
+settings reject preparation. It resolves variables/settings without reading live
+source. Both sides validate the manifest against the resolved contract. The worker
+loads TypeScript/JavaScript/JSON modules from its captured in-memory closure and
+rejects undeclared local, absolute, file-URL and bare package imports.
+`puddlang/huddle`, `puddlang`, `zod` and explicit `node:` imports are available.
+`HuddleNode.contract` is relative to the component root and must match the exact
+manifest before the node body runs. This is deterministic import handling for
+trusted host code, not a security sandbox; Node built-ins retain the OS user's
+authority.
+
+The puddlang `Agent` client is shared with the existing single-file runner. Huddle
+calls carry unique request ids, bounded operation values and scoped owner
+callbacks. The parent requires a declared sessions capability and a resolved
+explicit worktree before accepting agent requests; the future host bridge must
+still authorise exact accounts, placements, worktrees and operations at dispatch.
+No production agent bridge is connected here. Emission promises resolve only
+after the owner callback acknowledges; unawaited calls/emissions prevent success.
+Disconnects are not retried.
+
+Workers have a 128 MiB V8 old-space cap, 64 pending/4,096 cumulative requests,
+1 MiB combined stdout/stderr limit and an explicit deadline. These do not establish
+a total RSS/child-process limit. Parent transport allocations can share the host
+allowance; admission of all workers and their retained source remains owner work.
+Cancellation aborts callback signals, sends termination and escalates to SIGKILL
+for a CPU-bound child. Success requires both a validated result and observed
+exit. Failure to confirm termination within five seconds remains a distinct
+unknown outcome, with a separate exit-observation promise; it never authorises a
+replacement attempt. Service-scope descendant fencing and owner-crash recovery
+remain unfinished.
+
+Archive builds include `daemon/huddle/runner.js` and `sdk.js` with their shared
+chunks, using `scripts/lib/puddlang-build.mjs`. The archive smoke check loads a
+captured helper, HuddleNode and zod under the archive's pinned Node without
+starting a daemon or agent. Fixture builds use the same entry layout. Persistent
+revision publication, scheduling, the owner service and live provider dispatch
+are still needed to expose this functionality in the application.
+
 ## Bounds and defaults
 
 Document limits: 256 nodes, 1,024 edges, 64 ports/parameters per component,
@@ -191,6 +238,7 @@ node node_modules/vitest/vitest.mjs run packages/shared/test/huddle packages/dae
 node node_modules/typescript/bin/tsc -b packages/shared packages/daemon
 node node_modules/eslint/bin/eslint.js packages/shared/src/api/huddle packages/shared/src/huddle packages/shared/test/huddle packages/shared/test/helpers/huddle.ts packages/daemon/src/huddle packages/daemon/src/puddlang/huddle packages/daemon/test/huddle
 node node_modules/eslint/bin/eslint.js packages/shared/src/runtime/huddle packages/daemon/src/runtime/huddle packages/daemon/test/helpers/huddle
+node node_modules/vitest/vitest.mjs run packages/daemon/test/huddle/workers packages/daemon/test/puddlang
 ```
 
 Verified 2026-11-08: the expanded shared-package plus huddle-definition run passed
@@ -226,11 +274,31 @@ Further checks cover alternatives, late optional inputs, forged emission kinds,
 failed branches and cancellation of incomplete joins. This is no evidence of
 provider-native turn completion or daemon-replacement continuity.
 
+Worker verification uses real child processes with bundled runtime helpers. It
+covers captured local imports, wrong manifests/wrappers, undeclared imports,
+runtime port checks, acknowledged emissions, correlated fake agent requests,
+missing worktree/capability refusal, unawaited calls, deadlines, cancellation,
+runaway logging and child crashes. A graph/ledger integration fixture captures a
+multi-file component, changes its worktree source, then executes the original
+captured bytes and retains one downstream result across ledger reopen. The
+archive-layout smoke runs in this fixture suite. The expanded shared, huddle,
+puddlang and runtime framing/encoding/decoding suite passed **279 tests in 38
+files**, with shared/daemon TypeScript and scoped ESLint passing. Additional
+worker checks cover a positively failed spawn and observe entry into the busy
+script before deadline termination. A full isolated `build-tarball.mjs --stage-only`
+build on macOS arm64 passed executable metadata, the existing puddlang smoke and
+the new multi-file worker smoke under pinned Node **22.21.1**. This is staged
+archive evidence; no archive was published or installed, no daemon service was
+started, and native supervision remains unverified. Existing puddlang
+tests also cover the shared client extraction. A stale schema-39 migration fixture
+was corrected to remove the later window-arrangement column before replaying
+migrations.
+
 ## Remaining implementation and acceptance
 
 Phase 0 remains open for the full component contract catalogue and lifecycle
 admission. Phase 1 has the private ledger and graph routing; next wire them into
-the independent huddle owner, worker scheduler, isolated workers and exact-operation bridge,
+the independent huddle owner, worker scheduler and exact-operation bridge,
 including host resource accounting and lifecycle fencing. Runtime capability
 admission; third
 session kind and application protocol transition; IDE and normal windows; actual

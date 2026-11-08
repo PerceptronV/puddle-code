@@ -1,0 +1,81 @@
+import { Socket } from 'node:net';
+import { huddleWorkerInputSchema, type HuddleWorkerJob } from '@puddle/shared';
+import { readRuntimeFrames, writeRuntimeFrame } from '../../transport/framing.js';
+import { executeHuddleNode } from '../../../puddlang/huddle/execute.js';
+import { HuddleNode } from '../../../puddlang/huddle/node.js';
+import { HuddleWorkerCalls } from './calls.js';
+import { installWorkerImports } from './source.js';
+import './sdk.js';
+
+const socket = new Socket({ fd: 3, readable: true, writable: true });
+const abort = new AbortController();
+let started = false;
+let finished = false;
+const calls = new HuddleWorkerCalls((message) => {
+  if (!writeRuntimeFrame(socket, message)) throw new Error('Huddle worker transport closed');
+});
+function disconnected(error: Error) {
+  abort.abort(error);
+  calls.close(error);
+  process.exit(1);
+}
+socket.on('error', disconnected);
+socket.on('close', () => {
+  if (!finished) disconnected(new Error('Huddle owner disconnected'));
+});
+process.on('SIGTERM', () => disconnected(new Error('Huddle worker terminated')));
+readRuntimeFrames(
+  socket,
+  (raw) => {
+    const message = huddleWorkerInputSchema.parse(raw);
+    if (message.type === 'cancel') return disconnected(new Error(message.reason));
+    if (message.type !== 'start') return calls.receive(message);
+    if (started) throw new Error('Huddle worker cannot start twice');
+    started = true;
+    void run(message.job).then(
+      (outputs) => finish({ type: 'finished', outputs }),
+      (error: unknown) =>
+        finish({
+          type: 'failed',
+          error:
+            (error instanceof Error ? error.message : String(error)).slice(0, 4096) ||
+            'Huddle worker failed',
+        }),
+    );
+  },
+  disconnected,
+);
+
+async function run(job: HuddleWorkerJob) {
+  const imports = installWorkerImports(job, new URL('./sdk.js', import.meta.url).href);
+  const module = (await import(imports.entryUrl)) as { default?: unknown };
+  const node = HuddleNode(module.default as Parameters<typeof HuddleNode>[0]);
+  imports.checkContract(node.contract);
+  let sequence = 0;
+  const outputs = await executeHuddleNode(node, job.component, {
+    inputs: job.inputs,
+    parameters: job.parameters,
+    bindings: job.bindings,
+    signal: abort.signal,
+    puddlang: calls.api,
+    emit: async (port, value) => {
+      await calls.call({ kind: 'emit', sequence: ++sequence, port, value });
+    },
+  });
+  if (calls.pendingCount) throw new Error('Node finished with unawaited operations');
+  return outputs;
+}
+
+function finish(
+  message: { type: 'finished'; outputs: unknown } | { type: 'failed'; error: string },
+) {
+  if (finished) return;
+  finished = true;
+  try {
+    if (!writeRuntimeFrame(socket, message)) process.exit(1);
+    // Flush the final frame before exiting; completion still requires the parent to observe exit.
+    socket.end(() => process.exit(message.type === 'finished' ? 0 : 1));
+  } catch {
+    process.exit(1);
+  }
+}

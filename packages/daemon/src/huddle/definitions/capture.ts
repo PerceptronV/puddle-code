@@ -1,9 +1,7 @@
-import { createHash } from 'node:crypto';
 import { lstat, realpath } from 'node:fs/promises';
 import { dirname, posix } from 'node:path';
 import {
   HUDDLE_LIMITS,
-  canonicalHuddleJson,
   huddleComponentSchema,
   huddleDefinitionSchema,
   huddleIdSchema,
@@ -12,10 +10,10 @@ import {
   type HuddleComponent,
   type HuddleDefinition,
   type HuddleDiagnostic,
-  type HuddleJson,
   type HuddleLayout,
 } from '@puddle/shared';
 import { checkedHuddlePath, readHuddleFile } from './files.js';
+import { huddleRevisionDigest } from './revision.js';
 
 export interface HuddleDefinitionSnapshot {
   format: 1;
@@ -117,15 +115,7 @@ export async function captureHuddleDefinition(
     throw new Error('Huddle definition directory changed during capture');
   const contents = Object.fromEntries([...files].sort(([a], [b]) => a.localeCompare(b)));
   const contracts = Object.fromEntries([...components].sort(([a], [b]) => a.localeCompare(b)));
-  const digest = createHash('sha256')
-    .update(
-      canonicalHuddleJson({
-        format: 1,
-        files: contents,
-        components: contracts as unknown as HuddleJson,
-      }),
-    )
-    .digest('hex');
+  const digest = huddleRevisionDigest(contents, contracts);
   return {
     format: 1,
     digest,

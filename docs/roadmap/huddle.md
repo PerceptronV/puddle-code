@@ -4,7 +4,8 @@ Status: implementation in progress, 2026-11-08, following the user's instruction
 to implement this roadmap. Phase 0 has shared document contracts, graph/binding
 validation, data-only source discovery/capture, event/delivery contracts and an
 internal node execution boundary. Phase 1 has the private execution ledger and
-durable graph routing with correlated joins and bounded feedback;
+durable graph routing with correlated joins and bounded feedback, plus isolated
+captured-source script workers;
 independent owner/service, worker scheduling and UI integration remain unimplemented.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals, not available commands/imports.
@@ -186,7 +187,8 @@ Unknown schema keywords or component versions produce actionable diagnostics.
 
 `HuddleNode` provides the execution wrapper, cancellation signal, immutable
 parameters/input, scoped puddlang operations and validated output emission. The
-following illustrates a proposed module; `puddlang/huddle` is a future API:
+following illustrates a module; `puddlang/huddle` is available inside captured
+script workers, with application lifecycle and authoring integration still pending:
 
 ```ts
 import { HuddleNode } from 'puddlang/huddle';
@@ -320,9 +322,10 @@ owner or other subscriptions; bound worker resources and startup/shutdown waits.
 
 First support project-local components plus bundled built-ins. Resolve an explicit
 local dependency list into an immutable bundle; reject paths outside the allowed
-definition/component roots and unexpected symlink escapes. This is new packaging
-work: today's runner supports only one file plus `puddlang`, `zod` and `node:`
-imports. No automatic npm installation, package marketplace or inbound public
+definition/component roots and unexpected symlink escapes. Captured huddle workers
+now load these declared closures and the pinned HuddleNode/puddlang/zod helpers;
+the ordinary `pudl run` entry point still supports only one source file. No
+automatic npm installation, package marketplace or inbound public
 webhook listener is required for the first release. Those can extend the same
 contracts later. Missing components remain visible as unresolved nodes.
 
@@ -667,7 +670,8 @@ enable nested delegation, cross-profile access or unlimited agent budgets.
 
 Phases 0 and 1 are **in progress**; phases 2–6 are **not started**. Phase 1 currently
 has the private inbox/outbox, node-attempt and exact-operation ledger plus durable
-graph routing, without the independent owner service or worker scheduler. Each phase must update
+graph routing and isolated script workers, without the independent owner service
+or worker scheduler. Each phase must update
 `docs/acceptance/huddle.md` with implemented details and evidence, rather than
 leaving the only accurate description in code or marking future phases complete.
 
