@@ -37,7 +37,7 @@ packages/
 │   │   ├── state/       # retained journal/segments, shell observations, titles and attention
 │   │   ├── controller/  # daemon reconciliation, placement controls, viewers and notifications
 │   │   ├── lifecycle/   # launch, supervision and ended-service cleanup
-│   │   └── huddle/      # control/ activation, state/ revisions+ledger, execution/ scheduler+graph, workers/ captured scripts
+│   │   └── huddle/      # owner composition; transport/, control/, state/, execution/, workers/
 │   └── src/worktrees/    # worktree lifecycle plus repository-aware Git inspection/mutations
 ├── web/       # React UI: Tailwind v4 + owned shadcn-style components (src/components/ui/)
 │   ├── src/styles/tokens.css   # THE colour source; scripts/check-tokens.mjs guards it in lint/CI
@@ -536,8 +536,12 @@ the lifecycle caller has fenced outgoing workers; it is not process-death proof.
 `runtime/huddle/execution/` routes captured graphs with durable correlated joins;
 never join different root events, event emissions or feedback activations, or
 acknowledge fan-out before every downstream admission commits. The scheduler
-records routing failures and cancels dependent work; independent owner/service
-integration remains pending. Source publication is separate from Apply/arming;
+records routing failures and cancels dependent work. `runtime/huddle/owner.ts`
+composes an independent process with private control under `transport/`, sharing
+runtime claims, host memory grants and lifetime checks. Production launcher,
+application projection, maintenance/capability admission and provider dispatch
+remain pending; do not advertise support from entry-point existence. A consumed
+launch cannot restart without separately fenced recovery. Source publication is separate from Apply/arming;
 keep accepted executions bound to their original activation through later edits.
 `runtime/huddle/workers/` executes captured component closures in isolated children;
 pin its runtime assets and preserve bounded owner acknowledgements. Unknown child

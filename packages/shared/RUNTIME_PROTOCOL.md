@@ -25,6 +25,18 @@ the roadmap records their implementation and remaining acceptance evidence.
 
 ## Compatibility
 
+The unshipped huddle role has a separate strict private launch/control contract
+under `runtime/huddle/owner.ts` (contract 1). The runtime entry point can compose
+it without changing agent/terminal launch records or their protocol 1.1 messages.
+It shares permanent runtime and process-memory claims, lifetime validation,
+pre-dispatch grants and bounded framing. Its handshake binds the exact scoped
+identity, secret, build and current controller epoch; command sequences survive
+controller replacement. A consumed launch cannot restart the same incarnation.
+No passive huddle capability or production creation path is advertised yet.
+Capability negotiation and maintenance/adoption integration must precede product
+enablement; the presence of this internal role is not admission evidence.
+See [huddle acceptance](../../docs/acceptance/huddle.md) for the tested scope.
+
 Runtime 1.1 adds exact attachment to Claude-owned background jobs. Before writing
 launch intent, the daemon checks the provider's requirement against the pinned
 runtime's minor capability. A live native job cannot be resumed through runtime

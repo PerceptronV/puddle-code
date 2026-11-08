@@ -4,7 +4,11 @@ import {
   type HuddleInvocationRecord,
   type HuddleWorkerRequest,
   type HuddleJson,
+  type HuddleRevisionActivation,
+  type HuddleNodeDefinition,
+  type HuddleComponent,
 } from '@puddle/shared';
+import type { HuddleDefinitionSnapshot } from '../../../huddle/definitions/capture.js';
 import { prepareHuddleWorkerJob } from '../../../huddle/definitions/worker.js';
 import { HuddleRevisionController } from '../control/revisions.js';
 import { HuddleLedger } from '../state/ledger.js';
@@ -74,6 +78,27 @@ export class HuddleAttempts {
       return true;
     }
     if (this.live.size >= this.maxWorkers) return false;
+    // Retain a managed child allowance through positive exit, including unknown results.
+    // This covers the configured heap plus overhead; it is not an OS RSS limit.
+    const releaseWorker = this.options.allowance?.reserve(160 * 1024 * 1024);
+    if (this.options.allowance && !releaseWorker)
+      throw new Error('Host memory admission is unavailable for a huddle worker');
+    try {
+      return this.spawn(invocation, activation, snapshot, node, component, releaseWorker);
+    } catch (error) {
+      releaseWorker?.();
+      throw error;
+    }
+  }
+
+  private spawn(
+    invocation: HuddleInvocationRecord,
+    activation: HuddleRevisionActivation,
+    snapshot: HuddleDefinitionSnapshot,
+    node: HuddleNodeDefinition,
+    component: HuddleComponent,
+    releaseWorker: (() => void) | null | undefined,
+  ): boolean {
     const job = prepareHuddleWorkerJob(
       snapshot,
       invocation,
@@ -107,6 +132,7 @@ export class HuddleAttempts {
         log: (stream, text) => this.options.log?.(invocation.id, stream, text),
       });
     } catch (error) {
+      releaseWorker?.();
       this.failed(
         invocation.executionId,
         error instanceof Error ? error : new Error(String(error)),
@@ -133,6 +159,7 @@ export class HuddleAttempts {
     // A result can be unknown while the child remains alive. Retain that handle until positive exit.
     void Promise.allSettled([handle.exited, task]).then(() => {
       this.live.delete(invocation.id);
+      releaseWorker?.();
       this.wake();
     });
     return true;

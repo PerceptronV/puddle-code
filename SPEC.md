@@ -1356,7 +1356,7 @@ trigger/cursor admission, bounded node attempts and outbox routing, retained
 execution budgets and single-consumption operation intent. Capacity reservations
 protect accepted outcomes. Recovery after outgoing-worker fencing interrupts
 script attempts and preserves unknown consumed operations without replay. The
-ledger is not yet connected to owner services or provider dispatch; its format
+ledger is now composed by the independent huddle process, but not provider dispatch; its format
 and isolated crash evidence are tracked in acceptance. Internal graph routing in
 `runtime/huddle/execution/` commits trigger/output fan-out and join admission
 atomically. Joins correlate execution and activation; each explicit event emission
@@ -1364,7 +1364,7 @@ and feedback iteration creates a separate activation. Feedback checks actual
 boolean exit conditions and finite round limits. Waiting joins and failed nodes
 prevent successful completion. The internal scheduler drives local scripts,
 manual events and result readouts, including cancellation and explicit feedback
-limit failure; independent owner integration remains unfinished.
+limit failure; production launcher/adoption integration remains unfinished.
 `runtime/huddle/workers/` supplies isolated captured-source script execution with
 bounded framed transport, acknowledged owner calls, cancellation and exit
 observation. Source preparation rechecks the revision digest; imports use the
@@ -1377,9 +1377,15 @@ accepted revision, variable values and resource bindings across later Apply.
 The scheduler starts isolated workers under root/node concurrency limits, wakes
 on events/deadlines and releases idle graph caches. Interruption fences admission,
 cancels queued roots and observes child exit; unknown termination blocks dispatch.
-The independent owner service, host operation authority, resource admission and
-service-scope recovery remain integration work. The runtime entry point does not
-launch a huddle owner yet; retained auto-start intent alone provides no reboot promise.
+The runtime entry point selects a separate huddle owner from a strict private launch
+record. It reuses runtime/memory claims, host grants and lifetime checks; consumes
+launch intent once; and provides bounded authenticated controller commands.
+Controller loss leaves local scripts running; a replacement observes retained
+results without replay. Managed graph, transport and worker capacity spends the
+common host allowance. Shutdown retains ownership until worker exit is confirmed.
+Production service launch/adoption, host operation authority, complete resource
+accounting and service-scope recovery remain integration work. Retained auto-start
+intent alone provides no reboot promise.
 There is no huddle API, runtime capability or UI yet; existing sessions and
 protocols remain unchanged. Contracts, bounds, verification and unfinished
 work are recorded in [huddle acceptance](docs/acceptance/huddle.md); the complete

@@ -24,7 +24,7 @@ export async function selectRuntimeSupervisor(
 /** Validate before consuming launch intent or starting any provider/PTY. */
 export async function prepareRuntimeLifetime(
   home: string,
-  launch: RuntimeLaunch,
+  launch: Pick<RuntimeLaunch, 'boot_id' | 'lifetime'>,
 ): Promise<() => void> {
   if (launch.boot_id !== undefined && launch.boot_id !== (await readHostBootIdentity()))
     throw new Error('Runtime launch belongs to another or unverified host boot');

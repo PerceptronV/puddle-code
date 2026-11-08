@@ -3,6 +3,9 @@ import { readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { RUNTIME_PROTOCOL_VERSION } from '@puddle/shared';
 import { RuntimeHost } from './host.js';
+import { HuddleOwner } from './huddle/owner.js';
+import { readRuntimeJson, runtimeDirectory } from './ownership/storage.js';
+import { join } from 'node:path';
 
 declare const __PUDDLER_VERSION__: string | undefined;
 const version =
@@ -25,10 +28,26 @@ if (process.argv.includes('--version')) {
       `Usage: ${fileURLToPath(import.meta.url)} --home <private-home> --runtime <runtime-id>`,
     );
   }
-  const host = await RuntimeHost.start(args[1]!, args[3]!, version);
+  const launch = readRuntimeJson(join(runtimeDirectory(args[1]!, args[3]!), 'launch.json'));
+  const huddle =
+    typeof launch === 'object' && launch !== null && 'role' in launch && launch.role === 'huddle';
+  const host = huddle
+    ? await HuddleOwner.start(
+        args[1]!,
+        args[3]!,
+        version,
+        fileURLToPath(new URL('./huddle/runner.js', import.meta.url)),
+      )
+    : await RuntimeHost.start(args[1]!, args[3]!, version);
   for (const signal of ['SIGTERM', 'SIGINT'] as const) {
     process.on(signal, () => {
-      void host.stop().then(() => process.exit(0));
+      void host
+        .stop()
+        .then(() => process.exit(0))
+        .catch((error: unknown) => {
+          // Unknown child termination must retain the owner claim for explicit recovery.
+          console.error(error instanceof Error ? error.message : 'Runtime stop failed');
+        });
     });
   }
 }

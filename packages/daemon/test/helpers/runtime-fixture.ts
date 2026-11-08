@@ -7,9 +7,11 @@ import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
+import { puddlangEntryPoints } from '../../../../scripts/lib/puddlang-build.mjs';
 import { afterAll, afterEach, beforeAll } from 'vitest';
 import {
   runtimeLaunchSchema,
+  huddleOwnerLaunchSchema,
   runtimeStateSchema,
   type RuntimeLaunch,
   type RuntimeState,
@@ -100,9 +102,7 @@ beforeAll(async () => {
   });
   writeFileSync(join(bundleDir, 'package.json'), JSON.stringify({ type: 'module' }));
   await build({
-    entryPoints: ['runner', 'runtime-api', 'zod'].map((name) =>
-      join(packageRoot, `src/puddlang/${name}.ts`),
-    ),
+    entryPoints: puddlangEntryPoints(join(packageRoot, '../..')),
     outdir: bundleDir,
     bundle: true,
     splitting: true,
@@ -174,7 +174,11 @@ export function admitFixtureOwner(home: string, id: string): void {
   const directory = runtimeDirectory(home, id);
   if (existsSync(join(directory, 'retired.json')) || existsSync(join(directory, 'consumed.json')))
     return;
-  const launch = runtimeLaunchSchema.parse(readRuntimeJson(join(directory, 'launch.json')));
+  const raw = readRuntimeJson(join(directory, 'launch.json'));
+  const launch =
+    typeof raw === 'object' && raw !== null && 'role' in raw && raw.role === 'huddle'
+      ? huddleOwnerLaunchSchema.parse(raw)
+      : runtimeLaunchSchema.parse(raw);
   const ledger = HostMemoryLedger.openExisting(home);
   if (!ledger) throw new Error('Fixture controller did not initialise runtime memory');
   let admitted: boolean;

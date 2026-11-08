@@ -149,7 +149,7 @@ admits no next invocation; the scheduler records failure and cancels dependent
 work. An incomplete join or failed invocation cannot be reported as
 successful execution completion. Interrupt/recovery also cancels waiting joins.
 
-Routing composes with the scheduler below. The independent owner service,
+Routing composes with the scheduler below. Production owner/service integration,
 non-manual trigger subscriptions and live-agent dispatch remain unimplemented;
 these internal helpers alone do not expose huddles in the application.
 
@@ -187,7 +187,7 @@ Disconnects are not retried.
 Workers have a 128 MiB V8 old-space cap, 64 pending/4,096 cumulative requests,
 1 MiB combined stdout/stderr limit and an explicit deadline. These do not establish
 a total RSS/child-process limit. Parent transport allocations can share the host
-allowance; admission of all workers and their retained source remains owner work.
+allowance; the owner now charges worker and retained-source capacity as described below.
 Cancellation aborts callback signals, sends termination and escalates to SIGKILL
 for a CPU-bound child. Success requires both a validated result and observed
 exit. Failure to confirm termination within five seconds remains a distinct
@@ -238,8 +238,8 @@ manual events; `huddle/components/core.ts` provides the initial Run trigger and
 result readout contracts. The scheduler runs local script components and stores
 result-readout input in the retained invocation. It refuses unsupported built-in
 contracts and local trigger/readout adapters. Coalescing/drop admission is refused
-until those policies are implemented. None of these helpers is yet connected to
-a huddle runtime entry point or public creation/Run command.
+until those policies are implemented. The independent owner entry point below
+now composes these helpers; public creation/Run commands remain unimplemented.
 
 Scheduling honours root/node concurrency and shared execution limits, with four
 worker slots by default (configurable from one to sixteen). Event outputs wake
@@ -260,9 +260,61 @@ reservations; physical ENOSPC still requires storage recovery.
 
 The scheduler can call an injected host operation bridge, but a production bridge
 with account/session/worktree authorisation and exact dispatch is not installed.
-Existing-agent cleanup, external adapter shutdown, independent supervision,
-daemon adoption and host memory admission remain owner integration work. The
+Existing-agent cleanup, external adapter shutdown, native supervision and
+application-side daemon adoption remain integration work. The
 stored auto-start setting is not proof of restart/reboot continuity.
+
+## Implemented: independent owner process and private controller
+
+`runtime/huddle/owner.ts` composes the ledger, immutable revisions, scheduler and
+workers in a separate `puddler` process. The ordinary runtime entry point selects
+the huddle role only from a strict private huddle launch record. It requires the
+exact build, runtime/incarnation/launch identity, profile/project/session scope,
+definition worktree and an already published initial revision. Initial activation
+stays stopped until an explicit private Arm command. It creates no agent PTY and
+never opens application SQLite.
+
+The owner reuses the existing permanent runtime claim, separate process-memory
+claim, pre-dispatch host grant and lifetime checks. The common service dispatcher
+can address the same entry point without new service arguments. The launch is
+exclusively consumed and synced before activation/listening: a duplicate process
+cannot take live ownership, and a consumed incarnation cannot restart or replay
+work after exit. This is launch fencing, not automatic owner-crash recovery.
+
+`runtime/huddle/transport/` uses existing bounded framing and request/transport
+allowances. Its unshipped role contract 1 authenticates the exact runtime identity,
+private per-owner secret and current host controller id/epoch. Scope and selected
+build are checked on adoption. At most 16 sockets and 64 queued requests share
+the owner's allowance. Controller replacement fences the old connection; a
+monotonic command cursor survives controller disconnects. Lost replies and
+timeouts never retry a command. Inspection, bounded execution/invocation/operation
+pages, Apply, Arm, Run, Interrupt and Shutdown are private internal commands.
+Record pages are observation only; application projection with durable cursors
+and acknowledgement has not been wired yet.
+
+Local scripts continue when the controller disconnects or releases its epoch.
+Shutdown acknowledgement means acceptance, not confirmed termination. The owner
+disarms admission, cancels work, waits for worker exit and pending controls, syncs
+its final `huddle-owner.json`, then releases execution ownership. Interruption
+keeps the owner available. Unknown termination retains ownership and failure
+evidence instead of claiming successful shutdown. Retained state alone is never
+proof that a process is alive or dead.
+
+Transport, bounded source-read workspaces, cached graphs/activation values and
+160 MiB per live script worker charge the common host allowance. A worker's charge
+is held until positive exit, including unknown completion. Host refusal prevents
+that worker from starting. These managed charges include the configured 128 MiB
+worker heap plus overhead; they do not enforce total RSS or fence arbitrary OS
+descendants. Complete resource accounting/measurement and supervised descendant
+recovery remain acceptance gates.
+
+Application and agent/terminal runtime versions remain unchanged. No installed
+huddle capability is advertised and no production placement/launcher/API exists
+yet. Tests supply private launch records directly. Capability admission,
+application session records, maintenance inventories/checkpoints/removal,
+provider-operation dispatch and fenced owner replacement/reboot recovery must be
+connected before enabling creation. Do not infer production support from this
+entry point or its private schemas.
 
 ## Bounds and defaults
 
@@ -367,13 +419,31 @@ cancellation can still record a maximally JSON-escaped bounded reason. These
 checks run the scheduler in an isolated test owner; they do not establish an
 independent installed service or daemon-replacement continuity.
 
+The owner-process increment passed **377 tests in 50 files** across shared,
+huddle, puddlang, framing/encoding/decoding, host-memory, lifetime and daemon-ownership
+regression suites. After fixing active-scheduler wake-up on new admission, all
+**16 owner/scheduler tests** passed again. Seven owner tests use real isolated
+processes: controllerless script completion
+and replacement adoption, deliberately discarded Run acknowledgement, wrong
+secret/scope and stale epoch refusal, busy-worker interruption, missing host-grant
+refusal, pinned-build refusal and concurrent admission while another root is active.
+They also verify consumed-launch replay refusal
+and exclusive runtime ownership. Two scheduler checks verify refusal before
+worker start under memory pressure and release of managed charges after exit.
+Existing agent/terminal daemon-ownership and detached-lifetime checks passed.
+Shared/daemon TypeScript, scoped ESLint and formatting checks passed. An earlier
+focused run also passed 159 tests with the opt-in native launchd default-launch
+test skipped; no native huddle
+supervision, packaged huddle launch or production daemon adoption is claimed.
+
 ## Remaining implementation and acceptance
 
 Phase 0 remains open for the full component contract catalogue and lifecycle
 admission. Phase 1 has retained revisions/activation, the ledger, routing, workers
-and a manual scheduler core; next wire them into the independent huddle owner
-and exact-operation bridge, including host resource accounting and lifecycle
-fencing. Runtime capability admission; third session kind and application protocol
+and a manual scheduler composed in an independent owner process. Next connect
+the production launcher, daemon projection and exact-operation bridge, including
+complete host resource accounting and lifecycle fencing. Runtime capability
+admission; third session kind and application protocol
 transition; IDE and normal windows; actual trigger/readout adapters; provider-backed
 lifecycle nodes; authoring
 tools, docs/skill and packaged integration.

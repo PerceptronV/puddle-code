@@ -14,7 +14,7 @@ import {
 // releases execution ownership while JavaScript buffers may still be reachable.
 let processMemoryClaim: ReturnType<typeof acquireHostClaim> | undefined;
 
-export class RuntimeOwnerMemory {
+export class RuntimeOwnerMemory<T extends Pick<RuntimeLaunch, 'identity'> = RuntimeLaunch> {
   readonly allowance: RuntimeHostAllowance;
   private timer: NodeJS.Timeout | null = null;
   private retryMs = 1000;
@@ -23,7 +23,7 @@ export class RuntimeOwnerMemory {
   private constructor(
     readonly home: string,
     readonly directory: string,
-    readonly launch: RuntimeLaunch,
+    readonly launch: T,
     readonly claim: ReturnType<typeof acquireHostClaim>,
     private readonly ledger: HostMemoryLedger,
   ) {
@@ -44,13 +44,22 @@ export class RuntimeOwnerMemory {
   }
 
   static async open(home: string, id: string): Promise<RuntimeOwnerMemory> {
+    return this.openWithLaunch(home, id, (value) => runtimeLaunchSchema.parse(value));
+  }
+
+  /** Roles share the same permanent ownership and host grant; their launch schemas stay separate. */
+  static async openWithLaunch<T extends Pick<RuntimeLaunch, 'identity'>>(
+    home: string,
+    id: string,
+    parse: (value: unknown) => T,
+  ): Promise<RuntimeOwnerMemory<T>> {
     if (processMemoryClaim) throw new Error('A runtime process may own only one memory lifetime');
     const directory = runtimeDirectory(home, id);
     const claim = acquireHostClaim(home, `runtime:${id}`);
     let ledger: HostMemoryLedger | null = null;
     try {
       processMemoryClaim = acquireHostClaim(home, `runtime-memory:${id}`);
-      const launch = runtimeLaunchSchema.parse(readRuntimeJson(join(directory, 'launch.json')));
+      const launch = parse(readRuntimeJson(join(directory, 'launch.json')));
       if (launch.identity.runtime_id !== id) throw new Error('Runtime launch identity mismatch');
       try {
         runtimeRetiredSchema.parse(readRuntimeJson(join(directory, 'retired.json')));

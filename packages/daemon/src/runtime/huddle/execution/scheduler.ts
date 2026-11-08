@@ -24,7 +24,7 @@ export class HuddleScheduler {
     revisions: HuddleRevisionController,
     options: HuddleAttemptOptions,
   ) {
-    this.contexts = new HuddleExecutionContexts(ledger, revisions);
+    this.contexts = new HuddleExecutionContexts(ledger, revisions, options.allowance);
     this.attempts = new HuddleAttempts(
       ledger,
       this.contexts,

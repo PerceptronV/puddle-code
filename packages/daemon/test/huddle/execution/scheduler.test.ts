@@ -1,14 +1,9 @@
 import { randomUUID } from 'node:crypto';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import {
-  huddleComponentSchema,
-  huddleDefinitionSchema,
-  type HuddleComponent,
-  type HuddleJson,
-} from '@puddle/shared';
-import { manualHuddleTrigger, huddleResultReadout } from '../../../src/huddle/components/core.js';
+import { huddleResultReadout } from '../../../src/huddle/components/core.js';
 import { huddleRevisionDigest } from '../../../src/huddle/definitions/revision.js';
+import { huddleDefinitionSchema, type HuddleJson } from '@puddle/shared';
 import type { HuddleDefinitionSnapshot } from '../../../src/huddle/definitions/capture.js';
 import { HuddleRevisionStore } from '../../../src/runtime/huddle/state/revisions.js';
 import { HuddleRevisionController } from '../../../src/runtime/huddle/control/revisions.js';
@@ -17,7 +12,9 @@ import { HuddleScheduler } from '../../../src/runtime/huddle/execution/scheduler
 import type { HuddleAttemptOptions } from '../../../src/runtime/huddle/execution/attempts.js';
 import { huddleLedgerFixture, type HuddleLedgerFixture } from '../../helpers/huddle/ledger.js';
 import { invocations } from '../../helpers/huddle/graph.js';
+import { schedulerSnapshot } from '../../helpers/huddle/scheduler.js';
 import { workerTestHarness } from '../../helpers/huddle/worker.js';
+import { RuntimeBufferBudget } from '../../../src/runtime/resources/budget.js';
 
 const workers = workerTestHarness();
 const fixtures: Array<{ f: HuddleLedgerFixture; scheduler: HuddleScheduler }> = [];
@@ -30,81 +27,11 @@ afterEach(async () => {
 const wrap = (body: string) =>
   `import {HuddleNode} from 'puddlang/huddle'; export default HuddleNode({contract:'./node.json', async run({inputs,emit}) { ${body} }});`;
 
-function snapshot(
-  f: HuddleLedgerFixture,
-  source: string,
-  feedback?: number,
-): HuddleDefinitionSnapshot {
-  const component: HuddleComponent = huddleComponentSchema.parse({
-    format: 1,
-    id: 'fixture.script.scheduler',
-    version: 1,
-    title: 'Script',
-    category: 'script',
-    entry: './run.ts',
-    inputs: { value: { schema: {} } },
-    outputs: {
-      completed: {
-        schema: feedback
-          ? {
-              type: 'object',
-              properties: { complete: { type: 'boolean' }, count: { type: 'number' } },
-              required: ['complete', 'count'],
-            }
-          : {},
-      },
-      turn: { schema: {}, emission: 'event', required: false },
-    },
-  });
-  const definition = huddleDefinitionSchema.parse({
-    format: 1,
-    id: f.identity.huddleId,
-    name: 'Scheduler fixture',
-    nodes: [
-      { id: 'run', source: { kind: 'builtin', component: manualHuddleTrigger.id, version: 1 } },
-      { id: 'worker', source: { kind: 'local', manifest: './nodes/example/node.json' } },
-      { id: 'result', source: { kind: 'builtin', component: huddleResultReadout.id, version: 1 } },
-    ],
-    edges: [
-      { id: 'seed', from: { node: 'run', port: 'event' }, to: { node: 'worker', port: 'value' } },
-      {
-        id: 'result',
-        from: { node: 'worker', port: 'completed' },
-        to: { node: 'result', port: 'value' },
-      },
-      ...(feedback
-        ? [
-            {
-              id: 'again',
-              from: { node: 'worker', port: 'completed' },
-              to: { node: 'worker', port: 'value' },
-              feedback: { maxRounds: feedback, while: { path: ['complete'], equals: false } },
-            },
-          ]
-        : []),
-    ],
-  });
-  const files = {
-    'huddle.json': JSON.stringify(definition),
-    'nodes/example/node.json': JSON.stringify(component),
-    'nodes/example/run.ts': source,
-  };
-  const components = { run: manualHuddleTrigger, worker: component, result: huddleResultReadout };
-  return {
-    format: 1,
-    digest: huddleRevisionDigest(files, components),
-    definition,
-    files,
-    components,
-    diagnostics: [],
-  };
-}
-
 function setup(source: string, feedback?: number, options: Partial<HuddleAttemptOptions> = {}) {
   const f = huddleLedgerFixture();
   const store = new HuddleRevisionStore(f.home, f.identity.runtimeId, f.identity.huddleId);
   const revisions = new HuddleRevisionController(f.ledger, store);
-  const sourceSnapshot = snapshot(f, source, feedback);
+  const sourceSnapshot = schedulerSnapshot(f.identity.huddleId, source, feedback);
   const apply = (source: HuddleDefinitionSnapshot) =>
     revisions.apply(
       source,
@@ -125,6 +52,31 @@ function setup(source: string, feedback?: number, options: Partial<HuddleAttempt
 }
 
 describe('owner graph scheduling with real script workers', () => {
+  it('refuses a worker before script execution when the shared host allowance is exhausted', async () => {
+    const allowance = new RuntimeBufferBudget({ bytes: 4 * 1024 * 1024, count: 100 });
+    const { f, scheduler, admit } = setup(wrap('return {completed: 42};'), undefined, {
+      allowance,
+    });
+    const run = admit(21);
+    await scheduler.drain();
+    expect(f.ledger.executions.get(run.execution.id)).toMatchObject({
+      state: 'failed',
+      error: 'Host memory admission is unavailable for a huddle worker',
+    });
+    expect(invocations(f, run.execution.id, 'worker')[0]?.state).toBe('cancelled');
+    expect(scheduler.hasLiveWorkers).toBe(false);
+    expect(allowance.usedBytes).toBe(0);
+  });
+  it('returns retained graph and worker charges after confirmed completion', async () => {
+    const allowance = new RuntimeBufferBudget({ bytes: 256 * 1024 * 1024, count: 100 });
+    const { f, scheduler, admit } = setup(wrap('return {completed: 42};'), undefined, {
+      allowance,
+    });
+    const run = admit(21);
+    await scheduler.drain();
+    expect(f.ledger.executions.get(run.execution.id).state).toBe('completed');
+    expect(allowance.usedBytes).toBe(0);
+  });
   it('routes an explicit event to a result readout while its source occupies the only worker slot', async () => {
     let emitted!: () => void;
     const ready = new Promise<void>((resolve) => {
@@ -188,7 +140,7 @@ describe('owner graph scheduling with real script workers', () => {
   it('uses the accepted source revision even when Apply precedes queued dispatch', async () => {
     const { f, scheduler, admit, apply } = setup(wrap('return {completed: inputs.value * 2};'));
     const before = admit(21);
-    apply(snapshot(f, wrap('return {completed: inputs.value * 3};')));
+    apply(schedulerSnapshot(f.identity.huddleId, wrap('return {completed: inputs.value * 3};')));
     const after = admit(21);
     await scheduler.drain();
     expect(invocations(f, before.execution.id, 'result')[0]!.inputs).toEqual({ value: 42 });

@@ -12,6 +12,7 @@ import { acquireHostClaim } from '../../../security/claims.js';
 import { runtimeDirectory } from '../../ownership/storage.js';
 import type { HuddleDefinitionSnapshot } from '../../../huddle/definitions/capture.js';
 import { restoreHuddleDefinition } from '../../../huddle/definitions/restore.js';
+import type { RuntimeByteAllowance } from '../../resources/budget.js';
 
 /** Immutable content publication precedes the ledger's separate activation transaction. */
 export class HuddleRevisionStore {
@@ -22,6 +23,7 @@ export class HuddleRevisionStore {
     private readonly runtimeId: string,
     private readonly huddleId: string,
     limits: Partial<{ recordBytes: number; retainedBytes: number; records: number }> = {},
+    private readonly allowance?: RuntimeByteAllowance,
   ) {
     this.limits = { ...HUDDLE_REVISION_LIMITS, ...limits };
     for (const key of ['recordBytes', 'retainedBytes', 'records'] as const) {
@@ -77,10 +79,19 @@ export class HuddleRevisionStore {
   }
 
   read(revision: string): HuddleDefinitionSnapshot {
-    return restoreHuddleDefinition(
-      readPrivateJson(this.path(revision), this.limits.recordBytes),
-      this.huddleId,
-    );
+    const path = this.path(revision);
+    privatePath(path);
+    const size = lstatSync(path).size;
+    if (size > this.limits.recordBytes) throw new Error('Huddle revision record capacity exceeded');
+    const release = this.allowance?.reserve(8 * size + 64 * 1024);
+    if (this.allowance && !release)
+      throw new Error('Host memory admission is unavailable for huddle source');
+    try {
+      // A replacement/growing file cannot exceed the admitted read workspace.
+      return restoreHuddleDefinition(readPrivateJson(path, size), this.huddleId);
+    } finally {
+      release?.();
+    }
   }
 
   private path(revision: string) {
