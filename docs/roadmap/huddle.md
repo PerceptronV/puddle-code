@@ -13,8 +13,10 @@ application protocol 27.0; public creation and the IDE remain unfinished. Daemon
 adoption/projection now observes independent huddle owners alongside ordinary
 runtimes, including across isolated daemon replacement. Pinned production launch
 and exact-owner controls now integrate with session kill/archive. Authorised public
-creation/Start/Run, maintenance checkpoints, native supervision, provider dispatch
-and UI integration remain unfinished.
+creation/Start/Run, removal/collection integration, native supervision, provider
+dispatch and UI integration remain unfinished. Host-update preflight, shutdown
+checkpoints and fresh adoption/recovery now preserve huddle contracts alongside
+ordinary owners.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals, not available commands/imports.
 

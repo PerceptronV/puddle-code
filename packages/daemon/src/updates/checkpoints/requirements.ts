@@ -1,5 +1,6 @@
 import { readUpdateRecoveryAttempts } from '@puddle/shared/node/host-control';
 import type { HostUpdateOperation } from '@puddle/shared';
+import { canonicalHuddleJson } from '@puddle/shared';
 import { digest } from '@puddle/shared/node';
 
 import { readHostUpdateCheckpointEvidence } from './store.js';
@@ -33,6 +34,8 @@ export function readUpdateAdoptionRequirements(home: string, operation: HostUpda
           JSON.stringify(previous.protocol) !== JSON.stringify(owner.protocol) ||
           previous.release_path !== owner.release_path ||
           previous.launch_fingerprint !== owner.launch_fingerprint ||
+          canonicalHuddleJson(previous.huddle ?? null) !==
+            canonicalHuddleJson(owner.huddle ?? null) ||
           previous.event_cursor > owner.event_cursor ||
           (['exited', 'failed'].includes(previous.state) && previous.state !== owner.state))
       )

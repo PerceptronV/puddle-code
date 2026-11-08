@@ -2,6 +2,9 @@ import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import {
   HOST_UPDATE_CHECKPOINT_OWNERS,
+  huddleOwnerStateSchema,
+  canonicalHuddleJson,
+  type DaemonRuntimeCapabilities,
   runtimeLaunchSchema,
   runtimeStateSchema,
   type HostReleaseCapabilities,
@@ -16,14 +19,19 @@ import { runtimeBindingIdentity } from '../../../runtime/transport/connections.j
 import { inspectRuntimeInventory } from '../../preflight/compatibility.js';
 import { requireCheckpointCompatibility } from '../../checkpoints/compatibility.js';
 import { runtimeCheckpointOwner } from '../../checkpoints/store.js';
+import {
+  huddleBindingLaunch,
+  requireHuddleState,
+} from '../../../runtime/huddle/controller/discovery.js';
 
 /** Caller holds the controller claim. Read current committed WAL data; never migrate or restore it. */
 export async function inspectRecoveryDatabase(
   home: string,
   candidate: HostReleaseCapabilities,
   checkpoint: HostUpdateCheckpoint,
+  roles?: DaemonRuntimeCapabilities | null,
 ) {
-  requireCheckpointCompatibility(candidate, checkpoint);
+  requireCheckpointCompatibility(candidate, checkpoint, roles);
   const path = join(home, 'puddle.db');
   requireOwnedDatabase(path);
   const db = new Database(path, { readonly: true, fileMustExist: true, timeout: 0 });
@@ -51,6 +59,8 @@ export async function inspectRecoveryDatabase(
       if (
         !row ||
         JSON.stringify(runtimeBindingIdentity(row)) !== JSON.stringify(previous.identity) ||
+        canonicalHuddleJson(runtimeCheckpointOwner(row).huddle ?? null) !==
+          canonicalHuddleJson(previous.huddle ?? null) ||
         row.build !== previous.build ||
         row.protocol_major !== previous.protocol.major ||
         row.protocol_minor !== previous.protocol.minor ||
@@ -67,6 +77,30 @@ export async function inspectRecoveryDatabase(
         throw new Error('Candidate cannot adopt a current runtime');
       const directory = join(home, 'runtimes', row.runtime_id);
       privatePath(directory, true);
+      if (row.role === 'huddle') {
+        requireCheckpointCompatibility(
+          candidate,
+          { ...checkpoint, owners: [runtimeCheckpointOwner(row)] },
+          roles,
+        );
+        const launch = huddleBindingLaunch(home, row);
+        try {
+          const state = huddleOwnerStateSchema.parse(
+            readRuntimeJson(join(directory, 'huddle-owner.json')),
+          );
+          requireHuddleState(launch, state);
+          if (state.persistencePending || state.observation < row.event_cursor)
+            throw new Error('Current huddle state has not persisted its committed progress');
+        } catch (error) {
+          if (
+            row.state !== 'prepared' ||
+            row.event_cursor >= 0 ||
+            (error as NodeJS.ErrnoException).code !== 'ENOENT'
+          )
+            throw error;
+        }
+        continue;
+      }
       const launch = runtimeLaunchSchema.parse(readRuntimeJson(join(directory, 'launch.json')));
       const identity = runtimeBindingIdentity(row);
       if (JSON.stringify(launch.identity) !== JSON.stringify(identity))

@@ -1,6 +1,8 @@
 import { z } from 'zod';
 import { runtimeControllerSchema } from '../runtime/storage.js';
 import { runtimeIdentitySchema, runtimeStateSchema } from '../runtime/protocol.js';
+import { huddleIdSchema } from '../api/huddle/values.js';
+import { huddleRuntimeCapabilitiesSchema } from '../runtime/huddle/capabilities.js';
 
 export const HOST_UPDATE_CHECKPOINT_OWNERS = 4096;
 export const HOST_UPDATE_CHECKPOINT_BYTES = 8 * 1024 * 1024;
@@ -38,6 +40,13 @@ export const hostUpdateCheckpointSchema = hostUpdateCheckpointReferenceSchema
             launch_fingerprint: z.string().regex(/^[0-9a-f]{64}$/),
             event_cursor: z.number().int().min(-1).safe(),
             state: z.enum(['prepared', 'running', 'exited', 'failed', 'interrupted']),
+            // Absence is historical ordinary ownership, never inferred huddle support.
+            huddle: z
+              .strictObject({
+                id: huddleIdSchema,
+                capabilities: huddleRuntimeCapabilitiesSchema,
+              })
+              .optional(),
           })
           .strip(),
       )

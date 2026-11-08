@@ -3,6 +3,8 @@ import { open, realpath } from 'node:fs/promises';
 import { dirname, join } from 'node:path';
 import {
   hostReleaseCapabilitiesSchema,
+  daemonRuntimeCapabilitiesSchema,
+  type DaemonRuntimeCapabilities,
   hostStageReceiptSchema,
   type HostReleaseCapabilities,
   type HostStageReceipt,
@@ -41,8 +43,38 @@ export async function readStageCapabilities(
 
 /** Bounded public release metadata, shared by staged and running-component inspection. */
 export async function readInstalledCapabilities(root: string): Promise<HostReleaseCapabilities> {
+  return hostReleaseCapabilitiesSchema.parse(await readMetadata(root, 'HOST_CAPABILITIES.json'));
+}
+
+/** Absent on historical releases; malformed or mismatched metadata is never support. */
+export async function readStageDaemonRuntimeCapabilities(
+  home: string,
+  input: HostStageReceipt,
+): Promise<DaemonRuntimeCapabilities | null> {
+  const stage = hostStageReceiptSchema.parse(input);
+  if (stage.record.component !== 'daemon') throw new Error('Expected a daemon stage');
+  const host = await readStageCapabilities(home, stage);
+  const root = join(home, 'bin', 'versions', stage.record.generation);
+  let raw: unknown;
+  try {
+    raw = await readMetadata(root, 'DAEMON_RUNTIME_CAPABILITIES.json');
+  } catch (error) {
+    if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+    throw error;
+  }
+  const value = daemonRuntimeCapabilitiesSchema.parse(raw);
+  if (
+    value.version !== host.version ||
+    value.application.major !== host.application.major ||
+    value.application.minor !== host.application.minor
+  )
+    throw new Error('Daemon runtime capabilities do not match the staged daemon');
+  return value;
+}
+
+async function readMetadata(root: string, name: string): Promise<unknown> {
   const file = await open(
-    join(root, 'HOST_CAPABILITIES.json'),
+    join(root, name),
     constants.O_RDONLY | constants.O_NOFOLLOW | constants.O_NONBLOCK,
   );
   try {
@@ -57,10 +89,7 @@ export async function readInstalledCapabilities(root: string): Promise<HostRelea
       size += bytesRead;
     }
     if (size > stat.size) throw new Error('Host capability metadata changed during inspection');
-    const capabilities = hostReleaseCapabilitiesSchema.parse(
-      JSON.parse(buffer.subarray(0, size).toString('utf8')),
-    );
-    return capabilities;
+    return JSON.parse(buffer.subarray(0, size).toString('utf8'));
   } finally {
     await file.close();
   }

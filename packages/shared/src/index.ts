@@ -92,6 +92,7 @@ export * from './installation/connector.js';
 export * from './installation/checkpoint.js';
 export * from './installation/adoption.js';
 export * from './installation/capabilities.js';
+export * from './installation/runtime-roles.js';
 export * from './installation/catalogue.js';
 export * from './installation/release-manifest.js';
 export * from './installation/removal/services.js';

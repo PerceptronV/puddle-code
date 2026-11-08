@@ -1,6 +1,9 @@
 import type { HostUpdateOperation } from '@puddle/shared';
 import type { CompilationCommandRunner } from '../../compilation/process.js';
-import { readStageCapabilities } from '@puddle/shared/node/host-control';
+import {
+  readStageCapabilities,
+  readStageDaemonRuntimeCapabilities,
+} from '@puddle/shared/node/host-control';
 import { requireCheckpointCompatibility } from '../checkpoints/compatibility.js';
 import { claimStoppedDaemonUpdate } from '../verification/shutdown.js';
 import { readRecoveryActions } from './actions.js';
@@ -39,11 +42,12 @@ export async function retainStoppedUpdateRecovery(
     const stage = operation.stages.find(({ record }) => record.component === 'daemon');
     if (!stage) throw new Error('Missing daemon recovery stage');
     const candidate = await readStageCapabilities(home, stage);
+    const roles = await readStageDaemonRuntimeCapabilities(home, stage);
     recovery.check();
     handoff = await claimStoppedDaemonUpdate(home, job, recovery.check, run);
     if (!handoff)
       throw new Error('Daemon shutdown checkpoint or controller release is unconfirmed');
-    requireCheckpointCompatibility(candidate, handoff.checkpoint);
+    requireCheckpointCompatibility(candidate, handoff.checkpoint, roles);
     recovery.check();
     let released = false;
     let controllerReleased = false;

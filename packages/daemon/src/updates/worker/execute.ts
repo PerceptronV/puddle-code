@@ -6,7 +6,10 @@ import {
 import { runCompilationCommand, type CompilationCommandRunner } from '../../compilation/process.js';
 import { startReplacementService } from '../../host/supervision/replacement.js';
 import { HostUpdateOperations } from '../operations/store.js';
-import { readStageCapabilities } from '@puddle/shared/node/host-control';
+import {
+  readStageCapabilities,
+  readStageDaemonRuntimeCapabilities,
+} from '@puddle/shared/node/host-control';
 import { stopConnectorForUpdate, startConnectorAfterUpdate } from './connector.js';
 import { stopDaemonForUpdate } from './daemon/stop.js';
 import { selectUpdateStage, verifyUpdateSelection } from './selection.js';
@@ -33,6 +36,7 @@ export async function executeHostUpdate(
   if (runtime && !compatibleRuntimeProtocol(runtime.record.protocol))
     throw new Error('Unsupported runtime update stage');
   const candidate = daemon ? await readStageCapabilities(home, daemon) : null;
+  const roles = daemon ? await readStageDaemonRuntimeCapabilities(home, daemon) : null;
   const worker = store.claimExecution(
     { id: job.operation_id, revision: job.dispatch_revision },
     job.dispatch_id,
@@ -51,7 +55,7 @@ export async function executeHostUpdate(
       await actions.run('stop-daemon', async () => {
         handoff = await stopDaemonForUpdate(home, job, execute);
       });
-      requireCheckpointCompatibility(candidate!, handoff!.checkpoint);
+      requireCheckpointCompatibility(candidate!, handoff!.checkpoint, roles);
     }
     // Each selector is atomic. A failure between components retains the exact partial
     // result for recovery; never silently undo a selection or replay its installer.

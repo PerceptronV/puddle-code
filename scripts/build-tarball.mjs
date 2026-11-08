@@ -17,6 +17,7 @@
  *   ├── CONNECTOR_PROTOCOL # remote protocol, display-only in the component inventory
  *   ├── RUNTIME_PROTOCOL   # private daemon/runtime major.minor
  *   ├── HOST_CAPABILITIES.json # passive protocol compatibility declaration
+ *   ├── DAEMON_RUNTIME_CAPABILITIES.json # explicit daemon adoption support for additional roles
  *   ├── RUNTIME_CAPABILITIES.json # optional runtime roles and their complete contracts
  *   ├── LICENSE
  *   ├── bin/node           # pinned runtime, nothing else from the Node dist
@@ -258,6 +259,14 @@ function writeMetadata() {
   });
   if (JSON.parse(capabilities).version !== version) fail('host capability version mismatch');
   writeFileSync(join(stage, 'HOST_CAPABILITIES.json'), capabilities);
+  const daemonRoles = execFileSync(join(stage, 'puddled'), ['--daemon-runtime-capabilities'], {
+    encoding: 'utf8',
+    timeout: 5000,
+    maxBuffer: 32 * 1024,
+  });
+  if (JSON.parse(daemonRoles).version !== version)
+    fail('daemon runtime capability version mismatch');
+  writeFileSync(join(stage, 'DAEMON_RUNTIME_CAPABILITIES.json'), daemonRoles);
   const runtimeCapabilities = execFileSync(join(stage, 'puddler'), ['--runtime-capabilities'], {
     encoding: 'utf8',
     timeout: 5000,

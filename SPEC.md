@@ -1417,8 +1417,14 @@ Armed huddles remain `running`, stopped owners project `exited`, and interruptio
 or failure projects `interrupted`; detailed executing/control state remains private.
 Pause/drain covers huddle projection. Clean retirement requires exact final state
 and all launch/owner claims; crash loss retains unresolved resources and never
-enters ordinary auto-resume/onboarding. Host maintenance/checkpoint integration
-remains unfinished. Contracts, bounds, verification and unfinished
+enters ordinary auto-resume/onboarding. Host-update preflight, checkpoints and
+adoption/recovery now preserve explicit huddle identity/contracts. Candidate
+`DAEMON_RUNTIME_CAPABILITIES.json` declares daemon adoption support separately
+from runtime execution metadata, without changing historical host capabilities.
+Activation and restart recovery refuse unsupported huddles, including owners
+created after the original checkpoint. Fresh adoption verifies huddle state and
+settled projection under the new controller without replay. Host removal/collection,
+stopped-host startup and native supervision acceptance remain unfinished. Contracts, bounds, verification and unfinished
 work are recorded in [huddle acceptance](docs/acceptance/huddle.md); the complete
 design is in the [roadmap](docs/roadmap/huddle.md).
 

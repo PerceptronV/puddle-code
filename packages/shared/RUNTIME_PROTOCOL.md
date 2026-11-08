@@ -56,8 +56,15 @@ Ordinary kill/archive delegates to this path. Never-consumed launches can retire
 under all ownership claims and a durable fence; interrupted consumed owners retain
 their resource references and are excluded from automatic service cleanup.
 No production creation path is enabled yet. Daemon launch/adoption/projection is wired;
-application admission and maintenance/checkpoint integration must precede product enablement; executable
-presence or the ordinary runtime protocol alone is not huddle admission evidence.
+host-update checkpoints retain huddle id/contracts and preflight, activation and
+restart recovery require explicit daemon adoption support from
+`DAEMON_RUNTIME_CAPABILITIES.json`. This separate bounded passive declaration
+binds the candidate version/application protocol; ordinary host metadata is unchanged.
+Missing metadata is not huddle support. Fresh adoption checks the authenticated
+huddle state and settled committed observation, including after controllerless
+completion. Recovery retains immutable role requirements across later attempts.
+Public admission, removal/collection and stopped-host startup integration must
+precede product enablement; executable presence or the ordinary runtime protocol alone is not huddle admission evidence.
 See [huddle acceptance](../../docs/acceptance/huddle.md) for the tested scope.
 
 Runtime 1.1 adds exact attachment to Claude-owned background jobs. Before writing

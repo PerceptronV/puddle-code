@@ -3,6 +3,7 @@ import { dirname, join } from 'node:path';
 import {
   HOST_UPDATE_CHECKPOINT_BYTES,
   PROTOCOL_VERSION,
+  canonicalHuddleJson,
   hostUpdateAdoptionSchema,
   type HostUpdateAdoption,
   type HostUpdateOperation,
@@ -21,7 +22,11 @@ import {
   runtimeBindingIdentity,
   type RuntimeConnections,
 } from '../../runtime/transport/connections.js';
-import { flushUpdateDatabase } from './store.js';
+import { flushUpdateDatabase, runtimeCheckpointOwner } from './store.js';
+import {
+  huddleBindingLaunch,
+  requireHuddleState,
+} from '../../runtime/huddle/controller/discovery.js';
 import { readUpdateAdoptionRequirements } from './requirements.js';
 
 export function readHostUpdateAdoption(home: string, operationId: string): HostUpdateAdoption {
@@ -44,7 +49,8 @@ export class HostUpdateAdoptionWriter {
       home: string;
       db: Db;
       runtimes: Pick<RuntimeStore, 'get'>;
-      connections: Pick<RuntimeConnections, 'get' | 'controllerIdentity'>;
+      connections: Pick<RuntimeConnections, 'get' | 'controllerIdentity'> &
+        Partial<Pick<RuntimeConnections, 'getHuddle'>>;
       reconciler: Pick<RuntimeReconciler, 'settled'>;
       version: string;
       nodePath: string;
@@ -101,6 +107,8 @@ export class HostUpdateAdoptionWriter {
         Object.entries(expected.identity).some(
           ([key, value]) => identity[key as keyof typeof identity] !== value,
         ) ||
+        canonicalHuddleJson(runtimeCheckpointOwner(row).huddle ?? null) !==
+          canonicalHuddleJson(expected.huddle ?? null) ||
         row.launch_fingerprint !== expected.launch_fingerprint ||
         row.release_path !== expected.release_path ||
         row.build !== expected.build ||
@@ -112,7 +120,21 @@ export class HostUpdateAdoptionWriter {
         (row.state !== 'running' && row.state !== 'exited' && row.state !== 'failed')
       )
         return false;
-      if (row.state === 'running') {
+      if (row.state === 'running' && row.role === 'huddle') {
+        const state = this.deps.connections.getHuddle?.(id)?.state;
+        if (
+          !state ||
+          state.state !== 'running' ||
+          state.persistencePending ||
+          state.observation < row.event_cursor
+        )
+          return false;
+        try {
+          requireHuddleState(huddleBindingLaunch(this.deps.home, row), state);
+        } catch {
+          return false;
+        }
+      } else if (row.state === 'running') {
         const state = this.deps.connections.get(id)?.state;
         if (
           !state ||
@@ -130,7 +152,7 @@ export class HostUpdateAdoptionWriter {
           state.binding.segment_id !== row.active_segment_id
         )
           return false;
-      } else if (this.deps.connections.get(id)) {
+      } else if (this.deps.connections.get(id) || this.deps.connections.getHuddle?.(id)) {
         // A final row is not enough while an old owner connection still exists.
         return false;
       }

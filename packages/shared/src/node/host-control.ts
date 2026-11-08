@@ -5,7 +5,11 @@ export {
 } from './releases/components.js';
 import { HostUpdateOnlyScope, type HostUpdateConnectionScope } from './control/update-authority.js';
 export type { HostUpdateConnectionScope } from './control/update-authority.js';
-export { readStageCapabilities, readInstalledCapabilities } from './installation/capabilities.js';
+export {
+  readStageCapabilities,
+  readInstalledCapabilities,
+  readStageDaemonRuntimeCapabilities,
+} from './installation/capabilities.js';
 export { readHostBootIdentity } from './installation/boot.js';
 export {
   latestGitHubRelease,

@@ -2,6 +2,8 @@ import { opendir } from 'node:fs/promises';
 import { join } from 'node:path';
 import {
   hostUpdateOperationSchema,
+  canAdoptHuddle,
+  type DaemonRuntimeCapabilities,
   runtimeIdentitySchema,
   type HostReleaseCapabilities,
   type HostUpdateOperation,
@@ -11,7 +13,16 @@ import type { RuntimeStore, RuntimeBinding } from '../../db/stores/runtimes.js';
 import type { RuntimeConnections } from '../../runtime/transport/connections.js';
 import { runtimeBindingIdentity } from '../../runtime/transport/connections.js';
 import { acquireHostClaim, HostClaimBusy } from '../../security/claims.js';
-import { readStageCapabilities } from '@puddle/shared/node/host-control';
+import {
+  readStageCapabilities,
+  readStageDaemonRuntimeCapabilities,
+} from '@puddle/shared/node/host-control';
+
+import {
+  huddleBindingLaunch,
+  requireHuddleState,
+} from '../../runtime/huddle/controller/discovery.js';
+import { runtimeCheckpointOwner } from '../checkpoints/store.js';
 
 type Protocol = HostReleaseCapabilities['application'];
 type Blocker = {
@@ -36,6 +47,7 @@ export interface UpdateCompatibility {
   owners: Array<{ id: string; session: string; build: string; protocol: Protocol }>;
   inventory: string | null;
   database_schema_version?: number;
+  daemon_roles?: DaemonRuntimeCapabilities | null;
 }
 
 const inventory = (rows: RuntimeBinding[]) =>
@@ -55,6 +67,9 @@ const inventory = (rows: RuntimeBinding[]) =>
         binding.launch_fingerprint,
         binding.release_path,
         binding.state,
+        binding.role ?? 'session',
+        binding.huddle_id ?? null,
+        binding.huddle_capabilities ?? null,
       ]),
   );
 
@@ -66,7 +81,7 @@ export class HostUpdateCompatibility {
       current: HostReleaseCapabilities;
       databaseSchemaVersion(): number;
       runtimes: Pick<RuntimeStore, 'live' | 'get'>;
-      connections: Pick<RuntimeConnections, 'get'>;
+      connections: Pick<RuntimeConnections, 'get'> & Partial<Pick<RuntimeConnections, 'getHuddle'>>;
     },
   ) {}
 
@@ -92,8 +107,10 @@ export class HostUpdateCompatibility {
       try {
         const capabilities = await readStageCapabilities(this.deps.home, stage);
         result.candidates.push({ digest: stage.digest, capabilities });
-        if (stage.record.component === 'daemon') daemon = capabilities;
-        else runtime = capabilities.runtime;
+        if (stage.record.component === 'daemon') {
+          daemon = capabilities;
+          result.daemon_roles = await readStageDaemonRuntimeCapabilities(this.deps.home, stage);
+        } else runtime = capabilities.runtime;
       } catch {
         result.blockers.push({ code: 'candidate_unavailable', target: stage.record.component });
       }
@@ -144,6 +161,37 @@ export class HostUpdateCompatibility {
         });
         if (!daemon.supported_runtime_majors.includes(binding.protocol_major)) {
           result.blockers.push({ code: 'runtime_incompatible', target: binding.runtime_id });
+          continue;
+        }
+        if (binding.role === 'huddle') {
+          try {
+            const required = runtimeCheckpointOwner(binding).huddle!;
+            if (!canAdoptHuddle(result.daemon_roles, required.capabilities)) {
+              result.blockers.push({ code: 'runtime_incompatible', target: binding.runtime_id });
+              continue;
+            }
+            const client = this.deps.connections.getHuddle?.(binding.runtime_id);
+            if (!client || performance.now() >= deadline) throw new Error('Huddle unavailable');
+            const response = await client.request({ t: 'inspect' });
+            if (
+              response.t !== 'state' ||
+              response.state.state !== 'running' ||
+              response.state.persistencePending
+            )
+              throw new Error('Huddle has no durable live observation');
+            requireHuddleState(huddleBindingLaunch(this.deps.home, binding), response.state);
+            if (response.state.observation < binding.event_cursor)
+              throw new Error('Huddle progress regressed');
+            if (response.state.lifetime !== 'service')
+              result.blockers.push({
+                code: 'runtime_lifetime_unverified',
+                target: binding.runtime_id,
+              });
+            if (this.deps.connections.getHuddle?.(binding.runtime_id) !== client)
+              throw new Error('Huddle disconnected');
+          } catch {
+            result.blockers.push({ code: 'runtime_unavailable', target: binding.runtime_id });
+          }
           continue;
         }
         const client = this.deps.connections.get(binding.runtime_id);
@@ -228,6 +276,10 @@ export async function inspectRuntimeInventory(
       // with a live owner/launcher is also unresolved; never retire anything here.
       if (!binding) {
         blockers.push({ code: 'runtime_inventory_unknown', target: entry.name });
+        continue;
+      }
+      if (binding.role === 'huddle' && binding.state !== 'exited') {
+        blockers.push({ code: 'runtime_unavailable', target: entry.name });
         continue;
       }
       for (const scope of ['runtime', 'runtime-launch', 'runtime-dispatch']) {

@@ -4,6 +4,8 @@ import {
   HOST_UPDATE_CHECKPOINT_OWNERS,
   hostUpdateCheckpointReferenceSchema,
   hostUpdateCheckpointSchema,
+  huddleIdSchema,
+  huddleRuntimeCapabilitiesSchema,
   type HostUpdateCheckpoint,
   type HostUpdateCheckpointReference,
   type RuntimeControllerRecord,
@@ -32,6 +34,16 @@ export function runtimeCheckpointOwner(
     launch_fingerprint: owner.launch_fingerprint,
     event_cursor: owner.event_cursor,
     state: owner.state,
+    ...(owner.role === 'huddle'
+      ? {
+          huddle: {
+            id: huddleIdSchema.parse(owner.huddle_id),
+            capabilities: huddleRuntimeCapabilitiesSchema.parse(
+              JSON.parse(owner.huddle_capabilities ?? 'null'),
+            ),
+          },
+        }
+      : {}),
   };
 }
 

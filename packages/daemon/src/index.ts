@@ -2,7 +2,11 @@
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { PROTOCOL_VERSION, hostReleaseCapabilities } from '@puddle/shared';
+import {
+  PROTOCOL_VERSION,
+  hostReleaseCapabilities,
+  daemonRuntimeCapabilities,
+} from '@puddle/shared';
 import { startDaemon } from './daemon.js';
 import { DATABASE_SCHEMA_VERSION } from './db/migrations/index.js';
 
@@ -25,6 +29,13 @@ const version = appVersion();
 if (process.argv.includes('--host-capabilities')) {
   if (process.argv.length !== 3) throw new Error('--host-capabilities takes no other arguments');
   console.log(JSON.stringify(hostReleaseCapabilities(version, DATABASE_SCHEMA_VERSION)));
+  process.exit(0);
+}
+
+if (process.argv.includes('--daemon-runtime-capabilities')) {
+  if (process.argv.length !== 3)
+    throw new Error('--daemon-runtime-capabilities takes no other arguments');
+  console.log(JSON.stringify(daemonRuntimeCapabilities(version)));
   process.exit(0);
 }
 

@@ -538,9 +538,8 @@ never join different root events, event emissions or feedback activations, or
 acknowledge fan-out before every downstream admission commits. The scheduler
 records routing failures and cancels dependent work. `runtime/huddle/owner.ts`
 composes an independent process with private control under `transport/`, sharing
-runtime claims, host memory grants and lifetime checks. Production launcher,
-maintenance/capability admission and provider dispatch
-remain pending; do not infer application support from entry-point existence.
+runtime claims, host memory grants and lifetime checks. Public lifecycle
+admission and provider dispatch remain pending; do not infer application support from entry-point existence.
 Application 27.0 adds the closed `huddle` session kind. Migration 43 and
 `db/stores/huddle/placements.ts` retain one immutable placement per
 project/canonical worktree/definition. The common runtime inventory records its
@@ -553,8 +552,8 @@ from PTY clients under the existing controller claim. Persist observation versio
 before notifying; project session status/cursor atomically and never replay work
 on reconnect. Include this projector in maintenance pause/drain. Only exact clean
 exit plus launch/owner/memory claims releases ownership; a crash retains unresolved
-resources and never enters ordinary auto-resume or onboarding. Maintenance
-checkpoint integration is still required before enabling public launch routes.
+resources and never enters ordinary auto-resume or onboarding. Host removal,
+collection and stopped-host startup integration remain required before public launch.
 `RuntimeLauncher.launchHuddle` shares ordinary launch admission and supervision,
 requires an installed capable release, validates captured activation before intent
 and observes uncertain dispatch without fallback. `runtime/huddle/lifecycle/` owns
@@ -566,6 +565,13 @@ controls in the common maintenance pause/drain. Automatic service cleanup exclud
 interrupted huddles until descendant recovery is proven. A never-consumed attempt
 can retire under all owner/launch claims and a durable fence; missing consumed-owner
 state cannot. Public creation/Start routes remain unfinished.
+Host-update checkpoints retain each huddle's id and required contracts. Preflight,
+activation and recovery require explicit candidate support from separate
+`DAEMON_RUNTIME_CAPABILITIES.json`; keep historical `HOST_CAPABILITIES.json` closed.
+Bind this metadata and owner role/contracts into approval. Fresh adoption inspects
+huddle state and settled projection, never terminal history. Restart recovery uses
+huddle launch/state readers and includes owners created after the original checkpoint.
+Reject unresolved interrupted inventory; inspection never replays or rearms work.
 Runtime-role metadata lives separately in `RUNTIME_CAPABILITIES.json`; huddle
 selection must validate exact build/protocol/contracts/helpers and recheck the
 selected generation before intent. Keep historical host capability and ordinary

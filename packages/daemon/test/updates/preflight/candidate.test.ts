@@ -59,3 +59,39 @@ it.each([
   if (failure === 'receipt') writeFileSync(join(f.root, '.puddle-stage.json'), '{}');
   await expect(readStageCapabilities(f.home, f.stage)).rejects.toThrow();
 });
+
+it('reads daemon role support separately and leaves historical host metadata compatible', async () => {
+  const { daemonRuntimeCapabilities } = await import('@puddle/shared');
+  const { readStageDaemonRuntimeCapabilities } = await import('@puddle/shared/node/host-control');
+  const f = candidateFixture();
+  expect(await readStageDaemonRuntimeCapabilities(f.home, f.stage)).toBeNull();
+  const value = daemonRuntimeCapabilities(f.capabilities.version);
+  writeFileSync(join(f.root, 'DAEMON_RUNTIME_CAPABILITIES.json'), JSON.stringify(value));
+  expect(await readStageDaemonRuntimeCapabilities(f.home, f.stage)).toEqual(value);
+  expect(await readStageCapabilities(f.home, f.stage)).toEqual(f.capabilities);
+});
+
+it.each(['version', 'protocol', 'oversized', 'symlink', 'directory', 'contract', 'receipt'])(
+  'refuses %s daemon role metadata without executing a candidate',
+  async (failure) => {
+    const { daemonRuntimeCapabilities } = await import('@puddle/shared');
+    const { readStageDaemonRuntimeCapabilities } = await import('@puddle/shared/node/host-control');
+    const f = candidateFixture();
+    const file = join(f.root, 'DAEMON_RUNTIME_CAPABILITIES.json');
+    const value = daemonRuntimeCapabilities(f.capabilities.version);
+    if (failure === 'version') value.version = 'different';
+    if (failure === 'protocol') value.application.minor++;
+    if (failure === 'contract') value.roles.huddle!.owner = 0;
+    writeFileSync(file, failure === 'oversized' ? ' '.repeat(32769) : JSON.stringify(value));
+    if (failure === 'symlink') {
+      renameSync(file, `${file}.other`);
+      symlinkSync(`${file}.other`, file);
+    }
+    if (failure === 'directory') {
+      rmSync(file);
+      mkdirSync(file);
+    }
+    if (failure === 'receipt') writeFileSync(join(f.root, '.puddle-stage.json'), '{}');
+    await expect(readStageDaemonRuntimeCapabilities(f.home, f.stage)).rejects.toThrow();
+  },
+);

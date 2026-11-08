@@ -96,6 +96,7 @@ export class HostUpdateInspection {
             protocols: { frontend, installedRuntime },
             connector,
             candidates: compatibility.candidates,
+            daemon_roles: compatibility.daemon_roles,
             database_schema_version: compatibility.database_schema_version,
             owners: compatibility.owners,
             inventory: compatibility.inventory,
