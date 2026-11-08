@@ -21,6 +21,15 @@ export const huddleCreateSchema = huddleLocationSchema.extend({
 export type HuddleCreate = z.infer<typeof huddleCreateSchema>;
 export const huddleOpenSchema = huddleLocationSchema.extend({ huddle_id: huddleIdSchema });
 export type HuddleOpen = z.infer<typeof huddleOpenSchema>;
+/** One source file per publication; callers retain drafts until this write is observed. */
+export const huddleSaveSchema = huddleOpenSchema.extend({
+  expected_digest: z.string().regex(/^[a-f0-9]{64}$/),
+  edit: z.discriminatedUnion('file', [
+    z.strictObject({ file: z.literal('huddle.json'), value: huddleDefinitionSchema }),
+    z.strictObject({ file: z.literal('layout.json'), value: huddleLayoutSchema }),
+  ]),
+});
+export type HuddleSave = z.infer<typeof huddleSaveSchema>;
 export const huddleAvailabilitySchema = z.discriminatedUnion('available', [
   z.strictObject({
     available: z.literal(true),

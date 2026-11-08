@@ -14,7 +14,11 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { Hono, type MiddlewareHandler } from 'hono';
 import { afterEach, describe, expect, it, vi } from 'vitest';
-import { huddleOpenedSchema, runtimeReleaseCapabilities } from '@puddle/shared';
+import {
+  huddleDocumentSchema,
+  huddleOpenedSchema,
+  runtimeReleaseCapabilities,
+} from '@puddle/shared';
 import { openDatabase } from '../../../src/db/db.js';
 import { HuddlePlacements } from '../../../src/db/stores/huddle/placements.js';
 import { ProfileStore } from '../../../src/db/stores/profiles.js';
@@ -262,6 +266,122 @@ describe('inactive huddle authoring', () => {
     expect(f.changed).not.toHaveBeenCalled();
   });
 
+  it('saves inactive drafts, serialises competing writers and rejects stale source without runtime support', async () => {
+    const f = fixture();
+    const opened = await f.create();
+    f.unsupported();
+    f.checkHuddleAvailable.mockClear();
+    const input = {
+      ...f.location,
+      huddle_id: opened.session.huddle_id!,
+      expected_digest: opened.document.digest,
+      edit: {
+        file: 'huddle.json' as const,
+        value: { ...opened.document.definition, name: 'Edited' },
+      },
+    };
+    const outcomes = await Promise.allSettled([
+      f.service.save(f.profile.id, input, f.authority),
+      f.service.save(
+        f.profile.id,
+        { ...input, edit: { ...input.edit, value: { ...input.edit.value, name: 'Other window' } } },
+        f.authority,
+      ),
+    ]);
+    expect(outcomes.map((item) => item.status)).toEqual(['fulfilled', 'rejected']);
+    expect(outcomes[1]).toMatchObject({ reason: { code: 'huddle_source_changed' } });
+    const document = await f.service.inspect(
+      f.profile.id,
+      { ...f.location, huddle_id: input.huddle_id },
+      f.authority,
+    );
+    expect(document.definition.name).toBe('Edited');
+    expect(document.digest).not.toBe(input.expected_digest);
+    expect(f.checkHuddleAvailable).not.toHaveBeenCalled();
+    expect(f.db.prepare('SELECT * FROM runtime_bindings').all()).toEqual([]);
+    expect(f.db.prepare('SELECT * FROM sessions').all()).toHaveLength(1);
+  });
+
+  it.each(['source', 'layout', 'revoke', 'archive', 'storage'] as const)(
+    'rechecks %s after asynchronous save admission',
+    async (mode) => {
+      const f = fixture();
+      const opened = await f.create();
+      const root = join(f.worktree, '.puddle/huddle', opened.session.huddle_id!);
+      const original = readFileSync(join(root, 'huddle.json'), 'utf8');
+      f.storage.assertAdmission.mockImplementationOnce(async () => {
+        if (mode === 'source') writeFileSync(join(root, 'huddle.json'), `${original}\n`);
+        if (mode === 'layout') writeFileSync(join(root, 'layout.json'), '{"format":1,"nodes":{}}');
+        if (mode === 'revoke') f.revoke();
+        if (mode === 'archive') f.projects.setArchived(f.project.id, true);
+        if (mode === 'storage') throw new Error('Storage full');
+      });
+      await expect(
+        f.service.save(
+          f.profile.id,
+          {
+            ...f.location,
+            huddle_id: opened.session.huddle_id!,
+            expected_digest: opened.document.digest,
+            edit: {
+              file: 'huddle.json',
+              value: { ...opened.document.definition, name: 'Must not save' },
+            },
+          },
+          f.authority,
+        ),
+      ).rejects.toThrow();
+      expect(readFileSync(join(root, 'huddle.json'), 'utf8')).toBe(
+        mode === 'source' ? `${original}\n` : original,
+      );
+      expect(readdirSync(root).some((name) => name.startsWith('.puddle-save-'))).toBe(false);
+    },
+  );
+
+  it('retains a published draft when response observation fails and requires inspection before another edit', async () => {
+    const f = fixture();
+    const opened = await f.create();
+    const input = {
+      ...f.location,
+      huddle_id: opened.session.huddle_id!,
+      expected_digest: opened.document.digest,
+      edit: {
+        file: 'huddle.json' as const,
+        value: {
+          ...opened.document.definition,
+          name: 'Saved before reply failed',
+          edges: [
+            {
+              id: 'unfinished',
+              from: { node: 'missing', port: 'out' },
+              to: { node: 'also-missing', port: 'in' },
+            },
+          ],
+        },
+      },
+    };
+    const original = capture.captureHuddleDefinition;
+    const spy = vi
+      .spyOn(capture, 'captureHuddleDefinition')
+      .mockImplementationOnce(original)
+      .mockRejectedValueOnce(new Error('Observation failed'));
+    await expect(f.service.save(f.profile.id, input, f.authority)).rejects.toMatchObject({
+      code: 'huddle_definition_invalid',
+    });
+    spy.mockRestore();
+    const document = await f.service.inspect(
+      f.profile.id,
+      { ...f.location, huddle_id: input.huddle_id },
+      f.authority,
+    );
+    expect(document.definition).toEqual(input.edit.value);
+    expect(document.diagnostics.some((item) => item.severity === 'error')).toBe(true);
+    await expect(f.service.save(f.profile.id, input, f.authority)).rejects.toMatchObject({
+      code: 'huddle_source_changed',
+    });
+    expect(f.db.prepare('SELECT * FROM runtime_bindings').all()).toEqual([]);
+  });
+
   it('exposes strict local authoring routes and refuses remote or revoked authority', async () => {
     const f = fixture();
     let remote = false;
@@ -295,11 +415,25 @@ describe('inactive huddle authoring', () => {
     expect(
       (await app.request(`${path}/definitions/${opened.session.huddle_id}?${query}`)).status,
     ).toBe(200);
+    const save = (edit: unknown, expected_digest = opened.document.digest) =>
+      app.request(`${path}/definitions/${opened.session.huddle_id}`, {
+        method: 'PUT',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ ...f.location, expected_digest, edit }),
+      });
+    const edit = { file: 'layout.json', value: { format: 1, nodes: {} } };
+    expect((await save({ ...edit, unknown: true })).status).toBe(400);
+    const saved = await save(edit);
+    expect(saved.status).toBe(200);
+    expect(huddleDocumentSchema.parse(await saved.json()).layout).toEqual(edit.value);
+    expect((await save(edit)).status).toBe(409);
     remote = true;
+    expect((await save(edit)).status).toBe(403);
     expect((await post(f.input)).status).toBe(403);
     expect((await app.request(`${path}/availability`)).status).toBe(403);
     remote = false;
     f.revoke();
+    expect((await save(edit)).status).toBe(401);
     expect((await post(f.input)).status).toBe(401);
     expect(f.db.prepare('SELECT * FROM sessions').all()).toHaveLength(1);
   });

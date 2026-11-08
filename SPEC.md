@@ -1415,7 +1415,13 @@ unfinished. Huddle views can move through panes, project layouts and native
 transfers without creating PTYs or owners. Closing a view is independent of Stop.
 Desktop recovery format 4 migrates versions 2/3; `windows.huddles` gates native
 opening and working-set admission, preserving hidden project slices on old shells.
-Older application readers require a coordinated update for the new tab union. Existing agent/terminal creation and
+Older application readers require a coordinated update for the new tab union.
+Application 28.1 adds revision-checked single-file manifest/layout saves under the
+repository mutation lock, with bounded staged publication and final source/authority
+checks. A stale captured digest returns a conflict; a lost reply requires source
+inspection. Save returns diagnostics without activating code. This does not provide
+a multi-file transaction or a lock against external editors. Shared graph drafts
+and visual save/conflict controls remain unfinished. Existing agent/terminal creation and
 restart controls cannot launch huddles. The shared launcher now has a huddle path
 under the existing admission, supervisor and host memory controls. It requires an
 installed capable release, validates the retained activation before intent, pins

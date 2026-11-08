@@ -4,9 +4,11 @@ import {
   huddleCreateSchema,
   huddleLocationSchema,
   huddleOpenSchema,
+  huddleSaveSchema,
   type HuddleCreate,
   type HuddleLocation,
   type HuddleOpen,
+  type HuddleSave,
 } from '@puddle/shared';
 import type { HuddlePlacements } from '../../db/stores/huddle/placements.js';
 import type { ProfileStore } from '../../db/stores/profiles.js';
@@ -22,6 +24,7 @@ import {
 import { ApiError } from '../../http/errors.js';
 import { captureHuddleDefinition, type HuddleDefinitionSnapshot } from '../definitions/capture.js';
 import { createHuddleDefinition } from '../definitions/create.js';
+import { saveHuddleDefinition } from '../definitions/save.js';
 import { discoverHuddleDefinitions } from '../definitions/discovery.js';
 import { coreHuddleComponents } from '../components/core.js';
 
@@ -116,6 +119,27 @@ export class HuddleService {
       location.check();
       this.requireSelection(support.selected);
       return this.place(input.project_id, location, snapshot);
+    });
+  }
+
+  save(profile: string, raw: HuddleSave, authority: () => boolean) {
+    const input = huddleSaveSchema.parse(raw);
+    return this.atLocation(profile, input, authority, async (location) => {
+      const snapshot = await this.capture(location.worktree, input.huddle_id);
+      location.check();
+      if (snapshot.digest !== input.expected_digest)
+        throw ApiError.conflict(
+          'huddle_source_changed',
+          'Huddle source changed; reload and reconcile your edits',
+        );
+      await this.deps.storage?.assertAdmission([location.worktree]);
+      location.check();
+      saveHuddleDefinition(location.worktree, snapshot, input.edit, location.check);
+      // Source is already saved if this observation fails. The caller must inspect
+      // it after a lost reply, never replay with a freshly substituted digest.
+      const saved = await this.capture(location.worktree, input.huddle_id);
+      location.check();
+      return this.document(saved);
     });
   }
 

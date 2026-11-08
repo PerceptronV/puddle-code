@@ -9,7 +9,7 @@ captured-source script workers, retained revisions/activation and a manual sched
 in an independent owner process with private authenticated control, explicit
 runtime-role metadata and pinned capability checks. Phase 2 has the third session
 kind, immutable application placement and common runtime inventory role, with
-application protocol 28.0. Local/SSH inactive creation, discovery, inspection and
+application protocol 28.1. Local/SSH inactive creation, discovery, inspection and
 placement opening now have sidebar creation and an initial graph-inspection pane.
 Visual editing and execution controls remain unfinished. Daemon
 adoption/projection now observes independent huddle owners alongside ordinary
@@ -22,6 +22,8 @@ interrupted owners. Offline host removal, purge fencing and release
 collection now recognise huddle ownership and clean shutdown evidence. Host-update preflight, shutdown
 checkpoints and fresh adoption/recovery now preserve huddle contracts alongside
 ordinary owners.
+Revision-checked single-file source saves now reject detected concurrent edits;
+graph draft/conflict UI integration remains unfinished.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals except where explicitly documented
 in acceptance as implemented.

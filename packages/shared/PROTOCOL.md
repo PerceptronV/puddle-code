@@ -1,5 +1,15 @@
 # The puddle communication protocol
 
+Application **28.1** adds local/SSH `PUT /api/huddle/:profile/definitions/:id`.
+The body contains an explicit project/worktree, `expected_digest` from inspection,
+and one `edit`: `{ file: 'huddle.json' | 'layout.json', value: <matching document> }`.
+The directory id comes from the route and cannot change. A stale captured source
+returns `409 huddle_source_changed`; successful saves return the observed document
+and diagnostics. Each request publishes one file, never an activation. Inspect
+after an uncertain reply; do not retry using a substituted digest. Clients must
+feature-detect 28.1. Existing read/create/open shapes, runtime contracts, desktop
+format and remote access remain unchanged.
+
 Application **28.0** adds `huddle` to the closed workspace tab union. Frontend and
 daemon must upgrade together; existing session kinds and ordinary runtime 1.1
 remain unchanged. Huddle tabs bind a placement UUID, have their own layout/native

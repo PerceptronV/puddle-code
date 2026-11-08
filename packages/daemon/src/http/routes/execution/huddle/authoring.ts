@@ -8,6 +8,8 @@ import {
   huddleLocationSchema,
   huddleOpenedSchema,
   huddleOpenSchema,
+  huddleSaveSchema,
+  HUDDLE_LIMITS,
 } from '@puddle/shared';
 import type { HuddleService } from '../../../../huddle/control/service.js';
 import { requestAuthority } from '../../../../security/middleware.js';
@@ -23,7 +25,7 @@ export function huddleAuthoringRoutes(service: HuddleService): Hono {
   };
   return new Hono()
     .use('*', localOnly)
-    .use('*', bodyLimit({ maxSize: 16 * 1024 }))
+    .use('*', bodyLimit({ maxSize: HUDDLE_LIMITS.fileBytes + 16 * 1024 }))
     .get('/:profile/availability', async (c) =>
       c.json(
         huddleAvailabilitySchema.parse(
@@ -65,6 +67,17 @@ export function huddleAuthoringRoutes(service: HuddleService): Hono {
       return c.json(
         huddleOpenedSchema.parse(
           await service.open(hexIdParam(c, 'profile'), input, requestAuthority(c)),
+        ),
+      );
+    })
+    .put('/:profile/definitions/:id', async (c) => {
+      const input = await parseBody(c, huddleSaveSchema.omit({ huddle_id: true }));
+      const request = huddleSaveSchema.safeParse({ ...input, huddle_id: c.req.param('id') });
+      if (!request.success)
+        throw ApiError.badRequest('invalid_location', 'Choose a valid huddle id');
+      return c.json(
+        huddleDocumentSchema.parse(
+          await service.save(hexIdParam(c, 'profile'), request.data, requestAuthority(c)),
         ),
       );
     });

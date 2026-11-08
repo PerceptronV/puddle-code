@@ -583,6 +583,12 @@ Desktop persistence is format 4 (migrate 2/3); require `windows.huddles` before
 opening or saving huddle-containing working sets, including parked project slices.
 Keep source links on the existing editor path. Public Start/Run, visual graph
 editing, live source coordination and retained huddle view state remain unfinished.
+Application 28.1 adds revision-checked `PUT /api/huddle/:profile/definitions/:id`:
+one manifest/layout publication per request, under the repository mutation lock.
+`huddle/definitions/save.ts` stages, rechecks captured source/authority and renames
+without an intervening await. Never equate saving with activation, or retry a lost
+save with a substituted digest; inspect the source first. External editors do not
+participate in this lock. Use existing editor draft/conflict ownership for the IDE.
 `runtime/huddle/ownership/` owns shared exact-binding and clean-retirement evidence;
 import it directly from adoption, maintenance and collection. Offline removal adopts
 both roles; `host/removal/runtimes/` separates their interruption reviews. Recheck

@@ -10,6 +10,53 @@ placements/owner roles. The daemon launcher and lifecycle controls now integrate
 with session kill/archive; migration 44 retains Stop intent. No user CLI command
 is enabled yet.
 
+## Implemented: revision-checked source saves
+
+Application **28.1** adds `PUT /api/huddle/:profile/definitions/:id` for local/SSH
+authoring. The body is `{ project_id, worktree, expected_digest, edit }`, where
+`edit` is either `{ file: "huddle.json", value: <format-1 definition> }` or
+`{ file: "layout.json", value: <format-1 layout> }`. The response uses the existing
+document/digest/diagnostics shape. Other files and arbitrary paths are not accepted.
+Unknown fields/formats are rejected rather than dropped, and the definition id
+must match the directory. Structurally valid drafts may have graph diagnostics;
+saving them never activates them or creates an owner/session/provider operation.
+Editing an existing definition requires no capable runtime selection.
+
+The service holds the existing repository mutation lock, checks profile/worktree
+scope and request authority, captures current source, compares `expected_digest`,
+and performs storage admission. Before publication, the writer rechecks authority,
+ordinary directories, every captured file's bytes and absent-layout state. Changed
+source returns `409 huddle_source_changed`, including edits to captured scripts.
+The byte/file bounds remain enforced. One exclusively created sibling file is
+flushed, checked again, renamed over the target and followed by a directory flush.
+Existing file permission bits survive the process umask. Failure before rename
+leaves the target intact and removes the staging file. Identical source is a no-op.
+
+Manifest and layout writes are **separate publications**, not a multi-file
+transaction. The final comparison/rename is synchronous inside this daemon, but
+does not lock external editors: an external process can still race the filesystem
+operations. A failure after rename, including failed response capture or directory
+flush, may mean the source was saved. Inspect before reconciling or attempting a
+new edit; do not substitute a fresh digest and blindly replay. Source saves have
+no rollback of an already published file and no automatic retries.
+
+Verification covers competing service saves; source/layout edits, revocation,
+archive and storage failure during admission; script-dependency changes; symlink
+rejection; staging/rename failures; permission preservation; id/schema/size bounds;
+and publication followed by failed response observation. Runtime binding tables
+remain empty during these authoring tests. The graph UI still uses the inspection
+surface; visual edits, shared dirty drafts, conflict review and save integration
+remain the next IDE work.
+
+Validation: **219 tests in 30 files passed** across shared contracts, huddle
+authoring/placement boundaries, source capture and controller integration. The
+expanded source-writer suite then passed **12 tests**, adding directory-flush
+failure and file-count/bundle-size boundary checks. The controller tests initially
+hit sandbox `EPERM` when opening their temporary sockets; the same suite passed
+with socket access. Shared/daemon/web/desktop TypeScript builds, scoped ESLint and
+formatting checks passed. These are isolated fixtures, not production daemon or
+native desktop runs.
+
 ## Implemented: sidebar creation and huddle views
 
 Application **28.0** extends the closed `TabRef` union with
