@@ -63,6 +63,7 @@ export * from './installation/actions.js';
 export * from './desktop/windows/identity.js';
 export * from './desktop/windows/content.js';
 export * from './desktop/windows/persistence.js';
+export * from './desktop/windows/arrangements.js';
 export * from './desktop/windows/transfers.js';
 export * from './desktop/windows/drag.js';
 export * from './desktop/windows/projects.js';

@@ -3,10 +3,14 @@ import { profileId } from '../../api/common.js';
 import { desktopWindowIdSchema } from './identity.js';
 import { desktopWorkspaceVersionSchema } from './content.js';
 import { desktopWindowTransferSchema } from './transfers.js';
+import {
+  desktopArrangementTransactionSchema,
+  desktopArrangementOutcomeSchema,
+} from './arrangements.js';
 
 /** Native geometry is parsed by the shell using its existing placement migration. */
 export const desktopWindowStateSchema = z.object({
-  version: z.literal(2),
+  version: z.literal(3),
   entries: z.record(
     desktopWindowIdSchema,
     z.object({
@@ -18,6 +22,8 @@ export const desktopWindowStateSchema = z.object({
     }),
   ),
   pending: z.record(desktopWindowIdSchema, desktopWindowTransferSchema),
+  arrangements: z.record(desktopWindowIdSchema, desktopArrangementTransactionSchema),
+  arrangementOutcomes: z.record(desktopWindowIdSchema, desktopArrangementOutcomeSchema),
   outcomes: z.record(
     desktopWindowIdSchema,
     z.object({

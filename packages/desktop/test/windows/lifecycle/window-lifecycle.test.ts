@@ -626,6 +626,53 @@ function twoWindows() {
     },
   ]);
 }
+
+it('captures through host-only IPC after every renderer checkpoint and resumes both windows', async () => {
+  twoWindows();
+  await boot();
+  const [host, pane] = BrowserWindow.getAllWindows();
+  const a = renderer(host!);
+  const b = renderer(pane!);
+  const profileId = '1234567890';
+  const content = { snapshot: uiStateSnapshotSchema.parse({}), buffers: [], views: {} };
+  a.write({ profileId, revision: 0, content });
+  b.write({ profileId, revision: 0, content });
+  const capture = vi
+    .mocked(ipcMain.handle)
+    .mock.calls.find(([channel]) => channel === 'puddle:window-layout-capture')![1];
+  const event = (win: BrowserWindow) =>
+    ({
+      sender: win.webContents,
+      senderFrame: win.webContents.mainFrame,
+    }) as Electron.IpcMainInvokeEvent;
+  await expect(capture(event(pane!), { profileId, scope: 'profile' })).rejects.toThrow(
+    'host window',
+  );
+  const pending = capture(event(host!), { profileId, scope: 'profile' });
+  await flush();
+  expect(a.lastCommand().kind).toBe('checkpoint');
+  expect(b.lastCommand().kind).toBe('checkpoint');
+  b.write({
+    profileId,
+    revision: 1,
+    content: { ...content, snapshot: { ...content.snapshot, sidebar_collapsed: true } },
+  });
+  a.reply(a.lastCommand().id);
+  b.reply(b.lastCommand().id);
+  await flush();
+  expect(a.lastCommand().kind).toBe('resume');
+  expect(b.lastCommand().kind).toBe('resume');
+  a.reply(a.lastCommand().id);
+  b.reply(b.lastCommand().id);
+  const result = await pending;
+  expect(result.entries.map((entry: { identity: { id: string } }) => entry.identity.id)).toEqual([
+    'host',
+    'pane',
+  ]);
+  expect(result.entries[1]).toMatchObject({ revision: 2, snapshot: { sidebar_collapsed: true } });
+  expect(BrowserWindow.getAllWindows()).toHaveLength(2);
+});
+
 function refresh() {
   mocks.startLocal.mock.calls[0]![0].onRefreshRequest('refresh-id');
 }

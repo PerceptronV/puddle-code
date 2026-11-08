@@ -72,7 +72,7 @@ packages/
                # embedded cockpit. Shell concerns only (windows, OS links, notification raise);
                # anything both shells need goes in cli/src/lib, NEVER here. Build mirrors the
                # CLI's (scripts/build.mjs); `pnpm --filter @puddle-code/desktop dist` packages it.
-               # src/windows/ groups hosts/, persistence/, lifecycle/ and transfers/;
+               # src/windows/ groups hosts/, persistence/, lifecycle/, transfers/ and arrangements/;
                # project routing and private state IPC compose these at its root.
 deploy/remote/       # self-hosted service/static app images, Caddy TLS ingress and private env example
 scripts/build-tarball.mjs   # self-contained host archive: puddled, puddler and connector, CURRENT platform

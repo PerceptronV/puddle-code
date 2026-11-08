@@ -24,6 +24,7 @@ Past releases: see docs/changelogs/.
 
 #### Changed
 
+- Coordinate native layout capture across window checkpoints and prepare atomic multi-window recovery transactions with draft retention (application protocol 26.18; named-window apply and menu integration remain in progress).
 - Prepare named native window layouts with portable arrangement storage, scoped capture projections and a single-tree browser fallback (application protocol 26.17; coordinated save/load UI remains in progress).
 - Support typing through Ripple when its divider covers the live input, reusing native keyboard, paste and IME handling with anchored cells and a visible caret. Preserve the default display-only split and native composer.
 

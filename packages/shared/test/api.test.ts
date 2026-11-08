@@ -32,8 +32,8 @@ import {
 } from '../src/index.js';
 
 describe('shared API schemas', () => {
-  it('declares protocol 26.17 for saved window arrangements', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 26, minor: 17 });
+  it('declares protocol 26.18 for native arrangement capture and transactions', () => {
+    expect(PROTOCOL_VERSION).toEqual({ major: 26, minor: 18 });
   });
 
   it('accepts headless mode and rejects the previous scripted name', () => {

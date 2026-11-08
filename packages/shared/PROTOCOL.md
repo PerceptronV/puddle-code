@@ -1,5 +1,17 @@
 # The puddle communication protocol
 
+Application **26.18** adds an optional private desktop layout-capture capability
+and revisioned multi-window transaction records. Only a registered host renderer
+can capture its host/profile or project; live participants checkpoint together
+and resume before the capture returns. Returned projects contribute their retained
+snapshot without a live renderer. The reply omits draft buffers, native placement
+and transport targets. Recovery state version 3 retains prepared arrangements and
+bounded committed/cancelled outcomes beside existing pane handoffs; version 2
+records migrate on read. Version-2 working-set readers reject version 3; do not
+downgrade a shell over these records. Preparation leaves old ownership intact; restart cancels
+uncommitted arrangements. Native apply and layout-menu integration remain pending.
+No daemon, runtime or remote operation changes in this increment.
+
 Application **26.17** adds optional version-1 `window_arrangement` data to saved
 layouts and their existing create/patch requests. The descriptor contains logical
 window slots and pane trees only; drafts, credentials and native placement remain

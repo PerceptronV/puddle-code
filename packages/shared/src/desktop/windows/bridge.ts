@@ -7,6 +7,7 @@ import type {
 import type { DesktopWindowTransfersBridge } from './transfers.js';
 import type { DesktopWindowProjectsBridge } from './projects.js';
 import type { DesktopWindowLifecycleBridge } from './commands.js';
+import type { DesktopWindowLayoutsBridge } from './arrangements.js';
 
 /** Capability-detected private bridge, independent of daemon feature availability. */
 export interface DesktopWindowsBridge {
@@ -19,4 +20,5 @@ export interface DesktopWindowsBridge {
   lifecycle?: DesktopWindowLifecycleBridge;
   transfers?: DesktopWindowTransfersBridge;
   projects?: DesktopWindowProjectsBridge;
+  layouts?: DesktopWindowLayoutsBridge;
 }

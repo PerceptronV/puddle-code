@@ -345,7 +345,8 @@
 // 26.15: optional native project-window controls and shared project navigation.
 // 26.16: registered native project dragging and atomic live project return.
 // 26.17: optional portable window arrangements in saved-layout records.
-export const PROTOCOL_VERSION = { major: 26, minor: 17 } as const;
+// 26.18: coordinated native layout capture and atomic multi-window recovery transactions.
+export const PROTOCOL_VERSION = { major: 26, minor: 18 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

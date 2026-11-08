@@ -17,6 +17,9 @@ contextBridge.exposeInMainWorld('puddleDesktop', {
     reload: () => ipcRenderer.invoke('puddle:window-reload'),
     read: (profileId: string) => ipcRenderer.invoke('puddle:window-read', { profileId }),
     write: (request: unknown) => ipcRenderer.invoke('puddle:window-write', request),
+    layouts: {
+      capture: (request: unknown) => ipcRenderer.invoke('puddle:window-layout-capture', request),
+    },
     projects: {
       prepare: (request: unknown) => ipcRenderer.invoke('puddle:window-prepare-project', request),
       focus: (request: unknown) => ipcRenderer.invoke('puddle:window-focus-project', request),

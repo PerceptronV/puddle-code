@@ -30,28 +30,17 @@ import {
   type ReopenWindow,
 } from '../../reopen.js';
 
-interface WindowState {
-  version: 2;
-  entries: Record<
-    string,
-    {
-      record: ReopenWindow;
-      open: boolean;
-      returnedProject?: boolean;
-      workspaces: Record<string, DesktopWorkspaceVersion>;
-    }
-  >;
-  pending: Record<string, DesktopWindowTransfer>;
-  outcomes: Record<
-    string,
-    {
-      status: 'committed' | 'cancelled';
-      sourceId: string;
-      destinationId: string;
-      profileId?: string;
-    }
-  >;
-}
+import type { WindowState } from './model.js';
+import { assertDraftsRetained } from './drafts.js';
+import {
+  arrangementParticipants,
+  stagedArrangement,
+  validateArrangement,
+  prepareArrangement,
+  commitArrangement,
+  cancelArrangement,
+  type ArrangementRequest,
+} from './arrangements.js';
 type Transfer = DesktopWindowTransfer;
 
 const MAX_STATE_BYTES = 64 * 1024 * 1024;
@@ -95,29 +84,6 @@ function writeState(file: string, state: WindowState): void {
   }
 }
 
-function bufferIdentity(buffer: DesktopWorkspaceContent['buffers'][number]): string {
-  return JSON.stringify([buffer.session, buffer.path, buffer.root ?? null]);
-}
-
-function assertDraftsRetained(
-  before: DesktopWorkspaceContent,
-  after: DesktopWorkspaceContent[],
-): void {
-  for (const buffer of before.buffers) {
-    if (
-      !after.some((content) =>
-        content.buffers.some(
-          (next) =>
-            bufferIdentity(next) === bufferIdentity(buffer) &&
-            next.content === buffer.content &&
-            next.baseMtimeMs === buffer.baseMtimeMs,
-        ),
-      )
-    )
-      throw new Error('Window transfer would discard an unsaved buffer');
-  }
-}
-
 /**
  * Durable desktop working sets and transfer decisions. The root's `windows`
  * projection preserves legacy reopen readers; entries also retain closed working
@@ -127,14 +93,25 @@ export class DesktopWindowState {
   private state: WindowState;
 
   constructor(private readonly file: string) {
-    this.state = { version: 2, entries: {}, pending: {}, outcomes: {} };
+    this.state = {
+      version: 3,
+      entries: {},
+      pending: {},
+      outcomes: {},
+      arrangements: {},
+      arrangementOutcomes: {},
+    };
     if (!existsSync(file)) return;
     const raw = readFileSync(file, 'utf8');
     if (Buffer.byteLength(raw) > MAX_STATE_BYTES)
       throw new Error('Desktop window state is too large');
     const value: unknown = JSON.parse(raw);
     if (typeof value === 'object' && value !== null && 'version' in value) {
-      const parsed = desktopWindowStateSchema.parse(value);
+      const parsed = desktopWindowStateSchema.parse(
+        value.version === 2
+          ? { ...value, version: 3, arrangements: {}, arrangementOutcomes: {} }
+          : value,
+      );
       const entries: WindowState['entries'] = {};
       for (const [id, entry] of Object.entries(parsed.entries)) {
         const record = parseReopenWindows([entry.record])[0];
@@ -182,6 +159,22 @@ export class DesktopWindowState {
       this.assertRevision(transfer.sourceId, transfer.profileId, transfer.sourceRevision);
       this.assertRevision(transfer.destinationId, transfer.profileId, transfer.destinationRevision);
     }
+    for (const [id, transaction] of Object.entries(this.state.arrangements)) {
+      if (
+        id !== transaction.id ||
+        this.state.arrangementOutcomes[id] ||
+        this.state.pending[id] ||
+        this.state.outcomes[id]
+      )
+        throw new Error('Invalid saved arrangement identity');
+      validateArrangement(this.state, transaction);
+      for (const change of transaction.changes) {
+        const windowId = reopenWindowId(change.record as ReopenWindow);
+        if (locked.has(windowId) || !this.state.entries[windowId])
+          throw new Error('Invalid saved arrangement ownership');
+        locked.add(windowId);
+      }
+    }
   }
 
   private entry(id: string) {
@@ -205,6 +198,7 @@ export class DesktopWindowState {
 
   private assertUnlocked(id: string): void {
     if (
+      stagedArrangement(this.state, id) ||
       Object.values(this.state.pending).some(
         (transfer) => transfer.sourceId === id || transfer.destinationId === id,
       )
@@ -223,14 +217,20 @@ export class DesktopWindowState {
 
   /** Update shell placement/open state without overwriting any renderer working set. */
   syncOpenWindows(records: ReopenWindow[]): void {
-    const parsed = parseReopenWindows(records);
-    if (parsed.length !== records.length) throw new Error('Invalid or duplicate window identities');
+    const parsed = records.flatMap((record) => parseReopenWindows([record]));
+    if (
+      parsed.length !== records.length ||
+      new Set(parsed.map(reopenWindowId)).size !== parsed.length
+    )
+      throw new Error('Invalid or duplicate window identities');
     const next = structuredClone(this.state);
-    for (const entry of Object.values(next.entries)) entry.open = false;
+    for (const [id, entry] of Object.entries(next.entries))
+      if (!stagedArrangement(this.state, id)) entry.open = false;
     for (const record of parsed) {
       const id = reopenWindowId(record);
       const previous = next.entries[id];
-      if (previous?.returnedProject)
+      const arrangement = stagedArrangement(this.state, id);
+      if (previous?.returnedProject && !arrangement)
         throw new Error('Reopen the returned project before registering its window');
       if (
         previous &&
@@ -244,11 +244,22 @@ export class DesktopWindowState {
         (transfer) => transfer.destinationId === id,
       );
       next.entries[id] = {
-        record: preparing && previous ? { ...record, route: previous.record.route } : record,
-        open: preparing ? (this.state.entries[id]?.open ?? false) : true,
+        ...(arrangement ? previous : {}),
+        record:
+          (preparing || arrangement) && previous
+            ? { ...record, route: previous.record.route }
+            : record,
+        open: preparing || arrangement ? (this.state.entries[id]?.open ?? false) : true,
         workspaces: previous?.workspaces ?? {},
       };
     }
+    const open = Object.values(next.entries)
+      .filter((entry) => entry.open)
+      .map((entry) => entry.record);
+    if (parseReopenWindows(open).length !== open.length)
+      throw new Error('Duplicate open window ownership');
+    for (const transaction of Object.values(next.arrangements))
+      validateArrangement(next, transaction);
     this.publish(next);
   }
 
@@ -327,7 +338,59 @@ export class DesktopWindowState {
       if (staged.profileId !== profile) throw new Error('Transfer belongs to another profile');
       return { revision: staged.destinationRevision, content: staged.destinationContent };
     }
+    const arrangement = stagedArrangement(this.state, id);
+    if (arrangement) {
+      if (arrangement.transaction.profileId !== profile)
+        throw new Error('Arrangement belongs to another profile');
+      return structuredClone({
+        revision: arrangement.change.revision,
+        content: arrangement.change.content,
+      });
+    }
     return this.read(id, profile);
+  }
+
+  /** The same recovery records supply coherent layout capture and apply planning. */
+  arrangementEntries(
+    request: Pick<ArrangementRequest, 'ownerId' | 'profileId' | 'scope' | 'projectId'>,
+  ) {
+    return arrangementParticipants(this.state, request).map((id) => {
+      const entry = this.entry(id);
+      return structuredClone({
+        record: entry.record,
+        open: entry.open,
+        returnedProject: !!entry.returnedProject,
+        version: entry.workspaces[request.profileId] ?? null,
+      });
+    });
+  }
+
+  prepareArrangement(request: ArrangementRequest) {
+    serialise(request);
+    const { next, transaction } = prepareArrangement(this.state, request);
+    this.publish(next);
+    return structuredClone(transaction);
+  }
+
+  commitArrangement(id: string, ownerId: string): void {
+    const next = commitArrangement(this.state, id, ownerId);
+    if (next) this.publish(next);
+  }
+
+  cancelArrangement(id: string, ownerId: string): void {
+    const next = cancelArrangement(this.state, id, ownerId);
+    if (next) this.publish(next);
+  }
+
+  arrangementOutcome(id: string, ownerId: string): 'prepared' | 'committed' | 'cancelled' | null {
+    const transaction = this.state.arrangements[id] ?? this.state.arrangementOutcomes[id];
+    if (!transaction) return null;
+    if (transaction.ownerId !== ownerId) throw new Error('Arrangement belongs to another window');
+    return this.state.arrangements[id] ? 'prepared' : this.state.arrangementOutcomes[id]!.status;
+  }
+
+  stagingArrangement(id: string) {
+    return structuredClone(stagedArrangement(this.state, id));
   }
 
   findPane(sourceId: string, profile: string, ref: TabRef): string | null {
@@ -410,7 +473,12 @@ export class DesktopWindowState {
   }
 
   prepare(input: Omit<Transfer, 'destinationId'> & { destination: ReopenWindow }): Transfer {
-    if (this.state.pending[input.id] || this.state.outcomes[input.id])
+    if (
+      this.state.pending[input.id] ||
+      this.state.outcomes[input.id] ||
+      this.state.arrangements[input.id] ||
+      this.state.arrangementOutcomes[input.id]
+    )
       throw new Error('Transfer already recorded; inspect its outcome');
     const destination = parseReopenWindows([input.destination])[0];
     if (!destination) throw new Error('Invalid transfer destination');
@@ -511,6 +579,8 @@ export class DesktopWindowState {
 
   /** A cancelled destination plan must not later become a prepared move. */
   cancelPreparation(id: string, sourceId: string, destinationId: string, profileId: string): void {
+    if (this.state.arrangements[id] || this.state.arrangementOutcomes[id])
+      throw new Error('Identity belongs to an arrangement');
     if (this.outcome(id)) return;
     this.assertProfile(sourceId, profileId);
     this.assertProfile(destinationId, profileId);
@@ -556,9 +626,15 @@ export class DesktopWindowState {
 
   /** A process restart cannot receive an old renderer's acknowledgement. */
   recoverPending(): void {
-    if (Object.keys(this.state.pending).length === 0) return;
-    const next = structuredClone(this.state);
+    if (
+      Object.keys(this.state.pending).length === 0 &&
+      Object.keys(this.state.arrangements).length === 0
+    )
+      return;
+    let next = structuredClone(this.state);
     for (const id of Object.keys(next.pending)) this.finish(next, id, 'cancelled');
+    for (const [id, transaction] of Object.entries(next.arrangements))
+      next = cancelArrangement(next, id, transaction.ownerId)!;
     this.publish(next);
   }
 

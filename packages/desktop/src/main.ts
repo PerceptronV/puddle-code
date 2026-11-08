@@ -55,6 +55,10 @@ import { WindowTransfers, registerWindowTransferIpc } from './windows/transfers/
 import { WindowNavigations } from './windows/hosts/navigation.js';
 import { reloadContents } from './windows/hosts/reload.js';
 import { ProjectWindows, registerProjectWindowIpc } from './windows/projects.js';
+import {
+  WindowLayoutCapture,
+  registerWindowLayoutCaptureIpc,
+} from './windows/arrangements/capture.js';
 
 /**
  * The desktop shell (SPEC §10): an Electron main process that drives the SAME
@@ -218,6 +222,42 @@ async function resumeWindows(ids: string[]): Promise<void> {
       ),
   );
 }
+
+const windowLayoutCapture = new WindowLayoutCapture({
+  state: () => {
+    if (!windowState || quitting || quitPending) throw new Error('Window state is unavailable');
+    return windowState;
+  },
+  record: liveWindowRecord,
+  run: (target, key, action) => windowNavigations.run(target, key, action),
+  validate: (ids) => {
+    if (quitting || quitPending) throw new Error('Application is closing');
+    for (const id of ids) {
+      if (closingWindows.has(id) || !windowCommands.available(id))
+        throw new Error('A window is closing or still loading');
+      if (windowTransfers.busy(id) || windowState?.stagingArrangement(id))
+        throw new Error('A window transfer is pending');
+    }
+  },
+  checkpoint: (id) => windowCommands.request(id, 'checkpoint'),
+  resume: async (ids) => {
+    const results = await Promise.allSettled(
+      ids.map(async (id) => {
+        if (!windowCommands.available(id)) return;
+        try {
+          await windowCommands.request(id, 'resume');
+        } catch (error) {
+          // Resume only releases the local checkpoint fence and is idempotent.
+          if (!windowCommands.available(id)) return;
+          logger.warn(errorText(error));
+          await windowCommands.request(id, 'resume');
+        }
+      }),
+    );
+    const failure = results.find((result) => result.status === 'rejected');
+    if (failure?.status === 'rejected') throw failure.reason;
+  },
+});
 
 function persistWindows(): void {
   windowState?.syncOpenWindows([...rememberedWindows.values()]);
@@ -815,6 +855,7 @@ registerWindowStateIpc({
 registerWindowTransferIpc(ipcMain, windowContext, windowTransfers);
 registerWindowDragIpc(ipcMain, windowContext, windowDrags);
 registerProjectWindowIpc(ipcMain, windowContext, projectWindows);
+registerWindowLayoutCaptureIpc(ipcMain, windowContext, windowLayoutCapture);
 ipcMain.handle('puddle:window-dock-targets', (event, value: unknown) => {
   const owner = windowContext(event);
   const { profileId } = desktopWindowReadSchema.parse(value);

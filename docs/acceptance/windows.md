@@ -172,8 +172,25 @@ verification; pending items are not support claims.
   contributes its whole selected slice. The browser fallback preserves editor
   duplicates, deduplicates terminal viewers and repairs colliding pane ids.
   Dirty text, view caches and native geometry are not named-layout data.
-  This is preparatory code: the coordinator has not yet collected these captures
-  from live windows, and the popover does not yet save/apply native arrangements.
+  The native coordination increment below supplies scoped checkpointed snapshots;
+  the popover does not yet save/apply native arrangements.
+
+- Native host-only layout capture now serialises with refresh/reload and uses
+  the existing checkpoint command for every live participant (application 26.18).
+  It waits for all acknowledgements, rejects changed membership/routes or an
+  unavailable/closing participant, and resumes survivors before returning. Closed
+  returned projects contribute their saved snapshot without a renderer. The reply
+  excludes buffer text, view caches, native placement and host transport targets.
+- Desktop recovery format 3 migrates format-2 working sets and adds prepared
+  multi-window arrangements with bounded outcomes. One atomic commit updates all
+  participant revisions, opens destinations, retires sources and consumes returned
+  projects. Original ownership remains visible before commit; staged native
+  registration cannot overwrite it. Every original dirty buffer must survive in
+  an open destination. Scope, revision and duplicate-owner checks reject stale or
+  invalid plans. Other hosts/profiles and unrelated project-mode slices remain
+  intact. Interrupted preparations cancel on restart; committed outcomes survive
+  and repeated commit does not write again. These are storage primitives; the
+  renderer acceptance/apply coordinator is not yet wired to them.
 
 Coordinated named window arrangements and native OS acceptance are still
 pending. Pane/project detachment and menu return do not deliver the whole roadmap. Undo-stack transfer
@@ -360,6 +377,21 @@ native descriptor round trips, rename/duplicate, legacy tree overwrite, explicit
 clear, unknown versions and transient-data rejection, project scope, mixed panes,
 duplicate editor views, terminal deduplication and no mutation of source state.
 No coordinated native capture/apply or save/load UI acceptance is claimed.
+
+The coordinated capture/transaction increment passed 182 window, lifecycle and
+shared-contract tests across 26 files, shared/desktop/web TypeScript and targeted
+ESLint. After adding staged-placement coverage, all 11 arrangement-persistence
+tests passed. The capture coordinator tests cover scoped checkpointed reads,
+closed returned projects, all-reply waiting after failure, changed routes and
+resumption failure. The main-process fixture exercises host-only capture IPC and
+actual correlated checkpoint/resume commands for both renderers. Persistence tests
+cover atomic commit/restart, interrupted preparation, dirty retention, stale
+revisions, cross-scope rejection, foreign acknowledgements, competing handoffs,
+membership exclusion, duplicate/project replacement ownership, local placement,
+write failure and format-2 migration. The existing isolated Chromium project
+drag/return fixture also passed with recovery format 3, including source closure
+and host reload. No native apply handshake or named-layout UI acceptance is
+established by these tests.
 
 Native acceptance has not run. Use an isolated UI preview for desktop interaction;
 start any real daemon from a plain shell, never from a coding-agent session.
