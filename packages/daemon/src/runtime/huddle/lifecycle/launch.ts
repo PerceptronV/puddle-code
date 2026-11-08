@@ -1,3 +1,4 @@
+import { copyHuddleRecoverySeed } from '../recovery/seed.js';
 import { requireHuddleHostFeatures } from '../triggers/definitions.js';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { realpathSync, rmSync } from 'node:fs';
@@ -6,6 +7,7 @@ import {
   RUNTIME_LIMITS,
   huddleOwnerLaunchSchema,
   type HuddleRevisionActivation,
+  type HuddleOwnerLaunch,
   type RuntimeSupervisor,
 } from '@puddle/shared';
 import { atomicPrivateJson } from '@puddle/shared/node';
@@ -30,6 +32,7 @@ import { requireHuddleRuntimeSelection, type HuddleRuntimeRelease } from '../con
 
 export interface HuddleLaunchOptions {
   snapshot: HuddleDefinitionSnapshot;
+  recoverySource?: HuddleOwnerLaunch;
   hostId: string;
   variables: HuddleRevisionActivation['variables'];
   bindings: HuddleRevisionActivation['bindings'];
@@ -88,7 +91,7 @@ export async function launchHuddleOwner(
     );
   if (session.status === 'archived')
     throw ApiError.conflict('huddle_archived', 'Unarchive this huddle before starting it');
-  if (deps.runtimes.hasUnreleasedHuddle(sessionId))
+  if (!options.recoverySource && deps.runtimes.hasUnreleasedHuddle(sessionId))
     throw ApiError.conflict(
       'huddle_owned',
       'This huddle has an existing or unresolved owner; inspect it before starting another',
@@ -112,19 +115,28 @@ export async function launchHuddleOwner(
   try {
     const directory = runtimeDirectory(deps.home, identity.runtime_id);
     const revisions = new HuddleRevisionStore(deps.home, identity.runtime_id, session.huddle_id!);
-    const prepared = prepareHuddleActivation(
-      options.snapshot,
-      {
-        id: randomUUID(),
-        worktree: identity.canonical_worktree_path,
-        variables: options.variables,
-        bindings: options.bindings,
-      },
-      session.huddle_id!,
-    );
+    const prepared = options.recoverySource
+      ? copyHuddleRecoverySeed(
+          deps.home,
+          options.recoverySource,
+          identity,
+          lifetime.bootId!,
+          selected.huddle,
+        )
+      : prepareHuddleActivation(
+          options.snapshot,
+          {
+            id: randomUUID(),
+            worktree: identity.canonical_worktree_path,
+            variables: options.variables,
+            bindings: options.bindings,
+          },
+          session.huddle_id!,
+        );
     revisions.publish(prepared.snapshot);
     const launch = huddleOwnerLaunchSchema.parse({
       format: 1,
+      ...('recovery' in prepared ? { recovery: prepared.recovery } : {}),
       role: 'huddle',
       contract: selected.huddle.owner,
       capabilities: selected.huddle,
@@ -163,7 +175,11 @@ export async function launchHuddleOwner(
       build: selected.build,
       protocol: selected.protocol,
       releasePath: selected.releasePath,
-      huddle: { id: session.huddle_id!, capabilities: selected.huddle },
+      huddle: {
+        id: session.huddle_id!,
+        capabilities: selected.huddle,
+        ...(options.recoverySource ? { recoveryFrom: options.recoverySource.identity } : {}),
+      },
     });
     recorded = true;
     try {

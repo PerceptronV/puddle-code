@@ -1335,6 +1335,24 @@ All timestamps are ISO 8601 UTC. Git operations against a given repository (work
 
 ### Huddle orchestration (implementation in progress)
 
+Application **28.15** adds explicit local/SSH huddle reboot recovery, `POST
+/api/huddle/:profile/sessions/:sid/recover` with `{owner: {runtimeId, incarnation}}`.
+Runtime inspection includes optional `recovery: {owner}` only when requested with
+`include_recovery=true`; older clients keep the previous response shape. The target
+is recorded evidence, not proof recovery is available. CLI/MCP gate on 28.15.
+
+Optional owner `recovery: 1` accepts private launch `recovery` provenance: source
+identity, source/current boot UUIDs, bounded ancestor identities and a SHA256 seed
+digest. A verified later boot and existing retirement/state/revision claims fence
+the source; its permanent retired record is preserved. Migration **51** records one
+successor and ends predecessor resources atomically with replacement preparation.
+The new owner verifies the pristine copied ledger before opening it and interrupts
+in-flight scripts before scheduler construction. Pending roots, captured revisions,
+trigger cursors, budgets and receipts survive. Historical operations retain their
+original callers and are observation-only through descendants. No agent runtime
+protocol or ledger format bump is needed. Auto-start and same-boot recovery remain
+unimplemented; native reboot acceptance is still required.
+
 Format-1 huddle document contracts and graph/binding validation live in
 `shared/api/huddle/` and `shared/huddle/validation/`. Each project worktree may
 contain multiple `.puddle/huddle/<32-lowercase-hex-id>/` definitions. Their ids

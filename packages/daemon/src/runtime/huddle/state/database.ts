@@ -6,6 +6,7 @@ import {
   huddleLedgerIdentitySchema,
   type HuddleLedgerIdentity,
   type HuddleJson,
+  type RuntimeIdentity,
 } from '@puddle/shared';
 import { privatePath, syncPrivateDirectory } from '@puddle/shared/node';
 import { runtimeDirectory } from '../../ownership/storage.js';
@@ -72,6 +73,7 @@ export class HuddleStateDatabase {
     home: string,
     identity: HuddleLedgerIdentity,
     limits: Partial<{ bytes: number; records: number }> = {},
+    readonly originOwners: readonly RuntimeIdentity[] = [],
   ) {
     this.identity = huddleLedgerIdentitySchema.parse(identity);
     this.limits = {

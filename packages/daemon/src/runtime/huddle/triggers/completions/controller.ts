@@ -39,11 +39,15 @@ export class HuddleCompletionController {
     return definitions;
   }
 
-  refresh(baselines?: HuddleCompletionBaseline[]) {
+  refresh(baselines?: HuddleCompletionBaseline[], restoring = false) {
     this.stop();
     const control = this.ledger.activations.current();
     if (control.state !== 'armed' || !control.activationId) return;
     const activation = this.ledger.activations.get(control.activationId);
+    if (restoring)
+      baselines = this.ledger.completions
+        .list()
+        .map(({ node, target, cursor }) => ({ node, target, cursor }));
     const definitions = this.validate(
       this.revisions.read(activation.revision),
       activation,

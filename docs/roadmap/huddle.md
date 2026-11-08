@@ -113,7 +113,12 @@ captured HuddleReadout adapters with durable intent, bounded receipts and explic
 unknown outcomes. Explicit owner/API observation and the history panel's Check
 delivery action now reconcile uncertain deliveries through their captured adapters,
 without resending or continuing ended graphs. Offline owner reconciliation and
-automatic owner-crash recovery remain unfinished.
+automatic same-boot owner-crash recovery remain unfinished. Explicit reboot recovery
+now restores the recorded activation, queued work and trigger cursors in one
+replacement owner (application 28.15, runtime recovery-1, migration 51). Running
+scripts are interrupted and historical agent operations remain observation-only.
+The IDE and CLI/MCP expose this action. Auto-start and native reboot acceptance
+remain pending.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals except where explicitly documented
 in acceptance as implemented.
@@ -661,9 +666,10 @@ Recovery prerequisite now implemented: ask/spawn intent commits an immutable
 `operation-origins` record with its exact caller identity in the same ledger
 transaction. Mailbox observation, settlement and spawn cleanup preserve that
 origin across reconstruction; they do not relabel old work as a new incarnation.
-This alone does not permit replacement launch. Finish positive owner/descendant
-fencing, a durable single-consumption replacement hand-off, restored trigger
-subscriptions/queues and host receipt authority before enabling automatic recovery.
+Explicit reboot recovery now uses verified boot change and retirement claims to
+fence descendants, one atomic predecessor/successor mapping, a copied ledger and
+restored subscriptions/queues. Old operations retain observation-only host authority.
+Same-boot descendant fencing and explicit auto-start integration remain unfinished.
 Legacy rows without provenance must retain their verified original launch identity;
 never backfill them from a replacement's identity.
 

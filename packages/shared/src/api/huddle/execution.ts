@@ -24,6 +24,7 @@ export const huddleCommandTargetSchema = huddleRuntimeTargetSchema.extend({
 export const huddleRuntimeInspectionSchema = z.strictObject({
   session_id: sessionId,
   unresolved: z.boolean(),
+  recovery: z.strictObject({ owner: huddleRuntimeTargetSchema }).optional(),
   owner: z
     .discriminatedUnion('connected', [
       z.strictObject({
@@ -60,6 +61,8 @@ export const huddleStartSchema = z.strictObject({
   expected_digest: huddleRevisionSchema,
   variables,
 });
+export const huddleRecoverSchema = z.strictObject({ owner: huddleRuntimeTargetSchema });
+export type HuddleRecover = z.infer<typeof huddleRecoverSchema>;
 export const huddleApplySchema = huddleStartSchema.extend({ target: huddleCommandTargetSchema });
 export const huddleLifecycleCommandSchema = z.strictObject({ target: huddleCommandTargetSchema });
 export const huddleRunSchema = huddleLifecycleCommandSchema.extend({

@@ -10,6 +10,7 @@ export const huddleRuntimeCapabilitiesSchema = z.strictObject({
   operations: version.optional(),
   spawns: version.optional(),
   lifecycle: version.optional(),
+  recovery: version.optional(),
   executionInputs: version.optional(),
   timers: version.optional(),
   calendar: version.optional(),
@@ -31,6 +32,7 @@ export const HUDDLE_RUNTIME_CAPABILITIES: Readonly<HuddleRuntimeCapabilities> = 
   operations: 2,
   spawns: 1,
   lifecycle: 1,
+  recovery: 1,
   executionInputs: 1,
   timers: 1,
   calendar: 1,
@@ -56,6 +58,7 @@ export function supportsHuddleRuntime(value: unknown): value is HuddleRuntimeCap
       (parsed.data.spawns === 1 && parsed.data.operations === 2)) &&
     (parsed.data.lifecycle === undefined ||
       (parsed.data.lifecycle === 1 && parsed.data.spawns === 1 && parsed.data.operations === 2)) &&
+    (parsed.data.recovery === undefined || parsed.data.recovery === 1) &&
     (parsed.data.executionInputs === undefined || parsed.data.executionInputs === 1) &&
     (parsed.data.timers === undefined || parsed.data.timers === 1) &&
     (parsed.data.calendar === undefined || parsed.data.calendar === 1) &&

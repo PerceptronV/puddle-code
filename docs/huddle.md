@@ -12,8 +12,9 @@ runtimes. Filetree, Git, session lifecycle/status and exact external turn-comple
 observation are also available. [Custom readouts](huddle/readouts.md) can deliver
 graph outputs to external services on supporting runtimes. [Custom triggers](huddle/triggers.md)
 can subscribe to external sources with durable cursors and visible source health.
-Spawn agent creates an agent and sends its initial prompt. Resume/restart nodes
-and explicit native feedback remain unfinished. Source inspection, inactive creation/opening and core runtime controls are available
+Spawn agent creates an agent and sends its initial prompt. Resume agent and Restart
+agent use ordinary Puddle lifecycle controls, retain the selected conversation and
+send the configured prompt. Explicit native feedback remains unfinished. Source inspection, inactive creation/opening and core runtime controls are available
 through `pudl huddle` and MCP. Placement inspection and archive/unarchive also
 share the ordinary session lifecycle; unarchive leaves the huddle stopped. **Edit with agent**
 supplies a bundled huddle skill to a selected authoring account. Native provider,
@@ -136,7 +137,8 @@ is 100; adjust `huddle.json` deliberately for your intended cadence. A missing
 source, exhausted admission limit or persistence failure stops timer admission
 and appears in runtime inspection. Inspect accepted executions, restore the
 resource, then explicitly Stop/Start; failed occurrences are not silently consumed.
-Retained timer state does not yet establish automatic owner-crash or reboot recovery.
+Explicit **Recover after reboot** restores retained timer progress and its configured
+missed-event policy. Automatic startup and same-boot owner recovery remain pending.
 
 ## Run on a calendar or a one-off date
 
@@ -454,3 +456,24 @@ After a failed command reply, inspect runtime/history before another action;
 reconnect never automatically resends a command. Owner crash recovery and reboot
 continuity have additional pending acceptance gates described in the acceptance
 document.
+
+## Recover after a reboot
+
+On a host supporting application 28.15 and runtime `recovery: 1`, open an unresolved
+huddle and choose **Recover after reboot**. Puddle restores its last active graph,
+queued events and trigger cursors in one new owner. Saving source edits does not
+change the graph being recovered. This action may resume armed triggers and queued
+work. A stopped/interrupted graph keeps that intent.
+
+Completed work is preserved. Scripts that were running are marked interrupted;
+uncertain prompts, spawns and lifecycle changes are observed using their original
+identities and are never automatically sent again. History remains available.
+Recovery requires a verified host reboot; it currently rejects an owner crash on
+the same boot. Automatic startup is still pending. Replaced agents or unavailable
+resources remain explicit errors/gaps; inspect them before rearming or applying
+new bindings. After a failed recovery reply, inspect the runtime and history.
+Do not repeat the command or substitute a newer target automatically.
+
+CLI: inspect `pudl huddle runtime SESSION_ID`, then pass its `recovery.owner` as
+`pudl huddle recover SESSION_ID --request '{"owner": {"runtimeId": "…", "incarnation": "…"}}'`.
+The `huddle_recover` MCP tool takes the same owner with `session_id` and `request`.

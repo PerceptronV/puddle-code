@@ -26,7 +26,9 @@ export function huddleRetirementState(
     throw new Error('Huddle consumption identity changed');
   const clean =
     state === null
-      ? consumed === null
+      ? // A recovery seed already owns durable queued work, even before consumption.
+        // Keep failed preparation unresolved instead of making a fresh Start lose it.
+        consumed === null && !launch.recovery
       : state.state === 'exited' &&
         !state.executing &&
         !state.liveWorkers &&

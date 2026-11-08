@@ -1,13 +1,39 @@
 import {
   canonicalHuddleJson,
   type HuddleAgentOperation,
+  type RuntimeIdentity,
   type HuddleSpawnOperation,
   type HuddleLifecycleOperation,
 } from '@puddle/shared';
 import type { RuntimeBinding } from '../../../db/stores/runtimes.js';
 import type { HuddleOwnerClient } from '../../../runtime/huddle/transport/client.js';
 import { HuddleRevisionStore } from '../../../runtime/huddle/state/revisions.js';
+import { huddleBindingLaunch } from '../../../runtime/huddle/ownership/binding.js';
 import { runtimeBindingIdentity } from '../../../runtime/transport/connections.js';
+
+/** Historical operations keep their original caller; descendants may only observe them. */
+function operationOwner(
+  home: string,
+  binding: RuntimeBinding,
+  client: HuddleOwnerClient,
+  owner: RuntimeIdentity,
+) {
+  if (
+    !client.state ||
+    canonicalHuddleJson(client.state.identity) !==
+      canonicalHuddleJson(runtimeBindingIdentity(binding))
+  )
+    return false;
+  if (canonicalHuddleJson(owner) === canonicalHuddleJson(client.state!.identity)) return true;
+  if (client.state?.capabilities.recovery !== 1) return false;
+  const recovery = huddleBindingLaunch(home, binding).recovery;
+  return (
+    !!recovery &&
+    [recovery.source, ...recovery.ancestors].some(
+      (source) => canonicalHuddleJson(source) === canonicalHuddleJson(owner),
+    )
+  );
+}
 
 /** Only the authenticated owner's retained invocation can request host operations. */
 export function validateHuddleOperation(
@@ -19,9 +45,7 @@ export function validateHuddleOperation(
   if (
     binding.role !== 'huddle' ||
     client.state?.capabilities.operations !== 2 ||
-    canonicalHuddleJson(operation.scope.owner) !==
-      canonicalHuddleJson(runtimeBindingIdentity(binding)) ||
-    canonicalHuddleJson(client.state.identity) !== canonicalHuddleJson(operation.scope.owner) ||
+    !operationOwner(home, binding, client, operation.scope.owner) ||
     operation.scope.target.projectId !== binding.project_id
   )
     throw new Error('Huddle operation differs from its authenticated owner scope');
@@ -55,9 +79,7 @@ export function validateHuddleSpawn(
     binding.role !== 'huddle' ||
     client.state?.capabilities.spawns !== 1 ||
     client.state.capabilities.operations !== 2 ||
-    canonicalHuddleJson(operation.scope.owner) !==
-      canonicalHuddleJson(runtimeBindingIdentity(binding)) ||
-    canonicalHuddleJson(client.state.identity) !== canonicalHuddleJson(operation.scope.owner) ||
+    !operationOwner(home, binding, client, operation.scope.owner) ||
     operation.request.projectId !== binding.project_id
   )
     throw new Error('Huddle spawn differs from its authenticated owner scope');
@@ -90,9 +112,7 @@ export function validateHuddleLifecycle(
   if (
     binding.role !== 'huddle' ||
     client.state?.capabilities.lifecycle !== 1 ||
-    canonicalHuddleJson(operation.scope.owner) !==
-      canonicalHuddleJson(runtimeBindingIdentity(binding)) ||
-    canonicalHuddleJson(client.state.identity) !== canonicalHuddleJson(operation.scope.owner) ||
+    !operationOwner(home, binding, client, operation.scope.owner) ||
     operation.request.target.projectId !== binding.project_id
   )
     throw new Error('Lifecycle action differs from its authenticated owner');

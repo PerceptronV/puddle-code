@@ -1,5 +1,23 @@
 # The puddle communication protocol
 
+Application **28.15** adds explicit local/SSH huddle reboot recovery, `POST
+/api/huddle/:profile/sessions/:sid/recover` with `{owner: {runtimeId, incarnation}}`.
+Runtime inspection includes optional `recovery: {owner}` only when requested with
+`include_recovery=true`; older clients keep the previous response shape. The target
+is recorded evidence, not proof recovery is available. CLI/MCP gate on 28.15.
+
+Optional owner `recovery: 1` accepts private launch `recovery` provenance: source
+identity, source/current boot UUIDs, bounded ancestor identities and a SHA256 seed
+digest. A verified later boot and existing retirement/state/revision claims fence
+the source; its permanent retired record is preserved. Migration **51** records one
+successor and ends predecessor resources atomically with replacement preparation.
+The new owner verifies the pristine copied ledger before opening it and interrupts
+in-flight scripts before scheduler construction. Pending roots, captured revisions,
+trigger cursors, budgets and receipts survive. Historical operations retain their
+original callers and are observation-only through descendants. No agent runtime
+protocol or ledger format bump is needed. Auto-start and same-boot recovery remain
+unimplemented; native reboot acceptance is still required.
+
 Application **28.14** adds `resume-agent`/`restart-agent` source templates and an
 optional component `lifecycle: "resume" | "restart"` declaration. The declared
 session binding captures conversation/account/provider/mode/worktree and the exact
@@ -27,9 +45,9 @@ caller `RuntimeIdentity` plus invocation id under the operation key and executio
 parent. They commit atomically with intent and share existing byte/count bounds.
 No public/owner message, capability, schema version or `operations` row shape
 changes; older readers ignore the separate collection. Legacy rows are not
-backfilled and continue to use their original immutable launch identity. Caller
-provenance is a prerequisite for future recovery, not restart authority or a
-claim that owner replacement is implemented.
+backfilled during ordinary operation and continue to use their original immutable
+launch identity. Explicit 28.15 recovery derives missing legacy origins only from
+the verified source launch. Provenance alone never authorises replacement.
 
 Application **28.13** adds local/SSH read-only `POST
 /api/huddle/:profile/sessions/:sid/revision/retained`. Input is

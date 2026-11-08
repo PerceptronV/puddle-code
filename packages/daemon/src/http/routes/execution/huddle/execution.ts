@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import {
   huddleStartSchema,
+  huddleRecoverSchema,
   huddleRevisionReviewSchema,
   huddleRetainedRevisionRequestSchema,
   huddleRetainedRevisionSchema,
@@ -47,6 +48,7 @@ export function huddleExecutionRoutes(service: HuddleExecutionService): Hono {
             requestAuthority(c),
             c.req.query('include_readout_observation') === 'true',
             c.req.query('include_custom_triggers') === 'true',
+            c.req.query('include_recovery') === 'true',
           ),
         ),
       ),
@@ -70,6 +72,18 @@ export function huddleExecutionRoutes(service: HuddleExecutionService): Hono {
             hexIdParam(c, 'profile'),
             c.req.param('sid'),
             await parseBody(c, huddleDiffReviewSchema),
+            requestAuthority(c),
+          ),
+        ),
+      ),
+    )
+    .post('/:profile/sessions/:sid/recover', async (c) =>
+      c.json(
+        huddleRuntimeInspectionSchema.parse(
+          await service.recover(
+            hexIdParam(c, 'profile'),
+            c.req.param('sid'),
+            await parseBody(c, huddleRecoverSchema),
             requestAuthority(c),
           ),
         ),

@@ -919,7 +919,7 @@ per source and 32 calendar/date sources; share the single timer and 64-admission
 wake limit with intervals. Reserve calendar plan memory, release after the last
 one-off, and cache deadlines between progress changes. Validate named zones and
 exact date offsets before activation. Keep old owner capabilities supported and
-require the new capability before launch/Apply. Do not claim reboot recovery.
+require the new capability before launch/Apply. Native reboot acceptance remains open.
 Application 28.1 adds revision-checked `PUT /api/huddle/:profile/definitions/:id`:
 one manifest/layout publication per request, under the repository mutation lock.
 `huddle/definitions/save.ts` stages, rechecks captured source/authority and renames
@@ -963,7 +963,14 @@ Only unknown consumed readouts in ended executions are eligible. Share worker/me
 capacity, the 30-second observation deadline and Interrupt/Stop cancellation; retain
 claims until positive child exit. Acknowledged acceptance is not delivery proof;
 lost replies never retry, and receipt settlement never resumes an ended graph.
-Offline-owner observation and automatic crash recovery remain unfinished.
+Explicit reboot recovery lives under `runtime/huddle/recovery/` (application 28.15,
+owner recovery-1, migration 51). Require verified boot change and retirement/state/
+revision claims; preserve the old fence and ledger. Copy retained state into a new
+runtime, bind one successor atomically, and interrupt running scripts before
+scheduler construction. Preserve original callers for historical host operations;
+never dispatch them again. IDE/CLI/MCP share the exact recorded-owner target. Do not
+turn a failed or lost reply into retry permission. Same-boot descendant fencing,
+auto-start and native reboot acceptance remain unfinished.
 Application 28.7 and `customTriggers: 1` gate local HuddleTrigger subscriptions.
 Keep adapters under `puddlang/huddle/`, source orchestration under
 `runtime/huddle/triggers/custom/`, and durable cursor/event admission in

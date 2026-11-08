@@ -104,6 +104,7 @@ export * from './runtime/huddle/triggers/session-feed.js';
 export * from './runtime/huddle/triggers/sessions.js';
 export * from './runtime/huddle/triggers/completions.js';
 export * from './runtime/huddle/owner.js';
+export * from './runtime/huddle/recovery.js';
 export * from './runtime/huddle/capabilities.js';
 export * from './runtime/huddle/operations/agents.js';
 export * from './runtime/huddle/operations/spawns.js';

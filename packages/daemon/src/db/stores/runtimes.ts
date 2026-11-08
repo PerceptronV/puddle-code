@@ -239,6 +239,16 @@ export class RuntimeStore {
       .get(canonicalPath);
   }
 
+  unresolvedHuddle(sessionId: string): RuntimeBinding | null {
+    return (
+      (this.db
+        .prepare(
+          "SELECT * FROM runtime_bindings WHERE role = 'huddle' AND active_session_id = ? AND state != 'exited' ORDER BY created_at DESC, runtime_id DESC LIMIT 1",
+        )
+        .get(sessionId) as RuntimeBinding | undefined) ?? null
+    );
+  }
+
   hasUnreleasedHuddle(sessionId: string): boolean {
     return !!this.db
       .prepare(
@@ -344,7 +354,11 @@ export class RuntimeStore {
     codeRunDirectory?: string;
     programme?: ProgrammeOperation;
     creation?: SessionLaunchCaller;
-    huddle?: { id: string; capabilities: HuddleRuntimeCapabilities };
+    huddle?: {
+      id: string;
+      capabilities: HuddleRuntimeCapabilities;
+      recoveryFrom?: RuntimeIdentity;
+    };
   }): RuntimeBinding {
     const identity = runtimeIdentitySchema.parse(input.identity);
     if (input.creation && (input.programme || input.huddle || input.codeRunDirectory !== undefined))
@@ -398,6 +412,34 @@ export class RuntimeStore {
           throw new Error('Runtime launch identity was already used with different inputs');
         return previous;
       }
+      const recovery = input.huddle?.recoveryFrom;
+      if (recovery) {
+        const source = this.get(recovery.runtime_id);
+        if (
+          !source ||
+          source.role !== 'huddle' ||
+          source.state === 'exited' ||
+          source.incarnation !== recovery.incarnation ||
+          source.launch_id !== recovery.launch_id ||
+          source.profile_id !== identity.profile_id ||
+          source.project_id !== identity.project_id ||
+          source.active_session_id !== identity.session_id ||
+          source.launch_session_id !== identity.session_id ||
+          source.canonical_worktree_path !== identity.canonical_worktree_path ||
+          source.huddle_id !== input.huddle!.id ||
+          input.huddle!.capabilities.recovery !== 1
+        )
+          throw new Error('Huddle recovery predecessor changed');
+        // Reboot proof is held by the launcher through this transaction. Ended resources
+        // do not turn interrupted ledger executions into completed executions.
+        this.db
+          .prepare(
+            "UPDATE runtime_bindings SET state = 'exited', ended_at = ? WHERE runtime_id = ?",
+          )
+          .run(new Date().toISOString(), recovery.runtime_id);
+      }
+      if (input.huddle && this.hasUnreleasedHuddle(identity.session_id))
+        throw new Error('Huddle already has an unresolved owner');
       const placement = this.placement(identity.session_id);
       this.checkPlacement(placement, identity);
       if (
@@ -441,6 +483,10 @@ export class RuntimeStore {
           input.huddle?.id ?? null,
           input.huddle ? JSON.stringify(input.huddle.capabilities) : null,
         );
+      if (recovery)
+        this.db
+          .prepare('INSERT INTO huddle_recoveries(source_runtime_id, runtime_id) VALUES (?, ?)')
+          .run(recovery.runtime_id, identity.runtime_id);
       if (!input.huddle) {
         this.db
           .prepare(

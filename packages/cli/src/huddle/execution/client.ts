@@ -21,10 +21,12 @@ export class HuddleExecutionClient {
   readonly revisionReview: boolean;
   readonly retainedHistory: boolean;
   readonly retainedRevision: boolean;
+  readonly recovery: boolean;
   constructor(
     private readonly request: (path: string, body?: unknown) => Promise<unknown>,
     protocol?: { major: number; minor: number },
   ) {
+    this.recovery = supportsApplicationFeature(protocol, { major: 28, minor: 15 });
     this.supported = supportsApplicationFeature(protocol, { major: 28, minor: 2 });
     this.readoutObservation = supportsApplicationFeature(protocol, { major: 28, minor: 6 });
     this.customTriggers = supportsApplicationFeature(protocol, { major: 28, minor: 7 });
@@ -69,6 +71,7 @@ export class HuddleExecutionClient {
       const query = new URLSearchParams();
       if (this.readoutObservation) query.set('include_readout_observation', 'true');
       if (this.customTriggers) query.set('include_custom_triggers', 'true');
+      if (this.recovery) query.set('include_recovery', 'true');
       return huddleRuntimeInspectionSchema.parse(
         await this.request(`${path}/runtime${query.size ? '?' + query.toString() : ''}`),
       );
@@ -78,6 +81,8 @@ export class HuddleExecutionClient {
         throw new Error('Readout observation history requires daemon protocol 28.6 or newer');
       return huddleHistoryPageSchema.parse(await this.request(`${path}/history`, command.request));
     }
+    if (command.action === 'recover' && !this.recovery)
+      throw new Error('Huddle recovery requires daemon protocol 28.15 or newer');
     if (command.action === 'observe-readout' && !this.readoutObservation)
       throw new Error('Readout observation requires daemon protocol 28.6 or newer');
     const action =

@@ -21,7 +21,10 @@ export class HuddleOperationOrigins {
     const owner = runtimeIdentitySchema.parse(raw);
     const scope = this.db.identity;
     if (
-      owner.runtime_id !== scope.runtimeId ||
+      (owner.runtime_id !== scope.runtimeId &&
+        !this.db.originOwners.some(
+          (origin) => canonicalHuddleJson(origin) === canonicalHuddleJson(owner),
+        )) ||
       owner.profile_id !== scope.profileId ||
       owner.project_id !== scope.projectId ||
       owner.session_id !== scope.sessionId

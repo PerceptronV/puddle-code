@@ -5,6 +5,8 @@ import { requireHuddleHostFeatures } from '../../runtime/huddle/triggers/definit
 import { randomUUID } from 'node:crypto';
 import {
   huddleStartSchema,
+  huddleRecoverSchema,
+  type HuddleRecover,
   huddleReadoutObserveSchema,
   type HuddleReadoutObserve,
   huddleApplySchema,
@@ -67,11 +69,17 @@ interface Dependencies extends HuddleResourceStores {
   sessions: Pick<SessionStore, 'get'>;
   runtimes: Pick<
     RuntimeStore,
-    'ownerOf' | 'hasUnreleasedHuddle' | 'stopRequested' | 'get' | 'huddleHistory'
+    | 'ownerOf'
+    | 'unresolvedHuddle'
+    | 'hasUnreleasedHuddle'
+    | 'stopRequested'
+    | 'get'
+    | 'huddleHistory'
   >;
   definitions: HuddleService;
   controls: HuddleRuntimeControls;
-  launcher?: Pick<RuntimeLauncher, 'launchHuddle' | 'checkHuddleAvailable'>;
+  launcher?: Pick<RuntimeLauncher, 'launchHuddle' | 'checkHuddleAvailable'> &
+    Partial<Pick<RuntimeLauncher, 'recoverHuddle'>>;
   storage?: Pick<StorageMonitor, 'assertAdmission'>;
   agentBinding?: (
     profile: string,
@@ -128,13 +136,26 @@ export class HuddleExecutionService {
     authority: Authority,
     includeReadoutObservation = false,
     includeCustomTriggers = false,
+    includeRecovery = false,
   ): Promise<HuddleRuntimeInspection> {
     const scope = this.scope(profile, id, authority);
+    const recovery = () => {
+      if (!includeRecovery || !this.deps.launcher?.recoverHuddle) return {};
+      const candidate = this.deps.runtimes.unresolvedHuddle(id);
+      return candidate
+        ? {
+            recovery: {
+              owner: { runtimeId: candidate.runtime_id, incarnation: candidate.incarnation },
+            },
+          }
+        : {};
+    };
     const binding = this.deps.runtimes.ownerOf(id);
     if (!binding)
       return {
         session_id: id,
         owner: null,
+        ...recovery(),
         unresolved: this.deps.runtimes.hasUnreleasedHuddle(id),
       };
     if (binding.role !== 'huddle')
@@ -180,11 +201,13 @@ export class HuddleExecutionService {
         return {
           session_id: id,
           owner: null,
+          ...recovery(),
           unresolved: this.deps.runtimes.hasUnreleasedHuddle(id),
         };
       return {
         session_id: id,
         unresolved: true,
+        ...recovery(),
         owner: {
           connected: false,
           identity: { runtimeId: current.runtime_id, incarnation: current.incarnation },
@@ -301,6 +324,27 @@ export class HuddleExecutionService {
         });
       },
     );
+  }
+
+  async recover(profile: string, id: string, raw: HuddleRecover, authority: Authority) {
+    const input = huddleRecoverSchema.parse(raw);
+    const scope = this.scope(profile, id, authority, true);
+    if (!this.deps.launcher?.recoverHuddle)
+      throw ApiError.conflict('huddle_recovery_unsupported', 'Huddle recovery is unavailable');
+    await this.deps.storage?.assertAdmission([this.deps.home, scope.session.worktree_path]);
+    scope.check();
+    try {
+      await this.deps.launcher.recoverHuddle(id, input.owner, scope.valid);
+    } catch (error) {
+      scope.check();
+      if (error instanceof ApiError) throw error;
+      throw ApiError.conflict(
+        'huddle_recovery_unavailable',
+        error instanceof Error ? error.message : 'Huddle recovery is unavailable',
+      );
+    }
+    scope.check();
+    return this.inspect(profile, id, authority, false, false, true);
   }
 
   async start(profile: string, id: string, raw: HuddleStart, authority: Authority) {

@@ -33,6 +33,7 @@ import type { ShellHooks } from '../../pty/shell-hooks.js';
 import type { ProgrammeOperation } from '../../puddlang/runtime-turn-store.js';
 import { selectRuntimeSupervisor } from './lifetime.js';
 import { reserveRuntimeLaunchMemory } from '../resources/host/bootstrap.js';
+import { acquireHuddleRecoverySource } from '../huddle/recovery/source.js';
 import { resolveHuddleRuntimeRelease } from '../huddle/control/release.js';
 import { launchHuddleOwner, type HuddleLaunchOptions } from '../huddle/lifecycle/launch.js';
 
@@ -117,6 +118,52 @@ export class RuntimeLauncher {
       selected,
       lifetime: lifetime.kind === 'detached' ? ('host_session' as const) : ('service' as const),
     };
+  }
+
+  recoverHuddle(
+    sessionId: string,
+    target: { runtimeId: string; incarnation: string },
+    authorised: () => boolean,
+  ): Promise<void> {
+    return this.admit(async () => {
+      const lifetime = await this.lifetime();
+      const selected = this.selectedHuddleRelease();
+      if (selected.huddle.recovery !== 1)
+        throw ApiError.conflict(
+          'huddle_recovery_unsupported',
+          'Select a runtime with huddle reboot recovery support',
+        );
+      if (!authorised())
+        throw new ApiError(401, 'upstream_expired', 'Connection authority expired');
+      const binding = this.deps.runtimes.get(target.runtimeId);
+      if (
+        !binding ||
+        binding.incarnation !== target.incarnation ||
+        binding.active_session_id !== sessionId
+      )
+        throw ApiError.conflict('huddle_recovery_changed', 'The recorded owner changed');
+      const recovery = acquireHuddleRecoverySource(this.deps.home, binding, lifetime.bootId);
+      try {
+        await launchHuddleOwner(
+          this.deps,
+          sessionId,
+          selected,
+          lifetime,
+          {
+            snapshot: recovery.snapshot,
+            recoverySource: recovery.source,
+            hostId: recovery.source.scope.hostId,
+            variables: recovery.activation.variables,
+            bindings: recovery.activation.bindings,
+            authorised,
+          },
+          () => this.closed,
+          this.configuration.run,
+        );
+      } finally {
+        recovery.release();
+      }
+    });
   }
 
   launchHuddle(sessionId: string, options: HuddleLaunchOptions): Promise<void> {

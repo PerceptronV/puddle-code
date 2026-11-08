@@ -12,6 +12,7 @@ import {
 } from '../review.js';
 import {
   huddleStartSchema,
+  huddleRecoverSchema,
   huddleApplySchema,
   huddleRunSchema,
   huddleLifecycleCommandSchema,
@@ -23,6 +24,7 @@ const session = { session_id: sessionId };
 /** All mutations carry reviewed values. Tools must never resolve a newer target implicitly. */
 export const huddleExecutionToolSchemas = {
   runtime: z.strictObject(session),
+  recover: z.strictObject({ ...session, request: huddleRecoverSchema }),
   'retained-revision': z.strictObject({ ...session, request: huddleRetainedRevisionRequestSchema }),
   'history-owners': z.strictObject({ ...session, request: huddleHistoryOwnersRequestSchema }),
   'retained-history': z.strictObject({ ...session, request: huddleRetainedHistoryRequestSchema }),
@@ -39,6 +41,7 @@ export const huddleExecutionToolSchemas = {
 };
 export const huddleToolExecutionCommandSchema = z.discriminatedUnion('action', [
   huddleExecutionToolSchemas.runtime.extend({ action: z.literal('runtime') }),
+  huddleExecutionToolSchemas.recover.extend({ action: z.literal('recover') }),
   huddleExecutionToolSchemas['retained-revision'].extend({
     action: z.literal('retained-revision'),
   }),
@@ -58,6 +61,11 @@ export const huddleToolExecutionCommandSchema = z.discriminatedUnion('action', [
 export type HuddleToolExecutionCommand = z.infer<typeof huddleToolExecutionCommandSchema>;
 
 const definitions = [
+  [
+    'recover',
+    'Recover the exact recorded huddle owner after a verified host reboot (host 28.15+). Supply request {owner: {runtimeId, incarnation}} from runtime recovery inspection. Restores the last active source, queued events and trigger cursors; interrupted scripts are not replayed. May resume automatic triggers. Same-boot recovery is unavailable. Never retry after a lost reply; inspect runtime/history.',
+    false,
+  ],
   [
     'retained-revision',
     'Read source and contracts from an exact recorded owner without restarting it. Supply owner; omit revision for the last recorded activation and settings, or supply an execution revision digest for its immutable source. Optional entry selects text; expected_digest compares to that exact saved source. Recorded state is not live or Apply authority. No execution, repair or retry.',

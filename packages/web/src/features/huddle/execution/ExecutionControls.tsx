@@ -124,8 +124,14 @@ export function ExecutionControls({
     setPreparing(true);
     try {
       const observed = (await runtime.refetch({ throwOnError: true })).data;
-      if (!observed || observed.unresolved || observed.owner?.connected === false)
-        throw new Error('Runtime outcome is still unavailable');
+      if (!observed) throw new Error('Runtime outcome is still unavailable');
+      if (observed.unresolved || observed.owner?.connected === false) {
+        if (!observed.recovery) throw new Error('Runtime outcome is still unavailable');
+        // Observation may unlock a fresh explicit recovery request. The server still
+        // requires the exact predecessor and rejects any consumed recovery attempt.
+        commands.reviewed();
+        return;
+      }
       if (observed.owner?.connected) {
         const identity = ownerIdentity(observed.owner.target);
         const input = { owner: identity, collection: 'executions' as const, after: 0 };
@@ -178,7 +184,23 @@ export function ExecutionControls({
           {status}
         </span>
         <ControlTray label="Huddle execution actions" className="max-w-full flex-wrap">
-          {!owner && (
+          {runtime.data?.recovery && (
+            <button
+              type="button"
+              className={graphActionClass}
+              title="Restore the last active graph and retained trigger cursors after a host reboot. Running scripts remain interrupted."
+              disabled={busy || commands.status.review || session.status === 'archived' || locked}
+              onClick={() =>
+                void send({
+                  action: 'recover',
+                  input: { owner: runtime.data!.recovery!.owner },
+                }).catch(() => {})
+              }
+            >
+              Recover after reboot
+            </button>
+          )}
+          {!owner && !runtime.data?.recovery && (
             <button
               type="button"
               className={graphActionClass}

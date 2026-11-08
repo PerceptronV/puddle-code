@@ -1,3 +1,4 @@
+import { huddleRecoverySchema } from './recovery.js';
 import {
   huddleLifecycleOperationSchema,
   huddleLifecyclePageSchema,
@@ -52,9 +53,27 @@ export const huddleOwnerLaunchSchema = z
     boot_id: z.uuid().optional(),
     lifetime: z.enum(['service', 'host_session']),
     initial: huddleActivationInputSchema,
+    recovery: huddleRecoverySchema.optional(),
   })
   .superRefine((launch, ctx) => {
     const { identity, scope } = launch;
+    if (
+      launch.recovery &&
+      (launch.capabilities.recovery !== 1 ||
+        launch.boot_id !== launch.recovery.boot ||
+        [launch.recovery.source, ...launch.recovery.ancestors].some(
+          (owner) =>
+            owner.runtime_id === identity.runtime_id ||
+            owner.profile_id !== identity.profile_id ||
+            owner.project_id !== identity.project_id ||
+            owner.session_id !== identity.session_id ||
+            owner.canonical_worktree_path !== identity.canonical_worktree_path,
+        ))
+    )
+      ctx.addIssue({
+        code: 'custom',
+        message: 'Recovery lineage differs from its new owner placement',
+      });
     if (
       scope.runtimeId !== identity.runtime_id ||
       scope.profileId !== identity.profile_id ||

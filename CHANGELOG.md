@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Recover a huddle after a verified host reboot from the IDE or CLI/MCP, preserving its active graph, queued events and trigger cursors; interrupt in-flight scripts without replaying uncertain agent operations (application 28.15).
+
 - Add editable Resume agent and Restart agent huddle nodes, reusing normal session controls, exact conversation/worktree bindings and retained replacement results; uncertain replies never repeat the lifecycle action (application 28.14).
 
 - Configure huddle execution limits, owned-agent cleanup and node concurrency in the IDE, using the existing draft, undo, Save and explicit Start/Apply flow.

@@ -257,7 +257,8 @@ export class HuddleAgentDispatcher {
         !this.closed &&
         (connected || (mode === 'observe' && stopping)) &&
         (mode === 'observe' ||
-          (task.operation.active &&
+          (task.operation.scope.owner.runtime_id === entry.id &&
+            task.operation.active &&
             Date.now() < task.operation.deadline &&
             !task.abort.signal.aborted))
       );

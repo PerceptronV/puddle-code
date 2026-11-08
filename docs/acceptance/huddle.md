@@ -34,6 +34,53 @@ delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## Implemented: explicit recovery after a host reboot
+
+Application **28.15** adds local/SSH `POST /api/huddle/:profile/sessions/:sid/recover`
+with `{owner: {runtimeId, incarnation}}`. Opt-in runtime inspection
+`include_recovery=true` exposes the exact unresolved predecessor. The IDE offers
+**Recover after reboot**; CLI `pudl huddle recover` and MCP `huddle_recover` use the
+same request and never retry mutations automatically. This restores the recorded
+activation rather than applying edited project source. Automatic startup is not
+implemented yet.
+
+Optional runtime **`recovery: 1`** restores a bounded copy of the private ledger
+and every retained revision in a new runtime directory. Recovery requires a
+verified current host boot different from the source launch's boot, all existing
+retirement claims plus ledger/revision claims, and a permanent source retirement
+fence. It never signals recorded PIDs or removes that fence. Migration **51**
+atomically records one successor and marks the old runtime's resources ended when
+preparing the new owner. A lost supervisor reply is observation-only.
+
+The replacement checks its actual boot, source identity/fence/lineage and the
+pristine seed digest before opening SQLite. It preserves activation/generation,
+queue/deadlines/budgets, completed results, trigger cursors and operation receipts.
+Running executions/invocations are interrupted before scheduler construction;
+unsent operations are cancelled and consumed operations remain unknown. Historical
+ask/spawn/resume/restart intents retain original caller identities, including
+legacy intents derived from the verified source launch. Descendant owners can
+observe/settle those requests but cannot dispatch them again. Recovery lineage is
+bounded to 32 predecessors. Historical ledgers and source bundles remain intact.
+
+Timers, filetree, Git, session-feed and custom-trigger controllers restore their
+retained state. Session notifications reuse the existing durable feed and cursor.
+Completion subscriptions retain exact native owners; an unavailable/replaced
+agent, missing resource or expired cursor reports a gap/failure rather than
+silently rebasing. Inspect and explicitly rearm/rebind as appropriate. Same-boot
+crash recovery, auto-start, native reboot/supervision acceptance and resource
+measurements remain outstanding.
+
+Focused verification: **12/12 checks in four files** pass, covering the new real
+replacement-owner/worker path plus existing launcher, CLI and dispatcher cases.
+The recovery fixture models earlier-boot durable state without rebooting the host;
+it verifies exactly one queued execution, interrupted running work, retained session
+cursor and legacy caller origin, an unknown consumed operation, same-boot refusal
+and no second supervisor call after a repeated predecessor request. Shared/daemon/
+CLI builds, web type checking and scoped lint pass. Real host reboot and native
+supervisor behaviour have not been exercised. A recovery attempt that fails before
+owner consumption retains unresolved queued state; it is not treated as an empty
+clean launch that permits a fresh Start.
+
 ## Implemented: agent resume/restart nodes
 
 Application **28.14** adds editable Resume agent and Restart agent templates.
@@ -110,11 +157,9 @@ format/execution/invocation/owner refusal without a legacy fallback. Shared/daem
 TypeScript builds and scoped ESLint/formatting pass. These use temporary runtimes
 and fake provider adapters, not production services or real provider acceptance.
 
-This increment is a prerequisite, **not completed owner recovery**. Positive
-owner/child fencing, durable replacement acceptance/dispatch, subscription and
-queue restoration, legacy origin handling during replacement, recovery-specific
-host receipt/cancellation authority and native crash/reboot acceptance remain open.
-No new restart control or automatic recovery path is enabled.
+This provenance increment alone did not enable recovery. Application 28.15 now
+uses it for explicit reboot recovery, described above. Same-boot descendant
+fencing, automatic startup and native crash/reboot acceptance remain unfinished.
 
 ## Implemented: recorded activation and historical source inspection
 

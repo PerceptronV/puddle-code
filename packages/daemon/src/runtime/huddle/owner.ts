@@ -1,8 +1,10 @@
+import { verifyHuddleRecoverySeed } from './recovery/verify.js';
 import { HuddleLifecycleMailbox } from './operations/lifecycle/mailbox.js';
 import { closeSync, fsyncSync, openSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
   huddleOwnerLaunchSchema,
+  canonicalHuddleJson,
   huddleOwnerStateSchema,
   supportsHuddleRuntime,
   type HuddleOwnerLaunch,
@@ -67,8 +69,22 @@ export class HuddleOwner {
     workerEntry: string,
   ) {
     const launch = memory.launch;
-    this.ledger = new HuddleLedger(home, launch.scope);
+    this.ledger = new HuddleLedger(
+      home,
+      launch.scope,
+      {},
+      launch.recovery ? [launch.recovery.source, ...launch.recovery.ancestors] : [],
+    );
     try {
+      if (launch.recovery) {
+        const { initial } = launch;
+        const control = this.ledger.activations.current();
+        if (control.activationId !== initial.id) throw new Error('Recovered activation changed');
+        const { appliedAt: _appliedAt, ...activation } = this.ledger.activations.get(initial.id);
+        if (canonicalHuddleJson(activation) !== canonicalHuddleJson(initial))
+          throw new Error('Recovered launch differs from its retained activation');
+        this.ledger.recoverOwnerLoss();
+      }
       this.store = new HuddleRevisionStore(
         home,
         launch.identity.runtime_id,
@@ -226,13 +242,16 @@ export class HuddleOwner {
       huddleOwnerLaunchSchema.parse(value),
     );
     let owner: HuddleOwner | undefined;
+    let releaseLifetime: (() => void) | undefined;
     try {
       if (memory.launch.build !== build)
         throw new Error('Huddle owner build differs from its pinned launch');
       if (!supportsHuddleRuntime(memory.launch.capabilities))
         throw new Error('Huddle launch requires unsupported runtime capabilities');
+      releaseLifetime = await prepareRuntimeLifetime(home, memory.launch);
+      verifyHuddleRecoverySeed(home, memory.launch);
       owner = new HuddleOwner(home, memory, workerEntry);
-      owner.releaseLifetime = await prepareRuntimeLifetime(home, memory.launch);
+      owner.releaseLifetime = releaseLifetime;
       // Consume once before activating source or listening. Owner replacement needs a separate fenced recovery.
       const fd = openSync(join(memory.directory, 'consumed.json'), 'wx', 0o600);
       try {
@@ -245,16 +264,26 @@ export class HuddleOwner {
       const { initial } = memory.launch;
       const snapshot = owner.store.read(initial.revision);
       requireHuddleFeatures(snapshot, memory.launch.capabilities);
-      owner.revisions.apply(snapshot, initial, 0);
+      if (!memory.launch.recovery) owner.revisions.apply(snapshot, initial, 0);
       owner.persist();
       await owner.transport.listen();
+      if (memory.launch.recovery) {
+        // A missing resource or expired subscription remains inspectable in the new
+        // owner; do not discard the recovery identity or automatically rebase a cursor.
+        try {
+          await owner.refreshTriggers(undefined, undefined, true);
+          owner.drive();
+        } catch {
+          /* refreshTriggers retains the failure and stops all admission. */
+        }
+      }
       return owner;
     } catch (error) {
       if (owner) {
         await owner.transport.close();
-        owner.releaseLifetime?.();
         owner.ledger.close();
       }
+      releaseLifetime?.();
       memory.close();
       memory.claim.release();
       throw error;
@@ -654,6 +683,7 @@ export class HuddleOwner {
   private async refreshTriggers(
     baseline?: HuddleSessionFeedCursor,
     completionBaselines?: HuddleCompletionBaseline[],
+    restoring = false,
   ) {
     this.stopTriggers();
     const epoch = this.triggerEpoch;
@@ -668,8 +698,8 @@ export class HuddleOwner {
       await this.git.refresh();
       if (!current()) return;
       if (this.failure) throw new Error(this.failure);
-      this.sessions.refresh(baseline);
-      this.completions.refresh(completionBaselines);
+      this.sessions.refresh(baseline, restoring);
+      this.completions.refresh(completionBaselines, restoring);
       await this.custom.refresh();
       if (!current()) return;
       this.timers.refresh();

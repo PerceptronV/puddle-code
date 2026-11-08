@@ -1,5 +1,7 @@
 import {
   huddleApplySchema,
+  huddleRecoverSchema,
+  type HuddleRecover,
   huddleReadoutObserveSchema,
   huddleReadoutObserveAcceptedSchema,
   type HuddleReadoutObserve,
@@ -22,6 +24,7 @@ import { browserTransport } from '../../../lib/transport/browser-transport';
 import { huddleShellSupported } from '../documents/queries';
 
 export type HuddleCommand =
+  | { action: 'recover'; input: HuddleRecover }
   | { action: 'readouts/observe'; input: HuddleReadoutObserve }
   | { action: 'start'; input: HuddleStart }
   | { action: 'apply'; input: HuddleApply }
@@ -38,11 +41,13 @@ export async function inspectHuddle(
   signal?: AbortSignal,
   includeReadoutObservation = false,
   includeCustomTriggers = false,
+  includeRecovery = false,
 ) {
   local();
   const query = new URLSearchParams();
   if (includeReadoutObservation) query.set('include_readout_observation', 'true');
   if (includeCustomTriggers) query.set('include_custom_triggers', 'true');
+  if (includeRecovery) query.set('include_recovery', 'true');
   return huddleRuntimeInspectionSchema.parse(
     await api(
       'GET',
@@ -71,6 +76,7 @@ export async function huddleHistory(
 export async function sendHuddleCommand(profile: string, session: string, command: HuddleCommand) {
   local();
   const schemas = {
+    recover: huddleRecoverSchema,
     'readouts/observe': huddleReadoutObserveSchema,
     start: huddleStartSchema,
     apply: huddleApplySchema,

@@ -7,6 +7,7 @@ import {
   type HuddleDefinition,
   type HuddleComponent,
   type HuddleLedgerIdentity,
+  type RuntimeIdentity,
 } from '@puddle/shared';
 import { HuddleStateDatabase, type HuddleCollection, type LedgerRow } from './database.js';
 import { HuddleExecutions } from './executions.js';
@@ -43,8 +44,9 @@ export class HuddleLedger {
     home: string,
     identity: HuddleLedgerIdentity,
     limits?: { bytes?: number; records?: number },
+    originOwners: readonly RuntimeIdentity[] = [],
   ) {
-    this.database = new HuddleStateDatabase(home, identity, limits);
+    this.database = new HuddleStateDatabase(home, identity, limits, originOwners);
     this.executions = new HuddleExecutions(this.database);
     this.invocations = new HuddleInvocations(this.database, this.executions);
     this.operations = new HuddleOperations(this.database, this.executions, this.invocations);

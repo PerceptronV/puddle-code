@@ -21,7 +21,7 @@ export class HuddleSessionController {
     private readonly guard: () => void,
     private readonly allowance?: RuntimeByteAllowance,
   ) {}
-  refresh(baseline?: HuddleSessionFeedCursor) {
+  refresh(baseline?: HuddleSessionFeedCursor, restoring = false) {
     this.stop();
     const control = this.ledger.activations.current();
     if (control.state !== 'armed' || !control.activationId) return;
@@ -30,14 +30,37 @@ export class HuddleSessionController {
     requireHuddleFeatures(snapshot, this.capabilities);
     const definitions = sessionDefinitions(snapshot, activation);
     if (!definitions.length) return;
-    requireSessionBaseline(snapshot, baseline);
+    if (!restoring) requireSessionBaseline(snapshot, baseline);
     this.guard();
     const release = this.allowance?.reserve(1024 * 1024);
     if (this.allowance && !release)
       throw new Error('No host memory capacity for session subscriptions');
     this.release = release ?? (() => {});
     try {
-      this.ledger.sessions.initialise(definitions, activation, baseline!);
+      if (restoring) {
+        const retained = this.ledger.sessions.list();
+        if (
+          retained.length !== definitions.length ||
+          definitions.some((definition) => {
+            const source = retained.find(
+              (item) => item.slot === definition.slot && item.node === definition.node,
+            );
+            return (
+              !source ||
+              source.revision !== activation.revision ||
+              source.scope.worktree !== definition.worktree ||
+              source.scope.sessionId !== definition.session ||
+              source.scope.profileId !== this.ledger.identity.profileId ||
+              source.scope.projectId !== this.ledger.identity.projectId ||
+              source.scope.excludeSessionId !== this.ledger.identity.sessionId ||
+              JSON.stringify(source.statuses) !== JSON.stringify(definition.statuses) ||
+              JSON.stringify(source.scope.events) !== JSON.stringify(definition.events) ||
+              JSON.stringify(source.scope.kinds) !== JSON.stringify(definition.kinds)
+            );
+          })
+        )
+          throw new Error('Retained session subscriptions are incomplete or changed');
+      } else this.ledger.sessions.initialise(definitions, activation, baseline!);
       this.active = true;
     } catch (error) {
       this.stop();
