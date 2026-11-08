@@ -1,5 +1,21 @@
 # The puddle communication protocol
 
+Optional private huddle capability **`git: 1`** enables `puddle.trigger.git@1`.
+Launch/Apply and independent-owner validation require it; old owners remain
+supported, while old candidates cannot adopt owners requiring it. Application
+28.4, ordinary runtime 1.1, ledger format 1 and database schema 46 are unchanged.
+The node uses existing explicit worktree bindings and event/parameter contracts.
+
+Eight reusable private `git-sources` slots retain exact node/activation/generation,
+canonical repository/common-directory identity, baseline/pending observations and
+batch progress. Up to 64 ref changes carry old/new OIDs and symbolic targets,
+with a worktree resource and no invented occurrence timestamp. Event/cursor/batch
+progress commit together, advancing the baseline only after the final batch.
+Start/Resume/armed Apply establish fresh baselines. Common-directory reads/watches
+are shared across linked worktrees; worktree HEAD remains distinct. Cancellation
+retains subprocess ownership through close and scan capacity through settlement.
+This does not add a public command, remote authority or automatic crash recovery.
+
 Optional private huddle capability **`filetree: 1`** enables
 `puddle.trigger.filetree@1`. Older owners remain supported; selected runtime
 launch/Apply and independent-owner validation require the capability before

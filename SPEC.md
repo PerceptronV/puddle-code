@@ -1404,8 +1404,16 @@ bounded baseline/pending snapshots and batch progress atomically with admission.
 Start/Resume/armed Apply establish new baselines; paused changes do not replay.
 Source/root loss, watch/scan failure and exhausted budgets stop automatic admission
 with a visible gap. Cancellation fences scans, and clean owner shutdown waits for
-settlement before releasing resources. Git/Puddle subscriptions, full per-trigger
-health/backlog inspection and custom adapters remain unfinished.
+settlement before releasing resources.
+Optional `git: 1` adds worktree HEAD and ref observation under `triggers/git/`.
+Shared common-directory reads/watches deduplicate linked-worktree invalidations;
+HEAD retains symbolic target as well as object ID. Bounded net changes preserve
+old/new OIDs, including annotated tags and force updates. Eight `git-sources`
+ledger slots retain baseline/pending snapshots and atomic 64-change batch progress.
+Fresh Start/Resume/armed Apply baselines exclude paused changes. Cancellation owns
+Git subprocesses until close and prevents clean retirement before scan settlement.
+Puddle subscriptions, full per-trigger health/backlog inspection and custom adapters
+remain unfinished.
 The runtime entry point selects a separate huddle owner from a strict private launch
 record. It reuses runtime/memory claims, host grants and lifetime checks; consumes
 launch intent once; and provides bounded authenticated controller commands.

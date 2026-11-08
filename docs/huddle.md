@@ -4,7 +4,7 @@ Huddles are project orchestration graphs powered by puddlang. This guide describ
 the implemented local/SSH workflow. The [roadmap](roadmap/huddle.md) covers the full
 design; [acceptance](acceptance/huddle.md) records verified behaviour and remaining
 work. Interval, calendar and one-off date triggers are available on supporting
-runtimes. Filetree observation is also available. Git/session subscriptions, agent
+runtimes. Filetree and Git observation are also available. Session subscriptions, agent
 spawn/resume nodes and authoring CLI/skills
 remain unfinished. Native provider, supervisor and reboot acceptance is pending.
 
@@ -173,6 +173,36 @@ Filetree requires runtime capability `filetree: 1`. Native watcher behaviour
 varies across filesystems; bounded rescans recover net changes from silent missed
 notifications. Packaged supervisor/SSH/reboot recovery and a richer per-trigger
 health/backlog inspector remain unfinished.
+
+## React to Git changes
+
+Add **Git**, select a project **Worktree**, and use **Repository directory** (`.`
+by default) to choose an exact Git root inside it. **Ref globs** is a JSON list,
+defaulting to `["refs/heads/**", "refs/tags/**"]`; `refs/remotes/**` is also supported.
+**Observe worktree HEAD** includes branch switches and detached/unborn HEAD.
+Use an empty ref list to observe only HEAD. Save, then explicitly Start or Apply.
+
+Each event reports up to 64 changes with `ref`, `oldOid`, `newOid`, `oldTarget`
+and `newTarget`, alongside the canonical `repository`, `observedAt`, `reconciled`,
+`batch` and `final` fields. Missing values are null. Annotated tags use their tag
+object IDs. A branch switch at the same commit is still a HEAD change. Force
+updates are reported without assuming ancestry. Connect the event to a script
+that filters the refs or formats an agent prompt.
+
+Observation survives a disconnected frontend/controller. Shared repository refs
+are read once per common directory; each explicitly configured node receives its
+matching changes. The shortest Git-node debounce/reconcile settings in the huddle
+control the shared scan (defaults: 250 ms and 30 seconds). Start, Resume and armed
+Apply take a fresh baseline; paused activity does not replay. Net changes can miss
+intermediate create/delete or move-back operations between observations.
+
+The current limits are eight nodes, 4,096 refs per selected namespace group before
+filtering, 1,024 matching refs plus HEAD per node, and 256 KiB per snapshot. Metadata
+scans are bounded to 128 directories and 8,192 entries across the owner. Git/root
+errors, timeouts and exhausted budgets stop automatic admission with a visible
+failure; restore resources and explicitly Stop/Start for a new baseline. This
+requires runtime `git: 1`. Packaged SSH/supervisor, reftable and full crash/reboot
+acceptance remain pending.
 
 ## Prompt existing agents
 

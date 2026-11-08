@@ -5,6 +5,7 @@ import {
   calendarHuddleTrigger,
   dateHuddleTrigger,
   filetreeHuddleTrigger,
+  gitHuddleTrigger,
   HUDDLE_INTERVAL_LIMIT,
   huddleIntervalSettingsSchema,
   resolveHuddleParameters,
@@ -49,6 +50,8 @@ export function requireHuddleFeatures(
     )
       throw new Error('This runtime does not support huddle Filetree triggers');
     if (node.source.kind !== 'builtin') continue;
+    if (component.id === gitHuddleTrigger.id && capabilities.git !== 1)
+      throw new Error('This runtime does not support huddle Git triggers');
     const expected = coreHuddleComponents.get(`${node.source.component}@${node.source.version}`);
     if (
       !expected ||

@@ -49,7 +49,9 @@ calendar triggers, durable occurrence admission, coalesce/skip/bounded catch-up,
 explicit timezone/DST semantics and capability gating. Calendar lookback is bounded
 to 366 days. Filetree now observes bounded regular-file snapshots with worktree
 bindings, globs, output exclusions, debounce and durable batches without a controller.
-Broader recurrence rules, Git/Puddle subscriptions, a richer trigger health/backlog
+Git now observes worktree HEAD and shared repository refs with durable net-change
+batches, common-directory deduplication and capability gating.
+Broader recurrence rules, Puddle subscriptions, a richer trigger health/backlog
 inspector and custom trigger/readout workers remain unfinished.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals except where explicitly documented

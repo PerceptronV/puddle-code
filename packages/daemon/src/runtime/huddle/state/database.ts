@@ -40,6 +40,7 @@ export type HuddleCollection =
   | 'intervals'
   | 'schedules'
   | 'filetrees'
+  | 'git-sources'
   | 'inbox'
   | 'cursors'
   | 'executions'

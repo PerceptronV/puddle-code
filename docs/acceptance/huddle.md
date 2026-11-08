@@ -19,7 +19,120 @@ and production daemon dispatch now supports declared attach/ask scripts. Migrati
 46 retains exact cancellation attempts. Optional runtime `timers: 1` now admits
 interval events without a controller. Optional `calendar: 1` adds timezone calendar
 and one-off date triggers. Optional `filetree: 1` adds regular-file observation.
+Optional `git: 1` adds worktree HEAD and repository ref observation.
 No user CLI command is enabled yet.
+
+## Implemented: Git ref and worktree HEAD observation
+
+`puddle.trigger.git@1` requires an explicit registered `worktree`. `repository`
+is a relative exact Git root (default `.`); ordinary subdirectories of a repository
+are rejected. Nested repositories may be selected within the bound worktree.
+`refs` defaults to `["refs/heads/**", "refs/tags/**"]`; patterns may select heads,
+tags or remotes. An empty list selects only HEAD, provided `head` remains true.
+The inspector reuses ordinary worktree, text, JSON, boolean and duration settings.
+Saving does not arm observation. `debounceMs` defaults to 250 (50–10,000), and
+`reconcileMs` to 30,000 (1,000–300,000). The owner shares one scan cadence across
+its Git sources, using the shortest configured debounce/reconcile values.
+
+`runtime/huddle/triggers/git/` owns bounded Git reads, metadata watches and
+reconciliation. Canonical Git common-directory identity groups linked worktrees:
+one ref read per common directory per scan, with worktree-specific HEAD reads.
+Native notifications invalidate observations; repeated notifications and packed-ref
+rewrites with unchanged values emit nothing. Two deliberately configured nodes
+may each receive the same shared ref change once. Filesystem events are never
+translated directly into commit events, and Git mutations from external tools
+are observed through the same path. Metadata watchers exclude objects, reflogs
+and ordinary working files. Periodic scans recover net changes after silent
+notification loss. Root identity is rechecked before admission; moved/unavailable
+repositories, source loss, watch failures and exhausted bounds report an observation
+gap and stop automatic triggers.
+
+Events carry a canonical worktree resource plus `data.repository`, `changes`,
+`reconciled: true`, `observedAt`, `batch` and `final`. Each change has `ref`,
+`oldOid`, `newOid`, `oldTarget` and `newTarget` (nullable). This preserves creations,
+deletions and force updates. HEAD includes its symbolic branch target, so switching
+between branches at the same OID still emits a change. Unborn HEAD has a null OID;
+detached HEAD has a null target. Annotated tags retain the tag object's OID,
+not a substituted peeled commit. These are bounded net observations, not a complete
+reflog/commit stream or an atomic multi-ref snapshot. No exact `occurredAt` is invented.
+The command semantics follow Git's [ref fields](https://git-scm.com/docs/git-for-each-ref),
+[repository path reporting](https://git-scm.com/docs/git-rev-parse) and
+[symbolic-ref status](https://git-scm.com/docs/git-symbolic-ref).
+
+`state/git.ts` keeps eight reusable `git-sources` slots in private ledger format 1.
+Each retains node, generation, activation, canonical worktree/repository/common
+directory, baseline, pending observation and batch progress. Admission of at most
+64 changes, event cursor and batch progress commit atomically. Queue/storage refusal
+retains the pending observation; baseline replacement happens only after the final
+batch. Start/Resume/armed Apply establish fresh baselines and exclude paused changes.
+Same-generation reopening retains unfinished batches and rejects changed repository
+identity. These records do not implement automatic owner-crash/reboot recovery.
+
+Limits: eight Git sources per owner, 4,096 refs in each group's selected namespaces,
+1,024 matched refs plus HEAD per node, 256 KiB per snapshot and 256-character ref
+names. A namespace limit applies before glob filtering. Across the owner, metadata
+scans allow 128 directories and 8,192 entries. Each command has a five-second deadline
+and 2 MiB output limit; a scan has a fifteen-second deadline. The owner reserves
+2 MiB plus 4 MiB per source from its existing memory allowance. Observer processes
+strip inherited `GIT_*` overrides, disable optional locks/prompts and use argument
+arrays without a shell. Cancellation kills only the owned Git child; the common Git
+runner now waits for its `close` event even when abort delivers an earlier callback.
+The owner retains claims and capacity until asynchronous observation has settled.
+
+Optional private role capability `git: 1` gates selected runtime launch/Apply and
+independent-owner validation. Older owners remain supported; older daemon candidates
+cannot adopt owners requiring Git observation. Application 28.4, ordinary runtime
+1.1, database schema 46 and ledger format 1 are unchanged. No new public endpoint
+or remote authority is introduced.
+
+Automated evidence (2026-11-08):
+
+- Temporary real Git repositories exercise unborn/detached HEAD, same-OID branch
+  switches, linked-worktree identity, packed refs, annotated tags, deletion, force
+  updates, inherited-placement isolation and command cancellation.
+- Durable ledger tests exercise queue refusal/reopen, 64-change batching, full
+  snapshot replacement, generation fencing and repository identity mismatch.
+- Native-watch tests exercise commits/tags, shared common-directory reads, duplicate
+  invalidation, Stop/Resume, missing source, capability rejection and memory refusal.
+  A separate missed-notification fixture verifies periodic net reconciliation.
+- Deferred-read tests verify timeout/cancellation fencing and retained allocation
+  until actual settlement. A subprocess test verifies abort does not release an
+  unclosed child. Namespace/matched-ref overflow is rejected, never truncated.
+- The independent process fixture disconnects its controller, observes external
+  Git changes, reconnects, Interrupts/Resumes and Stops with exit code zero.
+  Execution API tests verify selected-capability gating and changed filters on Apply.
+- `web/test/huddle/git.browser.mjs` passes in headless Chromium against the existing
+  UI-only preview: explicit worktree, repository/ref/debounce edits, saved source
+  and no execution request. It uses existing inspector/canvas components.
+
+Verification used Node 22.21.1 and Git 2.53.0. The expanded huddle, installation,
+update, worktree and Git-route suite passed **755 tests in 117 files**, with four
+pre-existing skips in two files. After the loose-ref pruning fix, the focused
+Git/owner suite passed 28 tests; its added pruning fixture passed separately after
+correcting the test's native-module mock. Shared/daemon/CLI builds, web typechecking,
+repository ESLint/Prettier, token/contrast checks and `git diff --check` passed.
+
+To repeat the Git checks from the repository root:
+
+```sh
+node node_modules/typescript/bin/tsc -b packages/shared packages/daemon packages/cli
+node node_modules/vitest/vitest.mjs run packages/daemon/test/huddle/triggers/git packages/shared/test/huddle/git.test.ts packages/daemon/test/huddle/owner/process.test.ts packages/daemon/test/huddle/control/execution.test.ts packages/daemon/test/worktrees/git-exec.test.ts
+PREVIEW_URL=http://127.0.0.1:5194/ node packages/web/test/huddle/git.browser.mjs
+```
+
+The browser command requires an existing UI-only preview; native-watch/process tests
+require permission to open temporary watches/sockets. They never start a production
+daemon. For packaged acceptance, create a Git → script → Result graph with an
+explicit worktree, Start, then create/delete tags and commit from an external shell.
+Verify payload OIDs, branch switches, linked-worktree deduplication and retained
+history. Disconnect/reconnect the controller and repeat. Interrupt, make changes,
+Resume and verify paused changes do not replay; Apply changed ref filters and Stop.
+Repeat on supported platforms/filesystems and under the independent supervisor.
+
+Pending: packaged macOS/Linux supervisor and SSH watcher behaviour, reftable-backed
+repositories, network filesystems, host sleep/reboot, complete owner-crash recovery
+and the richer trigger health/backlog inspector. Passing local fixtures does not
+establish those release gates.
 
 ## Implemented: bounded Filetree observation
 

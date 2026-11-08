@@ -20,6 +20,7 @@ import { HuddleScheduler } from './execution/scheduler.js';
 import { HuddleOwnerServer } from './transport/server.js';
 import { requireHuddleDefinitionLocation } from '../../huddle/definitions/location.js';
 import { HuddleTimerController } from './triggers/controller.js';
+import { HuddleGitController } from './triggers/git/controller.js';
 import { HuddleFiletreeController } from './triggers/filetree/controller.js';
 import { requireHuddleFeatures } from './triggers/definitions.js';
 import { HuddleOperationMailbox } from './operations/mailbox.js';
@@ -34,6 +35,7 @@ export class HuddleOwner {
   private readonly operations: HuddleOperationMailbox;
   private readonly timers: HuddleTimerController;
   private readonly filetrees: HuddleFiletreeController;
+  private readonly git: HuddleGitController;
   private status: HuddleOwnerState['state'] = 'running';
   private failure: string | null = null;
   private observation = 0;
@@ -90,6 +92,19 @@ export class HuddleOwner {
         memory.allowance,
       );
       this.filetrees = new HuddleFiletreeController(
+        this.ledger,
+        this.store,
+        launch.capabilities,
+        () => this.drive(),
+        (error) => this.triggerFailure(error),
+        () =>
+          requireHuddleDefinitionLocation(
+            launch.identity.canonical_worktree_path,
+            launch.scope.huddleId,
+          ),
+        memory.allowance,
+      );
+      this.git = new HuddleGitController(
         this.ledger,
         this.store,
         launch.capabilities,
@@ -269,7 +284,7 @@ export class HuddleOwner {
       this.interrupting = this.scheduler.halt('interrupted', 'Huddle interrupted by controller');
       try {
         await this.interrupting;
-        await this.filetrees.settled();
+        await Promise.all([this.filetrees.settled(), this.git.settled()]);
         await this.driving;
         this.persist();
       } catch (error) {
@@ -319,6 +334,7 @@ export class HuddleOwner {
   private stopTriggers() {
     this.timers.stop();
     this.filetrees.stop();
+    this.git.stop();
   }
   private triggerFailure(error: unknown) {
     this.stopTriggers();
@@ -332,9 +348,11 @@ export class HuddleOwner {
   private async refreshTriggers() {
     try {
       this.stopTriggers();
-      await this.filetrees.settled();
+      await Promise.all([this.filetrees.settled(), this.git.settled()]);
       this.persist();
       await this.filetrees.refresh();
+      if (this.failure) throw new Error(this.failure);
+      await this.git.refresh();
       if (this.failure) throw new Error(this.failure);
       this.timers.refresh();
     } catch (error) {
@@ -356,7 +374,7 @@ export class HuddleOwner {
       this.persist();
       await this.interrupting;
       await this.scheduler.halt('stopped', 'Huddle owner stopped');
-      await this.filetrees.settled();
+      await Promise.all([this.filetrees.settled(), this.git.settled()]);
       await this.driving;
       if (this.scheduler.hasLiveWorkers)
         throw new Error('Huddle worker termination remains unknown');

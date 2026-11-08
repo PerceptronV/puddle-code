@@ -678,6 +678,15 @@ refusal and never replace a pending scan before draining its batches. Start/Resu
 and armed Apply create fresh baselines. Stop/failure cancels watches/timers and
 fences in-flight scans before admission. Keep scan capacity charged until settlement;
 a stalled scan must prevent clean owner shutdown, never release live claims.
+Optional `git: 1` adds owner-local ref/HEAD observation under `triggers/git/`.
+Group refs and metadata watches by canonical common directory; retain distinct
+worktree HEAD targets and OIDs. `state/git.ts` uses bounded `git-sources` slots
+and atomic event/cursor/batch progress. Baselines change only after final admission;
+Start/Resume/armed Apply establish fresh observations. Watch notifications invalidate
+snapshots, never prove commits. Strip inherited Git placement overrides, bound
+commands/output/scans, and retain child ownership through close after cancellation.
+No timeout or abort callback alone proves termination. Keep old owner support and
+require the capability before launch/Apply. Native/reboot acceptance remains open.
 Optional `calendar: 1` adds one-off dates and daily/weekday timezone schedules.
 Keep civil-time conversion under `triggers/calendar/` with daemon-only Temporal;
 never use the renderer's timezone or hand-roll DST offsets. Skip missing local

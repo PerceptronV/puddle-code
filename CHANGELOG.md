@@ -13,6 +13,7 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Add Git huddle nodes with explicit worktree/repository selection, ref globs, HEAD observation and debounce settings. Saving remains inactive.
 - Add Filetree huddle nodes with explicit worktrees, directories, glob filters, output exclusions and debounce settings. Saving remains inactive.
 - Add Calendar and Date and time huddle nodes with explicit timezone, weekday, missed-event and past-date settings. Saved edits stay inactive; Apply/Start create fresh activation intent.
 - Add Interval huddle nodes with duration and missed-occurrence settings. Start/Resume arm automatic triggers; editing and saving remain inactive.
@@ -37,6 +38,7 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Observe Git refs and worktree HEAD in independent huddle owners with durable net-change batches, common-directory deduplication and optional `git: 1` support. Retain old/new OIDs and symbolic targets through force updates and branch switches.
 - Observe Filetree changes in independent huddle owners, using bounded metadata reconciliation and durable batches with optional `filetree: 1` support. Controller loss leaves observation running; interruption and failure fence scans before admission.
 - Run calendar and one-off date triggers in independent huddle owners with durable consumption and optional `calendar: 1` support. Calendar schedules skip nonexistent local times, fire once during repeated times and bound missed-event recovery; completed dates stay consumed through Resume.
 - Run huddle interval triggers in their independent owner through controller disconnection, with durable occurrence tracking, coalesce/skip/bounded catch-up and explicit `timers: 1` runtime support. Interrupt/Stop disarm timers; resource failures remain visible. Git/session subscriptions and reboot recovery remain pending.

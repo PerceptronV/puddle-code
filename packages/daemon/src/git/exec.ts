@@ -14,10 +14,24 @@ export class GitError extends Error {
 /** All puddle git operations go through here: uniform errors, no shell quoting. */
 export function git(
   args: string[],
-  opts: { cwd?: string; timeoutMs?: number; maxOutputBytes?: number; env?: NodeJS.ProcessEnv } = {},
+  opts: {
+    cwd?: string;
+    timeoutMs?: number;
+    maxOutputBytes?: number;
+    env?: NodeJS.ProcessEnv;
+    signal?: AbortSignal;
+    killSignal?: NodeJS.Signals;
+  } = {},
 ): Promise<string> {
   return new Promise((resolve, reject) => {
-    execFile(
+    let closed = false;
+    let result: { value: string } | { error: GitError } | undefined;
+    const finish = () => {
+      if (!closed || !result) return;
+      if ('error' in result) reject(result.error);
+      else resolve(result.value);
+    };
+    const child = execFile(
       'git',
       args,
       {
@@ -25,17 +39,25 @@ export function git(
         maxBuffer: opts.maxOutputBytes ?? 16 * 1024 * 1024,
         timeout: opts.timeoutMs,
         env: opts.env,
+        signal: opts.signal,
+        killSignal: opts.killSignal,
         encoding: 'utf8',
       },
       (err, stdout, stderr) => {
         if (err) {
           const code = typeof err.code === 'number' ? err.code : null;
-          reject(new GitError(args, code, stderr || err.message));
-          return;
+          result = { error: new GitError(args, code, stderr || err.message) };
+        } else {
+          result = { value: stdout.trim() };
         }
-        resolve(stdout.trim());
+        finish();
       },
     );
+    // Abort can invoke execFile's callback before close; retain subprocess ownership until exit.
+    child.once('close', () => {
+      closed = true;
+      finish();
+    });
   });
 }
 
