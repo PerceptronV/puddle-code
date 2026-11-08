@@ -13,6 +13,7 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Inspect and validate saved huddles with `pudl huddle list|inspect|validate` and matching MCP source tools, using explicit project/worktree scope without running scripts or activating graphs.
 - Add Edit with agent to huddles, with an explicit authoring account, exact worktree/task context and bundled huddle skill. Preserve ordinary permissions, block unsaved source and keep activation separate from agent edits.
 - Add Prompt spawned agent and Review spawned agent nodes with explicit worktrees and handles retained across feedback rounds. Explain retained inputs in the inspector and gate the templates on supporting hosts.
 - Add an editable Spawn agent huddle node with explicit project, worktree, provider and account choices, input substitution, session mode/title and reply/handle outputs. Preserve unavailable selections and gate authoring on supporting hosts.

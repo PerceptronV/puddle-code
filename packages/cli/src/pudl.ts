@@ -12,6 +12,7 @@ import {
 } from '@puddle/shared';
 import { connectPuddlang } from './puddlang/client.js';
 import { serveMcp } from './puddlang/mcp.js';
+import { huddleHelp, parseHuddleCommand, runHuddleCommand } from './huddle/commands.js';
 
 const help = `pudl — Puddle's Ultimate Domain Language (puddlang)
 
@@ -24,11 +25,15 @@ const help = `pudl — Puddle's Ultimate Domain Language (puddlang)
   pudl outcome <run-id> <operation-id> --read|--discard --fingerprint fingerprint
   pudl mcp
 
+  pudl huddle list|inspect|validate [huddle-id] --project ID --worktree ABSOLUTE_ROOT
+  pudl huddle --help
+
 Connection: --host user@host --profile name-or-id
 Run options: --id UUID --account agent=label-or-id (repeatable)
              --max-turns 50 --max-agents 8 --timeout-ms 3600000
 
-Requires a running daemon with application protocol major ${PROTOCOL_VERSION.major} and a supported agent on that host.
+Requires a running daemon with application protocol major ${PROTOCOL_VERSION.major}.
+Programme runs also require a supported agent on that host.
 Outcome controls require protocol 26.1+. Read/discard explicitly releases retained
 outcomes for later reclamation; it never resumes the programme or replays a prompt.
 Claude Code, Codex, OpenCode and Gemini CLI support interactive and headless modes.
@@ -43,6 +48,8 @@ async function main(): Promise<void> {
       help: { type: 'boolean', short: 'h' },
       host: { type: 'string' },
       profile: { type: 'string' },
+      project: { type: 'string' },
+      worktree: { type: 'string' },
       input: { type: 'string' },
       detach: { type: 'boolean' },
       id: { type: 'string' },
@@ -57,17 +64,40 @@ async function main(): Promise<void> {
     },
   });
   if (values.help || !positionals.length) {
-    process.stdout.write(help);
+    process.stdout.write(positionals[0] === 'huddle' ? huddleHelp : help);
     return;
   }
   const [command, argument] = positionals;
   if (
-    !['run', 'context', 'status', 'logs', 'cancel', 'mcp', 'outcomes', 'outcome'].includes(command!)
+    ![
+      'run',
+      'context',
+      'status',
+      'logs',
+      'cancel',
+      'mcp',
+      'outcomes',
+      'outcome',
+      'huddle',
+    ].includes(command!)
   )
     throw new Error(help);
   const needsArgument = ['run', 'status', 'logs', 'cancel', 'outcomes'].includes(command!);
-  if (positionals.length !== (command === 'outcome' ? 3 : needsArgument ? 2 : 1))
+  if (
+    command !== 'huddle' &&
+    positionals.length !== (command === 'outcome' ? 3 : needsArgument ? 2 : 1)
+  )
     throw new Error(help);
+  if (command !== 'huddle' && (values.project !== undefined || values.worktree !== undefined))
+    throw new Error('--project and --worktree belong to huddle source commands');
+  if (
+    command === 'huddle' &&
+    Object.keys(values).some(
+      (key) => !['host', 'profile', 'project', 'worktree', 'help'].includes(key),
+    )
+  )
+    throw new Error(huddleHelp);
+  const huddle = command === 'huddle' ? parseHuddleCommand(positionals.slice(1), values) : null;
   if (command !== 'outcome' && (values.read || values.discard || values.fingerprint))
     throw new Error(help);
   const disposition =
@@ -116,6 +146,10 @@ async function main(): Promise<void> {
   process.once('SIGINT', interrupt);
   process.once('SIGTERM', interrupt);
   try {
+    if (huddle) {
+      process.exitCode = await runHuddleCommand(client.huddles, huddle, print);
+      return;
+    }
     if (command === 'mcp') {
       await serveMcp(client, process.stdin, process.stdout);
       return;

@@ -21,8 +21,9 @@ public CLI installer once to add its launcher: older embedded installers may
 only install `puddle` or the former `puddlang` command. Subsequent upgrades manage
 both commands together.
 
-The host needs daemon application protocol **26.x**, **Node 22.21.1+**, and
-the selected agent installed and logged in through Puddle. Bundled releases supply Node.
+The host needs daemon application protocol **28.x**, **Node 22.21.1+**, and,
+for programme execution, the selected agent installed and logged in through Puddle.
+Bundled releases supply Node.
 Upgrade an older daemon with `puddle upgrade daemon [user@host]`. Start Puddle
 from a plain shell: `pudl` connects to an existing daemon and never bootstraps
 one from an agent environment.
@@ -33,8 +34,7 @@ placements migrate automatically, preserving their accounts and native conversat
 refs. Historical run source and events retain the original text and are never replayed.
 
 Update CLI/desktop, daemon and any remote service, connector and application
-together. Remote transport protocol is now 4 because remote session responses
-also carry the renamed mode. Existing registrations and device grants are retained.
+together. Remote transport protocol is now 5. Existing registrations and device grants are retained.
 The existing launcher still requires approval before updating an older daemon.
 
 ```sh
@@ -60,6 +60,16 @@ response can be reconciled with `status`. Closing CLI/MCP detaches; `cancel`
 is explicit. Logs are newline-delimited event JSON; `--after <sequence>`
 continues a previous read. There is no `--follow` yet. Use the same host/profile
 to inspect a run.
+
+## Huddle source tools
+
+For saved huddle graphs, `pudl huddle list`, `inspect` and `validate` use explicit
+`--project` and `--worktree` scope on the selected host. These read-only commands
+reuse the same authority/profile connection without evaluating scripts or starting
+an owner. `pudl mcp` also exposes `huddle_list`, `huddle_inspect`, `huddle_validate`.
+See [huddle authoring](huddle/authoring.md#inspect-and-validate-from-the-cli-or-mcp)
+for syntax, validation limits and JSON/exit behaviour. They do not enable huddle
+activation/lifecycle commands or automatic MCP binding to agents.
 
 ## Programme API
 

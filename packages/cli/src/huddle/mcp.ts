@@ -1,0 +1,20 @@
+import { huddleToolDefinitionSchema, huddleToolLocationSchema } from '@puddle/shared';
+import type { HuddleClient } from './client.js';
+
+export async function callHuddleTool(
+  client: HuddleClient | undefined,
+  name: string,
+  args: unknown,
+) {
+  if (!client?.supported) throw new Error('Huddle source tools are unavailable on this connection');
+  switch (name) {
+    case 'huddle_list':
+      return client.list(huddleToolLocationSchema.parse(args));
+    case 'huddle_inspect':
+      return client.inspect(huddleToolDefinitionSchema.parse(args));
+    case 'huddle_validate':
+      return client.validate(huddleToolDefinitionSchema.parse(args));
+    default:
+      throw new Error('Unknown huddle tool');
+  }
+}

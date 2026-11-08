@@ -42,6 +42,49 @@ starting again. Reconnect never automatically retries creation. The authoring
 agent has its own normal session lifecycle; stopping the huddle does not stop that
 ordinary coding session.
 
+## Inspect and validate from the CLI or MCP
+
+The CLI ships `pudl huddle list`, `inspect` and `validate`. Use `pudl context` to
+find project ids, then supply the exact registered worktree on the selected host.
+For example, replacing these sample ids and paths with your own:
+
+```sh
+pudl huddle list --profile work --project 0123456789 --worktree /srv/app
+pudl huddle inspect 0123456789abcdef0123456789abcdef \
+  --profile work --project 0123456789 --worktree /srv/app
+pudl huddle validate 0123456789abcdef0123456789abcdef \
+  --profile work --project 0123456789 --worktree /srv/app
+```
+
+Add `--host user@host` for SSH. Paths always belong to that host; the CLI never
+infers a worktree from its own cwd or uploads local files. Existing local/SSH
+authority and profile selection apply. A current compatible running daemon is
+required, but source inspection needs no huddle placement, supporting runtime or
+logged-in agent. It never opens a session or evaluates component modules.
+
+`list` returns JSON discoveries, including errors for unreadable/invalid huddles.
+`inspect` returns the captured definition, component contracts, optional layout,
+source digest and diagnostics. `validate` returns `{valid, digest, diagnostics}`
+and exits 1 when an error diagnostic exists; warnings alone exit 0. Diagnostics
+retain their stable codes and node/edge/path locations. Invalid/unreadable root
+manifests and connection/authority failures report an error on stderr and exit 1;
+they do not return a successful validation report. No automatic retry occurs.
+
+Validation checks captured JSON contracts and graph structure. It does not
+type-check or execute TypeScript, test external integrations, check provider
+availability or resolve live execution resources. `valid: true` is not permission
+or proof of readiness to run. Start/Apply still perform their own admission against
+the reviewed source digest and current resources.
+
+`pudl mcp` exposes `huddle_list`, `huddle_inspect` and `huddle_validate` alongside
+the existing programme tools. Their strict arguments are `project_id`, absolute
+`worktree` and, for inspect/validate, `huddle_id`. They share the connection's
+profile; arguments cannot substitute a host/profile or request activation. Tools
+are advertised only on a supporting connection. Validation errors appear in the
+normal report with `valid: false`; malformed calls and unavailable source are MCP
+tool errors. This does not automatically configure MCP for authoring accounts.
+
 For custom extensions, see [triggers](triggers.md) and [readouts](readouts.md).
-Standalone JSON Schema/type bundles and huddle CLI/MCP commands are still pending.
-In particular, `pudl huddle validate` is proposed syntax, not a current command.
+Standalone JSON Schema/type bundles, component fixtures, graph diff and
+activation/lifecycle CLI/MCP operations remain pending. The originally proposed
+directory-only validation command is superseded by the explicit scope above.

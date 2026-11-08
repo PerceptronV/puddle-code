@@ -92,11 +92,26 @@ Saving files, successful static validation and completion of this authoring turn
 do not activate a graph. Keep the existing runtime on its captured revision.
 Do not Start, Apply, Run or arm external triggers unless the user separately
 requested execution. Opening or importing a module to validate it executes trusted
-code: prefer data-only contract/graph inspection. `pudl huddle validate` is not
-implemented; do not report that command as available or claim a check ran when it
-did not. The IDE's refreshed graph shows diagnostics; review saved source and its
-diff before explicit activation. External changes use normal editor conflict
-handling; do not overwrite someone else's intervening edits.
+code: prefer data-only contract/graph inspection. If the installed `pudl --help`
+advertises huddle source tools, use:
+
+```text
+pudl huddle list --profile PROFILE --project PROJECT_ID --worktree ABSOLUTE_WORKTREE
+pudl huddle inspect HUDDLE_ID --profile PROFILE --project PROJECT_ID --worktree ABSOLUTE_WORKTREE
+pudl huddle validate HUDDLE_ID --profile PROFILE --project PROJECT_ID --worktree ABSOLUTE_WORKTREE
+```
+
+Substitute the exact invocation scope. Paths are on the selected host; use `--host`
+only when invoking from a different machine over SSH. Validation returns JSON
+`{valid, digest, diagnostics}` and exits 1 for error diagnostics. Unreadable or
+invalid root manifests and authority failures are command errors. It does not
+type-check or execute scripts, test integrations or prove live resource admission.
+The equivalent MCP tools are `huddle_list`, `huddle_inspect`, `huddle_validate`
+with `project_id`, `worktree` and (except list) `huddle_id`; use them only if exposed
+on the current connection. Never claim a check ran when it did not. If these tools
+are unavailable, the IDE's refreshed graph shows diagnostics. Review saved source
+and its diff before explicit activation. External changes use normal editor
+conflict handling; do not overwrite someone else's intervening edits.
 
 Report the files changed, checks actually performed and any remaining diagnostics.
 Keep authoring within the requested task. This invocation does not grant additional

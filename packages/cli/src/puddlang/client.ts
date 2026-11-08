@@ -14,19 +14,27 @@ import { LocalTransport } from '../lib/transport/local.js';
 import { SshTransport } from '../lib/transport/ssh.js';
 import { openTunnel, type Tunnel } from '../lib/transport/tunnel.js';
 import { verifyDaemonVersion } from '../lib/connection/handshake.js';
+import { HuddleClient } from '../huddle/client.js';
 
 /** A profile is selected once, on the execution host; no credentials enter programmes. */
 export class PuddlangClient {
+  readonly huddles: HuddleClient;
   constructor(
     private readonly port: () => number,
     private readonly authority: ConnectionAuthority,
     readonly profile: string,
     private readonly protocol?: { major: number; minor: number },
-  ) {}
+  ) {
+    this.huddles = new HuddleClient((path) => this.request(path, undefined, 'huddle'), protocol);
+  }
 
-  private async request(path: string, body?: unknown): Promise<unknown> {
+  private async request(
+    path: string,
+    body?: unknown,
+    namespace: 'puddlang' | 'huddle' = 'puddlang',
+  ): Promise<unknown> {
     const response = await fetch(
-      `http://127.0.0.1:${this.port()}/api/puddlang/${encodeURIComponent(this.profile)}${path}`,
+      `http://127.0.0.1:${this.port()}/api/${namespace}/${encodeURIComponent(this.profile)}${path}`,
       {
         method: body === undefined ? 'GET' : 'POST',
         headers: {
@@ -39,7 +47,7 @@ export class PuddlangClient {
     );
     if (!response.ok)
       throw new Error(
-        `Puddlang request failed (${response.status}): ${(await response.text()).slice(0, 2048)}`,
+        `${namespace === 'huddle' ? 'Huddle' : 'Puddlang'} request failed (${response.status}): ${(await response.text()).slice(0, 2048)}`,
       );
     return response.json();
   }

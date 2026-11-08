@@ -1,5 +1,16 @@
 # The puddle communication protocol
 
+The CLI now exposes huddle source discovery/inspection/validation through
+`pudl huddle list|inspect|validate` and additive stdio MCP tools
+`huddle_list`, `huddle_inspect`, `huddle_validate`. Their shared strict arguments
+live in `api/huddle/tools.ts`: explicit project id, absolute host worktree and
+huddle id for inspect/validate. Validation projects the existing document's
+digest/diagnostics to `{valid, digest, diagnostics}`; it is not runtime admission.
+The selected local/SSH authority/profile and existing inactive GET routes are
+reused. Capability gating requires a compatible current-major daemon and the
+existing 27.1 feature floor. No application HTTP/WS, runtime, remote, database or
+ledger version changes are introduced; the stdio tool catalogue is additive.
+
 Application **28.9** adds `prompt-spawned-agent` and `review-spawned-agent` to the
 existing local component-template request. Optional input `scope: "execution"`
 declares one immutable retained delivery per execution/node/port. Omitted scope

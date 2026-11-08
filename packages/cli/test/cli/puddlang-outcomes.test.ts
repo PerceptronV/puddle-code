@@ -1,4 +1,5 @@
 import { afterEach, expect, it, vi } from 'vitest';
+import { PROTOCOL_VERSION } from '@puddle/shared';
 import { PuddlangClient } from '../../src/puddlang/client.js';
 import type { ConnectionAuthority } from '../../src/lib/auth/connection-authority.js';
 
@@ -23,7 +24,13 @@ const client = (protocol?: { major: number; minor: number }) =>
     protocol,
   );
 
-it.each([undefined, { major: 26, minor: 0 }, { major: 25, minor: 99 }, { major: 27, minor: 0 }])(
+it.each([
+  undefined,
+  { major: 26, minor: 0 },
+  { major: 26, minor: 1 },
+  { major: 25, minor: 99 },
+  { major: 27, minor: 0 },
+])(
   'refuses outcome controls before HTTP when the compatible feature is absent (%j)',
   async (protocol) => {
     const fetch = vi.fn();
@@ -47,7 +54,7 @@ it('uses selected profile authority and exact explicit outcome identity without 
       ),
     );
   vi.stubGlobal('fetch', fetch);
-  const c = client({ major: 26, minor: 1 });
+  const c = client(PROTOCOL_VERSION);
   await expect(c.disposeOutcome(run, 7, { action: 'read', fingerprint })).rejects.toThrow(/lost/);
   expect(fetch).toHaveBeenCalledTimes(1);
   const listed = await c.outcomes(run, 6);

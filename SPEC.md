@@ -1357,7 +1357,7 @@ trigger/cursor admission, bounded node attempts and outbox routing, retained
 execution budgets and single-consumption operation intent. Capacity reservations
 protect accepted outcomes. Recovery after outgoing-worker fencing interrupts
 script attempts and preserves unknown consumed operations without replay. The
-ledger is now composed by the independent huddle process, but not provider dispatch; its format
+ledger is composed by the independent huddle process; provider dispatch is described below. Its format
 and isolated crash evidence are tracked in acceptance. Internal graph routing in
 `runtime/huddle/execution/` commits trigger/output fan-out and join admission
 atomically. Joins correlate execution and activation; each explicit event emission
@@ -1702,7 +1702,16 @@ Creation is attempted once per dialog; a failed reply requires inspection of
 ordinary sessions before a fresh attempt. Completion/saving never applies source
 or arms triggers. The ordinary authoring agent remains independent of the huddle's
 owned-agent cleanup policy. Existing session APIs suffice; no protocol change is
-introduced. Schema/type bundles and authoring CLI/MCP parity remain pending.
+introduced. `cli/src/huddle/` now provides read-only list/inspect/validate commands
+and matching stdio MCP tools, reusing the selected puddlang connection authority.
+They require an explicit project id and absolute host worktree (plus huddle id
+for inspect/validate), use inactive source routes, and never evaluate modules,
+open placements or require a capable runtime. Validation reports the captured
+digest and graph diagnostics, exiting 1 for errors; it does not type-check scripts
+or check live execution admission. Root capture/authority failures remain command
+errors. Shared tool contracts live in `shared/api/huddle/tools.ts`. No HTTP/WS or
+runtime protocol change is required. Schema/type bundles, graph diff and remaining
+activation/lifecycle CLI/MCP parity remain pending.
 Huddle views can move through panes, project layouts and native
 transfers without creating PTYs or owners. Closing a view is independent of Stop.
 Desktop recovery format 4 migrates versions 2/3; `windows.huddles` gates native
@@ -2615,9 +2624,11 @@ Each env/ports value list is one non-wrapping line. When it exceeds the pane wid
 ## 10. `puddle` CLI (client)
 
 The same npm package and standalone archives ship `pudl` for puddlang: run, context,
-status, logs, cancel, outcomes, outcome and mcp commands. They reuse local/SSH
+status, logs, cancel, outcomes, outcome, huddle and mcp commands. They reuse local/SSH
 authority and require an existing daemon with the current application major
-(26.x); outcome inspection/disposition requires 26.1. One selected profile binds
+(28.x); outcome inspection/disposition requires the existing 26.1 feature floor.
+Huddle source tools use the existing inactive-authoring feature floor (27.1).
+One selected profile binds
 each connection.
 Run waits by default (`--detach` returns after submission); observer exit does
 not cancel work. Stdio MCP exposes the same service. HTTP MCP, automatic agent

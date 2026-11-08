@@ -32,7 +32,48 @@ Runtime protocol 1.2 now retains an independent native-turn source for hook-base
 interactive, structured Codex and command-correlated headless controls. Automatic
 delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
-No user CLI command is enabled yet.
+Read-only source CLI/MCP tools are available; execution commands remain in the IDE.
+
+## Implemented: source CLI and MCP tools
+
+`pudl huddle list`, `inspect <id>` and `validate <id>` require explicit `--project`
+and absolute `--worktree` on the selected local/SSH host. They reuse the existing
+running-daemon authority, profile selection and tunnel, and call only inactive
+source GET routes. No client cwd inference, file upload, new daemon, provider
+operation, placement or owner is involved. Inspect returns the shared saved
+document. Validate projects its digest/diagnostics to `{valid, digest, diagnostics}`
+and exits 1 for error diagnostics. Warnings alone pass. Root capture, authority,
+malformed response and transport failures remain errors, never successful reports.
+Validation does not type-check/evaluate TypeScript or prove runtime/resource admission.
+
+Shared strict tool contracts live in `shared/api/huddle/tools.ts`; command parsing,
+client projection and MCP dispatch live under `cli/src/huddle/`. `pudl mcp` exposes
+`huddle_list`, `huddle_inspect`, `huddle_validate` only on a supporting connection.
+They have read-only annotations, explicit source scope and no host/profile override
+or activation flag. Invalid graphs return a normal validation report; invalid
+calls/source reads return MCP tool errors. Both entry points use one host inspection
+per validation and never retry automatically. The bundled authoring skill now
+describes these tools and retains an IDE fallback for older/missing CLI installs.
+No HTTP/WS, runtime, database or ledger version changes are needed.
+
+Verification: **48/48 tests in 5 files passed** across CLI source tools, MCP,
+local/SSH connection composition, existing programme outcomes and host authoring.
+The new host integration uses real temporary source/worktree/database services:
+it validates a saved custom component without evaluating its top-level code,
+reports a broken port with its edge identity and a changed digest, rejects revoked
+authority, and creates no placement/runtime even with the runtime capability file
+removed. Client checks cover exact profile/encoded worktree routing, GET-only
+requests, invalid scope/extra fields, incompatible peers, malformed/lost responses,
+validation exit codes and MCP catalogue/dispatch. Earlier programme connection
+tests had obsolete 26.x expectations; they now use the current major and mock
+fetch explicitly rather than probing a port. Shared/daemon/CLI TypeScript,
+changed-source lint/formatting and the skill validator pass. The production CLI
+build and packaged help commands pass without contacting a daemon. The production
+web build passes, and the CLI's copied frontend includes the revised authoring
+skill with the actual huddle command syntax.
+Remaining: source/active-revision diff, activation/lifecycle parity, standalone
+schema/types and component fixtures, automatic account MCP binding if designed,
+managed integration secrets and real-provider/platform acceptance.
 
 ## Implemented: IDE agent-assisted authoring
 
@@ -77,7 +118,7 @@ semantic colour checks and diff checks pass. The production web build passes and
 contains the canonical skill in the lazy huddle asset. No production daemon,
 native desktop or real provider was launched.
 Remaining authoring work: standalone schemas/types and complete extension examples,
-CLI/MCP discovery/validation/inspection/activation/lifecycle parity, managed
+CLI/MCP diff/activation/lifecycle parity, managed
 integration secrets, and real-provider authoring evidence. No protocol, runtime
 metadata, ledger or database format changes are introduced by this UI action.
 

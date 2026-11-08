@@ -35,6 +35,9 @@ import { resolveHuddleRuntimeRelease } from '../../../src/runtime/huddle/control
 import { huddleAuthoringRoutes } from '../../../src/http/routes/execution/huddle/authoring.js';
 import { ApiError } from '../../../src/http/errors.js';
 import { runtimeRelease } from '../../helpers/runtime-release.js';
+import { createHuddleDefinition } from '../../../src/huddle/definitions/create.js';
+import { HuddleClient } from '../../../../cli/src/huddle/client.js';
+import { PROTOCOL_VERSION } from '@puddle/shared';
 
 const cleanups: Array<() => void> = [];
 afterEach(() => {
@@ -133,6 +136,84 @@ function fixture() {
 }
 
 describe('inactive huddle authoring', () => {
+  it('serves CLI source validation without a placement, capable runtime or module evaluation', async () => {
+    const f = fixture();
+    const definition = createHuddleDefinition(f.worktree, 'Agent-authored graph');
+    const root = join(f.worktree, '.puddle/huddle', definition.id);
+    const marker = join(root, 'executed');
+    mkdirSync(join(root, 'nodes/example'), { recursive: true });
+    writeFileSync(
+      join(root, 'nodes/example/node.json'),
+      JSON.stringify({
+        format: 1,
+        id: 'example.transform',
+        version: 1,
+        category: 'script',
+        title: 'Transform',
+        inputs: { value: { schema: {} } },
+        outputs: { completed: { schema: {} } },
+        entry: './run.ts',
+      }),
+    );
+    writeFileSync(
+      join(root, 'nodes/example/run.ts'),
+      `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(marker)}, 'ran');\nexport default {};`,
+    );
+    const graph = {
+      ...definition,
+      nodes: [
+        { id: 'run', source: { kind: 'builtin', component: 'puddle.trigger.manual', version: 1 } },
+        { id: 'transform', source: { kind: 'local', manifest: 'nodes/example/node.json' } },
+      ],
+      edges: [
+        {
+          id: 'input',
+          from: { node: 'run', port: 'event' },
+          to: { node: 'transform', port: 'value' },
+        },
+      ],
+    };
+    writeFileSync(join(root, 'huddle.json'), JSON.stringify(graph));
+    f.unsupported();
+    const app = new Hono()
+      .use('*', async (c, next) => {
+        c.set('authorityValid', f.authority);
+        await next();
+      })
+      .route('/api/huddle', huddleAuthoringRoutes(f.service));
+    app.onError((error, c) =>
+      c.json(
+        { error: error instanceof ApiError ? error.code : 'internal' },
+        error instanceof ApiError ? (error.status as 400) : 500,
+      ),
+    );
+    const methods: string[] = [];
+    const client = new HuddleClient(async (path) => {
+      methods.push(path);
+      const response = await app.request(`/api/huddle/${f.profile.id}${path}`);
+      if (!response.ok) throw new Error(`HTTP ${response.status}`);
+      return response.json();
+    }, PROTOCOL_VERSION);
+    const target = { ...f.location, huddle_id: definition.id };
+    expect(await client.list(f.location)).toEqual([expect.objectContaining({ id: definition.id })]);
+    expect((await client.validate(target)).valid).toBe(true);
+    const digest = (await client.inspect(target)).digest;
+    graph.edges[0]!.to.port = 'absent';
+    writeFileSync(join(root, 'huddle.json'), JSON.stringify(graph));
+    const result = await client.validate(target);
+    expect(result.valid).toBe(false);
+    expect(result.digest).not.toBe(digest);
+    expect(result.diagnostics).toEqual(
+      expect.arrayContaining([expect.objectContaining({ severity: 'error', edge: 'input' })]),
+    );
+    expect(existsSync(marker)).toBe(false);
+    expect(f.checkHuddleAvailable).not.toHaveBeenCalled();
+    expect(f.db.prepare('SELECT * FROM sessions').all()).toEqual([]);
+    expect(f.db.prepare('SELECT * FROM runtime_bindings').all()).toEqual([]);
+    f.revoke();
+    await expect(client.inspect(target)).rejects.toThrow('HTTP 401');
+    expect(methods).toHaveLength(5);
+  });
   it.each(['prompt-agent', 'spawn-agent', 'prompt-spawned-agent', 'review-spawned-agent'] as const)(
     'materialises editable %s templates without changing the graph, overwriting edits or starting an owner',
     async (template) => {

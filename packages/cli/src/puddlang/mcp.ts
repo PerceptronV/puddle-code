@@ -9,15 +9,18 @@ import {
   puddlangMcpEmptySchema,
   puddlangMcpOutcomesSchema,
   puddlangMcpOutcomeSchema,
+  huddleMcpTools,
 } from '@puddle/shared';
 import type { PuddlangClient } from './client.js';
+import { callHuddleTool } from '../huddle/mcp.js';
 
 /** MCP 2025-06-18 stdio: bounded newline-delimited JSON-RPC, no stdout logging. */
 export async function serveMcp(
   client: Pick<
     PuddlangClient,
     'context' | 'start' | 'status' | 'events' | 'cancel' | 'outcomes' | 'disposeOutcome'
-  >,
+  > &
+    Partial<Pick<PuddlangClient, 'huddles'>>,
   input: Readable,
   output: Writable,
 ): Promise<void> {
@@ -53,7 +56,7 @@ export async function serveMcp(
         capabilities: { tools: {} },
         serverInfo: { name: 'puddlang', version: '0.1.0' },
         instructions:
-          'Runs execute on the selected Puddle host/profile with its OS authority. Account labels belong to this profile. Runs survive MCP disconnect; cancellation is explicit. Only Codex exact turns are supported initially.',
+          'Runs execute on the selected Puddle host/profile with its OS authority. Account labels belong to this profile. Runs survive MCP disconnect; cancellation is explicit. Inspect context for supported agents. Huddle source tools require explicit project/worktree scope and never execute or activate graphs; successful source validation is not live execution admission.',
       });
       return;
     }
@@ -66,7 +69,7 @@ export async function serveMcp(
       return;
     }
     if (method === 'tools/list') {
-      reply({ tools: puddlangMcpTools });
+      reply({ tools: [...puddlangMcpTools, ...(client.huddles?.supported ? huddleMcpTools : [])] });
       return;
     }
     if (method !== 'tools/call') {
@@ -81,39 +84,42 @@ export async function serveMcp(
     try {
       const args = call.data.arguments ?? {};
       let result: unknown;
-      switch (call.data.name) {
-        case 'puddlang_context':
-          puddlangMcpEmptySchema.parse(args);
-          result = await client.context();
-          break;
-        case 'puddlang_run':
-          result = await client.start(puddlangMcpRunSchema.parse(args));
-          break;
-        case 'puddlang_status':
-          result = await client.status(puddlangMcpIdSchema.parse(args).id);
-          break;
-        case 'puddlang_events': {
-          const a = puddlangMcpEventsSchema.parse(args);
-          result = await client.events(a.id, a.after);
-          break;
+      if (huddleMcpTools.some((tool) => tool.name === call.data.name)) {
+        result = await callHuddleTool(client.huddles, call.data.name, args);
+      } else
+        switch (call.data.name) {
+          case 'puddlang_context':
+            puddlangMcpEmptySchema.parse(args);
+            result = await client.context();
+            break;
+          case 'puddlang_run':
+            result = await client.start(puddlangMcpRunSchema.parse(args));
+            break;
+          case 'puddlang_status':
+            result = await client.status(puddlangMcpIdSchema.parse(args).id);
+            break;
+          case 'puddlang_events': {
+            const a = puddlangMcpEventsSchema.parse(args);
+            result = await client.events(a.id, a.after);
+            break;
+          }
+          case 'puddlang_cancel':
+            result = await client.cancel(puddlangMcpIdSchema.parse(args).id);
+            break;
+          case 'puddlang_outcomes': {
+            const a = puddlangMcpOutcomesSchema.parse(args);
+            result = await client.outcomes(a.id, a.after);
+            break;
+          }
+          case 'puddlang_outcome': {
+            const { id, operation, ...request } = puddlangMcpOutcomeSchema.parse(args);
+            result = await client.disposeOutcome(id, operation, request);
+            break;
+          }
+          default:
+            fail(-32602, 'Unknown tool');
+            return;
         }
-        case 'puddlang_cancel':
-          result = await client.cancel(puddlangMcpIdSchema.parse(args).id);
-          break;
-        case 'puddlang_outcomes': {
-          const a = puddlangMcpOutcomesSchema.parse(args);
-          result = await client.outcomes(a.id, a.after);
-          break;
-        }
-        case 'puddlang_outcome': {
-          const { id, operation, ...request } = puddlangMcpOutcomeSchema.parse(args);
-          result = await client.disposeOutcome(id, operation, request);
-          break;
-        }
-        default:
-          fail(-32602, 'Unknown tool');
-          return;
-      }
       reply({ content: [{ type: 'text', text: JSON.stringify(result) }] });
     } catch (error) {
       reply({

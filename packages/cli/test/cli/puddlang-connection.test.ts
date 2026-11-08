@@ -1,4 +1,4 @@
-import { beforeEach, expect, it, vi } from 'vitest';
+import { afterEach, beforeEach, expect, it, vi } from 'vitest';
 import { PROTOCOL_VERSION } from '@puddle/shared';
 import { connectPuddlang } from '../../src/puddlang/client.js';
 
@@ -41,16 +41,35 @@ vi.mock('../../src/lib/connection/daemon-client.js', () => ({
 beforeEach(() => {
   vi.clearAllMocks();
   fixture.protocol = { major: PROTOCOL_VERSION.major, minor: 0 };
+  vi.stubGlobal(
+    'fetch',
+    vi.fn(async (url: string) =>
+      Response.json(url.includes('/api/huddle/') ? [] : { outcomes: [], next_after: null }),
+    ),
+  );
 });
+afterEach(() => vi.unstubAllGlobals());
 
 it.each([undefined, 'fixture@host'])(
   'accepts compatible current-major daemons through existing local/SSH authority (%s)',
   async (host) => {
     const connection = await connectPuddlang(host, 'fixture');
     expect(connection.client.profile).toBe('1234567890');
-    await expect(
-      connection.client.outcomes('00000000-0000-4000-8000-000000000001'),
-    ).rejects.toThrow(/26.1/);
+    expect(await connection.client.outcomes('00000000-0000-4000-8000-000000000001')).toEqual({
+      outcomes: [],
+      next_after: null,
+    });
+    expect(connection.client.huddles.supported).toBe(true);
+    expect(
+      await connection.client.huddles.list({ project_id: 'abcdef1234', worktree: '/host/project' }),
+    ).toEqual([]);
+    expect(fetch).toHaveBeenLastCalledWith(
+      `http://127.0.0.1:${host ? 12346 : 12345}/api/huddle/1234567890/definitions?project_id=abcdef1234&worktree=%2Fhost%2Fproject`,
+      expect.objectContaining({
+        method: 'GET',
+        headers: { authorization: 'Bearer fixture', 'content-type': 'application/json' },
+      }),
+    );
     await connection.close();
     expect(fixture.close).toHaveBeenCalledOnce();
     expect(fixture.dispose).toHaveBeenCalledOnce();
