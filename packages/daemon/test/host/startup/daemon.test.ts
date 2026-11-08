@@ -1,3 +1,6 @@
+import { huddleControllerFixture } from '../../helpers/huddle/controller.js';
+import { hostReleaseCapabilities, daemonRuntimeCapabilities } from '@puddle/shared';
+import { DATABASE_SCHEMA_VERSION } from '../../../src/db/migrations/index.js';
 import { acquireInstallationLock } from '../../../src/host/installation/lock.js';
 import {
   existsSync,
@@ -27,9 +30,9 @@ afterEach(() => {
   for (const close of cleanup.splice(0).reverse()) close();
 });
 
-function fixture(kind: 'systemd' | 'launchd' = 'systemd') {
-  const home = mkdtempSync(join(tmpdir(), 'puddle-selected-start-'));
-  cleanup.push(() => rmSync(home, { recursive: true, force: true }));
+function fixture(kind: 'systemd' | 'launchd' = 'systemd', existingHome?: string) {
+  const home = existingHome ?? mkdtempSync(join(tmpdir(), 'puddle-selected-start-'));
+  if (!existingHome) cleanup.push(() => rmSync(home, { recursive: true, force: true }));
   const root = join(home, 'bin/versions/0.4.0~ABC123');
   mkdirSync(join(root, 'bin'), { recursive: true, mode: 0o700 });
   mkdirSync(join(root, 'daemon'), { mode: 0o700 });
@@ -37,7 +40,9 @@ function fixture(kind: 'systemd' | 'launchd' = 'systemd') {
     writeFileSync(join(root, file), 'fixture', { mode: 0o700 });
   symlinkSync(root, join(home, 'bin/current'));
   writeFileSync(join(home, 'supervisor'), kind, { mode: 0o600 });
-  const controller = { format: 1, id: randomUUID(), epoch: 5, active: true };
+  const controller = existingHome
+    ? JSON.parse(readFileSync(join(home, 'runtime-controller.json'), 'utf8'))
+    : { format: 1, id: randomUUID(), epoch: 5, active: true };
   atomicPrivateJson(join(home, 'runtime-controller.json'), controller);
   const definitionPath = join(home, 'service.plist');
   const plist = {
@@ -314,4 +319,110 @@ it('requires ended-worker evidence even when a previous update reports completio
   worker.release();
   await expect(f.start()).rejects.toThrow();
   expect(f.mutations()).toEqual([]);
+});
+
+async function huddleFixture() {
+  const huddle = await huddleControllerFixture();
+  await huddle.disconnect();
+  const f = fixture('systemd', huddle.home);
+  const host = hostReleaseCapabilities('0.4.0', DATABASE_SCHEMA_VERSION);
+  const roles = daemonRuntimeCapabilities('0.4.0');
+  const metadata = () => {
+    writeFileSync(join(f.root, 'VERSION'), '0.4.0\n');
+    writeFileSync(join(f.root, 'HOST_CAPABILITIES.json'), JSON.stringify(host));
+    writeFileSync(join(f.root, 'DAEMON_RUNTIME_CAPABILITIES.json'), JSON.stringify(roles));
+  };
+  metadata();
+  return { ...f, huddle, host, roles, metadata };
+}
+
+it('starts a capable selected daemon without replaying live huddles or changing their application state', async () => {
+  const f = await huddleFixture();
+  try {
+    const before = readFileSync(f.huddle.paths.dbFile);
+    const rows = f.huddle.db.prepare('SELECT * FROM runtime_bindings').all();
+    const launch = readFileSync(join(f.huddle.directory, 'launch.json'));
+    await f.start();
+    expect(f.mutations()).toHaveLength(1);
+    expect(readFileSync(f.huddle.paths.dbFile)).toEqual(before);
+    expect(f.huddle.db.prepare('SELECT * FROM runtime_bindings').all()).toEqual(rows);
+    expect(readFileSync(join(f.huddle.directory, 'launch.json'))).toEqual(launch);
+    expect(f.huddle.owner.child.exitCode).toBeNull();
+    expect(existsSync(join(f.home, 'entered'))).toBe(false);
+  } finally {
+    await f.huddle.close();
+  }
+});
+
+it.each([
+  'missing',
+  'contracts',
+  'database',
+  'version',
+  'retained-contracts',
+  'oversized',
+  'future-schema',
+])(
+  'refuses %s huddle support before resetting or starting the selected service',
+  async (failure) => {
+    const f = await huddleFixture();
+    try {
+      if (failure === 'contracts') f.roles.roles.huddle!.ledger++;
+      if (failure === 'database') f.host.database_schema_version!--;
+      f.metadata();
+      if (failure === 'missing') rmSync(join(f.root, 'DAEMON_RUNTIME_CAPABILITIES.json'));
+      if (failure === 'version') writeFileSync(join(f.root, 'VERSION'), 'different');
+      if (failure === 'future-schema')
+        f.huddle.db.pragma(`user_version = ${DATABASE_SCHEMA_VERSION + 1}`);
+      if (failure === 'retained-contracts' || failure === 'oversized')
+        f.huddle.db
+          .prepare('UPDATE runtime_bindings SET huddle_capabilities = ? WHERE runtime_id = ?')
+          .run(
+            failure === 'oversized'
+              ? ' '.repeat(1025)
+              : JSON.stringify({ ...f.roles.roles.huddle, component: 999 }),
+            f.huddle.binding.runtime_id,
+          );
+      f.state.failed = true;
+      f.state.rateLimited = true;
+      await expect(f.start()).rejects.toThrow();
+      expect(f.commands.some(({ args }) => args.includes('reset-failed'))).toBe(false);
+      expect(f.mutations()).toEqual([]);
+      expect(f.huddle.owner.child.exitCode).toBeNull();
+    } finally {
+      await f.huddle.close();
+    }
+  },
+);
+
+it('rechecks huddle support after an asynchronous rate-limit reset', async () => {
+  const f = await huddleFixture();
+  try {
+    f.state.failed = true;
+    f.state.rateLimited = true;
+    f.state.afterReset = () => {
+      f.roles.roles.huddle!.owner++;
+      f.metadata();
+    };
+    await expect(f.start()).rejects.toThrow('retained huddle contracts');
+    expect(f.commands.filter(({ args }) => args.includes('reset-failed'))).toHaveLength(1);
+    expect(f.mutations()).toEqual([]);
+  } finally {
+    await f.huddle.close();
+  }
+});
+
+it('permits a compatible controller to inspect interrupted huddles without claiming they recovered', async () => {
+  const f = await huddleFixture();
+  try {
+    f.huddle.db
+      .prepare("UPDATE runtime_bindings SET state = 'interrupted' WHERE runtime_id = ?")
+      .run(f.huddle.binding.runtime_id);
+    await f.start();
+    expect(f.mutations()).toHaveLength(1);
+    expect(f.huddle.runtimes.get(f.huddle.binding.runtime_id)?.state).toBe('interrupted');
+    expect(f.huddle.runtimes.stopRequested(f.huddle.binding.runtime_id)).toBe(false);
+  } finally {
+    await f.huddle.close();
+  }
 });

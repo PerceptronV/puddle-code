@@ -55,6 +55,14 @@ export async function readStageDaemonRuntimeCapabilities(
   if (stage.record.component !== 'daemon') throw new Error('Expected a daemon stage');
   const host = await readStageCapabilities(home, stage);
   const root = join(home, 'bin', 'versions', stage.record.generation);
+  return readInstalledDaemonRuntimeCapabilities(root, host);
+}
+
+/** Selected startup uses the same passive contract checks without requiring a staged update. */
+export async function readInstalledDaemonRuntimeCapabilities(
+  root: string,
+  host: HostReleaseCapabilities,
+): Promise<DaemonRuntimeCapabilities | null> {
   let raw: unknown;
   try {
     raw = await readMetadata(root, 'DAEMON_RUNTIME_CAPABILITIES.json');
@@ -68,7 +76,7 @@ export async function readStageDaemonRuntimeCapabilities(
     value.application.major !== host.application.major ||
     value.application.minor !== host.application.minor
   )
-    throw new Error('Daemon runtime capabilities do not match the staged daemon');
+    throw new Error('Daemon runtime capabilities do not match the daemon');
   return value;
 }
 

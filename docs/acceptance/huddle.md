@@ -205,8 +205,8 @@ completion with one side effect. Candidate metadata tests cover old releases,
 version/protocol mismatch, bounds, symlinks, non-files and changed stage receipts.
 These fixtures simulate service lifetime and use metadata-only candidate paths;
 they establish neither native supervision nor packaged upgrade/reboot acceptance.
-Public creation/Start, stopped-host startup and fenced recovery of a crashed huddle
-remain unfinished; removal/collection integration follows below.
+Public creation/Start and fenced recovery of a crashed huddle remain unfinished;
+removal/collection and stopped-host startup integration follow below.
 
 The expanded shared, host-update and huddle-controller regression run passed
 **488 tests in 66 files**, with **4 tests in 2 files skipped** by their existing
@@ -261,6 +261,45 @@ removal, collection, huddle-controller/lifecycle and memory-retirement run passe
 a stale protocol-26 CLI bundle. Rebuilding the local CLI and rerunning those two
 tests passed **2/2**. Shared/daemon/web TypeScript, scoped ESLint and formatting
 checks passed. No production daemon or native supervisor was started.
+
+## Implemented: selected-daemon startup compatibility
+
+`host/startup/huddles.ts` checks committed huddle requirements before the selected
+service is started. It opens an existing owned application database read-only,
+observes committed WAL state without migrations, and bounds inspection to 4,096
+huddle bindings with at most 1 KiB of contract metadata per binding. Unknown newer
+schemas, malformed/oversized contracts, missing adoption support, mismatched
+selected VERSION/metadata and an insufficient database schema ceiling refuse
+startup. The shared passive reader validates the selected daemon's version and
+application protocol with `DAEMON_RUNTIME_CAPABILITIES.json`, just as staged
+update inspection does.
+
+The check runs within the existing controller/update/installer claims, before
+idle-launchd unload or systemd rate-limit reset and again after asynchronous
+supervisor work before releasing the controller for startup. It does not alter
+selectors, control epochs, application rows, owner state or launch intent. Fresh
+homes and historical schemas without huddles retain their previous startup path;
+ordinary-only databases require no huddle capability metadata. Existing owners do
+not acquire a dependency on the currently selected default runtime's huddle support.
+
+This is compatibility admission, not proof that any huddle has recovered. A
+compatible daemon can start with interrupted huddle bindings so users can inspect
+and recover them; the check does not replay, rearm or restart their work. Retained
+huddle references require support even when their owner is no longer running.
+New-owner recovery, auto-start after reboot and native service supervision remain
+separate acceptance gates.
+
+Verification uses live isolated ordinary/huddle owners with scripted systemd
+commands. It verifies no replay or database/launch changes, rejection before
+service mutation for missing/unknown contracts or schema/version mismatch,
+reinspection after rate-limit reset, and successful controller startup admission
+with an interrupted huddle still marked interrupted. The synthetic service start
+does not establish native manager or reboot acceptance.
+
+The expanded startup, restoration, candidate-reader and huddle-update regression
+run passed **92 tests in 9 files**. Shared/daemon/web TypeScript, scoped ESLint and
+changed-file formatting checks passed. No production daemon or service manager
+was started.
 
 ## Implemented: definition and validation foundation
 
@@ -570,7 +609,7 @@ This owner increment left application and agent/terminal runtime versions unchan
 the later placement increment introduced application 27.0. Runtime-role
 capabilities are described below. The launcher increment above now supplies private
 launch records; public creation/Start APIs remain unfinished. Application admission,
-stopped-host startup,
+authorised public lifecycle admission,
 provider-operation dispatch and fenced owner replacement/reboot recovery must be
 connected before enabling creation. Do not infer production support from this
 entry point or its private schemas.

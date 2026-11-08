@@ -6,7 +6,9 @@ interpret that kind, so frontend and daemon require a coordinated major update.
 Migration 43 retains one huddle placement per project/canonical worktree/definition
 and records huddle owners in the common runtime inventory without terminal segments.
 The existing create-session request still accepts only agent/terminal kinds;
-huddle creation, daemon adoption and lifecycle routes are not enabled yet.
+huddle creation and public Start/Run routes are not enabled yet. Independent-owner
+adoption, lifecycle controls and host maintenance integration are tracked in
+[huddle acceptance](../../docs/acceptance/huddle.md).
 Agent/terminal runtime protocol 1.1 and remote transport protocol 5 are unchanged.
 
 Application **26.23** names the UI frontend throughout current application code.

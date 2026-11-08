@@ -13,8 +13,10 @@ application protocol 27.0; public creation and the IDE remain unfinished. Daemon
 adoption/projection now observes independent huddle owners alongside ordinary
 runtimes, including across isolated daemon replacement. Pinned production launch
 and exact-owner controls now integrate with session kill/archive. Authorised public
-creation/Start/Run, stopped-host startup, native supervision, provider dispatch and
-UI integration remain unfinished. Offline host removal, purge fencing and release
+creation/Start/Run, native supervision, provider dispatch and UI integration remain
+unfinished. Selected-daemon startup checks retained huddle contracts read-only
+before service mutations, while allowing compatible controllers to inspect
+interrupted owners. Offline host removal, purge fencing and release
 collection now recognise huddle ownership and clean shutdown evidence. Host-update preflight, shutdown
 checkpoints and fresh adoption/recovery now preserve huddle contracts alongside
 ordinary owners.

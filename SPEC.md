@@ -1428,7 +1428,11 @@ inside the Stop queue. Shared `runtime/huddle/ownership/` validation gates purge
 fencing and release-reference retirement on clean shutdown or never-consumed
 intent; unresolved bindings keep their pins. The existing later-boot barrier
 still applies and reference retirement retains definitions, revisions and ledger.
-Stopped-host startup and native supervision acceptance remain unfinished. Contracts, bounds, verification and unfinished
+Selected-daemon startup checks bounded retained huddle requirements against
+explicit daemon support before service mutations and again before dispatch,
+without migrating SQLite or replaying owner work. A compatible controller can
+start for interrupted owners' inspection; this does not certify recovery. Native
+supervision and reboot acceptance remain unfinished. Contracts, bounds, verification and unfinished
 work are recorded in [huddle acceptance](docs/acceptance/huddle.md); the complete
 design is in the [roadmap](docs/roadmap/huddle.md).
 

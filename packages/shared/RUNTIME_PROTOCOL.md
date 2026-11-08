@@ -67,8 +67,11 @@ Offline removal now adopts both roles and reviews huddle activation/impact insid
 its Stop queue. Purge fencing and release collection share exact binding and clean
 final-state evidence under `runtime/huddle/ownership/`. Live/unresolved workers keep
 references pinned; the existing later-boot barrier still gates executable retirement.
-Source revisions and execution history remain intact. Public admission and
-stopped-host startup integration must precede product enablement; executable presence or the ordinary runtime protocol alone is not huddle admission evidence.
+Source revisions and execution history remain intact. Selected-daemon startup
+reads bounded retained requirements without migrations and checks the same passive
+daemon metadata before service mutation/start; compatible startup remains available
+for interrupted owners' inspection. It never replays or rearms work. Public admission
+must precede product enablement; executable presence or the ordinary runtime protocol alone is not huddle admission evidence.
 See [huddle acceptance](../../docs/acceptance/huddle.md) for the tested scope.
 
 Runtime 1.1 adds exact attachment to Claude-owned background jobs. Before writing

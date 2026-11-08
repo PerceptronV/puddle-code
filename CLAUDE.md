@@ -552,8 +552,12 @@ from PTY clients under the existing controller claim. Persist observation versio
 before notifying; project session status/cursor atomically and never replay work
 on reconnect. Include this projector in maintenance pause/drain. Only exact clean
 exit plus launch/owner/memory claims releases ownership; a crash retains unresolved
-resources and never enters ordinary auto-resume or onboarding. Stopped-host
-startup integration remains required before public launch.
+resources and never enters ordinary auto-resume or onboarding. Selected-daemon
+startup uses `host/startup/huddles.ts` to check retained requirements read-only
+before service mutations and after asynchronous supervisor probes. Bound the
+inventory and per-row contract bytes, use passive metadata, and never migrate or
+replay work during inspection. Compatible startup remains available for interrupted
+owners' inspection/recovery; it is not proof that they recovered.
 `RuntimeLauncher.launchHuddle` shares ordinary launch admission and supervision,
 requires an installed capable release, validates captured activation before intent
 and observes uncertain dispatch without fallback. `runtime/huddle/lifecycle/` owns

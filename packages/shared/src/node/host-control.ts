@@ -9,6 +9,7 @@ export {
   readStageCapabilities,
   readInstalledCapabilities,
   readStageDaemonRuntimeCapabilities,
+  readInstalledDaemonRuntimeCapabilities,
 } from './installation/capabilities.js';
 export { readHostBootIdentity } from './installation/boot.js';
 export {

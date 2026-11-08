@@ -14,6 +14,7 @@ import { requireEndedUpdateWorker } from '../../updates/worker/lifetime.js';
 import { readUpdateWorker } from '../../updates/worker/supervisor.js';
 import { requireEndedUpdateRecoveryWorkers } from '../../updates/recovery/worker/records.js';
 import { supervisorCommand } from '../services.js';
+import { inspectStartupHuddles } from './huddles.js';
 import {
   requireSelectedDaemonExecutable,
   serviceDefinitionDigest,
@@ -82,6 +83,7 @@ export async function startSelectedDaemon(
       if ((await serviceDefinitionDigest(home, target, definitionPath, run)) !== definition)
         throw new Error('Daemon service configuration changed before startup');
       await requireSelectedDaemonExecutable(home, target, run);
+      await inspectStartupHuddles(home, paths.release_path);
       check();
     };
     await requireCurrent();
