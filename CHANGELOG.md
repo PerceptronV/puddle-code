@@ -42,6 +42,8 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
+- Use the file tab's discard dialogue for keyboard closure too, retaining unsaved text on cancellation and preventing closure before the lazy dirty-file check loads.
+- Cancel pending local draft writes after an approved discard so closing the editor cannot restore the discarded text on reopen.
 - Keep unavailable native tabs and expose retained draft text for copying or downloading when a file, session or project disappears; preserve discard confirmation and restore editing after retry.
 - Keep project and pane window titles identifiable when unrelated host sessions change status, and restore the current host title on leaving the workspace.
 - Preserve the active editor on native window reload when the URL retains a previous session binding.

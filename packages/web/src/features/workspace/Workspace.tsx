@@ -12,6 +12,11 @@ import { UNTITLED_SESSION, type Session, type SessionKind, type TabRef } from '@
 import { useWorkspaceEditor } from '../editor/tabs/use-workspace-editor';
 import { requestActiveTabSave } from '../editor/buffers/active-tab-save';
 import { useWorkspaceDrafts } from './tabs/use-workspace-drafts';
+import {
+  TabCloseRequests,
+  tabCloseKey,
+  useRequestEditorClose,
+} from './tabs/close/TabCloseRequests';
 import { useExplorerTarget } from '../explorer/use-explorer-target';
 import { useWorkspaceFileNavigation } from '../explorer/use-workspace-file-navigation';
 import {
@@ -85,13 +90,16 @@ export function Workspace() {
   return (
     <TrayMotionProvider>
       <EditorProvider>
-        <WorkspaceInner />
+        <TabCloseRequests>
+          <WorkspaceInner />
+        </TabCloseRequests>
       </EditorProvider>
     </TrayMotionProvider>
   );
 }
 
 function WorkspaceInner() {
+  const requestEditorClose = useRequestEditorClose();
   const windowIdentity = desktopWindowContext()?.identity;
   const selectedProfileId = useCurrentProfileId();
   const paneWindow = windowIdentity?.kind === 'pane';
@@ -547,7 +555,8 @@ function WorkspaceInner() {
     'tab.close': () => {
       const leaf = layout.focusedLeaf;
       const ref = leaf.tabs.find((t) => tabRefKey(t) === leaf.activeKey);
-      if (ref) onCloseTab(leaf.id, ref);
+      if (ref?.type === 'editor') requestEditorClose(tabCloseKey(leaf.id, tabRefKey(ref)));
+      else if (ref) onCloseTab(leaf.id, ref);
     },
     'tab.reopen': reopenClosedTab,
     // The keyboard route to the strip's double-click gesture: a fresh untitled

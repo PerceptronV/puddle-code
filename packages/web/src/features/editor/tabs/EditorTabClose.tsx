@@ -16,6 +16,8 @@ import type { EditorTabKind } from './editor-tabs';
 import { useCurrentProfileId } from '../../profile/profile-store';
 import { desktopContentState } from '../../windows/state/content-state';
 import { desktopWindowContext } from '../../windows/window-context';
+import { useEditorCloseRequest } from '../../workspace/tabs/close/TabCloseRequests';
+import { cancelDiscardedDraftWrites } from '../buffers/draft-discard';
 
 /** Reactive dirty flag for one (session, path[, root]) buffer. */
 function useDirty(session: string, path: string, root?: string): boolean {
@@ -82,6 +84,7 @@ export function EditorTabClose({
   root,
   label,
   onClose,
+  closeKey,
 }: {
   session: string;
   path: string;
@@ -90,13 +93,17 @@ export function EditorTabClose({
   root?: string;
   label: string;
   onClose: () => void;
+  closeKey?: string;
 }) {
   const profileId = useCurrentProfileId();
-  const dirty = useDirty(session, path, root) && kind !== 'commit';
+  // Untitled drafts have their own workspace-owned deletion dialogue.
+  const dirty = useDirty(session, path, root) && kind !== 'commit' && kind !== 'untitled';
   const [confirm, setConfirm] = useState(false);
 
   const requestClose = () => (dirty ? setConfirm(true) : onClose());
+  useEditorCloseRequest(closeKey, requestClose);
   const discard = () => {
+    cancelDiscardedDraftWrites(session, path, root);
     if (profileId) desktopContentState(profileId).discardBuffer({ session, path, root });
     void deleteDraft(session, path, root);
     announceDraftDiscarded(session, path, root);

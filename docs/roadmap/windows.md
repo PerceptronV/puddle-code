@@ -139,6 +139,9 @@ drag/dock affordance despite the missing header. Review titles, focus, fullscree
 minimum sizes, keyboard navigation, themes, host accents, density, and reduced
 motion using the existing tokens and shared controls.
 
+Window titles display only the project name, or the active file basename/session
+label in a pane window. Do not prefix them with `puddle —` or append host details.
+
 Audit shell-wide effects when mounting several renderers for one host: notification
 delivery, update offers, sync work, and focus handling must not multiply user-facing
 events or cause conflicting actions. Reuse existing coordination where available;

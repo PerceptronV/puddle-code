@@ -686,9 +686,43 @@ inspected; it uses shared fields/actions inside the existing pane chrome.
 Still outstanding: native pane-window close bypasses individual tab discard
 review, although its checkpoint retains closed-window drafts. Those closed pane
 records need an accessible recovery/close policy before completion. The keyboard
-file-tab close path also needs a review against the button's discard policy.
+file-tab close gap identified here is addressed by the increment below.
 Untitled missing-resource/discard and notebook/preview recovery acceptance have
 not run. Keep these gaps separate from the verified ordinary-file recovery path.
+
+### Shared tab-close review — 2026-11-07
+
+Keyboard editor-tab closure now invokes the mounted tab's existing close control
+through a workspace-local registry under `workspace/tabs/close/`. Entries include
+both pane and tab identity, so duplicate file views do not share a close callback.
+Unmounted/loading controls cannot authorise closure; the lazy button is disabled
+until its dirty-file policy is available. Untitled tabs go directly to their
+workspace-owned draft-deletion dialogue, without first discarding through the
+ordinary-file dialogue. Terminal tab closure remains view-only.
+
+The browser regression also exposed a pending-write race in the existing file
+discard path: tab cleanup could flush the latest debounced draft after deletion.
+Approved discard now cancels local pending writers for that exact session/path/root
+before deleting the cached draft. The editor's normal unmount still flushes pending
+edits when no discard was approved. This does not discard independent peer-window
+models or change file-save/conflict policy.
+
+The new `web/test/workspace/tabs/close/close.browser.mjs` check runs against the
+daemon-free preview and is included in `test:preview`. It delays the close chunk,
+checks that keyboard closure cannot bypass the disabled fallback, verifies both
+keyboard/button cancellation preserve dirty text, discards during the writer's
+debounce, reopens the clean disk content, and closes a clean tab without a dialogue.
+It passed with `PREVIEW_URL=http://127.0.0.1:5186/`. The targeted editor, workspace,
+draft-persistence and title unit suite passed 359 tests across 44 files.
+
+The native recovery fixture additionally sends Command-W while the unavailable
+file's recovered text has focus. It observes the existing discard dialogue,
+cancels it and verifies both tabs and the exact retained text remain. The focused
+native command above passed on macOS arm64, explicitly omitting native focus and
+fullscreen. Native **window** closure remains separate and still requires the
+pane-wide review/accessible recovery work described above. Untitled deletion,
+duplicate-view discard and rapid dialogue reopening during exit animation have
+not been established by these checks.
 
 ## Required acceptance before completion
 

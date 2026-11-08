@@ -69,6 +69,13 @@ export async function checkMissingResources(application, page, expect, dirtyText
   await expect(page.getByRole('dialog')).toContainText('Discard changes to README.md?');
   await page.getByRole('button', { name: 'Keep editing', exact: true }).click();
   await expect(recovered).toHaveValue(dirtyText);
+  await expect(page.getByRole('dialog')).toHaveCount(0);
+  await recovered.focus();
+  await page.keyboard.press('Meta+w');
+  await expect(page.getByRole('dialog')).toContainText('Discard changes to README.md?');
+  await page.getByRole('button', { name: 'Keep editing', exact: true }).click();
+  await expect(recovered).toHaveValue(dirtyText);
+  await expect(page.locator('[data-pane-tab]')).toHaveCount(2);
 
   // Contain Electron's real download within the fixture's temporary home.
   const native = await application.browserWindow(page);

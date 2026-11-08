@@ -1,3 +1,4 @@
+import { onDraftDiscard } from './draft-discard';
 import { useFileEditorSettings } from '../settings/file-editor-settings';
 import { useCallback, useEffect, useRef, useState, useSyncExternalStore } from 'react';
 import { toast } from 'sonner';
@@ -249,6 +250,7 @@ export function useEditorBuffer(
   useEffect(() => {
     if (!model || passive) return;
     const writer = draftWriter(session, path, root);
+    const stopDiscard = onDraftDiscard(session, path, root, writer.cancel);
     writerRef.current = writer;
     const sub = model.onDidChangeContent(() => {
       if (reloadingRef.current) return; // disk reload, not a user edit
@@ -256,6 +258,7 @@ export function useEditorBuffer(
       announceDraftUpdated(session, path, root);
     });
     return () => {
+      stopDiscard();
       writer.flush();
       sub.dispose();
       writerRef.current = null;

@@ -102,16 +102,14 @@ export function LazyEditorTabClose(props: {
   root?: string;
   label: string;
   onClose: () => void;
+  closeKey?: string;
 }) {
-  // Fallback: a plain close × (no dirty awareness) until the chunk lands.
+  // Never bypass dirty review while the editor's close policy is loading.
   return (
     <Suspense
       fallback={
         <button
-          onClick={(e) => {
-            e.stopPropagation();
-            props.onClose();
-          }}
+          disabled
           className="hidden size-4 items-center justify-center rounded-sm text-fg-muted transition-colors hover:text-fg group-hover:flex pointer-coarse:flex"
           aria-label={`Close ${props.label}`}
         >

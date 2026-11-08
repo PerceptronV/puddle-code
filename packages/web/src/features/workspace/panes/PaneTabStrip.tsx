@@ -1,3 +1,4 @@
+import { tabCloseKey } from '../tabs/close/TabCloseRequests';
 import { panePathLabel } from './pane-path';
 import './pane-tab-strip.css';
 import { useTrayHover } from '../../../components/ui/use-tray-hover';
@@ -704,6 +705,7 @@ function PaneTab({
                   <LazyFileEditorSettingsMenu tab={tab.tab} onOpenChange={setSettingsOpen} />
                 )}
                 <LazyEditorTabClose
+                  closeKey={tabCloseKey(leafId, key)}
                   session={tab.tab.session}
                   path={tab.tab.path}
                   kind={tabKind(tab.tab)}
