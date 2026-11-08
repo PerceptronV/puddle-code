@@ -76,6 +76,7 @@ import { desktopWindowContext } from '../windows/window-context';
 import { ProjectRecovery } from '../windows/recovery/ProjectRecovery';
 import { NativeWindowRecovery } from '../windows/recovery/NativeWindowRecovery';
 import { closeRecoveredFile } from '../windows/recovery/recovery-close';
+import { FileCloseScope } from './tabs/close/FileCloseScope';
 import { useCurrentProfileId } from '../profile/profile-store';
 
 /**
@@ -714,7 +715,7 @@ function WorkspaceInner() {
   if (!validProject) return null;
   if (windowIdentity && !project && detail.error && uiState.loaded && profileId)
     return (
-      <>
+      <FileCloseScope state={baseUiState}>
         <ProjectRecovery
           profileId={profileId}
           snapshot={baseUiState.snapshot}
@@ -726,7 +727,7 @@ function WorkspaceInner() {
           }
         />
         {drafts.dialogs}
-      </>
+      </FileCloseScope>
     );
   // The gate needs the project ROW, not its detail: within a profile the row is
   // already in hand when the URL changes, so switching projects renders straight
@@ -1056,8 +1057,10 @@ function WorkspaceInner() {
     </KeepAliveHost>
   );
   return (
-    <NativeWindowRecovery profileId={profileId} snapshot={baseUiState.snapshot}>
-      {workspace}
-    </NativeWindowRecovery>
+    <FileCloseScope state={baseUiState}>
+      <NativeWindowRecovery profileId={profileId} snapshot={baseUiState.snapshot}>
+        {workspace}
+      </NativeWindowRecovery>
+    </FileCloseScope>
   );
 }

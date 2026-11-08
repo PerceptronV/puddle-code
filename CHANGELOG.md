@@ -43,6 +43,7 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
+- Preserve shared dirty text and draft persistence when closing a duplicate file view; ask to discard only when its last view closes.
 - Reuse draft review when closing native panes with missing projects or profiles, expose orphaned drafts without remounting editors, and preserve independent cached edits when discarding recovery copies.
 - Wait for pending untitled-draft saves before approved deletion, prevent discard dialogues from reactivating closed tabs, and keep the last explicitly closed native window out of restart recovery.
 - Use the file tab's discard dialogue for keyboard closure too, retaining unsaved text on cancellation and preventing closure before the lazy dirty-file check loads.

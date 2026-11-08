@@ -9,6 +9,8 @@ import { measureNativeWindows } from './resources.mjs';
 import { checkNativeTitle, changeFullScreen } from './presentation.mjs';
 import { checkMissingResources } from './recovery.mjs';
 import { checkRecoveryClose } from './recovery-close.mjs';
+import { checkIndependentDrafts } from './duplicate-views.mjs';
+import { checkNotebookClose } from './notebook-close.mjs';
 import { checkCleanPaneClose, prepareUntitledClose, finishUntitledClose } from './close.mjs';
 
 const require = createRequire(import.meta.url);
@@ -131,6 +133,8 @@ try {
   await checkNativeTitle(application, project, expect, 'puddle');
   await checkCleanPaneClose(application, project, expect, state);
   await checkRecoveryClose(application, project, expect, state);
+  await checkIndependentDrafts(application, project, expect, state);
+  await checkNotebookClose(application, project, expect, state);
   assert.deepEqual(await application.evaluate(() => globalThis.nativePreviewConnections), {
     starts: 1,
     closes: 0,

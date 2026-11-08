@@ -823,9 +823,55 @@ tab-close regression. Recovery screenshots
 `/tmp/puddle-native-close-recovery.png` and `/tmp/puddle-native-orphan-recovery.png`
 were inspected; shared recovery actions stay grouped and the existing editor
 remains visible below the orphan disclosure. The broader acceptance requirements
-below remain open, including native focus/fullscreen, duplicate-view and
-notebook/preview close coverage, real transport/runtime recovery and interruption
-at every transfer phase.
+below remain open. The following increment adds duplicate-view and notebook
+close coverage; native focus/fullscreen, other preview surfaces, real
+transport/runtime recovery and interruption at every transfer phase remain open.
+
+### Duplicate views and notebook close — 2026-11-08
+
+Closing one duplicate file tab previously cancelled all writers and removed the
+file's native recovery readers even while another view retained its dirty model.
+The shared close control now counts the full renderer working set before discard:
+inactive tabs and parked project slices count, obsolete slices from the other
+layout mode do not. Session, path and root distinguish buffers; commit and
+untitled models are separate. Closing a duplicate preserves the model and draft;
+the final view uses the existing discard dialogue. Approval rechecks ownership
+in case another view appeared while the dialogue was open. The policy lives under
+`workspace/tabs/close/`, with the same scope around normal and recovery workspaces.
+
+The Chromium duplicate-view regression passed: drag a file from the explorer into
+a second pane, close one view without discard, verify the remaining model and
+IndexedDB draft, reload, cancel final-view close, then approve discard and reopen
+the clean disk content. The ordinary keyboard/button close regression also passed.
+Both are included in `test:preview`. Pure coverage includes inactive source,
+preview and diff references, root/session separation and authoritative project
+versus profile trees.
+
+The native recovery-only suite passed on macOS arm64 with two added scenarios:
+
+- Edit the same file differently in a project and pane window. Cancel pane close,
+  then discard its copy. The project's own text remains in its model and durable
+  native state, survives checkpoint/reload and continues persisting later edits.
+- Open a notebook in a pane, switch to notebook view and change the real cell
+  model through its normal change handler. Cancel native close, checkpoint/reload,
+  and verify the complete edited notebook JSON, saved output and execution count.
+  Explicit discard closes the pane without an observed file save or kernel action.
+  This is model/lifecycle coverage, not native OS keyboard-delivery verification.
+
+The full run also passed its existing quit/relaunch, renderer crash/reload,
+interruption, missing-resource and last-window-close checks, with no renderer
+console errors. An earlier run passed the scenarios but failed that final console
+check because the shared Vite dependency cache referenced a missing Python
+highlighting chunk. The successful run used a UI-only Vite server on port 5188
+with a separate temporary `cacheDir`, followed by
+`PUDDLE_NATIVE_RECOVERY_ONLY=1 PREVIEW_URL=http://127.0.0.1:5188/ pnpm --filter @puddle-code/desktop test:native-windows`.
+No console-error assertion was relaxed. No daemon or real kernel was started.
+
+All 598 selected unit tests across 84 files passed, alongside web TypeScript,
+targeted ESLint and formatting checks. Native focus/fullscreen remain explicitly
+omitted in this mode. Source/preview-pair transfer, active notebook execution and
+widgets, every transfer interruption phase, real host/runtime recovery and the
+other requirements below still need their own acceptance evidence.
 
 ## Required acceptance before completion
 

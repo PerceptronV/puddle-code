@@ -2366,6 +2366,16 @@ the draft. An unavailable renderer still needs reload before review. The last
 explicitly closed window is excluded from quit recovery even
 when Electron emits `window-all-closed` before its registry cleanup.
 
+File closure counts the complete renderer working set, including inactive tabs
+and parked project slices in the active layout mode. Closing one of several
+views keeps their shared dirty model, pending draft writes and native recovery
+registrations; only the final view requests discard. The check runs again at
+approval so a view opened during review retains the draft. Session/path/root
+identify the shared file; commit and untitled models remain separate. Independent
+native windows retain their own close review and recover their own dirty text
+after a sibling discards its copy. This policy lives with workspace tab closure
+and reuses the existing editor controls in healthy and recovery presentations.
+
 Document titles have one composition owner under `shell/title/`: the mounted
 workspace shows only its project name. An isolated pane shows its active file's
 basename or session label, following tab switches. App/host prefixes, suffixes and

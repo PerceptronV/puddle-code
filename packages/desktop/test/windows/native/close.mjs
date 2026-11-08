@@ -1,8 +1,8 @@
 /* global window, Response */
 import assert from 'node:assert/strict';
 
-export async function openFilePane(application, project, expect, state) {
-  await project.locator('[data-path="package.json"]').first().dblclick();
+export async function openFilePane(application, project, expect, state, path = 'package.json') {
+  await project.locator(`[data-path="${path}"]`).first().dblclick();
   await project
     .locator('[data-pane-tab^="editor:"]')
     .click({ button: 'right', position: { x: 10, y: 2 } });
