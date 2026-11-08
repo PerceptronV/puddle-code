@@ -1,7 +1,54 @@
 import { QueryClient } from '@tanstack/react-query';
 import type { UntitledFileResponse } from '@puddle/shared';
-import { describe, expect, it } from 'vitest';
-import { untitledQueryKey, updateCachedUntitled } from '../../../src/lib/queries/untitled-queries';
+import { afterEach, describe, expect, it, vi } from 'vitest';
+import {
+  deleteUntitled,
+  untitledQueryKey,
+  updateCachedUntitled,
+} from '../../../src/lib/queries/untitled-queries';
+
+afterEach(() => vi.unstubAllGlobals());
+
+describe('deleteUntitled', () => {
+  const respond = (status: number, code: string) => {
+    vi.stubGlobal('localStorage', { getItem: () => null });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () =>
+        Response.json({ error: { code, message: 'Draft unavailable' } }, { status }),
+      ),
+    );
+  };
+  it('accepts confirmed absence after explicit discard', async () => {
+    respond(404, 'not_found');
+    await expect(deleteUntitled('0000000001', 'untitled-1.md')).resolves.toBeUndefined();
+    expect(fetch).toHaveBeenCalledWith(
+      '/api/profiles/0000000001/untitled/untitled-1.md',
+      expect.objectContaining({ method: 'DELETE' }),
+    );
+  });
+  it.each([
+    [403, 'forbidden'],
+    [404, 'unknown'],
+    [500, 'internal_error'],
+  ])('retains failures for %s/%s', async (status, code) => {
+    respond(status as number, code as string);
+    await expect(deleteUntitled('0000000001', 'untitled-1.md')).rejects.toMatchObject({
+      status,
+      code,
+    });
+  });
+  it('does not turn lost replies into deletion success', async () => {
+    vi.stubGlobal('localStorage', { getItem: () => null });
+    vi.stubGlobal(
+      'fetch',
+      vi.fn(async () => {
+        throw new Error('Connection lost');
+      }),
+    );
+    await expect(deleteUntitled('0000000001', 'untitled-1.md')).rejects.toThrow('Connection lost');
+  });
+});
 
 describe('updateCachedUntitled', () => {
   it('makes the latest Monaco edit the source for a tab remount', () => {

@@ -1,4 +1,4 @@
-/* global window */
+/* global window, performance */
 import assert from 'node:assert/strict';
 import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
@@ -8,6 +8,7 @@ import { buildNativePreview } from './build.mjs';
 import { measureNativeWindows } from './resources.mjs';
 import { checkNativeTitle, changeFullScreen } from './presentation.mjs';
 import { checkMissingResources } from './recovery.mjs';
+import { checkRecoveryClose } from './recovery-close.mjs';
 import { checkCleanPaneClose, prepareUntitledClose, finishUntitledClose } from './close.mjs';
 
 const require = createRequire(import.meta.url);
@@ -53,6 +54,7 @@ const launch = async () => {
     timeout: 30_000,
   });
   application.process().stderr.on('data', (data) => process.stderr.write(data));
+  await application.context().addInitScript(() => performance.setResourceTimingBufferSize(10_000));
   application.process().stdout.on('data', (data) => process.stdout.write(data));
   application.on('window', (page) => page.on('pageerror', (error) => errors.push(error.message)));
 };
@@ -128,6 +130,7 @@ try {
   await expect.poll(async () => Object.keys((await state()).pending).length).toBe(0);
   await checkNativeTitle(application, project, expect, 'puddle');
   await checkCleanPaneClose(application, project, expect, state);
+  await checkRecoveryClose(application, project, expect, state);
   assert.deepEqual(await application.evaluate(() => globalThis.nativePreviewConnections), {
     starts: 1,
     closes: 0,

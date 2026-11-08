@@ -103,6 +103,7 @@ export function LazyEditorTabClose(props: {
   label: string;
   onClose: (signal?: AbortSignal) => void | Promise<boolean>;
   closeKey?: string;
+  recovered?: boolean;
 }) {
   // Never bypass dirty review while the editor's close policy is loading.
   return (
@@ -111,7 +112,9 @@ export function LazyEditorTabClose(props: {
         <button
           disabled
           className="hidden size-4 items-center justify-center rounded-sm text-fg-muted transition-colors hover:text-fg group-hover:flex pointer-coarse:flex"
-          aria-label={`Close ${props.label}`}
+          aria-label={
+            props.recovered ? `Discard recovered text for ${props.label}` : `Close ${props.label}`
+          }
         >
           ×
         </button>

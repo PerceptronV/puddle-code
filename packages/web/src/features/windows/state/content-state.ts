@@ -32,9 +32,14 @@ function referencedBuffers(snapshot: UiStateSnapshot): Set<string> {
 export class DesktopContentState implements WindowContentSource {
   private epoch = 0;
   private buffers = new Map<string, DesktopBufferSnapshot>();
+  private retained: readonly DesktopBufferSnapshot[] | null = null;
   private readonly readers = new Map<string, Set<() => DesktopBufferSnapshot | null>>();
   private views: Record<string, unknown> = {};
   private readonly listeners = new Set<() => void>();
+
+  /** Stable cached text for recovery UI; never reads live editor models during rendering. */
+  retainedBuffers = (): readonly DesktopBufferSnapshot[] =>
+    (this.retained ??= [...this.buffers.values()]);
 
   subscribe(listener: () => void): () => void {
     this.listeners.add(listener);
@@ -52,12 +57,14 @@ export class DesktopContentState implements WindowContentSource {
     const value = read();
     if (value) this.buffers.set(key, value);
     else this.buffers.delete(key);
+    this.retained = null;
     this.changed();
   }
 
   discardBuffer(identity: Pick<DesktopBufferSnapshot, 'session' | 'path' | 'root'>): void {
     const key = windowBufferKey(identity);
     this.buffers.delete(key);
+    this.retained = null;
     this.readers.delete(key);
     this.changed();
   }
@@ -85,6 +92,7 @@ export class DesktopContentState implements WindowContentSource {
         const value = read();
         if (value) this.buffers.set(key, value);
         else this.buffers.delete(key);
+        this.retained = null;
       }
       readers.delete(read);
       if (readers.size === 0) this.readers.delete(key);
@@ -117,12 +125,14 @@ export class DesktopContentState implements WindowContentSource {
       else buffers.delete(key);
     }
     this.buffers = buffers;
+    this.retained = null;
     return { buffers: [...buffers.values()], views: { ...this.views } };
   }
 
   restore(content: DesktopWorkspaceContent): void {
     this.epoch++;
     this.buffers = new Map(content.buffers.map((buffer) => [windowBufferKey(buffer), buffer]));
+    this.retained = null;
     this.views = { ...content.views };
   }
 }

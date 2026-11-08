@@ -74,6 +74,8 @@ import { workspaceTitle } from './workspace-title';
 import { useDocumentTitle } from '../shell/title/document-title';
 import { desktopWindowContext } from '../windows/window-context';
 import { ProjectRecovery } from '../windows/recovery/ProjectRecovery';
+import { NativeWindowRecovery } from '../windows/recovery/NativeWindowRecovery';
+import { closeRecoveredFile } from '../windows/recovery/recovery-close';
 import { useCurrentProfileId } from '../profile/profile-store';
 
 /**
@@ -711,7 +713,21 @@ function WorkspaceInner() {
 
   if (!validProject) return null;
   if (windowIdentity && !project && detail.error && uiState.loaded && profileId)
-    return <ProjectRecovery profileId={profileId} retry={() => void detail.refetch()} />;
+    return (
+      <>
+        <ProjectRecovery
+          profileId={profileId}
+          snapshot={baseUiState.snapshot}
+          retry={() => void detail.refetch()}
+          onClose={(paneId, ref, signal) =>
+            ref.type === 'editor' && ref.tab.kind === 'untitled'
+              ? drafts.requestDiscard(paneId, ref, signal)
+              : closeRecoveredFile(baseUiState, paneId, ref)
+          }
+        />
+        {drafts.dialogs}
+      </>
+    );
   // The gate needs the project ROW, not its detail: within a profile the row is
   // already in hand when the URL changes, so switching projects renders straight
   // into the new one (its session list arriving a beat later) instead of
@@ -833,7 +849,7 @@ function WorkspaceInner() {
   // open terminals keep their scrollback and PTY attachments. Under
   // project-based layout it also holds the OTHER projects' terminals (parked,
   // detached) so switching project parks them instead of rebuilding them.
-  return (
+  const workspace = (
     <KeepAliveHost
       tree={layout.tree}
       parked={[...parkedSessions, ...phoneVisited, ...(phoneSession ? [phoneSession] : [])]}
@@ -1038,5 +1054,10 @@ function WorkspaceInner() {
         </div>
       </TilingDnd>
     </KeepAliveHost>
+  );
+  return (
+    <NativeWindowRecovery profileId={profileId} snapshot={baseUiState.snapshot}>
+      {workspace}
+    </NativeWindowRecovery>
   );
 }

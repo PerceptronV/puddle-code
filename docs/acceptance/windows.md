@@ -1,6 +1,6 @@
 # Detached desktop windows
 
-Implementation in progress, 2026-11-07. Design intent is in
+Implementation in progress, 2026-11-08. Design intent is in
 [the roadmap](../roadmap/windows.md). This document records delivered code and
 verification; pending items are not support claims.
 
@@ -770,13 +770,62 @@ browser close regression passed, as did 606 tests across 83 shared, desktop-wind
 web-window, workspace, editor, draft-persistence and title files. Targeted lint and
 web/desktop TypeScript checks passed.
 
-Remaining close/recovery work: orphaned buffers and unavailable project/tab
-controls keep the pane open with an explanation rather than silently dropping
-text; their recovery surface still needs an explicit discard/close route. An
-unavailable renderer similarly needs reload before review. Missing-profile draft
-deletion, duplicate-view discard, notebook/preview-specific close state, and native
-crash/transfer interruption during every review phase remain unverified. These
-limitations do not change the broader acceptance requirements below.
+At this stage, orphaned buffers and unavailable project/tab controls kept the pane
+open without an explicit recovery discard route. The increment below adds that
+route and verifies missing-profile draft deletion. An unavailable renderer still
+needs reload before review. Duplicate-view discard, notebook/preview-specific
+close state, and native crash/transfer interruption during every review phase
+remain unverified.
+
+### Closing from draft recovery — 2026-11-08
+
+Native panes now reuse the existing file and untitled discard dialogues from the
+missing-project recovery surface. The fixed native profile remains selected when
+the profile disappears, keeping its retained drafts accessible. Confirmed
+`404/not_found` from an approved untitled DELETE allows the local draft to retire;
+permission failures, other errors and lost replies still retain it.
+
+Retained buffers without authoritative editable tabs appear in a collapsible
+recovery area above the existing workspace. Its child position stays stable, so
+showing recovery does not remount healthy editors. Recovery reads a cached buffer
+snapshot rather than querying Monaco during render. Each orphan can be copied,
+downloaded or explicitly discarded through the shared close dialogue. Orphan
+discard removes only this window's retained copy: it neither deletes a host file
+nor cancels/deletes an independently cached draft with the same identity. Native
+close reviews these copies before ordinary tabs, then uses the existing final
+main-process checkpoint.
+
+The extended isolated native fixture passed on macOS arm64 with the actual main
+process/preloads and synthetic host storage; CLI implementation remains excluded.
+Its new scenario verifies:
+
+- Revealing an orphan keeps the same Monaco editor ids and exact retained text.
+- Keeping the orphan or file during close leaves the pane and text available.
+- Removing both project and profile exposes file, untitled and orphan text in
+  recovery, with all three discard controls still reachable.
+- Approved orphan discard preserves independently stored IndexedDB text for the
+  same file. No file or untitled mutation occurs before explicit untitled discard.
+- Approved untitled discard receives canonical missing-profile confirmation,
+  closes the pane and removes its retained buffers from the native working set.
+
+The same run also passed existing host-independent lifetime, app quit/relaunch,
+renderer crash/Reload, forced app interruption, missing-resource retry/download,
+and last-window close checks. Run it with
+`PUDDLE_NATIVE_RECOVERY_ONLY=1 PREVIEW_URL=http://127.0.0.1:5186/ pnpm --filter @puddle-code/desktop test:native-windows`.
+This mode explicitly omits native focus/fullscreen and uses no live daemon or PTY.
+The fixture retains sufficient Resource Timing entries to resolve the loaded Vite
+modules and verifies injected recovery state through the native persistence bridge.
+
+All 596 selected tests across 83 shared/desktop-window/web-window/workspace/editor,
+untitled-query, draft-persistence and title files passed, as did web TypeScript,
+targeted formatting/ESLint checks and the ordinary Chromium keyboard/button
+tab-close regression. Recovery screenshots
+`/tmp/puddle-native-close-recovery.png` and `/tmp/puddle-native-orphan-recovery.png`
+were inspected; shared recovery actions stay grouped and the existing editor
+remains visible below the orphan disclosure. The broader acceptance requirements
+below remain open, including native focus/fullscreen, duplicate-view and
+notebook/preview close coverage, real transport/runtime recovery and interruption
+at every transfer phase.
 
 ## Required acceptance before completion
 

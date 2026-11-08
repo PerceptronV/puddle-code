@@ -1,5 +1,5 @@
 import { useEffect, useRef } from 'react';
-import { desktopPaneCloseReview } from '@puddle/shared';
+import { desktopPaneCloseReview, desktopPaneOrphanedBuffers } from '@puddle/shared';
 import { desktopBridge } from '../../../lib/desktop';
 import { desktopWindowContext } from '../window-context';
 import { desktopWorkingSet } from '../use-desktop-state';
@@ -7,6 +7,7 @@ import { desktopContentState } from '../state/content-state';
 import { cancelPaneClose, registerPaneClose } from './pane-close';
 import { tabCloseKey, useRequestEditorClose } from '../../workspace/tabs/close/TabCloseRequests';
 import { tabRefKey } from '../../workspace/layout/layout-tree';
+import { recoveryCloseKey } from '../recovery/recovery-close';
 
 /** Review one current tab at a time, then let main checkpoint and recheck all drafts. */
 export function usePaneClose(profileId: string | null) {
@@ -24,13 +25,13 @@ export function usePaneClose(profileId: string | null) {
       const content = desktopContentState(profileId);
       while (!signal.aborted && !owner.locked()) {
         const snapshot = owner.get();
-        const review = desktopPaneCloseReview({ snapshot, ...content.capture(snapshot) });
-        if (review.orphaned)
-          throw new Error('Recover the retained drafts before closing this pane');
+        const captured = { snapshot, ...content.capture(snapshot) };
+        const review = desktopPaneCloseReview(captured);
+        const orphan = desktopPaneOrphanedBuffers(captured)[0];
         const target = review.targets[0];
-        if (!target) break;
+        if (!target && !orphan) break;
         const accepted = await requestRef.current(
-          tabCloseKey(target.paneId, tabRefKey(target.ref)),
+          orphan ? recoveryCloseKey(orphan) : tabCloseKey(target!.paneId, tabRefKey(target!.ref)),
           signal,
           true,
         );

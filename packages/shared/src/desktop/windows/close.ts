@@ -5,7 +5,7 @@ const bufferKey = (buffer: Pick<DesktopBufferSnapshot, 'session' | 'path' | 'roo
   JSON.stringify([buffer.session, buffer.path, buffer.root ?? null]);
 
 /** Drafts without a visible tab still prohibit silently retiring a pane window. */
-export function desktopPaneCloseReview(content: DesktopWorkspaceContent) {
+function analyseClose(content: DesktopWorkspaceContent) {
   const remaining = new Set(content.buffers.map(bufferKey));
   const targets: Array<{ paneId: string; ref: TabRef }> = [];
   const visit = (node: LayoutNode | null) => {
@@ -21,5 +21,16 @@ export function desktopPaneCloseReview(content: DesktopWorkspaceContent) {
   if (content.snapshot.layout_mode === 'project') {
     for (const slice of Object.values(content.snapshot.project_layouts)) visit(slice.layout_tree);
   } else visit(content.snapshot.layout_tree);
+  return { targets, remaining };
+}
+
+export function desktopPaneCloseReview(content: DesktopWorkspaceContent) {
+  const { targets, remaining } = analyseClose(content);
   return { targets, orphaned: remaining.size, required: targets.length > 0 || remaining.size > 0 };
+}
+
+/** Retained text without an authoritative editable tab has a local recovery-copy policy. */
+export function desktopPaneOrphanedBuffers(content: DesktopWorkspaceContent) {
+  const { remaining } = analyseClose(content);
+  return content.buffers.filter((buffer) => remaining.has(bufferKey(buffer)));
 }

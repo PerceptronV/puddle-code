@@ -86,6 +86,7 @@ export function EditorTabClose({
   label,
   onClose,
   closeKey,
+  recovered = false,
 }: {
   session: string;
   path: string;
@@ -95,6 +96,7 @@ export function EditorTabClose({
   label: string;
   onClose: (signal?: AbortSignal) => void | Promise<boolean>;
   closeKey?: string;
+  recovered?: boolean;
 }) {
   const profileId = useCurrentProfileId();
   // Untitled drafts have their own workspace-owned deletion dialogue.
@@ -110,10 +112,12 @@ export function EditorTabClose({
   useEditorCloseRequest(closeKey, requestClose);
   const discard = () => {
     if (!pending || review.get() !== pending) return;
-    cancelDiscardedDraftWrites(session, path, root);
+    if (!recovered) cancelDiscardedDraftWrites(session, path, root);
     if (profileId) desktopContentState(profileId).discardBuffer({ session, path, root });
-    void deleteDraft(session, path, root);
-    announceDraftDiscarded(session, path, root);
+    if (!recovered) {
+      void deleteDraft(session, path, root);
+      announceDraftDiscarded(session, path, root);
+    }
     review.finish(pending, true);
     onClose();
   };
@@ -128,7 +132,7 @@ export function EditorTabClose({
         // Reveal for pointer hover, keyboard focus within the tab, and touch.
         // The floating tray reserves no label width.
         className="flex size-4 items-center justify-center rounded-sm text-fg-muted transition-colors hover:text-fg"
-        aria-label={`Close ${label}`}
+        aria-label={recovered ? `Discard recovered text for ${label}` : `Close ${label}`}
       >
         <X className="size-3" />
       </button>
@@ -141,9 +145,13 @@ export function EditorTabClose({
           onDoubleClick={(event) => event.stopPropagation()}
         >
           <DialogHeader>
-            <DialogTitle>Discard changes to {label}?</DialogTitle>
+            <DialogTitle>
+              {recovered ? `Discard recovered text for ${label}?` : `Discard changes to ${label}?`}
+            </DialogTitle>
             <DialogDescription>
-              This file has unsaved changes. Closing the tab will discard them.
+              {recovered
+                ? 'This removes the recovered copy from this window. Download or copy it first if you want to keep it.'
+                : 'This file has unsaved changes. Closing the tab will discard them.'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

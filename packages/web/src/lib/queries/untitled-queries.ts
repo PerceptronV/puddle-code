@@ -4,7 +4,7 @@ import type {
   PutUntitledResponse,
   UntitledFileResponse,
 } from '@puddle/shared';
-import { api } from '../transport/api';
+import { api, ApiError } from '../transport/api';
 
 /**
  * Untitled drafts (protocol 10.3, SPEC §8): worktree-agnostic scratch files
@@ -62,6 +62,13 @@ export function putUntitled(
   });
 }
 
-export function deleteUntitled(profileId: string, name: string): Promise<void> {
-  return api<void>('DELETE', `/api/profiles/${profileId}/untitled/${name}`);
+export async function deleteUntitled(profileId: string, name: string): Promise<void> {
+  try {
+    await api<void>('DELETE', `/api/profiles/${profileId}/untitled/${name}`);
+  } catch (error) {
+    // An approved discard can retire its local copy when the daemon confirms
+    // that the draft or its profile no longer exists. Other failures retain it.
+    if (!(error instanceof ApiError && error.status === 404 && error.code === 'not_found'))
+      throw error;
+  }
 }

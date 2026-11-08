@@ -1,7 +1,7 @@
 /* global window, Response */
 import assert from 'node:assert/strict';
 
-export async function checkCleanPaneClose(application, project, expect, state) {
+export async function openFilePane(application, project, expect, state) {
   await project.locator('[data-path="package.json"]').first().dblclick();
   await project
     .locator('[data-pane-tab^="editor:"]')
@@ -12,6 +12,11 @@ export async function checkCleanPaneClose(application, project, expect, state) {
   ]);
   await expect.poll(async () => Object.keys((await state()).pending).length).toBe(0);
   await pane.locator('[data-editor-surface] .monaco-editor').first().waitFor();
+  return pane;
+}
+
+export async function checkCleanPaneClose(application, project, expect, state) {
+  const pane = await openFilePane(application, project, expect, state);
   const { identity } = await pane.evaluate(() => window.puddleDesktop.windows.context());
   await Promise.all([
     pane.waitForEvent('close'),

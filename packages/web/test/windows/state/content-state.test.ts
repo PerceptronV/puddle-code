@@ -10,6 +10,25 @@ const buffer: DesktopBufferSnapshot = {
 };
 const empty = () => ({ snapshot: uiStateSnapshotSchema.parse({}), buffers: [], views: {} });
 
+it('exposes cached recovery text without reading models, and invalidates it on discard/restore', () => {
+  const state = new DesktopContentState();
+  state.restore({ ...empty(), buffers: [buffer] });
+  let reads = 0;
+  state.registerBuffer(buffer, () => {
+    reads++;
+    return buffer;
+  });
+  const retained = state.retainedBuffers();
+  expect(state.retainedBuffers()).toBe(retained);
+  state.setView('editor', { top: 10 });
+  expect(state.retainedBuffers()).toBe(retained);
+  expect(reads).toBe(0);
+  state.discardBuffer(buffer);
+  expect(state.retainedBuffers()).toEqual([]);
+  state.restore({ ...empty(), buffers: [buffer] });
+  expect(state.retainedBuffers()).toEqual([buffer]);
+});
+
 describe('desktop content handoff seam', () => {
   it('keeps dirty content after an inactive editor view unmounts', () => {
     const state = new DesktopContentState();

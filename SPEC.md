@@ -2355,9 +2355,15 @@ tabs remain. Repeated requests coalesce. App quit/checkpoint cancels pending rev
 and preserves the normal reopen set; approved individual discards remain applied
 if a later tab's review is cancelled. Untitled deletion waits for local draft PUTs
 before DELETE so cleanup cannot recreate the discarded draft. No close review
-stops terminal sessions or writes worktree files. Unavailable controls/orphaned
-drafts retain the window for recovery; that explicit recovery-discard route remains
-unfinished. The last explicitly closed window is excluded from quit recovery even
+stops terminal sessions or writes worktree files. Missing-project recovery reuses
+the same file/untitled review controls; detached windows retain their fixed profile
+identity when that profile disappears so retained text remains accessible. Drafts
+without authoritative tabs appear in a recovery disclosure without unmounting the
+healthy workspace. Their explicit discard removes only this window's recovery
+copy, leaving independently cached drafts intact. Approved untitled deletion accepts
+the daemon's canonical `404/not_found` as confirmed absence; other failures retain
+the draft. An unavailable renderer still needs reload before review. The last
+explicitly closed window is excluded from quit recovery even
 when Electron emits `window-all-closed` before its registry cleanup.
 
 Document titles have one composition owner under `shell/title/`: the mounted

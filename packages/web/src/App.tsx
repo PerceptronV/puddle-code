@@ -14,7 +14,7 @@ import { ShellLayout } from './features/shell/ShellLayout';
 import { tokenStore } from './lib/transport/auth';
 import { queryClient } from './lib/queries/client';
 import { useProfiles } from './lib/queries/queries';
-import { DesktopWindowGate } from './features/windows/window-context';
+import { DesktopWindowGate, desktopWindowContext } from './features/windows/window-context';
 import { ProjectWindowRouter } from './features/windows/navigation/project-router';
 
 // Route-level chunks: each page loads on first visit, not up front.
@@ -28,14 +28,19 @@ const Workspace = lazy(() =>
 function Gated() {
   const profileId = useCurrentProfileId();
   const profiles = useProfiles();
+  const nativeIdentity = desktopWindowContext()?.identity;
+  const fixedNativeProfile = nativeIdentity !== undefined && nativeIdentity.kind !== 'host';
   // A stored profile id that merely LOOKS valid (10-hex) but is no longer a real
   // profile — e.g. after a daemon change, or a stale id left in localStorage —
   // must fall back to the picker, not render a homepage bound to a profile that
   // doesn't exist (which showed a nameless "…" profile and an empty dashboard).
   // While the list is still loading we can't tell, so don't flash the picker.
+  // Detached windows retain their fixed identity so missing-profile drafts can
+  // still be recovered or explicitly discarded in their workspace.
   const unknownProfile =
     profileId !== null &&
     profiles.data !== undefined &&
+    !fixedNativeProfile &&
     !profiles.data.some((p) => p.id === profileId);
   const choosingProfile = profileId === null || unknownProfile;
   return (

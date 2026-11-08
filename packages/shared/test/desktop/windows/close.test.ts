@@ -1,6 +1,7 @@
 import { expect, it } from 'vitest';
 import {
   desktopPaneCloseReview,
+  desktopPaneOrphanedBuffers,
   desktopWorkspaceContentSchema,
   type TabRef,
 } from '../../../src/index.js';
@@ -47,7 +48,9 @@ it('retains orphaned or differently rooted drafts instead of treating unrelated 
     buffers: [{ ...buffer, root: '/another-root' }],
   });
   expect(desktopPaneCloseReview(content)).toEqual({ targets: [], orphaned: 1, required: true });
+  expect(desktopPaneOrphanedBuffers(content)).toEqual([{ ...buffer, root: '/another-root' }]);
   content.buffers = [buffer];
+  expect(desktopPaneOrphanedBuffers(content)).toEqual([]);
   expect(desktopPaneCloseReview(content)).toEqual({
     targets: [{ paneId: 'pane', ref: file }],
     orphaned: 0,
