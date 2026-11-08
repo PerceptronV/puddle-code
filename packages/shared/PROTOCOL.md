@@ -618,6 +618,12 @@ Its introduction changes no wire shape or protocol version.
 
 ## Non-bumps worth recording
 
+- **Huddle definition foundation (2026-11-08)**: new local document/component
+  schemas and graph/binding validation are preparatory only. No existing REST,
+  WS, runtime IPC, session-kind or saved-tab schema changes, and no huddle
+  capability is advertised. Protocol versions remain unchanged until the
+  corresponding application/runtime integration is implemented.
+
 - **Phase 6 serving switch (2026-07-14)**: the CLI took over UI serving and
   the daemon's default port moved 7433 → 7434. Verified non-wire-affecting —
   no schema changed, ports are deployment configuration (the Host/Origin

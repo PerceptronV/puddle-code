@@ -1332,6 +1332,25 @@ All timestamps are ISO 8601 UTC. Git operations against a given repository (work
 
 ## 4. Session state machine
 
+### Huddle definition foundation (not yet enabled)
+
+Format-1 huddle document contracts and graph/binding validation live in
+`shared/api/huddle/` and `shared/huddle/validation/`. Each project worktree may
+contain multiple `.puddle/huddle/<32-lowercase-hex-id>/` definitions. Their ids
+match directory names; display names are independent. Nodes reference a pinned
+builtin component or a local JSON manifest with an entry point and explicit
+dependencies. Bindings distinguish literals from named variables. File/Git/session
+operations require an explicit worktree binding. Typed feedback edges permit
+bounded two-agent cycles; removing those edges must leave an acyclic graph.
+
+Daemon `huddle/definitions/` performs data-only discovery and bounded source
+capture with revision hashes, rejecting symlink/traversal escapes and detected
+concurrent edits. It does not execute scripts or create runtime/session records.
+There is no huddle API, runtime capability or UI yet; existing sessions and
+protocols remain unchanged. Contracts, bounds, verification and unfinished
+work are recorded in [huddle acceptance](docs/acceptance/huddle.md); the complete
+design is in the [roadmap](docs/roadmap/huddle.md).
+
 ### Puddlang runs
 
 Script execution is separate from placements, native conversations and runtimes.

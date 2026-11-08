@@ -22,6 +22,7 @@ packages/
 │   ├── src/host/         # shared service definitions/commands plus supervision/ identity inspection
 │   ├── src/agents/       # adapters own flags, cached native catalogue discovery, and exact lifecycle integration
 │   ├── src/puddlang/     # trusted TypeScript runner, bounded operations and durable run/event records
+│   ├── src/huddle/       # definitions/: data-only graph discovery and bounded source capture; runtime/UI not enabled yet
 │   ├── src/compilation/  # provider-neutral compile modes, scheduling, dependency observation, and artefacts
 │   ├── src/code/         # manual single-file execution recipes, host tool discovery and managed output
 │   ├── src/latex/        # local TeX discovery/recipes, managed outputs, and inverse SyncTeX
@@ -95,6 +96,7 @@ context. Session sidebar presentations live under `workspace/sessions/sidebar/`,
 sharing the workspace-owned selection controller and session action policy.
 
 Within `shared/src/api/`, schemas are grouped into `agents/`, `connection/`,
+`huddle/` (preparatory document contracts, not an enabled API),
 `notebooks/`, `workspace/` and `worktrees/`; common and smaller host/execution
 schemas remain at the root. `shared/src/index.ts` remains the public export surface.
 Daemon HTTP routes group worktree handlers under `http/routes/worktrees/` and
@@ -520,6 +522,15 @@ supervised one.
 - Remote Settings pairs this device through `PairDeviceDialog` (camera or pasted link); host registration starts on desktop. Keep scans inside the current app context so a Home Screen app uses its own IndexedDB identity. Validate invitations through the shared schema and retain exact host approval. Camera frames are decoded locally, and tracks stop on dismissal/backgrounding, including late permission grants. The application permits its own camera; sandboxed previews deny it.
 
 ## Housekeeping — read this, future agents
+
+Huddle implementation follows `docs/roadmap/huddle.md`; record shipped contracts,
+tests and open gates in `docs/acceptance/huddle.md`. Definitions live separately
+under `.puddle/huddle/<random-hex-id>/` in the explicitly declared worktree. Shared
+graph/value/binding validation lives in `shared/src/huddle/validation/`; keep it
+data-only and do not infer runtime support from the existence of document schemas.
+The user permits breaking puddlang redesign during huddle work, while existing
+agent/terminal runtime compatibility remains required. Organise each layer by
+responsibility and keep UI, runtime, source definitions and private state separate.
 
 Notebook widgets use a persistent, separately addressed Jupyter IOPub subscriber
 alongside cell execution. Protocol 25.4 exposes bounded widget snapshots/events
