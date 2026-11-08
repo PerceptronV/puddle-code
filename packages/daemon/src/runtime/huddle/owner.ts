@@ -30,6 +30,7 @@ import { HuddleGitController } from './triggers/git/controller.js';
 import { HuddleFiletreeController } from './triggers/filetree/controller.js';
 import { requireHuddleFeatures } from './triggers/definitions.js';
 import { HuddleOperationMailbox } from './operations/mailbox.js';
+import { HuddleCustomTriggerController } from './triggers/custom/controller.js';
 
 /** One independent graph owner. It never opens the application's database or creates a PTY. */
 export class HuddleOwner {
@@ -44,6 +45,7 @@ export class HuddleOwner {
   private readonly git: HuddleGitController;
   private readonly sessions: HuddleSessionController;
   private readonly completions: HuddleCompletionController;
+  private readonly custom: HuddleCustomTriggerController;
   private status: HuddleOwnerState['state'] = 'running';
   private failure: string | null = null;
   private observation = 0;
@@ -148,6 +150,24 @@ export class HuddleOwner {
           ),
         memory.allowance,
       );
+      this.custom = new HuddleCustomTriggerController(
+        this.ledger,
+        this.store,
+        launch.capabilities,
+        {
+          nodePath: process.execPath,
+          entryPath: realpathSync(workerEntry),
+          allowance: memory.allowance,
+        },
+        () => this.drive(),
+        () => this.persist(),
+        (error) => this.triggerFailure(error),
+        () =>
+          requireHuddleDefinitionLocation(
+            launch.identity.canonical_worktree_path,
+            launch.scope.huddleId,
+          ),
+      );
       this.transport = new HuddleOwnerServer(home, launch, memory.allowance, (request) =>
         this.execute(request),
       );
@@ -214,8 +234,24 @@ export class HuddleOwner {
       executing: this.driving !== null,
       commandCursor: this.transport.commandCursor,
       control: this.ledger.activations.current(),
-      liveWorkers: this.scheduler.hasLiveWorkers,
+      liveWorkers: this.scheduler.hasLiveWorkers || this.custom.hasLiveWorkers,
       failure: this.failure,
+      ...(launch.capabilities.customTriggers === 1
+        ? {
+            customTriggers: this.ledger.customTriggers
+              .list()
+              .filter(
+                (source) => source.activationId === this.ledger.activations.current().activationId,
+              )
+              .map((source) => ({
+                node: source.node,
+                health:
+                  source.health.state === 'gap'
+                    ? { state: 'gap', message: source.health.message }
+                    : source.health,
+              })),
+          }
+        : {}),
     });
   }
   private persist() {
@@ -389,7 +425,7 @@ export class HuddleOwner {
       this.interrupting = this.scheduler.halt('interrupted', 'Huddle interrupted by controller');
       try {
         await this.interrupting;
-        await Promise.all([this.filetrees.settled(), this.git.settled()]);
+        await Promise.all([this.filetrees.settled(), this.git.settled(), this.custom.settled()]);
         await this.driving;
         this.persist();
       } catch (error) {
@@ -486,6 +522,7 @@ export class HuddleOwner {
     this.git.stop();
     this.sessions.stop();
     this.completions.stop();
+    this.custom.stop();
   }
   private triggerFailure(error: unknown) {
     this.stopTriggers();
@@ -504,7 +541,7 @@ export class HuddleOwner {
     const epoch = this.triggerEpoch;
     const current = () => epoch === this.triggerEpoch && !this.stopping && !this.interrupting;
     try {
-      await Promise.all([this.filetrees.settled(), this.git.settled()]);
+      await Promise.all([this.filetrees.settled(), this.git.settled(), this.custom.settled()]);
       if (!current()) return;
       this.persist();
       await this.filetrees.refresh();
@@ -515,6 +552,8 @@ export class HuddleOwner {
       if (this.failure) throw new Error(this.failure);
       this.sessions.refresh(baseline);
       this.completions.refresh(completionBaselines);
+      await this.custom.refresh();
+      if (!current()) return;
       this.timers.refresh();
     } catch (error) {
       if (!current()) return;
@@ -536,9 +575,9 @@ export class HuddleOwner {
       this.persist();
       await this.interrupting;
       await this.scheduler.halt('stopped', 'Huddle owner stopped');
-      await Promise.all([this.filetrees.settled(), this.git.settled()]);
+      await Promise.all([this.filetrees.settled(), this.git.settled(), this.custom.settled()]);
       await this.driving;
-      if (this.scheduler.hasLiveWorkers)
+      if (this.scheduler.hasLiveWorkers || this.custom.hasLiveWorkers)
         throw new Error('Huddle worker termination remains unknown');
       await this.transport.close();
       this.status = 'exited';

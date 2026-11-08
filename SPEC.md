@@ -1350,8 +1350,8 @@ concurrent edits. It does not execute scripts or create runtime/session records.
 Shared event/delivery contracts retain exact turn identity and separate unknown
 delivery from success. The internal `puddlang/huddle/` node boundary validates
 inputs, settings, outputs and acknowledged event emissions, with immutable values
-and cancellation checks. Local readout execution is described below; custom trigger
-subscriptions remain unfinished. `pudl run` does not expose the huddle import yet.
+and cancellation checks. Local readout execution and custom trigger subscriptions
+are described below. `pudl run` does not expose the huddle import yet.
 `runtime/huddle/state/` supplies the private owner-local SQLite ledger: atomic
 trigger/cursor admission, bounded node attempts and outbox routing, retained
 execution budgets and single-consumption operation intent. Capacity reservations
@@ -1390,7 +1390,22 @@ are eligible. Observation shares worker/memory limits and cancellation with a
 30-second deadline, rejects agent operations/events, and retains known receipts
 without resending or continuing the graph. Acceptance is separate from completion;
 lost replies and history refresh never trigger another worker. Offline reconciliation,
-automatic owner-crash recovery and custom trigger subscriptions remain pending.
+and automatic owner-crash recovery remain pending.
+Application 28.7 and optional runtime `customTriggers: 1` add project-local
+HuddleTrigger subscriptions under `runtime/huddle/triggers/custom/`. Captured
+manifest policy declares `continue|fresh` resume. Up to eight independent bounded
+workers retain source cursors in the private ledger; accepted root events and
+cursor advancement commit together. Scoped stable ids deduplicate lost acknowledgements
+without rewinding progress. Checkpoints record baselines/empty pages without graph
+work. Apply creates a fresh source namespace; Resume follows the declared policy.
+Workers survive controller/frontend disconnection and share managed host memory
+admission, bounded calls/logs and positive-exit lifecycle fencing. Startup has a
+ten-second deadline; opened subscriptions have no lifetime request/deadline cap.
+Source gaps stop only that adapter. Unknown termination or persistence failure
+blocks clean owner retirement. Trigger workers cannot dispatch agent operations.
+Opt-in `include_custom_triggers=true` runtime inspection exposes cursor-free health
+to the IDE while preserving older strict response shapes. See
+[custom trigger usage](docs/huddle/triggers.md) and the acceptance document for limits.
 Private immutable revision documents and compare-and-swap activation records
 separate source publication from Apply/arming. Managed executions retain their
 accepted revision, variable values and resource bindings across later Apply.

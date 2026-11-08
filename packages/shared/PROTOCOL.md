@@ -1,5 +1,29 @@
 # The puddle communication protocol
 
+Application **28.7** adds optional local trigger manifest policy
+`trigger: { resume: 'continue' | 'fresh' }`, required for local trigger entries.
+Optional huddle role capability `customTriggers: 1` gates launch/Apply/adoption.
+`GET /api/huddle/:profile/sessions/:sid/runtime?include_custom_triggers=true`
+opts into `owner.custom_triggers` on supporting connected owners: at most eight
+node/health entries, with messages but no private cursor. Omit the field unless
+requested, preserving older strict clients and ordinary mutation response shapes.
+The UI requires application 28.7 before requesting it.
+
+Private worker transport adds `subscribe` jobs (captured closure, subscription id,
+parameters/bindings and cursor), `opened` readiness, and acknowledged `trigger-emit`,
+`trigger-checkpoint` and `trigger-health` calls. Subscription requests carry a
+monotonic safe-integer sequence; bounded pending/rate windows replace the ordinary
+script lifetime request-id set. Startup remains bounded; readiness clears that
+deadline. Ordinary script/readout request bounds remain unchanged. Eight private
+ledger source slots retain cursor, health and exact activation/generation. Emission
+commits source progress with event/root admission, preserving deduplication after
+lost acknowledgement. Interrupt/Stop/Apply fence callbacks and wait for worker exit.
+A source failure is isolated; unknown termination/persistence prevents clean owner
+retirement. Optional owner-state `customTriggers` contains only public health.
+Application API additions are opt-in; ordinary runtime protocol 1.2, remote protocol
+5, database 47 and huddle owner/ledger versions are unchanged. Old huddle owners
+remain supported but cannot execute graphs requiring custom subscriptions.
+
 Application **28.6** adds local/SSH
 `POST /api/huddle/:profile/sessions/:sid/readouts/observe`, binding a reviewed owner,
 activation/generation and operation id. The response acknowledges acceptance only.

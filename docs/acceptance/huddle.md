@@ -12,6 +12,7 @@ Application 28.3 adds editable agent templates and feedback settings.
 Application 28.4 adds guarded absent-file creation and layout editing.
 Application 28.5 adds local readout delivery declarations and execution.
 Application 28.6 adds explicit readout observation and the history action.
+Application 28.7 adds local custom trigger workers and opt-in source health.
 Runtime archives declare their internal huddle-role contracts;
 application 27.0 now includes huddle session identity and migration 43 records
 placements/owner roles. The daemon launcher and lifecycle controls now integrate
@@ -30,6 +31,68 @@ interactive, structured Codex and command-correlated headless controls. Automati
 delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 No user CLI command is enabled yet.
+
+## Implemented: custom trigger subscriptions
+
+Application **28.7** and optional `customTriggers: 1` admit local HuddleTrigger
+components. Their captured manifests declare `trigger.resume: continue|fresh`;
+source/settings reads stay data-only. `puddlang/huddle/trigger.ts` and
+`execute-trigger.ts` validate inert adapters, immutable settings/bindings/cursors,
+output contracts and acknowledged emit/checkpoint/health calls. The existing
+captured-source runner owns subscriptions, with no new package entry or arbitrary
+uncaptured dependency loading. See [authoring guide](../huddle/triggers.md).
+
+`runtime/huddle/triggers/custom/` owns at most eight independent source workers,
+separate from graph concurrency. Each shares host admission through a 160 MiB
+managed allowance, with 128 MiB heap, ten-second startup deadline, bounded framing,
+64 pending calls, 64 SDK requests per second and 1 MiB logging per minute. The
+receiver permits two sender bursts per second for unaligned windows. Once opened,
+idle sources have no lifetime deadline and no growing request-id set. Unknown
+termination retains resources/ownership; Interrupt, Stop and Apply invalidate
+callbacks before cancellation and require positive exit before replacement.
+
+Eight fixed private `custom-sources` slots retain exact subscription identity,
+activation, generation, revision, cursor and health. Emissions hash stable external
+ids with the retained subscription identity. Scope and applicable worktree come
+from the retained activation, never adapter input. Validated root events, budgets
+and cursor progress commit atomically. Duplicate acknowledgements never rewind
+cursors; conflicting repeated payload/cursor is refused. Checkpoints allow
+baselines/empty pages without executions. Cursors are limited to 64 KiB. Continue
+resumes retained progress after Interrupt/Resume; fresh creates a new namespace
+with null cursor. Apply always creates a new activation namespace. Source gaps and
+closed health are terminal until explicit rearm; a failed adapter does not stop
+healthy sources. Persistence/termination uncertainty blocks clean owner retirement.
+
+Triggers cannot call agent operations. File/Git/session capabilities still require
+an explicit registered worktree. Session selectors are observational bindings.
+No new HTTP mutation is introduced. Runtime inspection requires
+`include_custom_triggers=true` to expose cursor-free node health; ordinary/older
+strict responses remain unchanged. The IDE displays custom source health beside
+the execution controls and opens the details for gaps.
+
+Verification, 2026-11-08:
+
+- Seventeen focused custom-trigger tests passed: atomic rollback on injected
+  persistence failure, deduplication after ledger reopen, cursor policies and stale
+  callback refusal; real worker admission/cleanup, bad-output/crash/gap/flood/agent
+  refusal and healthy-source isolation; startup timeout, idle lifetime and frozen
+  settings; bounded pending calls and 5,000 acknowledged sequential calls.
+- The isolated HTTP/runtime test checks capability refusal before launch, opt-in
+  health and older response shape, source events after controller disconnection,
+  retained cursor on Resume and cleanup on Interrupt/Stop. It uses a staged test
+  runtime and temporary project, never the user's daemon.
+- Headless UI preview verifies visible gaps alongside healthy sources, health
+  refresh and unchanged lifecycle dispatch. A collapsed-list locator was corrected
+  to await refreshed hidden content; this was a test-fixture failure.
+- The final combined worker/readout, scheduler, owner/adoption, binding and
+  shared-schema regression run passed **206 tests in 41 files**, including all
+  custom-trigger checks. Shared/daemon/CLI and web TypeScript, repository ESLint,
+  Prettier and semantic colour/contrast checks passed. Earlier multi-source
+  fixture errors were corrected before this run.
+
+This does not establish real integration/provider, SSH, native supervision,
+owner-crash replacement or reboot continuity. Managed integration secrets, unified
+built-in source health/backlog UI and agent-authoring skills remain unfinished.
 
 ## Implemented: explicit readout observation
 
@@ -1371,8 +1434,8 @@ explicit Start after clean Stop creates a new runtime.
 This slice runs queued manual inputs, local script nodes and built-in result
 readouts. Explicit literal/variable worktree settings resolve to canonical roots
 registered to the definition's project. Supporting owners now also admit declared
-session resources and attach/ask scripts. Account/project/provider selectors and
-local trigger adapters remain rejected; custom readouts are covered above. Cross-project binding remains
+session resources and attach/ask scripts. Account/project/provider selectors remain
+rejected; custom trigger subscriptions and readouts are covered above. Cross-project binding remains
 unfinished. Scripts retain the trusted-code execution model; these checks are not
 an OS sandbox.
 
@@ -2203,7 +2266,7 @@ workers without renderer participation. `control/manual.ts` admits idempotent
 manual events; `shared/huddle/components/core.ts` provides the initial Run trigger and
 result readout contracts. The scheduler runs local script components and stores
 result-readout input in the retained invocation. It refuses unsupported built-in
-contracts and local trigger adapters; custom readouts are covered above. Coalescing/drop admission is refused
+contracts; custom trigger workers and readouts are covered above. Coalescing/drop admission is refused
 until those policies are implemented. The independent owner entry point below
 now composes these helpers; public creation/Run and interval triggers are documented above.
 
@@ -2451,7 +2514,7 @@ scheduler composed in an independent owner process, now exposed through local/SS
 lifecycle and live-history APIs with IDE controls. Next complete retained/offline
 history, active-revision detail, the exact-operation
 bridge, host resource accounting and lifecycle fencing. Finish settings,
-actual trigger/readout adapters, provider-backed lifecycle nodes,
+additional integration adapters, provider-backed lifecycle nodes,
 authoring tools/docs/skills and packaged integration.
 
 All live provider, SSH, native window, supervisor, complete owner crash/reboot, trigger cadence,

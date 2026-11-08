@@ -98,13 +98,13 @@ it('resolves explicit worktree variables to registered canonical roots and rejec
   }
 });
 
-it('refuses bridge and adapter features before execution and validates variables even in an empty graph', () => {
+it('refuses unavailable bridges, admits custom trigger bindings and validates variables in an empty graph', () => {
   const snapshot = schedulerSnapshot('a'.repeat(32), '');
   snapshot.components.worker!.capabilities = ['sessions'];
   expect(() => huddleExecutionBindings(snapshot, {}, [])).toThrow('bridge');
   snapshot.components.worker!.capabilities = [];
   snapshot.components.worker!.category = 'trigger';
-  expect(() => huddleExecutionBindings(snapshot, {}, [])).toThrow('adapters');
+  expect(huddleExecutionBindings(snapshot, {}, [])).toEqual({});
   snapshot.definition.nodes = [];
   snapshot.definition.variables = { required: { schema: { type: 'boolean' }, required: true } };
   expect(() => huddleExecutionBindings(snapshot, {}, [])).toThrow('Missing huddle variable');

@@ -97,6 +97,7 @@ export class HuddleExecutionService {
     id: string,
     authority: Authority,
     includeReadoutObservation = false,
+    includeCustomTriggers = false,
   ): Promise<HuddleRuntimeInspection> {
     const scope = this.scope(profile, id, authority);
     const binding = this.deps.runtimes.ownerOf(id);
@@ -127,6 +128,11 @@ export class HuddleExecutionService {
           failure: state.failure,
           ...(includeReadoutObservation && state.capabilities.readoutObservation === 1
             ? { readout_observation: true as const }
+            : {}),
+          ...(includeCustomTriggers &&
+          state.capabilities.customTriggers === 1 &&
+          state.customTriggers
+            ? { custom_triggers: state.customTriggers }
             : {}),
         },
       };

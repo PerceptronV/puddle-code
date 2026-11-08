@@ -188,6 +188,8 @@ export class HuddleAttempts {
               throw new Error('Huddle host operation bridge is unavailable');
             return this.options.operation(message, invocation, signal);
           }
+          if (message.action.kind !== 'emit')
+            throw new Error('Node workers cannot control trigger subscriptions');
           const { port, value, sequence } = message.action;
           if (readout) throw new Error('Readout outputs require confirmed delivery');
           const contract = component.outputs[port];

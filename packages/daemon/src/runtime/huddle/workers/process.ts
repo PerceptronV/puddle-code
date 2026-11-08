@@ -3,10 +3,12 @@ import type { Socket } from 'node:net';
 import {
   HUDDLE_WORKER_LIMITS,
   huddleWorkerJobSchema,
+  huddleTriggerWorkerJobSchema,
   huddleWorkerMessageSchema,
   huddleWorkerInputSchema,
   type HuddleJson,
   type HuddleWorkerJob,
+  type HuddleTriggerWorkerJob,
   type HuddleWorkerRequest,
 } from '@puddle/shared';
 import { readRuntimeFrames, writeRuntimeFrame } from '../../transport/framing.js';
@@ -27,6 +29,7 @@ export interface HuddleWorkerOptions {
   /** The owner validates scope and commits effects/emissions before resolving. */
   request(message: HuddleWorkerRequest, signal: AbortSignal): Promise<HuddleJson>;
   log?(stream: 'stdout' | 'stderr', text: string): void;
+  opened?(): void;
 }
 
 /** Failure to observe process exit is not permission to replay this invocation. */
@@ -46,7 +49,7 @@ export interface HuddleWorkerHandle {
 
 /** One bounded child process; the lifecycle owner retains responsibility for its service scope. */
 export function startHuddleWorker(
-  input: HuddleWorkerJob,
+  input: HuddleWorkerJob | HuddleTriggerWorkerJob,
   options: HuddleWorkerOptions,
 ): HuddleWorkerHandle {
   options.signal?.throwIfAborted();
@@ -56,9 +59,12 @@ export function startHuddleWorker(
     options.timeoutMs > 86_400_000
   )
     throw new Error('Invalid huddle worker deadline');
-  const job = huddleWorkerJobSchema.parse(input);
+  const continuous = 'subscriptionId' in input;
+  const job = continuous
+    ? huddleTriggerWorkerJobSchema.parse(input)
+    : huddleWorkerJobSchema.parse(input);
   checkedWorkerSource(job);
-  const start = { type: 'start', job };
+  const start = { type: continuous ? 'subscribe' : 'start', job };
   runtimeJsonBytes(start); // Reject an oversized encoded bundle before spawning a process.
   const buffers = new RuntimeTransportBuffers(options.allowance);
   const abort = new AbortController();
@@ -83,6 +89,11 @@ export function startHuddleWorker(
   let settled = false;
   let channelClosed = false;
   let logged = 0;
+  let logWindow = performance.now();
+  let requestWindow = performance.now();
+  let requestCount = 0;
+  let sequence = 0;
+  let opened = false;
   let killTimer: ReturnType<typeof setTimeout> | undefined;
   let observationTimer: ReturnType<typeof setTimeout> | undefined;
   let deadline: ReturnType<typeof setTimeout> | undefined;
@@ -146,6 +157,13 @@ export function startHuddleWorker(
     if (failure || settled) return;
     const message = huddleWorkerMessageSchema.parse(raw);
     if (final !== undefined) throw new Error('Huddle worker sent data after completion');
+    if (message.type === 'opened') {
+      if (!continuous || opened) throw new Error('Unexpected subscription readiness');
+      opened = true;
+      clearTimeout(deadline);
+      options.opened?.();
+      return;
+    }
     if (message.type === 'failed') return fail(new Error(message.error));
     if (message.type === 'finished') {
       if (pending.size) throw new Error('Node finished with unawaited owner requests');
@@ -153,13 +171,22 @@ export function startHuddleWorker(
       settle();
       return;
     }
+    if (continuous && performance.now() - requestWindow >= 1000) {
+      requestWindow = performance.now();
+      requestCount = 0;
+    }
     if (
       pending.size >= HUDDLE_WORKER_LIMITS.pending ||
-      seen.size >= HUDDLE_WORKER_LIMITS.requests ||
-      seen.has(message.id)
+      pending.has(message.id) ||
+      (continuous
+        ? // Sender/receiver windows need not align; permit two bounded sender bursts.
+          message.sequence !== sequence + 1 ||
+          ++requestCount > 2 * HUDDLE_WORKER_LIMITS.subscriptionRequestsPerSecond
+        : seen.size >= HUDDLE_WORKER_LIMITS.requests || seen.has(message.id))
     )
       throw new Error('Huddle worker request identity/capacity exceeded');
-    seen.add(message.id);
+    if (continuous) sequence = message.sequence!;
+    else seen.add(message.id);
     pending.add(message.id);
     const task = async () => {
       if (
@@ -232,6 +259,10 @@ export function startHuddleWorker(
     for (const stream of ['stdout', 'stderr'] as const)
       child[stream]?.on('data', (chunk: Buffer) => {
         if (settled || failure) return;
+        if (continuous && performance.now() - logWindow >= 60_000) {
+          logWindow = performance.now();
+          logged = 0;
+        }
         logged += chunk.byteLength;
         if (logged > HUDDLE_WORKER_LIMITS.logBytes)
           return fail(new Error('Huddle worker log limit exceeded'));

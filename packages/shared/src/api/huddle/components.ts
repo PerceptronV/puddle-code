@@ -36,6 +36,7 @@ export const huddleComponentSchema = z
       .max(5)
       .default([]),
     activation: z.enum(['all', 'any']).default('all'),
+    trigger: z.strictObject({ resume: z.enum(['continue', 'fresh']) }).optional(),
     readout: z
       .strictObject({
         idempotent: z.boolean(),
@@ -48,6 +49,18 @@ export const huddleComponentSchema = z
     dependencies: z.array(huddleRelativePathSchema).max(HUDDLE_LIMITS.files).default([]),
   })
   .superRefine((component, ctx) => {
+    if (component.category === 'trigger' && component.entry && !component.trigger)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['trigger'],
+        message: 'Local triggers must declare resume behaviour',
+      });
+    if (component.trigger && component.category !== 'trigger')
+      ctx.addIssue({
+        code: 'custom',
+        path: ['trigger'],
+        message: 'Subscription policy belongs to a trigger',
+      });
     if (component.category === 'readout' && component.entry && !component.readout)
       ctx.addIssue({
         code: 'custom',

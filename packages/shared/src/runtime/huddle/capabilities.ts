@@ -17,6 +17,7 @@ export const huddleRuntimeCapabilitiesSchema = z.strictObject({
   completionPlans: version.optional(),
   readouts: version.optional(),
   readoutObservation: version.optional(),
+  customTriggers: version.optional(),
 });
 export type HuddleRuntimeCapabilities = z.infer<typeof huddleRuntimeCapabilitiesSchema>;
 export const HUDDLE_RUNTIME_CAPABILITIES: Readonly<HuddleRuntimeCapabilities> = Object.freeze({
@@ -34,6 +35,7 @@ export const HUDDLE_RUNTIME_CAPABILITIES: Readonly<HuddleRuntimeCapabilities> = 
   completionPlans: 1,
   readouts: 1,
   readoutObservation: 1,
+  customTriggers: 1,
 });
 
 export function supportsHuddleRuntime(value: unknown): value is HuddleRuntimeCapabilities {
@@ -51,6 +53,7 @@ export function supportsHuddleRuntime(value: unknown): value is HuddleRuntimeCap
     (parsed.data.sessionEvents === undefined || parsed.data.sessionEvents === 1) &&
     (parsed.data.completionEvents === undefined || parsed.data.completionEvents === 1) &&
     (parsed.data.completionPlans === undefined || parsed.data.completionPlans === 1) &&
+    (parsed.data.customTriggers === undefined || parsed.data.customTriggers === 1) &&
     (parsed.data.readouts === undefined || parsed.data.readouts === 1) &&
     (parsed.data.readoutObservation === undefined ||
       (parsed.data.readoutObservation === 1 && parsed.data.readouts === 1))

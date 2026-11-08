@@ -6,7 +6,8 @@ design; [acceptance](acceptance/huddle.md) records verified behaviour and remain
 work. Interval, calendar and one-off date triggers are available on supporting
 runtimes. Filetree, Git, session lifecycle/status and exact external turn-completion
 observation are also available. [Custom readouts](huddle/readouts.md) can deliver
-graph outputs to external services on supporting runtimes. Agent spawn/resume nodes, explicit native feedback
+graph outputs to external services on supporting runtimes. [Custom triggers](huddle/triggers.md)
+can subscribe to external sources with durable cursors and visible source health. Agent spawn/resume nodes, explicit native feedback
 and authoring CLI/skills remain unfinished. Native provider, supervisor and reboot acceptance is pending.
 
 ## Create and edit

@@ -1,10 +1,16 @@
 import { Socket } from 'node:net';
-import { huddleWorkerInputSchema, type HuddleWorkerJob } from '@puddle/shared';
+import {
+  huddleWorkerInputSchema,
+  type HuddleWorkerJob,
+  type HuddleTriggerWorkerJob,
+} from '@puddle/shared';
 import { readRuntimeFrames, writeRuntimeFrame } from '../../transport/framing.js';
 import { executeHuddleNode } from '../../../puddlang/huddle/execute.js';
 import { HuddleNode } from '../../../puddlang/huddle/node.js';
 import { HuddleReadout } from '../../../puddlang/huddle/readout.js';
 import { executeHuddleReadout } from '../../../puddlang/huddle/execute-readout.js';
+import { HuddleTrigger } from '../../../puddlang/huddle/trigger.js';
+import { openHuddleTrigger } from '../../../puddlang/huddle/execute-trigger.js';
 import { HuddleWorkerCalls } from './calls.js';
 import { installWorkerImports } from './source.js';
 import './sdk.js';
@@ -38,10 +44,10 @@ readRuntimeFrames(
   (raw) => {
     const message = huddleWorkerInputSchema.parse(raw);
     if (message.type === 'cancel') return disconnected(new Error(message.reason));
-    if (message.type !== 'start') return calls.receive(message);
+    if (message.type !== 'start' && message.type !== 'subscribe') return calls.receive(message);
     if (started) throw new Error('Huddle worker cannot start twice');
     started = true;
-    void run(message.job).then(
+    void (message.type === 'subscribe' ? subscribe(message.job) : run(message.job)).then(
       (outputs) => finish({ type: 'finished', outputs }),
       (error: unknown) =>
         finish({
@@ -54,6 +60,52 @@ readRuntimeFrames(
   },
   disconnected,
 );
+
+async function subscribe(job: HuddleTriggerWorkerJob) {
+  cancellation = 'signal';
+  calls.subscribe();
+  const imports = installWorkerImports(job, new URL('./sdk.js', import.meta.url).href);
+  const module = (await import(imports.entryUrl)) as { default?: unknown };
+  const adapter = HuddleTrigger(module.default as Parameters<typeof HuddleTrigger>[0]);
+  imports.checkContract(adapter.contract);
+  let reported = false;
+  const subscription = await openHuddleTrigger(
+    adapter,
+    job.component,
+    {
+      parameters: job.parameters,
+      bindings: job.bindings,
+      signal: abort.signal,
+      log: (message) => console.log(message),
+      health: async (health) => {
+        reported = true;
+        await calls.call({ kind: 'trigger-health', health });
+      },
+      checkpoint: async (cursor) => {
+        await calls.call({ kind: 'trigger-checkpoint', cursor });
+      },
+      emit: async (emission) =>
+        (await calls.call({ kind: 'trigger-emit', emission })) as {
+          sequence: number;
+          duplicate: boolean;
+        },
+    },
+    job.cursor,
+  );
+  try {
+    abort.signal.throwIfAborted();
+    if (!reported) await calls.call({ kind: 'trigger-health', health: { state: 'ready' } });
+    if (!writeRuntimeFrame(socket, { type: 'opened' }))
+      throw new Error('Trigger owner disconnected');
+    await new Promise<void>((resolve) => {
+      if (abort.signal.aborted) resolve();
+      else abort.signal.addEventListener('abort', () => resolve(), { once: true });
+    });
+  } finally {
+    await subscription.close();
+  }
+  return {};
+}
 
 async function run(job: HuddleWorkerJob) {
   cancellation = job.readout ? (job.component.readout?.cancellation ?? 'none') : 'none';

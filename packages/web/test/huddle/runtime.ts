@@ -64,11 +64,22 @@ export function huddleRuntimeFixture(document: () => HuddleDocument) {
         else delete owner.readout_observation;
       }
     },
+    customTriggerHealth(gap: boolean) {
+      if (owner?.connected)
+        owner.custom_triggers = [
+          { node: 'healthy', health: { state: 'ready' } },
+          {
+            node: 'feed',
+            health: gap ? { state: 'gap', message: 'Source cursor expired' } : { state: 'closed' },
+          },
+        ];
+    },
     async request(
       session: string,
       action: string,
       body: Record<string, unknown> | undefined,
       includeReadoutObservation = false,
+      includeCustomTriggers = false,
     ) {
       if (action === holdAction) await held;
       const current = owner?.connected ? owner : null;
@@ -76,6 +87,7 @@ export function huddleRuntimeFixture(document: () => HuddleDocument) {
         if (observationFails) return fail('observation_unavailable');
         const observed = structuredClone(owner);
         if (!includeReadoutObservation && observed?.connected) delete observed.readout_observation;
+        if (!includeCustomTriggers && observed?.connected) delete observed.custom_triggers;
         return Response.json({ session_id: session, owner: observed, unresolved: false });
       }
       if (action === 'history') {

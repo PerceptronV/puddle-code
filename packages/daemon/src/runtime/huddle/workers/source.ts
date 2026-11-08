@@ -5,25 +5,30 @@ import {
   huddleComponentSchema,
   huddleRelativePathSchema,
   type HuddleWorkerJob,
+  type HuddleTriggerWorkerJob,
 } from '@puddle/shared';
 
 const prefix = 'puddle-huddle:///';
 const normal = (path: string) => huddleRelativePathSchema.parse(path).replace(/^\.\//, '');
 
 /** Validate the complete component closure before evaluating any project module. */
-export function checkedWorkerSource(job: HuddleWorkerJob) {
+export function checkedWorkerSource(job: HuddleWorkerJob | HuddleTriggerWorkerJob) {
   const manifest = normal(job.manifest);
   const component = job.component;
-  if (!['script', 'readout'].includes(component.category) || !component.entry)
-    throw new Error('Worker requires a local executable entry point');
-  if ((component.category === 'readout') !== !!job.readout)
+  if (!component.entry) throw new Error('Worker requires a local executable entry point');
+  const trigger = 'subscriptionId' in job;
+  if ((component.category === 'trigger') !== trigger)
+    throw new Error('Trigger worker requires a subscription');
+  const readout = 'readout' in job ? job.readout : undefined;
+  if ((component.category === 'readout') !== !!readout)
     throw new Error('Readout worker requires its exact delivery envelope');
   if (
-    job.readout &&
-    (job.readout.delivery.invocationId !== job.invocationId ||
-      job.readout.delivery.node !== job.node ||
-      job.readout.delivery.event.revision !== job.revision ||
-      canonicalHuddleJson(job.readout.delivery.inputs) !== canonicalHuddleJson(job.inputs))
+    readout &&
+    !trigger &&
+    (readout.delivery.invocationId !== job.invocationId ||
+      readout.delivery.node !== job.node ||
+      readout.delivery.event.revision !== job.revision ||
+      canonicalHuddleJson(readout.delivery.inputs) !== canonicalHuddleJson(job.inputs))
   )
     throw new Error('Readout delivery differs from its captured invocation');
   const directory = posix.dirname(manifest);
@@ -49,7 +54,10 @@ export function checkedWorkerSource(job: HuddleWorkerJob) {
 }
 
 /** Trusted code, with deterministic captured imports; this is not an OS sandbox. */
-export function installWorkerImports(job: HuddleWorkerJob, sdkUrl: string) {
+export function installWorkerImports(
+  job: HuddleWorkerJob | HuddleTriggerWorkerJob,
+  sdkUrl: string,
+) {
   const source = checkedWorkerSource(job);
   const urlOf = (path: string) => prefix + path.split('/').map(encodeURIComponent).join('/');
   const modules = new Map(

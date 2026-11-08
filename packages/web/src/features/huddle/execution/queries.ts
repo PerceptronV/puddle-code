@@ -24,6 +24,7 @@ export function useHuddleRuntime(profile: string, session: string, focused: bool
         session,
         signal,
         supportsApplicationFeature(protocol, { major: 28, minor: 6 }),
+        supportsApplicationFeature(protocol, { major: 28, minor: 7 }),
       ),
     enabled: supported && !!profile && focused,
     retry: false,

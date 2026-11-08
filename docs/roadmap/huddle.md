@@ -9,7 +9,7 @@ captured-source script workers, retained revisions/activation and a manual sched
 in an independent owner process with private authenticated control, explicit
 runtime-role metadata and pinned capability checks. Phase 2 has the third session
 kind, immutable application placement and common runtime inventory role, with
-application protocol 28.6. Local/SSH inactive creation, discovery, inspection and
+application protocol 28.7. Local/SSH inactive creation, discovery, inspection and
 placement opening now have sidebar creation and a graph pane with manifest
 editing, shared source/layout drafts, settings, undo and file-conflict review.
 Pointer/touch and keyboard node movement, position settings, pan and fit controls
@@ -70,8 +70,11 @@ owner lifecycle/delivery controls and captured script execution. Automated/unkno
 completions are suppressed. Optional `completionPlans: 1` now supports read-only
 retained/proposed activation plans and host capture of exact durable agent baselines
 after queued review. Explicit same-execution native feedback remains unfinished.
-Broader recurrence rules, a richer trigger health/backlog
-inspector and custom trigger workers remain unfinished. Local readouts now execute
+Project-local HuddleTrigger adapters now run in bounded independent subscription
+workers with atomic event/cursor admission, explicit resume policy and source-local
+health. Their subscriptions survive frontend/controller disconnection, and the IDE
+shows custom-source gaps. Broader recurrence rules and a unified trigger health/backlog
+inspector remain unfinished. Local readouts now execute
 captured HuddleReadout adapters with durable intent, bounded receipts and explicit
 unknown outcomes. Explicit owner/API observation and the history panel's Check
 delivery action now reconcile uncertain deliveries through their captured adapters,

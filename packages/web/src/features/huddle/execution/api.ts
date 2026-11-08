@@ -37,12 +37,16 @@ export async function inspectHuddle(
   session: string,
   signal?: AbortSignal,
   includeReadoutObservation = false,
+  includeCustomTriggers = false,
 ) {
   local();
+  const query = new URLSearchParams();
+  if (includeReadoutObservation) query.set('include_readout_observation', 'true');
+  if (includeCustomTriggers) query.set('include_custom_triggers', 'true');
   return huddleRuntimeInspectionSchema.parse(
     await api(
       'GET',
-      `${path(profile, session)}/runtime${includeReadoutObservation ? '?include_readout_observation=true' : ''}`,
+      `${path(profile, session)}/runtime${query.size ? '?' + query.toString() : ''}`,
       undefined,
       signal,
     ),

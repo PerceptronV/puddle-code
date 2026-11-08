@@ -189,6 +189,7 @@ window.fetch = async (input, init) => {
       execution[2]!,
       body,
       url.searchParams.get('include_readout_observation') === 'true',
+      url.searchParams.get('include_custom_triggers') === 'true',
     );
   if (path === `${prefix}/availability`)
     return Response.json(

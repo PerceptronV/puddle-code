@@ -26,7 +26,9 @@ export interface HuddleExtensionContext {
 }
 
 export interface HuddleTriggerContext extends HuddleExtensionContext {
-  health(value: HuddleTriggerHealth): void;
+  health(value: HuddleTriggerHealth): Promise<void>;
+  /** Explicit source baseline/empty-page progress; never acknowledge an unadmitted event. */
+  checkpoint(cursor: HuddleJson): Promise<void>;
   /** Cursor advancement is atomic with inbox admission; this is not a viewer acknowledgement. */
   emit(value: HuddleTriggerEmission): Promise<{ sequence: number; duplicate: boolean }>;
 }

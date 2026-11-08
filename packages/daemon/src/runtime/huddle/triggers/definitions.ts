@@ -47,6 +47,12 @@ export function requireHuddleFeatures(
     const component = snapshot.components[node.id]!;
     if (
       node.source.kind === 'local' &&
+      component.category === 'trigger' &&
+      capabilities.customTriggers !== 1
+    )
+      throw new Error('This runtime does not support custom huddle triggers');
+    if (
+      node.source.kind === 'local' &&
       component.category === 'readout' &&
       capabilities.readouts !== 1
     )

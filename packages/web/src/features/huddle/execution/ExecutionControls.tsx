@@ -9,6 +9,7 @@ import { graphActionClass } from '../inspector/GraphEditing';
 import { huddleHistory, type HuddleCommand } from './api';
 import { CommandDialog, type CommandReview } from './CommandDialog';
 import { HistoryDialog } from './HistoryDialog';
+import { TriggerHealth } from './TriggerHealth';
 import {
   historyKey,
   useHuddleCommands,
@@ -265,6 +266,7 @@ export function ExecutionControls({
           </span>
         )}
       </div>
+      {current?.custom_triggers && <TriggerHealth sources={current.custom_triggers} />}
       {(runtime.error || commands.status.error || current?.failure) && (
         <p role="alert" className="shrink-0 px-4 pb-2 text-xs text-fg-muted">
           {runtime.error?.message ?? commands.status.error ?? current?.failure}

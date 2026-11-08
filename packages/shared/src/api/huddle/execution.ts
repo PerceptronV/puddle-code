@@ -3,6 +3,10 @@ import { sessionId } from '../common.js';
 import { huddleJsonSchema, huddleKeySchema, HUDDLE_LIMITS } from './values.js';
 import { huddleRevisionSchema } from './events.js';
 import {
+  huddleCustomTriggerViewSchema,
+  HUDDLE_CUSTOM_TRIGGER_LIMIT,
+} from '../../runtime/huddle/triggers/custom.js';
+import {
   huddleExecutionRecordSchema,
   huddleInvocationRecordSchema,
   huddleOperationRecordSchema,
@@ -37,6 +41,10 @@ export const huddleRuntimeInspectionSchema = z.strictObject({
         stopping: z.boolean(),
         failure: z.string().max(4096).nullable(),
         readout_observation: z.literal(true).optional(),
+        custom_triggers: z
+          .array(huddleCustomTriggerViewSchema)
+          .max(HUDDLE_CUSTOM_TRIGGER_LIMIT)
+          .optional(),
       }),
     ])
     .nullable(),

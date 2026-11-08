@@ -5,7 +5,12 @@ import { fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { puddlangEntryPoints } from '../../../../../scripts/lib/puddlang-build.mjs';
 import { afterAll, afterEach, beforeAll } from 'vitest';
-import { huddleComponentSchema, huddleWorkerJobSchema, type HuddleWorkerJob } from '@puddle/shared';
+import {
+  huddleComponentSchema,
+  huddleWorkerJobSchema,
+  type HuddleWorkerJob,
+  type HuddleTriggerWorkerJob,
+} from '@puddle/shared';
 import {
   startHuddleWorker,
   type HuddleWorkerHandle,
@@ -77,7 +82,10 @@ export function workerTestHarness() {
     get stage() {
       return compiled;
     },
-    start(job: HuddleWorkerJob, options: Partial<HuddleWorkerOptions> = {}) {
+    start(
+      job: HuddleWorkerJob | HuddleTriggerWorkerJob,
+      options: Partial<HuddleWorkerOptions> = {},
+    ) {
       const handle = startHuddleWorker(job, {
         nodePath: process.execPath,
         entryPath: join(compiled, 'daemon/huddle/runner.js'),

@@ -598,9 +598,9 @@ Start/Apply use `HuddleService.withSnapshot` under the repository lock and requi
 an inspected saved digest. Rearm retains the current activation. Public schemas
 explicitly project owner/ledger data; never return private launch evidence or
 operation inputs/targets. Recheck declared worktree bindings after async admission.
-The installation event id in `huddle-host.json` is not authority. Agent bridges,
-custom trigger adapters, offline readout reconciliation, stopped-owner history and active revision detail
-remain pending; unsupported execution is rejected before launch.
+The installation event id in `huddle-host.json` is not authority. Full agent lifecycle
+bridges, offline readout reconciliation, stopped-owner history and active revision
+detail remain pending; unsupported execution is rejected before launch.
 Migration 45 adds `huddle_runtime_turns`. Host-side exact asks live under
 `huddle/operations/turns/`, reusing `RuntimeProgrammeTurns.askFor` and the common
 busy gate. Shared ordered allocation/result reservation lives in
@@ -800,6 +800,20 @@ capacity, the 30-second observation deadline and Interrupt/Stop cancellation; re
 claims until positive child exit. Acknowledged acceptance is not delivery proof;
 lost replies never retry, and receipt settlement never resumes an ended graph.
 Offline-owner observation and automatic crash recovery remain unfinished.
+Application 28.7 and `customTriggers: 1` gate local HuddleTrigger subscriptions.
+Keep adapters under `puddlang/huddle/`, source orchestration under
+`runtime/huddle/triggers/custom/`, and durable cursor/event admission in
+`state/custom-triggers.ts`. Require explicit continue/fresh resume policy; use
+captured closures and eight fixed source slots. Preserve scope, stable dedup ids,
+atomic cursor/root/budget writes and explicit gaps. Never advance past an
+unacknowledged event or infer replay from reconnect. Separate long-lived source
+workers from graph concurrency while sharing host memory admission. Retain startup,
+rate, pending-call, log and cursor bounds; unknown exit blocks resource release.
+Interrupt/Stop/Apply fence callbacks before cancellation and await positive exit.
+One adapter's gap does not fail healthy sources. Public health is opt-in through
+`include_custom_triggers=true` and omits private cursors; older strict clients must
+retain previous runtime response shapes. Trigger workers cannot dispatch agent
+operations; file/session declarations still require resolved explicit worktrees.
 `runtime/huddle/workers/` executes captured component closures in isolated children;
 pin its runtime assets and preserve bounded owner acknowledgements. Unknown child
 termination never permits replay. Shared agent client semantics live in

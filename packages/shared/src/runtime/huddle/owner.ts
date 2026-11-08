@@ -22,6 +22,7 @@ import {
   huddleOperationPageSchema,
 } from './operations/mailbox.js';
 import { huddleTurnScopeSchema } from './operations/agents.js';
+import { huddleCustomTriggerViewSchema, HUDDLE_CUSTOM_TRIGGER_LIMIT } from './triggers/custom.js';
 
 /** Unshipped role contract. No agent/terminal message or retained record changes. */
 export const HUDDLE_OWNER_CONTRACT = 1 as const;
@@ -76,6 +77,10 @@ export const huddleOwnerStateSchema = z
     control: huddleControlStateSchema,
     liveWorkers: z.boolean(),
     failure: z.string().max(4096).nullable(),
+    customTriggers: z
+      .array(huddleCustomTriggerViewSchema)
+      .max(HUDDLE_CUSTOM_TRIGGER_LIMIT)
+      .optional(),
   })
   .superRefine(({ identity, scope }, ctx) => {
     if (

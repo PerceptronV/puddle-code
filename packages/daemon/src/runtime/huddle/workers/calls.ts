@@ -21,6 +21,9 @@ export class HuddleWorkerCalls {
     { resolve(value: unknown): void; reject(error: Error): void }
   >();
   private count = 0;
+  private continuous = false;
+  private windowAt = performance.now();
+  private windowCount = 0;
   private closed = false;
   readonly api: PuddlangClient;
   constructor(private readonly send: (message: HuddleWorkerRequest) => void) {
@@ -30,17 +33,29 @@ export class HuddleWorkerCalls {
   get pendingCount() {
     return this.pending.size;
   }
+  subscribe() {
+    this.continuous = true;
+  }
   call(action: HuddleWorkerAction): Promise<unknown> {
     return new Promise((resolve, reject) => {
       if (this.closed) throw new Error('Huddle worker disconnected');
+      if (performance.now() - this.windowAt >= 1000) {
+        this.windowAt = performance.now();
+        this.windowCount = 0;
+      }
+      const sequence = ++this.count;
       if (
         this.pending.size >= HUDDLE_WORKER_LIMITS.pending ||
-        ++this.count > HUDDLE_WORKER_LIMITS.requests
+        !Number.isSafeInteger(sequence) ||
+        (this.continuous
+          ? ++this.windowCount > HUDDLE_WORKER_LIMITS.subscriptionRequestsPerSecond
+          : sequence > HUDDLE_WORKER_LIMITS.requests)
       )
         throw new Error('Huddle worker request limit exceeded');
       const message = huddleWorkerRequestSchema.parse({
         type: 'request',
         id: randomUUID(),
+        ...(this.continuous ? { sequence } : {}),
         action,
       });
       this.pending.set(message.id, { resolve, reject });

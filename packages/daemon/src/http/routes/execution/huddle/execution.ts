@@ -37,6 +37,7 @@ export function huddleExecutionRoutes(service: HuddleExecutionService): Hono {
             c.req.param('sid'),
             requestAuthority(c),
             c.req.query('include_readout_observation') === 'true',
+            c.req.query('include_custom_triggers') === 'true',
           ),
         ),
       ),

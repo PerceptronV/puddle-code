@@ -20,6 +20,7 @@ import { HuddleCompletionSources } from './completions.js';
 import { HuddleGitSources } from './git.js';
 import { HuddleFiletrees } from './filetrees.js';
 import { HuddleActivations } from './activation.js';
+import { HuddleCustomTriggers } from './custom-triggers.js';
 
 /** Owner-local durable execution authority; application SQLite remains daemon-owned. */
 export class HuddleLedger {
@@ -33,6 +34,7 @@ export class HuddleLedger {
   readonly git: HuddleGitSources;
   readonly sessions: HuddleSessionSources;
   readonly completions: HuddleCompletionSources;
+  readonly customTriggers: HuddleCustomTriggers;
   private readonly database: HuddleStateDatabase;
 
   constructor(
@@ -45,6 +47,11 @@ export class HuddleLedger {
     this.invocations = new HuddleInvocations(this.database, this.executions);
     this.operations = new HuddleOperations(this.database, this.executions, this.invocations);
     this.activations = new HuddleActivations(this.database);
+    this.customTriggers = new HuddleCustomTriggers(
+      this.database,
+      this.executions,
+      this.activations,
+    );
     this.intervals = new HuddleIntervals(this.database, this.executions, this.activations);
     this.schedules = new HuddleSchedules(this.database, this.executions, this.activations);
     this.sessions = new HuddleSessionSources(this.database, this.executions, this.activations);

@@ -14,6 +14,7 @@ import { filetreeDefinitions } from '../triggers/filetree/definitions.js';
 import { sessionDefinitions } from '../triggers/sessions/definitions.js';
 import { completionDefinitions } from '../triggers/completions/definitions.js';
 import { gitDefinitions } from '../triggers/git/definitions.js';
+import { customTriggerDefinitions } from '../triggers/custom/definitions.js';
 import { HuddleRevisionStore } from '../state/revisions.js';
 
 /** Pure source/binding validation shared by daemon admission and the independent owner. */
@@ -74,6 +75,7 @@ export function prepareHuddleActivation(
   scheduleDefinitions(restored, activation);
   filetreeDefinitions(restored, activation);
   gitDefinitions(restored, activation);
+  customTriggerDefinitions(restored, activation);
   sessionDefinitions(restored, activation);
   completionDefinitions(restored, activation);
   return { snapshot: restored, activation };

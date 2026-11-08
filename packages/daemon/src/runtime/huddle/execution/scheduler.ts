@@ -111,10 +111,7 @@ export class HuddleScheduler {
           const { snapshot, graph } = this.contexts.forExecution(execution.id);
           for (const node of snapshot.definition.nodes) {
             const component = snapshot.components[node.id]!;
-            if (node.source.kind === 'local') {
-              if (component.category === 'trigger')
-                throw new Error('This owner does not yet execute local trigger adapters');
-            } else {
+            if (node.source.kind === 'builtin') {
               const builtin = coreHuddleComponents.get(
                 `${node.source.component}@${node.source.version}`,
               );
