@@ -36,7 +36,8 @@ packages/
 │   │   ├── execution/   # provider resources, turns, signals and pinned helpers
 │   │   ├── state/       # retained journal/segments, shell observations, titles and attention
 │   │   ├── controller/  # daemon reconciliation, placement controls, viewers and notifications
-│   │   └── lifecycle/   # launch, supervision and ended-service cleanup
+│   │   ├── lifecycle/   # launch, supervision and ended-service cleanup
+│   │   └── huddle/state/ # preparatory private inbox/outbox, invocation and operation ledger; owner service not enabled
 │   └── src/worktrees/    # worktree lifecycle plus repository-aware Git inspection/mutations
 ├── web/       # React UI: Tailwind v4 + owned shadcn-style components (src/components/ui/)
 │   ├── src/styles/tokens.css   # THE colour source; scripts/check-tokens.mjs guards it in lint/CI
@@ -528,6 +529,10 @@ tests and open gates in `docs/acceptance/huddle.md`. Definitions live separately
 under `.puddle/huddle/<random-hex-id>/` in the explicitly declared worktree. Shared
 graph/value/binding validation lives in `shared/src/huddle/validation/`; keep it
 data-only and do not infer runtime support from the existence of document schemas.
+`runtime/huddle/state/` retains a separate private ledger with atomic cursor,
+activation and operation records. Never reset dispatch consumption after a lost
+reply, and reserve outcome storage before external work. Ledger recovery assumes
+the lifecycle caller has fenced outgoing workers; it is not process-death proof.
 The user permits breaking puddlang redesign during huddle work, while existing
 agent/terminal runtime compatibility remains required. Organise each layer by
 responsibility and keep UI, runtime, source definitions and private state separate.

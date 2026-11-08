@@ -1351,6 +1351,13 @@ delivery from success. The internal `puddlang/huddle/` node boundary validates
 inputs, settings, outputs and acknowledged event emissions, with immutable values
 and cancellation checks. Its trigger/readout interfaces await durable owner
 integration; `pudl run` does not expose the huddle import yet.
+`runtime/huddle/state/` supplies the private owner-local SQLite ledger: atomic
+trigger/cursor admission, bounded node attempts and outbox routing, retained
+execution budgets and single-consumption operation intent. Capacity reservations
+protect accepted outcomes. Recovery after outgoing-worker fencing interrupts
+script attempts and preserves unknown consumed operations without replay. The
+ledger is not yet connected to owner services, graph scheduling or provider
+dispatch; its format and isolated crash evidence are tracked in acceptance.
 There is no huddle API, runtime capability or UI yet; existing sessions and
 protocols remain unchanged. Contracts, bounds, verification and unfinished
 work are recorded in [huddle acceptance](docs/acceptance/huddle.md); the complete

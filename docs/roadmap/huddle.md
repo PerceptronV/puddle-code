@@ -3,7 +3,8 @@
 Status: implementation in progress, 2026-11-08, following the user's instruction
 to implement this roadmap. Phase 0 has shared document contracts, graph/binding
 validation, data-only source discovery/capture, event/delivery contracts and an
-internal node execution boundary; owner and UI phases remain unimplemented.
+internal node execution boundary. Phase 1 has the private execution ledger;
+independent owner/service, graph scheduling and UI integration remain unimplemented.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals, not available commands/imports.
 
@@ -652,7 +653,9 @@ enable nested delegation, cross-profile access or unlimited agent budgets.
 
 ## 11. Phased implementation and release gates
 
-Phase 0 is **in progress**; phases 1–6 are **not started**. Each phase must update
+Phases 0 and 1 are **in progress**; phases 2–6 are **not started**. Phase 1 currently
+has the private inbox/outbox, node-attempt and exact-operation ledger, without
+the independent owner service or scheduler. Each phase must update
 `docs/acceptance/huddle.md` with implemented details and evidence, rather than
 leaving the only accurate description in code or marking future phases complete.
 

@@ -73,6 +73,53 @@ and no capability is advertised based on these internal helpers. The worker must
 also match the module's contract path to the exact captured manifest and bind
 operations to the authorised owner before invoking it.
 
+## Implemented: private execution ledger
+
+`runtime/huddle/state/` now owns a separate private `huddle.sqlite` under the
+runtime directory. It is not the application's SQLite database. A permanent host
+claim excludes concurrent ledger writers; the ledger binds the host, profile,
+project, placement, huddle and runtime identities. Its initial retained format is
+SQLite `user_version = 1`; an unknown newer version is rejected before write
+pragmas or migrations. No application database migration or wire change is added.
+
+Transactions commit trigger admission, execution identity and cursor together.
+Stable event ids return the original execution after a lost reply; changed data
+conflicts, and observing an older duplicate never rewinds the current cursor.
+Admission enforces queue length and daily execution limits. Executions retain
+deadlines and turn/spawn/invocation budgets, with spending committed alongside
+dispatch intent. Daily limits use retained UTC date buckets. Node starts enforce
+their supplied concurrency limit, defaulting to one, across the same revision/node.
+
+Node activation identities deduplicate routing. Completion and its outgoing
+ports commit in one transaction. Routing acknowledges an emission only in the
+same transaction as downstream queue admission. A persistent emission watermark
+rejects gaps/conflicting sequences; late duplicate observations do not route again.
+Future graph scheduling must supply validated edges, feedback iterations and
+contracts; this store does not itself interpret graph wiring.
+
+External operations retain exact target/input, invocation and execution identity.
+Dispatch consumption commits before the caller can send the operation. Repeating
+dispatch is refused, including after close/reopen or an unknown reply. Readout or
+agent observation can settle that exact outcome later without reopening dispatch.
+Prepared, unconsumed operations can be cancelled; consumed operations cannot be
+reset to prepared. Unresolved operations prevent node/execution completion.
+
+The ledger reserves outcome bytes before operations and both result bytes and
+completion-row capacity before node execution. Capacity failure rolls back the
+entire admission, including cursor/budget changes. Logical state is capped at
+64 MiB and 16,384 records including reservations; reads are capped at 256 rows
+and 1 MiB per page. These are retained-payload limits, not a claim of physical
+SQLite/WAL disk accounting or integration with host memory grants. Those remain
+owner integration work. Retained rows are not automatically expired or pruned.
+
+Recovery, after the caller has fenced the outgoing workers, interrupts running
+executions without replaying script bodies. It cancels queued descendants and
+unrouted emissions, cancels unsent operations and retains consumed operations as
+unknown. Unstarted root events remain pending. Explicit cancellation also removes
+an unstarted execution from pending inbox state. Late exact external outcomes
+remain readable, but do not restart the interrupted graph. These methods record
+intent/state; they do not themselves terminate workers or agents.
+
 ## Bounds and defaults
 
 Document limits: 256 nodes, 1,024 edges, 64 ports/parameters per component,
@@ -85,8 +132,10 @@ without hiding healthy definitions.
 Execution settings already have validated defaults: one concurrent execution,
 50 turns, eight cumulative agent spawns, one hour, 128 queued events, 100 daily
 executions, 32 daily spawns and 512 invocations per execution. Queuing defaults to
-`queue`, cleanup to `stop-owned`. These are document contracts only until the
-owner scheduler enforces them. Blank graphs can be saved as documents but fail
+`queue`, cleanup to `stop-owned`. The ledger enforces admission, deadline,
+concurrency and cumulative turn/spawn/invocation bounds. Coalescing/drop policies,
+feedback rounds, actual dispatch and lifecycle cleanup still need the
+scheduler/control layer. Blank graphs can be saved as documents but fail
 activation validation until a trigger exists.
 
 ## Automated evidence
@@ -104,6 +153,7 @@ Run from the repository root with the installed dependencies:
 node node_modules/vitest/vitest.mjs run packages/shared/test/huddle packages/daemon/test/huddle
 node node_modules/typescript/bin/tsc -b packages/shared packages/daemon
 node node_modules/eslint/bin/eslint.js packages/shared/src/api/huddle packages/shared/src/huddle packages/shared/test/huddle packages/shared/test/helpers/huddle.ts packages/daemon/src/huddle packages/daemon/src/puddlang/huddle packages/daemon/test/huddle
+node node_modules/eslint/bin/eslint.js packages/shared/src/runtime/huddle packages/daemon/src/runtime/huddle packages/daemon/test/helpers/huddle
 ```
 
 Verified 2026-11-08: the expanded shared-package plus huddle-definition run passed
@@ -115,18 +165,31 @@ turn identity, forged extension scope rejection, unknown delivery, invalid node
 ports/settings/approval, immutable inputs, unacknowledged/late emissions and
 cancellation. Test fixtures
 live in `shared/test/helpers/huddle.ts` and are not installed components.
-There are no database migrations or operational commands in this increment.
+The ledger increment passed the expanded shared/huddle suite: **197 tests in
+27 files**, including **17 new ledger tests**. Shared/daemon TypeScript and scoped
+ESLint passed. Tests cover cursor/queue rollback, duplicate/conflicting events,
+writer exclusion and identity, daily/cumulative/concurrency limits, byte-bounded
+pagination, reserved outcomes under pressure, atomic completion/routing rollback,
+cancelled/unknown operation distinctions and late outcomes after interruption.
+An isolated subprocess recorded dispatch, wrote one test file and killed itself
+with SIGKILL. Reopening retained consumption; recovery refused redispatch and the
+file still contained exactly one write. A separate check rejected a newer ledger
+version without changing its database bytes. These checks establish ledger
+durability, not complete runtime/service/provider continuity. There are no
+operational huddle commands or application migrations yet.
 
 ## Remaining implementation and acceptance
 
 Phase 0 remains open for the full component contract catalogue and lifecycle
-admission. Then implement the independent huddle owner, durable
-inbox/outbox and exact-operation bridge; runtime capability admission; third
+admission. Phase 1 has the private ledger; next wire it into the independent
+huddle owner, graph scheduler, isolated workers and exact-operation bridge,
+including host resource accounting and lifecycle fencing. Runtime capability
+admission; third
 session kind and application protocol transition; IDE and normal windows; actual
 trigger/readout adapters; wrapped puddlang execution and lifecycle nodes; authoring
 tools, docs/skill and packaged integration.
 
-All live provider, SSH, native window, supervisor, crash/reboot, trigger cadence,
+All live provider, SSH, native window, supervisor, complete owner crash/reboot, trigger cadence,
 readout reconciliation, permission/takeover, persistence/retention and installation
 acceptance is **Pending**. No fake fixture, static validator or TypeScript build
 establishes those behaviours. Maintain the roadmap's complete acceptance list as
