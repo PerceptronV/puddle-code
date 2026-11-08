@@ -297,6 +297,7 @@ it('adds disposition audit storage to schema39 without releasing existing unread
   f.save(1);
   f.runs.finish(f.run.id, 'interrupted');
   f.db.exec('DROP TABLE puddlang_outcome_dispositions; PRAGMA user_version = 39');
+  f.db.exec('ALTER TABLE layouts DROP COLUMN window_arrangement');
   dropResultCapacity(f.db);
   await f.close();
   const db = openDatabase(f.paths.dbFile);
