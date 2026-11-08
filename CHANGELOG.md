@@ -39,7 +39,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
-- Capture exact native-agent baselines after queued huddle Arm/Apply review, using optional `completionPlans: 1` read-only owner plans and runtime/provider availability checks. Recheck authority and targets before dispatch; automatic completion delivery and editor enablement remain pending.
+- Deliver exact native completions automatically to privately admitted huddle nodes, preserving durable cursors through reconnects and lost acknowledgements. Bound active polling, fence maintenance reads and fail visibly on confirmed source changes; public editor enablement remains pending.
+- Capture exact native-agent baselines after queued huddle Arm/Apply review, using optional `completionPlans: 1` read-only owner plans and runtime/provider availability checks. Recheck authority and targets before dispatch.
 - Retain bounded session lifecycle/status observations atomically with their source writes (database schema 47), with scoped private pages and explicit cursor gaps. Deliver lifecycle/status pages to supporting huddle owners with durable cursors, reconnect catch-up, fresh Start/Resume/Apply baselines and visible gap failures; exact native-turn triggers remain pending.
 
 - Observe Git refs and worktree HEAD in independent huddle owners with durable net-change batches, common-directory deduplication and optional `git: 1` support. Retain old/new OIDs and symbolic targets through force updates and branch switches.
@@ -68,7 +69,7 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
-- Add an internal huddle completion-subscription ledger with exact native targets, atomic page/cursor admission and suppression of automated feedback echoes. Optional `completionEvents: 1` adds private owner delivery, lifecycle baselines and captured-script execution; keep creation disabled until host admission and automatic dispatch are complete.
+- Add an internal huddle completion-subscription ledger with exact native targets, atomic page/cursor admission and suppression of automated feedback echoes. Optional `completionEvents: 1` adds private owner delivery, lifecycle baselines and captured-script execution; public editor enablement remains pending.
 - Retain exact hook-based interactive, structured Codex and command-correlated headless turn observations in a bounded independent stream across controller disconnection (runtime protocol 1.2), with explicit gaps, persistence status and originating ask/huddle identities. Headless completion requires native identity binding, a successful result and exit 0. Codex preserves RPC attribution through early events and cancellation, and keeps conversation scope ordered within native batches. Keep older controllers compatible; automatic huddle completion-node delivery remains pending.
 
 - Queue huddle script asks durably through an optional private operation capability, with declared agent/worktree bindings, single-consumption dispatch claims and retained exact-result receipts. Preserve waiting workers across controller disconnect and refuse replay after lost replies.

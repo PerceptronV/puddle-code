@@ -1,6 +1,7 @@
 import { expect, it, vi } from 'vitest';
 import { HostAdmission } from '../../../src/host/lifecycle/admission.js';
 import { HostUpdatePause } from '../../../src/updates/maintenance/pause.js';
+import { daemonUpdatePause } from '../../../src/updates/maintenance/daemon.js';
 
 it('drains launches before pausing the discovery and reconciliation they require', async () => {
   const clients = new HostAdmission();
@@ -104,4 +105,44 @@ it('shares a bounded deadline and never reopens participants already closed by s
   held.release();
   expect(() => first.enter()).toThrow();
   second.assertOpen();
+});
+
+it('drains completion delivery before pausing downstream runtime observation', async () => {
+  const completion = new HostAdmission(),
+    controls = new HostAdmission(),
+    connections = new HostAdmission();
+  const endDelivery = completion.enter();
+  const inert = { pause: () => ({ drain: async () => {}, release: () => {} }) };
+  const pause = daemonUpdatePause({
+    clients: inert,
+    upkeep: inert,
+    retention: inert,
+    programmes: inert,
+    huddleCompletions: completion,
+    compilation: inert,
+    catalogue: inert,
+    markers: inert,
+    sessions: inert,
+    controls,
+    notebooks: inert,
+    notifications: inert,
+    cleanup: inert,
+    connections: {
+      pause: () => connections.pause(),
+      controllerIdentity: () => ({ id: 'fixture', epoch: 1 }),
+    },
+    reconciler: inert,
+    refreshAccounts: () => {},
+  });
+  const pending = pause();
+  await vi.waitFor(() => expect(() => completion.assertOpen()).toThrow('maintenance'));
+  controls.assertOpen();
+  connections.assertOpen();
+  endDelivery();
+  const held = await pending;
+  expect(() => connections.assertOpen()).toThrow('maintenance');
+  held.release();
+  completion.assertOpen();
+  controls.assertOpen();
+  connections.assertOpen();
 });

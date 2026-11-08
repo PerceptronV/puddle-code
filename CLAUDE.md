@@ -706,8 +706,8 @@ before reviewed Arm/Apply; reconnect resumes retained cursors. Commit each page 
 its admitted roots together, re-observe after lost replies, and fail visibly on gaps.
 Stale generation/cursor requests must not fail a newer activation. Participate in
 maintenance drain and recheck exact owner/project/worktree scope before delivery.
-The separate native-turn source is not yet wired to huddle completion nodes; richer
-source health remains unfinished. No new public route.
+The separate native-turn source now feeds privately admitted completion nodes;
+public editor enablement and richer source health remain unfinished. No new public route.
 The completion admission core lives in owner `state/completions.ts`, with contracts
 in shared `runtime/huddle/triggers/completions.ts` and binding resolution in owner
 `triggers/completions/`. Pin runtime incarnation, selected placement, native segment
@@ -725,8 +725,14 @@ or proposed activation plans. Keep host target validation and baseline capture u
 recheck authority and exact targets after awaits and before one lifecycle send.
 Busy observation does not require ask readiness. Never issue new plan requests to
 older event-only owners, follow a replacement native conversation or rebase a gap.
-The public creation catalogue excludes completion nodes until automatic dispatch
-and editor enablement are connected.
+Automatic delivery lives in `huddle/triggers/completions/dispatcher.ts`. Observe
+fresh durable source cursors before delivery and after lost acknowledgements.
+Use one active-subscription host timer, at most four concurrent owner scans and
+four page passes; inactive huddles add no polling. Retry disconnected, refused or
+undurable observations with bounded backoff; confirmed identity changes/gaps fail
+the exact subscription without rebasing. Maintenance fences and drains before
+runtime observation closes. The public creation catalogue excludes completion
+nodes until editor enablement is connected.
 Oversized JSON envelopes fail without truncating replies.
 Optional `git: 1` adds owner-local ref/HEAD observation under `triggers/git/`.
 Group refs and metadata watches by canonical common directory; retain distinct

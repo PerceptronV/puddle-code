@@ -110,6 +110,7 @@ import { resolveHuddleAgent } from './huddle/execution/agents.js';
 import { HuddleSessionFeed } from './huddle/triggers/sessions/feed.js';
 import { HuddleSessionDispatcher } from './huddle/triggers/sessions/dispatcher.js';
 import { HuddleCompletionBaselines } from './huddle/triggers/completions/baselines.js';
+import { HuddleCompletionDispatcher } from './huddle/triggers/completions/dispatcher.js';
 import { HuddleAgentDispatcher } from './huddle/operations/dispatch/service.js';
 import { HuddleAgentTurns } from './huddle/operations/turns/service.js';
 import { HuddleTurnStore } from './huddle/operations/turns/store.js';
@@ -480,6 +481,14 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       projects,
     });
     failedStartup.push(() => huddleSessionDispatcher.close());
+    const huddleCompletionDispatcher = new HuddleCompletionDispatcher({
+      home: paths.home,
+      runtimes,
+      connections: runtimeConnections,
+      sessions,
+      projects,
+    });
+    failedStartup.push(() => huddleCompletionDispatcher.close());
     const huddleExecution = new HuddleExecutionService({
       home: paths.home,
       profiles,
@@ -747,6 +756,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       programmes: puddlang,
       huddles: huddleDispatcher,
       huddleSessions: huddleSessionDispatcher,
+      huddleCompletions: huddleCompletionDispatcher,
       compilation,
       catalogue,
       markers: onboarding,
@@ -828,6 +838,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     failedStartup.push(() => releaseCollection!.close());
     huddleDispatcher.start();
     huddleSessionDispatcher.start();
+    huddleCompletionDispatcher.start();
 
     let stopping: Promise<void> | null = null;
     let shutdownUpdate: string | undefined;
@@ -876,6 +887,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
         const huddlesClosed = Promise.all([
           huddleDispatcher.close(),
           huddleSessionDispatcher.close(),
+          huddleCompletionDispatcher.close(),
         ]);
         stopping = (async () => {
           await huddlesClosed;

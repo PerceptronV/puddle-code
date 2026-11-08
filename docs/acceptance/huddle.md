@@ -24,8 +24,49 @@ Migration 47 retains bounded host session observations. Optional `sessionEvents:
 now delivers them to independent owners through durable subscriptions; Session
 lifecycle nodes and stopped/archived session selectors are available in the IDE.
 Runtime protocol 1.2 now retains an independent native-turn source for hook-based
-interactive, structured Codex and command-correlated headless controls; automatic completion-trigger delivery remains pending.
+interactive, structured Codex and command-correlated headless controls. Automatic
+delivery into privately admitted completion nodes is implemented; public editor
+enablement and bounded native feedback remain pending.
 No user CLI command is enabled yet.
+
+## Implemented: automatic native completion delivery
+
+Production daemon composition now starts and closes
+`huddle/triggers/completions/dispatcher.ts` alongside the existing session feed
+dispatcher. It discovers supporting huddle owners and reads their durable source
+cursors before delivering native pages. Each source remains pinned to its exact
+runtime incarnation, placement, segment and native conversation. Retained node,
+profile, project, worktree, definition and owner authority are checked before
+delivery; asynchronous reads repeat the authority and target checks.
+
+One host timer observes active subscriptions at a one-second cadence. Inactive
+huddles stop polling; lifecycle changes and native reconnects wake observation.
+At most four owners scan concurrently, with four page passes per scan and eight
+sources per owner. Reads are sequential within a scan and use the existing bounded
+native pages. An unchanged native head needs one inspection and no page read.
+The dispatcher has no per-view timer and does not start or prompt agent sessions.
+
+Disconnects, refused observations and pending persistence retain the cursor and
+retry observation with backoff capped at 30 seconds. A confirmed scope/identity
+change or retention/epoch gap fails the exact subscription visibly. Nothing
+silently changes its baseline. Lost delivery acknowledgements require observing
+the owner's durable cursor before another delivery. Automated and unknown-origin
+completions advance that cursor without creating fresh execution roots.
+
+Maintenance pauses fence in-flight reads and drain delivery while runtime
+connections remain available. Shutdown closes admission and drains before closing
+runtime observation. A lifecycle notification arriving during a released pause
+still gets a fresh inspection; work from the old pause epoch cannot deliver.
+
+Verification: **65 tests passed across 11 files**, covering automatic captured-script
+execution, lost acknowledgement without duplicate admission, dispatcher replacement
+catch-up, maintenance fencing and phase ordering, transient disconnect/persistence,
+confirmed identity/retention failures, stopped-owner inactivity, baseline capture,
+owner lifecycle and legacy capability gates. Integration uses real isolated huddle
+owner processes and the real native journal with a controlled native transport.
+Shared/daemon/CLI TypeScript builds and repository ESLint, Prettier and diff checks passed.
+It does not establish real-provider, native-service, SSH or reboot acceptance.
+The public catalogue/editor and same-execution native feedback remain unfinished.
 
 ## Implemented: host completion baseline capture
 
@@ -55,10 +96,10 @@ All captured targets receive another synchronous check before the lifecycle send
 a lost read never authorises a mutation or retry. Public capture failures return a
 bounded conflict without exposing private filesystem errors.
 
-Automatic native-event dispatch and editor enablement remain unfinished; the public
-creation catalogue still excludes completion nodes. The new reader also supports
-retained page reads for that upcoming dispatcher, preserving explicit gaps without
-rebasing. Tests use controlled native observation clients plus real isolated huddle
+Automatic native-event dispatch is covered by the later milestone above; editor
+enablement remains unfinished and the public creation catalogue still excludes
+completion nodes. The reader supports retained page reads, preserving explicit gaps
+without rebasing. Tests use controlled native observation clients plus real isolated huddle
 owners; they do not establish live provider, native supervisor or reboot acceptance.
 
 Verification: **145 tests passed across 30 files** in the broader huddle control,
@@ -149,9 +190,9 @@ This is an internal admission core, **not an enabled completion trigger**.
 the creation catalogue. The subsequent owner protocol milestone above adds private
 delivery/lifecycle/resource admission without a protocol/database version change.
 Host-authorised baseline capture and live target/provider availability checks are
-covered by the subsequent milestone above. Automatic delivery, editor settings and
-explicit bounded native feedback routing remain unfinished; the admission-core
-tests do not establish those missing paths.
+covered by the subsequent milestones above, including automatic delivery. Editor
+settings and explicit bounded native feedback routing remain unfinished; the
+admission-core tests do not establish those missing paths.
 
 Verification: **97 tests passed across 17 files**, including 16 new completion
 cases plus existing huddle revision, state, routing, scheduler, definition and

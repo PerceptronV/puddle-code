@@ -1456,8 +1456,8 @@ no successful completion for an ask acknowledged after it ended: bounded retired
 attribution retains its origin and marks interruption. Attribution-capacity loss
 marks a gap and unknown origin for subsequent unmatched starts. The adapter advertises
 `native_turn_events: 1` only when its exact observation path exists. Huddle
-native-completion delivery remains unfinished;
-this foundation does not enable a completion trigger or claim native/reboot acceptance.
+native-completion delivery is described below; this source foundation alone
+does not enable a public completion trigger or claim native/reboot acceptance.
 Headless controls now report the same stream for all four existing provider drivers.
 Each native invocation uses its private `command:<uuid>` correlation key, not a
 claimed provider-issued turn id. Native conversation binding precedes publication;
@@ -1475,7 +1475,7 @@ the runtime segment. Trusted in-process signal delivery preserves this ordering,
 including within native batches; a retained per-frame cursor prevents partial
 capacity retries from replaying observed messages. Legacy loopback delivery remains
 supported without advertising Codex source observation. Native-provider acceptance
-and automatic native-source dispatch into huddle owners are still pending.
+remains pending; host dispatch now reads this source as described below.
 An internal completion-admission core under `runtime/huddle/state/completions.ts`
 now retains eight exact target/cursor slots. It commits contiguous durable pages
 and external-completion roots atomically, rejects scope/generation changes and
@@ -1493,8 +1493,15 @@ activations, allowing Resume to use current settings. Host controls capture base
 after queued review, checking exact owner/project/worktree/native identity and
 runtime/provider source support before and after read-only inspection. Recheck all
 targets before one lifecycle send; lost reads never authorise another action. Older
-event-only owners receive no plan request. Automatic delivery, editor controls and
-same-execution native feedback remain unfinished.
+event-only owners receive no plan request. The daemon completion dispatcher now
+observes supporting owners and delivers from fresh durable cursors, checking exact
+scope/target authority around asynchronous native reads. Lost acknowledgements
+require fresh cursor observation; disconnects, refused reads and pending writes
+retry with bounded backoff, while confirmed identity changes/gaps fail visibly.
+One active-subscription host tick, four concurrent owner scans and four page passes
+bound polling; stopped huddles do not poll and idle native heads omit page reads.
+Maintenance fences and drains delivery before runtime observation stops. Editor
+controls and same-execution native feedback remain unfinished.
 The runtime entry point selects a separate huddle owner from a strict private launch
 record. It reuses runtime/memory claims, host grants and lifetime checks; consumes
 launch intent once; and provides bounded authenticated controller commands.

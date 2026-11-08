@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { afterEach, expect, it } from 'vitest';
 import { completionReaderFixture } from '../../../helpers/huddle/completion-reader.js';
+import { HuddleCompletionPending } from '../../../../src/huddle/triggers/completions/reader.js';
 
 const cleanups: Array<() => void> = [];
 afterEach(() =>
@@ -165,4 +166,37 @@ it('reads retained pages from the pinned target and reports retention gaps witho
   expect(f.request.mock.calls[1]![0]).toEqual({ t: 'native-turns', after });
   f.deps.connections.get.mockReturnValue({ ...f.client } as typeof f.client);
   expect(() => result.check()).toThrow('target changed');
+});
+
+it('checks idle sources with one inspection and still fences a changed target before delivery', async () => {
+  const f = fixture();
+  const captured = await f.reader.capture(f.scope, f.selection, allowed);
+  f.request.mockClear();
+  const result = await f.reader.read(
+    f.scope,
+    captured.baseline.target,
+    captured.baseline.cursor,
+    allowed,
+  );
+  expect(result.page).toMatchObject({
+    state: 'events',
+    records: [],
+    cursor: captured.baseline.cursor,
+  });
+  expect(f.request.mock.calls.map(([command]) => command.t)).toEqual(['inspect']);
+  f.state.binding!.segment_id = randomUUID();
+  expect(result.check).toThrow('target changed');
+});
+
+it('treats refused observations as pending while preserving exact identity checks', async () => {
+  const f = fixture();
+  const captured = await f.reader.capture(f.scope, f.selection, allowed);
+  f.request.mockRejectedValue(new Error('Too many runtime requests'));
+  await expect(
+    f.reader.read(f.scope, captured.baseline.target, captured.baseline.cursor, allowed),
+  ).rejects.toBeInstanceOf(HuddleCompletionPending);
+  f.binding.incarnation = randomUUID();
+  await expect(
+    f.reader.read(f.scope, captured.baseline.target, captured.baseline.cursor, allowed),
+  ).rejects.toThrow('target changed');
 });

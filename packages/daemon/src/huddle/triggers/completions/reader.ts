@@ -6,6 +6,7 @@ import {
   type HuddleCompletionTarget,
   type HuddleCompletionPlan,
   type RuntimeNativeTurnCursor,
+  type RuntimeNativeTurnPage,
 } from '@puddle/shared';
 import type { RuntimeStore } from '../../../db/stores/runtimes.js';
 import type { SessionStore } from '../../../db/stores/sessions.js';
@@ -13,9 +14,12 @@ import type { ProjectStore } from '../../../db/stores/projects.js';
 import type { RuntimeConnections } from '../../../runtime/transport/connections.js';
 import { runtimeBindingIdentity } from '../../../runtime/transport/connections.js';
 import type { RuntimeClient } from '../../../runtime/transport/client.js';
+import { RuntimeConnectionLost } from '../../../runtime/transport/client.js';
 
 type Scope = { profileId: string; projectId: string };
 type Selection = HuddleCompletionPlan['sources'][number];
+/** Retry observation only; this never authorises baseline changes or event admission. */
+export class HuddleCompletionPending extends Error {}
 export interface CompletionReaderDependencies {
   runtimes: Pick<RuntimeStore, 'ownerOf' | 'stopRequested'>;
   connections: Pick<RuntimeConnections, 'get'>;
@@ -27,18 +31,16 @@ export interface CompletionReaderDependencies {
 export class HuddleCompletionReader {
   constructor(private readonly deps: CompletionReaderDependencies) {}
 
-  private check(scope: Scope, target: HuddleCompletionTarget, client: RuntimeClient) {
+  private placement(scope: Scope, target: HuddleCompletionTarget) {
     const session = this.deps.sessions.get(target.sessionId);
     const project = this.deps.projects.get(scope.projectId);
     const binding = this.deps.runtimes.ownerOf(target.sessionId);
-    const state = client.state;
     if (
       project.profile_id !== scope.profileId ||
       project.archived ||
       session.kind !== 'agent' ||
       session.project_id !== scope.projectId ||
       session.status === 'archived' ||
-      session.persistence_pending ||
       realpathSync(session.worktree_path) !== target.identity.canonical_worktree_path ||
       session.agent_session_ref !== target.nativeRef ||
       !binding ||
@@ -50,12 +52,23 @@ export class HuddleCompletionReader {
       binding.active_segment_id !== target.segmentId ||
       canonicalHuddleJson(runtimeBindingIdentity(binding)) !==
         canonicalHuddleJson(target.identity) ||
-      this.deps.runtimes.stopRequested(binding.runtime_id) ||
-      this.deps.connections.get(binding.runtime_id) !== client ||
-      !state ||
+      this.deps.runtimes.stopRequested(binding.runtime_id)
+    )
+      throw new Error('Completion target changed or lacks exact native observation support');
+    if (session.persistence_pending)
+      throw new HuddleCompletionPending('Completion placement persistence is pending');
+  }
+
+  private check(scope: Scope, target: HuddleCompletionTarget, client: RuntimeClient) {
+    this.placement(scope, target);
+    if (this.deps.connections.get(target.identity.runtime_id) !== client || !client.state)
+      throw new HuddleCompletionPending(
+        'Completion target changed connection; observation is pending',
+      );
+    const state = client.state;
+    if (
       canonicalHuddleJson(state.identity) !== canonicalHuddleJson(target.identity) ||
       state.state !== 'running' ||
-      state.persistence_pending ||
       state.protocol.major !== 1 ||
       state.protocol.minor < 2 ||
       state.agent?.native_turn_events !== 1 ||
@@ -68,6 +81,8 @@ export class HuddleCompletionReader {
       state.history.current.agent_session_ref !== target.nativeRef
     )
       throw new Error('Completion target changed or lacks exact native observation support');
+    if (state.persistence_pending)
+      throw new HuddleCompletionPending('Completion identity persistence is pending');
     return state;
   }
 
@@ -101,22 +116,51 @@ export class HuddleCompletionReader {
     guard: () => void,
     pinned?: RuntimeClient,
   ) {
+    guard();
+    this.placement(scope, target);
     const client = pinned ?? this.deps.connections.get(target.identity.runtime_id);
-    if (!client) throw new Error('Completion target is disconnected');
+    if (!client) throw new HuddleCompletionPending('Completion target is disconnected');
     const check = () => {
       guard();
       return this.check(scope, target, client);
     };
+    const request: RuntimeClient['request'] = async (command) => {
+      try {
+        return await client.request(command);
+      } catch (error) {
+        if (error instanceof RuntimeConnectionLost) throw error;
+        // A refused/read-timeout observation is not evidence of a native identity
+        // change. Retry observation under the same pinned source and cursor.
+        throw new HuddleCompletionPending('Completion source observation is unavailable');
+      }
+    };
     check();
-    const before = await client.request({ t: 'inspect' });
+    const before = await request({ t: 'inspect' });
     check();
     if (before.t !== 'state') throw new Error('Completion target inspection failed');
-    const result = await client.request({ t: 'native-turns', after });
+    const status = client.state!.native_turns!;
+    if (
+      after &&
+      !status.persistencePending &&
+      after.epoch === status.cursor.epoch &&
+      after.sequence === status.cursor.sequence
+    ) {
+      const page: RuntimeNativeTurnPage = {
+        state: 'events',
+        cursor: after,
+        head: after.sequence,
+        records: [],
+        persistencePending: false,
+      };
+      return { page, check };
+    }
+    const result = await request({ t: 'native-turns', after });
     check();
     if (result.t !== 'native-turns') throw new Error('Completion source read failed');
     const page = runtimeNativeTurnPageSchema.parse(result.page);
-    if (page.persistencePending) throw new Error('Completion source persistence is pending');
-    const inspected = await client.request({ t: 'inspect' });
+    if (page.persistencePending)
+      throw new HuddleCompletionPending('Completion source persistence is pending');
+    const inspected = await request({ t: 'inspect' });
     check();
     if (inspected.t !== 'state') throw new Error('Completion target reinspection failed');
     const finalCheck = () => {
