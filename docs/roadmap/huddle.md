@@ -9,7 +9,7 @@ captured-source script workers, retained revisions/activation and a manual sched
 in an independent owner process with private authenticated control, explicit
 runtime-role metadata and pinned capability checks. Phase 2 has the third session
 kind, immutable application placement and common runtime inventory role, with
-application protocol 28.7. Local/SSH inactive creation, discovery, inspection and
+application protocol 28.8. Local/SSH inactive creation, discovery, inspection and
 placement opening now have sidebar creation and a graph pane with manifest
 editing, shared source/layout drafts, settings, undo and file-conflict review.
 Pointer/touch and keyboard node movement, position settings, pan and fit controls
@@ -49,14 +49,19 @@ host spawn service now retain exact readiness outcomes and consume one guarded
 cleanup attempt. The owner-local spawn outbox now retains single-consumption claims
 and returns execution-scoped handles after durable readiness settlement; isolated
 node/agent workers verify spawn-to-ask composition. The independent owner now
-serves private spawn messages behind an unadvertised capability, with reconnect
+serves private spawn messages behind the optional `spawns: 1` capability, with reconnect
 and interruption checks. Production dispatch now scans both operation queues,
 observes retained creation across controller replacement and drives the subsequent
 agent prompt. Start/Apply now resolve and recheck explicit account/provider/project
 resources alongside registered worktrees, rejecting unsupported owners. Durable
 owned-agent cleanup now handles Interrupt/Stop and failed/deadline executions,
 retains pending cleanup across controller loss and waits for exact exit before Stop
-completes. Spawn rollout/templates, resume/restart and native-provider acceptance remain pending.
+completes. Each execution captures its cleanup policy; explicit `retain-owned` leaves
+its agents running. Application 28.8 adds the editable Spawn agent template and
+project/worktree/provider/account selectors. Runtime metadata now advertises
+`spawns: 1`; older owners remain supported but cannot run spawn graphs. The template
+returns its initial prompt reply and an execution-scoped handle. Handle-input
+template ergonomics, resume/restart and native-provider acceptance remain pending.
 The [usage guide](../huddle.md) describes the implemented slice.
 Phase 4 now has runtime-owned interval, one-off date/time and daily/selected-weekday
 calendar triggers, durable occurrence admission, coalesce/skip/bounded catch-up,
@@ -584,7 +589,7 @@ transport and script attach/ask queueing now live under `runtime/huddle/operatio
 production dispatch and exact session-resource admission now compose these
 through `huddle/operations/dispatch/`. The owner spawn outbox and execution-owned
 handles now live under `runtime/huddle/operations/spawns/`; separate private spawn
-messages are composed by the owner behind an unadvertised capability. Automatic
+messages are composed by the owner behind optional `spawns: 1`, now advertised. Automatic
 spawn dispatch now shares the daemon operation queue and maintenance gate. Start/Apply
 resolve explicit account ids, matching scripted-turn providers, the source project
 and canonical registered worktrees, with admission rechecks and owner capability
@@ -780,7 +785,7 @@ shared editor drafts, movable nodes and local/SSH manual lifecycle/history APIs;
 complete settings, stopped-owner history and active-revision detail remain pending.
 The IDE now has reviewed lifecycle controls, manual input and live result inspection,
 plus initial editable prompt/review templates and connection feedback settings;
-phase 3 still needs spawn/resume and provider-native acceptance. Each phase
+phase 3 still needs dynamic-handle templates, resume/restart and provider-native acceptance. Each phase
 must update
 `docs/acceptance/huddle.md` with implemented details and evidence, rather than
 leaving the only accurate description in code or marking future phases complete.

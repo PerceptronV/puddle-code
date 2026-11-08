@@ -73,6 +73,7 @@ export function AddNode({
         ))}
       {template.supported &&
         huddleAgentTemplates
+          .filter((item) => template.supportsTemplate(item.template))
           .filter(({ component }) =>
             `${component.title} ${component.category}`.toLowerCase().includes(search.toLowerCase()),
           )

@@ -167,6 +167,7 @@ window.fetch = async (input, init) => {
     path === '/api/version' &&
     (!executionSupported ||
       new URLSearchParams(location.search).has('old-templates') ||
+      new URLSearchParams(location.search).has('old-spawn') ||
       new URLSearchParams(location.search).has('old-layout'))
   ) {
     const version = await transport.request(method, path, body).then((response) => response.json());
@@ -176,11 +177,39 @@ window.fetch = async (input, init) => {
         major: 28,
         minor: !executionSupported
           ? 1
-          : new URLSearchParams(location.search).has('old-layout')
-            ? 3
-            : 2,
+          : new URLSearchParams(location.search).has('old-spawn')
+            ? 7
+            : new URLSearchParams(location.search).has('old-layout')
+              ? 3
+              : 2,
       },
     });
+  }
+  if (new URLSearchParams(location.search).has('spawn-templates')) {
+    const accounts = [
+      { id: 11, label: 'Primary', agent_type: 'claude', logged_in: true },
+      { id: 12, label: 'Coding', agent_type: 'codex', logged_in: true },
+      { id: 13, label: 'Logged out', agent_type: 'claude', logged_in: false },
+      { id: 14, label: 'Unsupported', agent_type: 'plain', logged_in: true },
+    ].map((account) => ({
+      ...account,
+      profile_id: profile.id,
+      config_dir: '/preview/accounts',
+      skip_permissions_default: false,
+      created_at: '2026-01-01T00:00:00Z',
+    }));
+    if (path === '/api/accounts') return Response.json(accounts);
+    if (path === `/api/puddlang/${profile.id}/context`)
+      return Response.json({
+        profile: { id: profile.id, name: profile.name },
+        projects: [{ id: project.id, name: project.name, path: '/preview/puddle' }],
+        accounts: accounts.map((account) => ({ ...account, agent: account.agent_type })),
+        agents: [
+          { id: 'claude', scripted_turns: true, modes: ['interactive', 'headless'] },
+          { id: 'codex', scripted_turns: true, modes: ['interactive', 'headless'] },
+          { id: 'plain', scripted_turns: false },
+        ],
+      });
   }
   const execution = path.match(new RegExp(`^${prefix}/sessions/([^/]+)/(readouts/observe|[^/]+)$`));
   if (execution)

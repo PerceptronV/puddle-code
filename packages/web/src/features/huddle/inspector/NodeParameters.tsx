@@ -30,8 +30,9 @@ export function NodeParameters({
     session,
     node,
     Object.values(component?.parameters ?? {}).some((parameter) =>
-      ['worktree', 'session'].includes(parameter.editor),
+      ['worktree', 'session', 'account', 'agent', 'project'].includes(parameter.editor),
     ),
+    component,
   );
   const set = (name: string, binding: HuddleBinding | undefined) =>
     edit((graph) => ({
@@ -116,7 +117,13 @@ function Parameter({
       ? resources.worktrees
       : parameter.editor === 'session'
         ? resources.sessions
-        : undefined;
+        : parameter.editor === 'account'
+          ? resources.accounts
+          : parameter.editor === 'project'
+            ? resources.projects
+            : parameter.editor === 'agent'
+              ? resources.providers
+              : undefined;
   return (
     <div className="flex flex-col gap-2" role="group" aria-label={parameter.title ?? name}>
       <Label htmlFor={id}>
@@ -156,7 +163,9 @@ function Parameter({
           className="rounded-md bg-surface p-1 text-sm"
           onChange={(event) => setText(event.target.value)}
         >
-          <option value="">Choose {parameter.editor === 'session' ? 'session' : 'worktree'}</option>
+          <option value="">
+            Choose {parameter.editor === 'agent' ? 'provider' : parameter.editor}
+          </option>
           {text && !choices.some((choice) => choice.value === text) && (
             <option value={text}>{text} · unavailable</option>
           )}

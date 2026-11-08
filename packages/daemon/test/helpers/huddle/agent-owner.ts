@@ -33,7 +33,10 @@ export async function agentOwnerFixture(
 ) {
   const f = await programmeOwnerFixture();
   const capabilities = { ...HUDDLE_RUNTIME_CAPABILITIES };
-  if (legacy) delete capabilities.operations;
+  if (legacy) {
+    delete capabilities.operations;
+    delete capabilities.spawns;
+  }
   const scope = huddleTurnScope(f, capabilities);
   const binding = f.runtimes.get(scope.owner.runtime_id)!;
   const { snapshot, bindings } = graph

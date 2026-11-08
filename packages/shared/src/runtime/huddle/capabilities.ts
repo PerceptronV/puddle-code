@@ -21,13 +21,13 @@ export const huddleRuntimeCapabilitiesSchema = z.strictObject({
   customTriggers: version.optional(),
 });
 export type HuddleRuntimeCapabilities = z.infer<typeof huddleRuntimeCapabilitiesSchema>;
-// Spawn transport, resource admission and cleanup are integrated; user-facing rollout follows.
 export const HUDDLE_RUNTIME_CAPABILITIES: Readonly<HuddleRuntimeCapabilities> = Object.freeze({
   owner: 1,
   definition: 1,
   component: 1,
   ledger: 1,
   operations: 2,
+  spawns: 1,
   timers: 1,
   calendar: 1,
   filetree: 1,

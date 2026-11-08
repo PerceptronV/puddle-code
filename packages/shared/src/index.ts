@@ -24,6 +24,13 @@ export * from './api/huddle/events.js';
 export * from './api/huddle/authoring.js';
 export * from './api/huddle/templates.js';
 export * from './huddle/templates/agents.js';
+export {
+  promptAgentComponent,
+  reviewAgentComponent,
+  agentPromptSource,
+  agentNodeSource,
+} from './huddle/templates/agents/prompt.js';
+export { spawnAgentComponent, spawnAgentSource } from './huddle/templates/agents/spawn.js';
 export * from './api/huddle/execution.js';
 export * from './runtime/huddle/triggers/custom.js';
 export * from './huddle/validation/values.js';

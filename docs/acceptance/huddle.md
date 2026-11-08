@@ -13,6 +13,7 @@ Application 28.4 adds guarded absent-file creation and layout editing.
 Application 28.5 adds local readout delivery declarations and execution.
 Application 28.6 adds explicit readout observation and the history action.
 Application 28.7 adds local custom trigger workers and opt-in source health.
+Application 28.8 adds Spawn agent authoring and advertises runtime spawn support.
 Runtime archives declare their internal huddle-role contracts;
 application 27.0 now includes huddle session identity and migration 43 records
 placements/owner roles. The daemon launcher and lifecycle controls now integrate
@@ -31,6 +32,67 @@ interactive, structured Codex and command-correlated headless controls. Automati
 delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 No user CLI command is enabled yet.
+
+## Implemented: Spawn agent rollout and captured retention policy
+
+Application **28.8** adds `spawn-agent` to the existing inactive component-template
+API. `shared/huddle/templates/agents/` holds the editable prompt/review/spawn
+implementations, with the registry at `agents.ts`. Publication writes ordinary
+`node.json`, `run.ts` and `prompt.ts` files without overwriting edits or starting
+execution. The IDE gates Spawn on 28.8 while preserving older Prompt/Review hosts.
+Default runtime/daemon role metadata now advertises optional **`spawns: 1`**,
+requiring operation contract 2. Owners pinned to older metadata retain their
+original capabilities; unsupported spawn graphs fail admission without restarting
+those owners. Ordinary runtime 1.2, remote 5, database 49 and owner/ledger versions
+are unchanged.
+
+Spawn agent requires explicit project, worktree, provider and account settings;
+mode/title/prompt have visible defaults. The inspector uses existing project,
+worktree and account queries plus the read-only puddlang context endpoint. It
+shows scripted-turn providers and logged-in matching profile accounts. Changing
+provider preserves an incompatible account as unavailable until explicitly changed.
+Variables remain supported; Start/Apply and dispatch remain authoritative. Provider
+catalogue membership does not prove the binary is installed; ordinary creation
+admission still checks availability.
+
+The source formats and bounds prompt substitution before creating an agent,
+then awaits its exact first reply. Completion outputs are `completed` (text) and
+`agent` (`{runtime_id, session_id}`); optional `turn` emits reply text. Custom
+same-execution scripts can attach the returned runtime id with a matching declared
+worktree. Shipped Prompt/Review nodes still select existing sessions; dynamic-handle
+input templates and spawn-once feedback examples remain unfinished. Repeating a
+Spawn node intentionally spends another spawn; it never implies agent reuse.
+
+Cleanup now honors the policy captured in each execution's limits. Default
+`stop-owned` requests exact stops on execution failure/deadline and Interrupt/Stop.
+Explicit `retain-owned` changes consumed cleanup to `released`, frees its reservation
+and leaves those agents running. Unconsumed or positively refused creation is still
+fenced as unadmitted. Released cleanup is not exit evidence or permission to replay;
+the dispatcher excludes it from new work. Apply cannot change earlier executions'
+policies. Retained sessions remain controllable through normal session actions.
+
+Verification, 2026-11-08: **330 distinct tests across 56 files passed** across
+the regression and final focused run. The initial regression passed 273/275; two
+legacy fixtures removed operation support but inherited the newly advertised
+spawn dependency. Both now explicitly model older metadata. The final **69/69**
+run passes those compatibility checks, host startup/update checks, published
+Spawn execution and the final prompt/retention cases. It proves both missing and
+empty expanded prompts fail before creation, policies remain captured across
+Apply, and an agent admitted before readiness remains running under retain-owned
+after Interrupt/controller replacement/Stop without another creation or stop.
+
+Both headless browser checks passed: the new Spawn inspector and existing
+Prompt/Review editing. Coverage includes explicit resource choices, login/provider
+filtering, unavailable selection preservation, source save without execution and
+hiding Spawn on 28.7. The inspector screenshot was reviewed. Shared/daemon/CLI and
+web TypeScript, changed-source ESLint/formatting, semantic colour checks and diff
+checks passed. Process inspection found no remaining matching fixture children.
+No production daemon, native desktop or real-provider session was used. Live
+provider, SSH, supervisor/reboot and owner-crash acceptance remain open.
+
+Earlier sections below record the implementation sequence. Their statements that
+spawn support was unadvertised or awaiting templates describe those earlier slices;
+the 28.8 rollout above supersedes those limitations.
 
 ## Implemented: durable owned-agent lifecycle cleanup
 

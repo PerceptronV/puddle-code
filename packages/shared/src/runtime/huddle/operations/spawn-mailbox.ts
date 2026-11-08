@@ -11,6 +11,7 @@ export const huddleSpawnRejectionSchema = z.strictObject({ rejected: z.string().
 export const huddleSpawnCleanupOutcomeSchema = z.enum(['unadmitted', 'unlaunched', 'stopped']);
 export const huddleSpawnCleanupSchema = z.discriminatedUnion('state', [
   z.strictObject({ state: z.literal('retained') }),
+  z.strictObject({ state: z.literal('released') }),
   z.strictObject({ state: z.literal('pending'), error: z.string().min(1).max(4096).optional() }),
   z.strictObject({ state: z.literal('confirmed'), outcome: huddleSpawnCleanupOutcomeSchema }),
 ]);

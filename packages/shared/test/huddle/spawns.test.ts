@@ -53,19 +53,23 @@ const result = {
   receipt: 'b'.repeat(64),
 };
 
-it('recognises the gated spawn contract without advertising it in default builds', () => {
+it('advertises complete spawn support and preserves older-owner compatibility', () => {
   const required = { ...HUDDLE_RUNTIME_CAPABILITIES, spawns: 1 };
-  expect(HUDDLE_RUNTIME_CAPABILITIES.spawns).toBeUndefined();
+  expect(HUDDLE_RUNTIME_CAPABILITIES.spawns).toBe(1);
   expect(supportsHuddleRuntime(HUDDLE_RUNTIME_CAPABILITIES)).toBe(true);
   expect(supportsHuddleRuntime(required)).toBe(true);
   expect(supportsHuddleRuntime({ ...required, spawns: 2 })).toBe(false);
   for (const operations of [undefined, 1, 3])
     expect(supportsHuddleRuntime({ ...required, operations })).toBe(false);
   const candidate = daemonRuntimeCapabilities('fixture');
+  expect(canAdoptHuddle(candidate, required)).toBe(true);
+  delete candidate.roles.huddle!.spawns;
   expect(canAdoptHuddle(candidate, required)).toBe(false);
   candidate.roles.huddle = required;
   expect(canAdoptHuddle(candidate, required)).toBe(true);
-  expect(canAdoptHuddle(candidate, HUDDLE_RUNTIME_CAPABILITIES)).toBe(true);
+  const older = { ...HUDDLE_RUNTIME_CAPABILITIES };
+  delete older.spawns;
+  expect(canAdoptHuddle(candidate, older)).toBe(true);
 });
 
 it('validates separate spawn commands without widening the existing ask contract', () => {

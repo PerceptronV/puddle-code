@@ -1438,8 +1438,8 @@ original activation across Apply. These components are verified together with re
 isolated node/agent workers. The independent owner now serves separate private
 `spawn-page`, `spawn-claim`, `spawn-settle` and `spawn-unavailable` messages through
 the same authenticated controller connection and bounded sequenced request queue.
-Client and server require the proposed optional `spawns: 1` contract, which also
-requires `operations: 2`; default runtime/daemon metadata still omit it. Existing
+Client and server require the optional `spawns: 1` contract, which also
+requires `operations: 2`; default runtime/daemon metadata now advertises it. Existing
 ask messages and older-owner capabilities are unchanged. Lifecycle changes fence
 new claims while retained late results remain settleable without continuing scripts.
 Real owner/node/agent process tests cover disconnect/reconnect and lost replies.
@@ -1472,8 +1472,11 @@ appears in owner failure inspection and blocks rearming. Stop waits for confirme
 cleanup without occupying the private command queue, then releases owner claims only
 after the ordinary worker/process exit checks. Deadline failure notifies the host
 even while another execution continues. Attached agents keep their existing exact
-ask-cancellation policy. Default metadata still omits the unadvertised spawn gate;
-user-facing spawn/resume/restart nodes and rollout remain unfinished.
+ask-cancellation policy. Cleanup uses each execution's captured policy:
+`stop-owned` is the default; explicit `retain-owned` releases the cleanup reservation
+and leaves consumed agents running, without authorising new creation or replay.
+Apply cannot retroactively change earlier executions' policies. Resume/restart
+nodes and native-provider acceptance remain unfinished.
 Private immutable revision documents and compare-and-swap activation records
 separate source publication from Apply/arming. Managed executions retain their
 accepted revision, variable values and resource bindings across later Apply.
@@ -1668,8 +1671,14 @@ prompt settings support `{{input}}` and own-property `{{input.field}}` substitut
 Prompt agent returns text; Review agent returns strict `{complete, feedback}` data.
 Both expose optional turn-completion event ports. Connection settings can declare
 a boolean feedback condition and finite round limit. These templates use existing
-live-agent attach/ask admission; spawn/resume and real-provider acceptance remain
-unfinished. See the [current usage guide](docs/huddle.md).
+live-agent attach/ask admission. Application 28.8 adds the editable Spawn agent
+template, with explicit project/worktree/provider/account selectors, interactive or
+headless mode, title and prompt substitution. It formats input before creation,
+then returns the initial reply and an execution-scoped agent handle. Selectors
+reuse ordinary account queries and read-only puddlang context; stale choices stay
+visible and activation remains authoritative. Existing Prompt/Review templates
+still select existing sessions. Resume/restart, dynamic-handle template ergonomics
+and real-provider acceptance remain unfinished. See the [current usage guide](docs/huddle.md).
 Huddle views can move through panes, project layouts and native
 transfers without creating PTYs or owners. Closing a view is independent of Stop.
 Desktop recovery format 4 migrates versions 2/3; `windows.huddles` gates native
@@ -1725,11 +1734,11 @@ daemon shutdown drain dispatch while preserving admitted agent turns; interrupti
 cancels only the original placement/turn. Start/Apply resolve declared session UUIDs
 to exact live agents in the same project and node worktree, and recheck bindings
 after asynchronous admission. Capability-2 owners can execute these attach/ask
-scripts; spawn/resume and shipped agent nodes remain pending. No ordinary agent
-IPC changes.
+scripts; spawning uses the separate contract described above. Resume/restart
+remains unfinished. No ordinary agent IPC changes.
 Node worktrees resolve to registered roots in the placement's project and are
-rechecked after asynchronous admission. Unsupported account/project/provider
-selectors and local trigger adapters fail before launch. Custom readouts require a
+rechecked after asynchronous admission. Account/project/provider selectors and
+local trigger adapters require their declared capabilities before launch. Custom readouts require a
 supporting runtime and captured delivery policy. Missing source blocks new work but
 not inspection or Stop. The event host id persists in private `huddle-host.json`
 and grants no authority. Public history omits private ledger keys and operation

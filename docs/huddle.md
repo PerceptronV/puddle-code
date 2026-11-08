@@ -7,8 +7,9 @@ work. Interval, calendar and one-off date triggers are available on supporting
 runtimes. Filetree, Git, session lifecycle/status and exact external turn-completion
 observation are also available. [Custom readouts](huddle/readouts.md) can deliver
 graph outputs to external services on supporting runtimes. [Custom triggers](huddle/triggers.md)
-can subscribe to external sources with durable cursors and visible source health. Agent spawn/resume nodes, explicit native feedback
-and authoring CLI/skills remain unfinished. Native provider, supervisor and reboot acceptance is pending.
+can subscribe to external sources with durable cursors and visible source health.
+Spawn agent creates an agent and sends its initial prompt. Resume/restart nodes,
+explicit native feedback and authoring CLI/skills remain unfinished. Native provider, supervisor and reboot acceptance is pending.
 
 ## Create and edit
 
@@ -33,7 +34,8 @@ and agent editing. Runtime records are kept separately in private Puddle storage
 
 Use **Add node** to add Run, Result, a time trigger, an agent template or a local
 contract path.
-Agent templates require application 28.3. They immediately publish editable source
+Prompt and Review templates require application 28.3; Spawn requires 28.8.
+They immediately publish editable source
 files, then add a reference to the graph draft. **Undo** removes that reference;
 it leaves the published files intact. After a failed reply, inspect the files
 before creating another template. Template publication never overwrites edited
@@ -293,6 +295,45 @@ transform more complex inputs in the editable script.
 The `completed` output fires when the node returns. The optional `turn` event
 output emits the reply immediately after the ask completes. Connecting both ports
 creates separate deliveries, so use the output appropriate to the workflow.
+
+## Spawn an agent
+
+On application 28.8, add **Spawn agent** and connect an upstream value to its
+`value` input. Choose the current project, a registered worktree, a provider and
+an account explicitly. Provider choices support scripted turns; account choices
+are logged-in accounts in the current profile matching the chosen provider.
+Changing the provider preserves an incompatible saved account as **unavailable**
+until you change it. Resources may also be supplied by declared variables.
+Start/Apply rechecks all choices; no default account is substituted.
+
+Choose **interactive** or **headless** mode, a session title and a prompt using
+`{{input}}` or its fields. Visible defaults are interactive mode, “Huddle agent”
+and `{{input}}`. Invalid prompt substitution fails before creating an agent.
+The node creates one agent, sends the prompt, then returns `completed` (reply text)
+and `agent` (`{runtime_id, session_id}`). Its optional `turn` port emits that reply.
+The files are ordinary editable `node.json`, `run.ts` and `prompt.ts` source.
+
+Spawn graphs require runtime `spawns: 1` and `operations: 2`. Older runtimes still
+support their existing sessions and graphs; unsupported Start/Apply is rejected.
+Installing a newer runtime does not restart existing owners.
+
+Custom downstream scripts in the same execution can call
+`puddlang.attach(inputs.agent.runtime_id)` with an explicit matching worktree
+binding. The shipped Prompt/Review templates currently select existing sessions;
+they do not yet accept dynamic handles. A later execution must bind the retained
+session explicitly. Keep Spawn outside a feedback loop unless each iteration is
+intended to create another agent; normal spawn budgets apply.
+
+Successful executions keep their agents available. With the default
+`execution.cleanup: "stop-owned"`, execution failure/deadline cleans up that
+execution's agents, and Interrupt/Stop cleans up agents from all executions.
+Stop waits for exact exit evidence; uncertain cleanup remains visible.
+Set `execution.cleanup: "retain-owned"` in `huddle.json` to leave those agents
+running when the execution ends or the huddle is interrupted/stopped. You then
+manage their lifecycle through ordinary session controls. The policy is captured
+per execution, so Apply cannot change an earlier execution's policy. Retention
+does not restart interrupted node scripts or grant permission to replay an
+uncertain spawn. Attached existing agents retain their own lifecycle rules.
 
 ## Two agents exchanging replies
 

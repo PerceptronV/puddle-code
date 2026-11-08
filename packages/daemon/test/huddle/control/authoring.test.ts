@@ -133,36 +133,39 @@ function fixture() {
 }
 
 describe('inactive huddle authoring', () => {
-  it('materialises editable agent templates without changing the graph, overwriting edits or starting an owner', async () => {
-    const f = fixture();
-    const opened = await f.create();
-    const input = {
-      ...f.location,
-      huddle_id: opened.session.huddle_id!,
-      template: 'prompt-agent' as const,
-      component: 'coder',
-    };
-    const installed = await f.service.installTemplate(f.profile.id, input, f.authority);
-    expect(installed.manifest).toBe('nodes/coder/node.json');
-    const root = join(f.worktree, '.puddle/huddle', input.huddle_id);
-    expect(readFileSync(join(root, 'nodes/coder/run.ts'), 'utf8')).toContain('HuddleNode');
-    expect(await f.service.installTemplate(f.profile.id, input, f.authority)).toEqual(installed);
-    expect(
-      (
-        await f.service.inspect(
-          f.profile.id,
-          { ...f.location, huddle_id: input.huddle_id },
-          f.authority,
-        )
-      ).digest,
-    ).toBe(opened.document.digest);
-    writeFileSync(join(root, 'nodes/coder/run.ts'), '// user edit');
-    await expect(f.service.installTemplate(f.profile.id, input, f.authority)).rejects.toMatchObject(
-      { code: 'huddle_component_exists' },
-    );
-    expect(readFileSync(join(root, 'nodes/coder/run.ts'), 'utf8')).toBe('// user edit');
-    expect(f.db.prepare('SELECT * FROM runtime_bindings').all()).toEqual([]);
-  });
+  it.each(['prompt-agent', 'spawn-agent'] as const)(
+    'materialises editable %s templates without changing the graph, overwriting edits or starting an owner',
+    async (template) => {
+      const f = fixture();
+      const opened = await f.create();
+      const input = {
+        ...f.location,
+        huddle_id: opened.session.huddle_id!,
+        template,
+        component: 'coder',
+      };
+      const installed = await f.service.installTemplate(f.profile.id, input, f.authority);
+      expect(installed.manifest).toBe('nodes/coder/node.json');
+      const root = join(f.worktree, '.puddle/huddle', input.huddle_id);
+      expect(readFileSync(join(root, 'nodes/coder/run.ts'), 'utf8')).toContain('HuddleNode');
+      expect(await f.service.installTemplate(f.profile.id, input, f.authority)).toEqual(installed);
+      expect(
+        (
+          await f.service.inspect(
+            f.profile.id,
+            { ...f.location, huddle_id: input.huddle_id },
+            f.authority,
+          )
+        ).digest,
+      ).toBe(opened.document.digest);
+      writeFileSync(join(root, 'nodes/coder/run.ts'), '// user edit');
+      await expect(
+        f.service.installTemplate(f.profile.id, input, f.authority),
+      ).rejects.toMatchObject({ code: 'huddle_component_exists' });
+      expect(readFileSync(join(root, 'nodes/coder/run.ts'), 'utf8')).toBe('// user edit');
+      expect(f.db.prepare('SELECT * FROM runtime_bindings').all()).toEqual([]);
+    },
+  );
 
   it('refuses template path escapes and revocation before publication', async () => {
     const f = fixture();

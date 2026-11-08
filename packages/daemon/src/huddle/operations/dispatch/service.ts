@@ -158,7 +158,7 @@ export class HuddleAgentDispatcher {
                 (operation.result && 'rejected' in operation.result) ||
                 (task.kind === 'spawn' &&
                   (operation.state === 'completed' ||
-                    task.operation.cleanup.state === 'confirmed')))
+                    ['confirmed', 'released'].includes(task.operation.cleanup.state))))
             )
               continue;
             if (this.tasks >= 64) {

@@ -1,6 +1,7 @@
 import { useMutation } from '@tanstack/react-query';
 import {
   huddleInstalledTemplateSchema,
+  huddleAgentTemplates,
   supportsApplicationFeature,
   type HuddleInstallTemplate,
   type Session,
@@ -13,10 +14,17 @@ export function useHuddleTemplates(profile: string | undefined, session: Session
   const shell = useHuddleSupported();
   const protocol = useDaemonVersion().data?.protocol;
   const supported = shell && supportsApplicationFeature(protocol, { major: 28, minor: 3 });
+  const supportsTemplate = (name: HuddleInstallTemplate['template']) =>
+    shell &&
+    supportsApplicationFeature(protocol, {
+      major: 28,
+      minor: huddleAgentTemplates.find((item) => item.template === name)!.minor,
+    });
   const mutation = useMutation({
     retry: false,
     mutationFn: async (input: Pick<HuddleInstallTemplate, 'template' | 'component'>) => {
-      if (!profile || !supported) throw new Error('Agent-node templates require a supporting host');
+      if (!profile || !supportsTemplate(input.template))
+        throw new Error('This agent-node template requires a supporting host');
       return huddleInstalledTemplateSchema.parse(
         await api('POST', `/api/huddle/${profile}/definitions/${session.huddle_id}/components`, {
           ...input,
@@ -26,5 +34,5 @@ export function useHuddleTemplates(profile: string | undefined, session: Session
       );
     },
   });
-  return { supported, ...mutation };
+  return { supported, supportsTemplate, ...mutation };
 }

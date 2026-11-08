@@ -1,15 +1,23 @@
 # The puddle communication protocol
 
+Application **28.8** adds `spawn-agent` to local/SSH component-template requests.
+The UI gates this option on 28.8 while retaining Prompt/Review on 28.3. Response
+shapes are unchanged. Runtime/daemon metadata now advertises optional `spawns: 1`
+with `operations: 2`; older owners remain supported without spawn operations.
+Private cleanup state additionally admits `released`, derived only from an
+execution’s captured `retain-owned` policy. It is not host exit evidence and
+cannot be supplied as a cleanup settlement outcome. Database 49, ordinary runtime
+1.2, remote 5 and huddle owner/ledger versions are unchanged.
+
 Private owner IPC now carries the bounded spawn outbox contracts through separate
 `spawn-page`, `spawn-claim`, `spawn-settle` and `spawn-unavailable` commands and
 `spawn-page`, `spawn-claim`, `spawn-settled` replies. Spawn pages also carry separate
-retained/pending/confirmed cleanup state. `spawn-cleanup-settle` accepts exact
+retained/pending/confirmed/released cleanup state. `spawn-cleanup-settle` accepts exact
 unadmitted/unlaunched/stopped evidence and replies `spawn-cleaned`;
 `spawn-cleanup-unavailable` retains a bounded failure without clearing intent.
-These extend the same unadvertised spawn contract. Existing ask schemas are unchanged.
+These extend the spawn contract. Existing ask schemas are unchanged.
 Both client and owner require optional `spawns: 1`, which requires `operations: 2`.
-This contract is understood but remains **unadvertised in default runtime/daemon
-metadata** pending user-facing rollout. Lifecycle cleanup is now connected through
+This contract is now advertised in default runtime/daemon metadata. Lifecycle cleanup is now connected through
 the retained owner ledger and exact host stop service. Start/Apply resolve explicit
 account/provider/project resources and canonical registered worktrees, rechecking
 admission after asynchronous work. Graphs declaring these resource editors require
@@ -18,21 +26,22 @@ existing ask bindings keep their original requirements. The daemon
 now composes automatic host dispatch under this gate. Unsupported owners are rejected locally before writing a spawn
 command; the owner independently checks its launch capability. Existing strict
 older-owner state/launch shapes remain unchanged when the optional capability is
-absent. No public HTTP/WS addition: application 28.7, ordinary runtime 1.2, remote 5,
+absent. The original private transport added no public HTTP/WS message. Application 28.8
+adds the template request above; ordinary runtime 1.2, remote 5,
 database 49 and huddle owner/ledger versions remain unchanged.
 
 Database **49** adds retained huddle spawn readiness outcomes (bounded to 32 KiB)
 and consumed cleanup attempts. The internal `huddleSpawnOutcomeSchema` binds an
 exact agent target and receipt. These records support host observation after lost
 replies. They now also participate in the gated private owner protocol above;
-there is no public HTTP addition. No spawn capability is advertised yet.
+there was no public HTTP addition in that slice. Spawn rollout is described above.
 
 Database **48** adds private host huddle spawn mappings. Internal
 `runtime/huddle/operations/spawns.ts` defines exact owner/execution/invocation
 scope and resolved creation settings for the host admission foundation. These
 schemas now also participate in the gated private owner protocol above. The
 original admission slice changed no wire shapes. The automatic dispatcher is now
-composed alongside resource admission and lifecycle cleanup; user-facing rollout remains pending.
+composed alongside resource admission, lifecycle cleanup and the 28.8 template rollout.
 Selected-daemon database compatibility uses the existing migration-version gate.
 
 Application **28.7** adds optional local trigger manifest policy

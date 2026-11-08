@@ -1,6 +1,7 @@
 import {
   canonicalHuddleJson,
   huddleOperationRecordSchema,
+  huddleExecutionRecordSchema,
   huddleSpawnCleanupSchema,
   type HuddleSpawnCleanup as Cleanup,
   type HuddleSpawnCleanupOutcome,
@@ -38,6 +39,9 @@ export class HuddleSpawnCleanup {
           const operation = huddleOperationRecordSchema.parse(
             JSON.parse(this.db.get('operations', row.id)!.body),
           );
+          const execution = huddleExecutionRecordSchema.parse(
+            JSON.parse(this.db.get('executions', row.parent)!.body),
+          );
           const unsent =
             !operation.consumed ||
             (operation.state === 'failed' &&
@@ -47,7 +51,11 @@ export class HuddleSpawnCleanup {
           this.save(
             row.id,
             row.parent,
-            unsent ? { state: 'confirmed', outcome: 'unadmitted' } : { state: 'pending' },
+            unsent
+              ? { state: 'confirmed', outcome: 'unadmitted' }
+              : execution.limits.cleanup === 'retain-owned'
+                ? { state: 'released' }
+                : { state: 'pending' },
           );
         }
       }
@@ -73,7 +81,7 @@ export class HuddleSpawnCleanup {
     const value = huddleSpawnCleanupSchema.parse(raw);
     this.db.put('spawn-cleanup', id, executionId, value.state, value, {
       bytes:
-        value.state === 'confirmed'
+        value.state === 'confirmed' || value.state === 'released'
           ? 0
           : Math.max(0, 32 * 1024 - Buffer.byteLength(JSON.stringify(value))),
     });

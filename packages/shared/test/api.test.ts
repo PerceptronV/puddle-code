@@ -32,8 +32,8 @@ import {
 } from '../src/index.js';
 
 describe('shared API schemas', () => {
-  it('declares protocol 28.7 for custom huddle triggers', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 28, minor: 7 });
+  it('declares protocol 28.8 for huddle spawn templates', () => {
+    expect(PROTOCOL_VERSION).toEqual({ major: 28, minor: 8 });
   });
 
   it('accepts headless mode and rejects the previous scripted name', () => {

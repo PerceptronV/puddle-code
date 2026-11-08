@@ -622,7 +622,7 @@ A completed spawn can feed later attach/ask nodes only in the same execution and
 explicit worktree. Preserve captured choices across Apply. The independent owner
 now serves separate `spawn-*` IPC through its existing authenticated queue. Both
 client and owner gate it on optional `spawns: 1` (requires `operations: 2`), which
-remains absent from default build metadata. Keep older ask messages unchanged.
+is now advertised in default build metadata. Keep older ask messages unchanged.
 The production daemon now supplies the host spawn service to the shared dispatcher.
 Keep ask/spawn execution in `dispatch/turns.ts` and `dispatch/spawns.ts`; share scan,
 task and maintenance limits in `dispatch/service.ts`. Reobserve accepted creation
@@ -639,7 +639,17 @@ never infer cleanup authority from controller loss or maintenance. Interrupt/Sto
 request all owned agents; failed executions request their own. Stop keeps the owner
 inspectable until cleanup is confirmed, without blocking its command queue. Keep
 unknown cleanup visible and rearming blocked; do not stop a replacement runtime.
-Spawn rollout and authoring remain pending behind the unadvertised capability.
+Honor each execution's captured cleanup policy: `stop-owned` requests exact stops;
+`retain-owned` releases the reservation and leaves consumed agents running. Never
+read the current activation's policy for an earlier execution. Released cleanup
+cannot grant new dispatch or replay. Application 28.8 adds editable Spawn agent
+source with explicit resources, mode/title and prompt, returning reply and handle.
+Keep template implementations under `shared/huddle/templates/agents/` and registry
+composition at `agents.ts`. The inspector reuses account queries and read-only
+puddlang context for providers, preserving unavailable selections. Do not silently
+choose an account. Template publication stays inactive; gate Spawn on 28.8 and
+activation on runtime `spawns: 1`. Dynamic-handle template ergonomics, resume/restart
+and native-provider acceptance remain unfinished.
 Migration 45 adds `huddle_runtime_turns`. Host-side exact asks live under
 `huddle/operations/turns/`, reusing `RuntimeProgrammeTurns.askFor` and the common
 busy gate. Shared ordered allocation/result reservation lives in
@@ -661,7 +671,7 @@ adds explicit unsent/unknown failures; only supporting owners admit agent graphs
 the declared project/worktree. Recheck bindings before activation. Migration 46
 persists one cancellation attempt before its exact send. Pause/drain this dispatcher
 before connections/projection; shutdown preserves admitted agent turns. Never
-redispatch consumed operations during adoption. Spawn/resume remains unfinished.
+redispatch consumed operations during adoption. Resume/restart remains unfinished.
 Application 28.3 adds local/SSH component template publication. Keep editable agent
 template assets in `shared/huddle/templates/`, publication in `daemon/huddle/templates/`
 and graph insertion in the web document/inspector layer. Template publication never

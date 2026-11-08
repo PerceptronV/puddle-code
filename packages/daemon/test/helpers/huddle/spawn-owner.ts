@@ -22,7 +22,8 @@ export async function spawnOwnerFixture(
   enabled = true,
   edit?: (snapshot: HuddleDefinitionSnapshot) => void,
 ) {
-  const capabilities = { ...HUDDLE_RUNTIME_CAPABILITIES, ...(enabled ? { spawns: 1 } : {}) };
+  const capabilities = { ...HUDDLE_RUNTIME_CAPABILITIES };
+  if (!enabled) delete capabilities.spawns;
   const f = huddleSpawnServiceFixture(120_000, capabilities);
   const binding = f.runtimes.get(f.scope.owner.runtime_id)!;
   const { snapshot, bindings } = spawnGraphSnapshot(binding.huddle_id!, f.request);
@@ -121,7 +122,7 @@ export async function spawnOwnerFixture(
       return client!;
     };
     await connect();
-    const admit = async () => {
+    const admit = async (data = 'spawn fixture') => {
       const state = await client!.request({ t: 'inspect' });
       if (state.t !== 'state') throw new Error('No owner state');
       if (state.state.control.state !== 'armed')
@@ -134,7 +135,7 @@ export async function spawnOwnerFixture(
         t: 'run',
         node: 'run',
         eventId: randomUUID(),
-        data: 'spawn fixture',
+        data,
       });
       if (accepted.t !== 'run') throw new Error('No execution acceptance');
       return accepted.executionId;
