@@ -1,3 +1,4 @@
+import type { SessionCreationCaller } from '../../sessions/creation/caller.js';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { realpathSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -39,6 +40,7 @@ interface LaunchOptions {
   provider?: RuntimeProviderLaunch;
   codeRunDirectory?: string;
   programme?: ProgrammeOperation;
+  creation?: SessionCreationCaller;
   beforeLaunch?: (release: RuntimeSelectedRelease) => void;
 }
 
@@ -193,7 +195,7 @@ export class RuntimeLauncher {
   private async start(
     sessionId: string,
     command: (hooks: ShellHooks) => RuntimeCommand,
-    { provider, codeRunDirectory, programme, beforeLaunch }: LaunchOptions,
+    { provider, codeRunDirectory, programme, creation, beforeLaunch }: LaunchOptions,
   ): Promise<void> {
     // Establish lifetime support before recording any launch intent. An unavailable
     // manager must not leave a prepared owner or select the old in-process backend.
@@ -207,6 +209,7 @@ export class RuntimeLauncher {
     const selected = this.selectedRelease();
     const config = { ...this.configuration, ...selected, environment: this.deps.environment };
     beforeLaunch?.(selected);
+    creation?.check();
     const identity = {
       runtime_id: randomUUID(),
       incarnation: randomUUID(),
@@ -249,6 +252,7 @@ export class RuntimeLauncher {
         protocol: config.protocol,
         releasePath: config.releasePath,
         programme,
+        creation,
         ...(codeRunDirectory === undefined
           ? {}
           : { codeRunDirectory: realpathSync(codeRunDirectory) }),

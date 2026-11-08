@@ -601,6 +601,16 @@ operation inputs/targets. Recheck declared worktree bindings after async admissi
 The installation event id in `huddle-host.json` is not authority. Full agent lifecycle
 bridges, offline readout reconciliation, stopped-owner history and active revision
 detail remain pending; unsupported execution is rejected before launch.
+Migration 48 adds `huddle_runtime_spawns`; host admission lives under
+`huddle/operations/spawns/`. The private `sessions/creation/caller.ts` hooks record
+placement and exact runtime consumption inside existing store transactions. Never
+use synthetic puddlang runs or follow a later runtime in the original placement.
+Keep ordinary programme fingerprints unchanged, reject combined caller authority,
+and recheck account/owner scope before preparation. Retain consumed mappings under
+bounded admission; do not evict them to permit another spawn. Boot must exclude
+unbound huddle spawn placements from automatic resume. The durable stop flag is
+intent, not exit evidence. Spawn mailbox/dispatch, outcome settlement, owned-agent
+cleanup and authoring remain pending; do not advertise spawn support yet.
 Migration 45 adds `huddle_runtime_turns`. Host-side exact asks live under
 `huddle/operations/turns/`, reusing `RuntimeProgrammeTurns.askFor` and the common
 busy gate. Shared ordered allocation/result reservation lives in

@@ -32,10 +32,15 @@ export function reconcilePass(deps: {
   const stuck = deps.sessions.listByStatus(['starting', 'running', 'waiting_input']);
   const interrupted = stuck.filter((s) => !protectedIds.has(s.id));
   const unstarted = deps.runtimes?.unstartedProgrammeSessions() ?? new Set<string>();
+  const huddleUnstarted = deps.runtimes?.unstartedHuddleSessions() ?? new Set<string>();
   for (const s of interrupted) {
     deps.sessions.setStatus(s.id, 'interrupted');
     deps.events.record(s.id, 'interrupted', {
-      reason: unstarted.has(s.id) ? 'programme_spawn_not_dispatched' : 'daemon_restart',
+      reason: unstarted.has(s.id)
+        ? 'programme_spawn_not_dispatched'
+        : huddleUnstarted.has(s.id)
+          ? 'huddle_spawn_not_dispatched'
+          : 'daemon_restart',
     });
   }
   // Re-register notes watchers for every session that can still teach rules.
@@ -46,7 +51,7 @@ export function reconcilePass(deps: {
   }
   return {
     interrupted: interrupted
-      .filter((s) => s.kind !== 'huddle' && !unstarted.has(s.id))
+      .filter((s) => s.kind !== 'huddle' && !unstarted.has(s.id) && !huddleUnstarted.has(s.id))
       .map((s) => s.id),
     protected: [...protectedIds],
   };

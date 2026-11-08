@@ -1406,6 +1406,19 @@ blocks clean owner retirement. Trigger workers cannot dispatch agent operations.
 Opt-in `include_custom_triggers=true` runtime inspection exposes cursor-free health
 to the IDE while preserving older strict response shapes. See
 [custom trigger usage](docs/huddle/triggers.md) and the acceptance document for limits.
+Migration 48 adds host-side `huddle_runtime_spawns`. Private creation callers
+record a huddle operation's placement in the session transaction and bind its exact
+runtime in launch preparation before supervisor dispatch. The intent binds owner,
+execution, invocation, activation, revision and resolved account/provider/mode/
+project/worktree settings. Existing login/permission/worktree admission stays in
+SessionService; managed creation permits independent agents in existing worktrees,
+with task prompts reserved for separate exact asks. Stop intent fences unbound
+launches, and boot excludes undispatched huddle placements from automatic resume.
+Retained ownership never follows a replacement runtime in the same placement.
+Per-execution/owner/host retention caps refuse new work without dropping consumed
+identities. This is a host integration foundation; no spawn role capability or
+network operation is advertised until mailbox, result settlement and cleanup are
+connected. User-facing spawn/resume/restart nodes remain unfinished.
 Private immutable revision documents and compare-and-swap activation records
 separate source publication from Apply/arming. Managed executions retain their
 accepted revision, variable values and resource bindings across later Apply.

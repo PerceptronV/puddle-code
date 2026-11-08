@@ -1,5 +1,13 @@
 # The puddle communication protocol
 
+Database **48** adds private host huddle spawn mappings. Internal
+`runtime/huddle/operations/spawns.ts` defines exact owner/execution/invocation
+scope and resolved creation settings for the host admission foundation. These
+schemas are not yet carried by owner IPC or HTTP. No application/runtime/remote
+wire shape or huddle capability changes in this slice; spawn dispatch remains
+unavailable pending mailbox and cleanup integration. Selected-daemon database
+compatibility uses the existing migration-version gate.
+
 Application **28.7** adds optional local trigger manifest policy
 `trigger: { resume: 'continue' | 'fresh' }`, required for local trigger entries.
 Optional huddle role capability `customTriggers: 1` gates launch/Apply/adoption.

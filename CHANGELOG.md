@@ -39,6 +39,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Retain huddle spawn placement and exact runtime admission atomically in database schema 48, preserving consumed identities across lost replies and excluding undispatched placements from automatic boot resume. Keep ownership tied to the original runtime after a placement is resumed. Spawn dispatcher, cleanup and node UI integration remain pending.
+
 - Execute project-local HuddleReadout adapters with captured inputs, durable delivery intent, idempotency keys and retained delivered/failed/unknown outcomes. Share bounded workers and cancellation, and release outputs only after acknowledged delivery and worker exit. Application 28.5 adds delivery declarations; runtime `readouts: 1` gates support.
 - Check uncertain readout deliveries from history with their original captured adapters, without resending or resuming ended graphs. Application 28.6 and runtime `readoutObservation: 1` gate exact-owner observation, sharing worker limits and lifecycle cancellation; known receipts survive lost replies. Offline-owner reconciliation remains pending.
 - Run project-local HuddleTrigger adapters in independent bounded workers, with durable event/cursor admission, explicit resume policy and source health in the IDE. Application 28.7 and runtime `customTriggers: 1` gate support; healthy sources continue after another adapter fails. Subscriptions survive controller disconnection, while Interrupt/Stop/Apply fence callbacks and await worker exit. Managed secrets and automatic owner-crash recovery remain pending.

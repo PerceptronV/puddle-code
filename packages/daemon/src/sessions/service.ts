@@ -1,3 +1,4 @@
+import type { SessionCreationCaller } from './creation/caller.js';
 import type {
   Account,
   AgentSignalRequest,
@@ -399,7 +400,23 @@ export class SessionService extends EventEmitter {
     input: CreateSessionRequest,
     agentMode: NonNullable<Session['agent_mode']> = 'interactive',
     programme?: ProgrammeOperation,
+    creation?: SessionCreationCaller,
   ): Promise<Session> {
+    if (creation) {
+      if (
+        programme ||
+        this.launchBackend.kind !== 'independent' ||
+        (input.kind ?? 'agent') !== 'agent' ||
+        input.separate_branch !== false ||
+        input.separate_worktree !== false ||
+        !input.join_worktree ||
+        input.prompt !== undefined
+      )
+        throw new Error(
+          'Managed creation requires an independent agent in an explicit existing worktree; prompt it separately',
+        );
+      creation.check();
+    }
     const project = this.deps.projects.get(input.project_id);
     const profile = this.deps.profiles.get(project.profile_id);
     const repo = this.deps.repos.get(project.repo_id);
@@ -456,6 +473,7 @@ export class SessionService extends EventEmitter {
       separateWorktree,
     });
     await this.deps.storage?.assertAdmission([worktree.worktreePath]);
+    creation?.check();
     const session = this.deps.sessions.create(
       {
         id: sessionId,
@@ -473,6 +491,7 @@ export class SessionService extends EventEmitter {
         skip_permissions: skip,
       },
       this.deps.runtimeLauncher ? programme : undefined,
+      creation,
     );
 
     // Every freshly created worktree onboards — and only those (SPEC §4).
@@ -507,6 +526,9 @@ export class SessionService extends EventEmitter {
         launchOpts,
         undefined,
         programme,
+        undefined,
+        undefined,
+        creation,
       );
     if (agentMode === 'headless' || this.launchBackend.kind === 'independent') await spawn();
     else
@@ -1272,6 +1294,7 @@ export class SessionService extends EventEmitter {
     programme?: ProgrammeOperation,
     beforeLaunch?: RuntimeLaunchGuard,
     beforeLegacySpawn?: () => void,
+    creation?: SessionCreationCaller,
   ): Promise<void> {
     this.assertLegacyRuntime(sessionId);
     await this.deps.storage?.assertAdmission([
@@ -1309,6 +1332,7 @@ export class SessionService extends EventEmitter {
           }),
           {
             programme,
+            creation,
             beforeLaunch: await providerResumeGuard(adapter, account, resumeRef, beforeLaunch),
             provider: {
               id: adapter.id,

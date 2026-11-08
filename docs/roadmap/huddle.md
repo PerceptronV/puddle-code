@@ -42,7 +42,10 @@ declared session bindings and attach/ask scripts on operation-capability-2 owner
 Migration 46 retains exact cancellation intent. Editable Prompt agent and Review
 agent templates now materialise project-local source, with worktree/session selectors,
 prompt substitution and bounded feedback settings. An isolated two-agent test verifies
-reply exchange and approval exit; spawn/resume and native-provider acceptance remain
+reply exchange and approval exit. Migration 48 now records huddle spawn placement
+and exact runtime consumption through the existing session/launcher transactions;
+undispatched spawns are excluded from automatic boot resume. Spawn mailbox/dispatch,
+owned-agent cleanup, spawn/resume templates and native-provider acceptance remain
 pending. The [usage guide](../huddle.md) describes the implemented slice.
 Phase 4 now has runtime-owned interval, one-off date/time and daily/selected-weekday
 calendar triggers, durable occurrence admission, coalesce/skip/bounded catch-up,

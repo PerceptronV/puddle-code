@@ -5,6 +5,7 @@ import { ApiError } from '../../http/errors.js';
 import type { Db } from '../db.js';
 import { ProgrammeSpawnStore } from './programme-spawns.js';
 import type { ProgrammeOperation } from '../../puddlang/runtime-turn-store.js';
+import type { SessionCreationCaller } from '../../sessions/creation/caller.js';
 
 interface Row {
   id: string;
@@ -115,7 +116,12 @@ const ACTIVE = `('starting', 'running', 'waiting_input', 'exited', 'interrupted'
 export class SessionStore {
   constructor(private readonly db: Db) {}
 
-  create(row: NewSessionRow, programme?: ProgrammeOperation): Session {
+  create(
+    row: NewSessionRow,
+    programme?: ProgrammeOperation,
+    creation?: SessionCreationCaller,
+  ): Session {
+    if (programme && creation) throw new Error('Choose one session creation caller');
     return this.db.transaction(() => {
       const now = new Date().toISOString();
       this.db
@@ -150,6 +156,7 @@ export class SessionStore {
           row.huddle_id ?? null,
         );
       if (programme) new ProgrammeSpawnStore(this.db).record(programme, row.id);
+      creation?.record(row.id);
       return this.get(row.id);
     })();
   }

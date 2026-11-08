@@ -33,7 +33,7 @@ import { PtyManager } from '../../src/pty/pty-manager.js';
 import type { ShellHooks } from '../../src/pty/shell-hooks.js';
 import { ConversationShare } from '../../src/sessions/conversation-share.js';
 import { MarkerFileSync } from '../../src/sessions/onboarding.js';
-import { SessionService } from '../../src/sessions/service.js';
+import { SessionService, type SessionServiceDeps } from '../../src/sessions/service.js';
 import { WorktreeManager } from '../../src/worktrees/manager.js';
 import { initRepo } from './git-fixtures.js';
 
@@ -236,6 +236,7 @@ export function fixture(
     agentStartDelayMs?: number;
     /** Primary adapter override for adapter-contract/session-ref tests. */
     adapter?: AgentAdapter;
+    runtimeLauncher?: SessionServiceDeps['runtimeLauncher'];
     /**
      * Registers a second agent type ('fake2') with its own account, for
      * cross-agent hand-off. Its `exportTranscript` is provided, so the primary
@@ -302,6 +303,7 @@ export function fixture(
   });
   const service = new SessionService({
     ...stores,
+    runtimeLauncher: opts.runtimeLauncher,
     storage: opts.storage,
     storagePaths: [paths.home, paths.logsDir, paths.worktreesDir],
     worktrees,

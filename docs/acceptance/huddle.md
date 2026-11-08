@@ -32,6 +32,53 @@ delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 No user CLI command is enabled yet.
 
+## Implemented: host spawn admission foundation
+
+Migration **48** adds `huddle_runtime_spawns`, separate from single-file puddlang
+runs. `huddle/operations/spawns/store.ts` binds the exact huddle owner, execution,
+invocation, operation, activation and revision to resolved project/worktree/account/
+provider/mode/title settings. Request copies are frozen. Private bridge authority
+is required in addition to retained owner identity. Dispatch rechecks owner/project
+archive/stop state, account/provider/profile and canonical worktree identity.
+Ordinary session creation retains the binary, login, permissions and registered
+worktree checks. This foundation currently permits existing worktrees in the
+huddle's project; cross-project binding remains unfinished.
+
+Private `sessions/creation/caller.ts` hooks join the existing SessionStore creation
+and RuntimeStore preparation transactions. A rejected/failed mapping rolls back the
+new session. Runtime consumption commits with its exact launch identity, segment
+and terminal ownership before supervisor dispatch. Uncertain replies cannot mint
+another placement/runtime for that operation. Existing programme spawn fingerprints
+are unchanged; callers cannot combine programme and huddle creation authority.
+Managed SessionService creation requires an independent agent and explicit existing
+worktree. Initial task prompts are separate exact asks, not part of this spawn call.
+
+Bindings retain at most 32 spawns per execution, 1,024 per owner and 10,000 per
+host; exhaustion refuses further admission without evicting replay protection.
+Observation and stop intent retain the original runtime identity even if the user
+later resumes the same placement. An undispatched placement becomes interrupted
+on boot and is excluded from automatic resume; boot cannot turn a consumed huddle
+operation into another launch. Stop intent recorded before preparation rejects the
+launch. The durable flag is cleanup intent, not proof that a runtime stopped.
+
+The new shared scope/request schemas are internal building blocks, not newly sent
+network messages. Application 28.7, ordinary runtime 1.2, remote 5 and existing
+huddle role capabilities remain unchanged. No spawn capability is advertised yet.
+Spawn mailbox/dispatcher, result settlement, dynamic agent handles, owned-agent
+cleanup and authoring templates still need integration before users can run spawn
+nodes. Resume/restart nodes remain unfinished too.
+
+Verification, 2026-11-08: **138 tests in 19 files passed** across huddle operations,
+session creation, runtime launch/programme spawns and database migrations. New
+checks cover placement/binding storage-failure rollback, database reopen, duplicate
+and changed intent refusal, authority/account/archive/stop changes before launch,
+retention pressure, replacement-runtime identity and boot resume exclusion.
+SessionService tests verify caller propagation, rollback, post-worktree authority
+checks and refusal of legacy/implicit-worktree/combined-prompt creation. Existing
+isolated programme cancellation and runtime launch tests still pass. Shared/daemon/
+CLI TypeScript, scoped ESLint and formatting checks passed. No live-provider,
+native-supervisor, SSH or reboot acceptance is claimed here.
+
 ## Implemented: custom trigger subscriptions
 
 Application **28.7** and optional `customTriggers: 1` admit local HuddleTrigger

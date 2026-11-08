@@ -1,3 +1,4 @@
+import type { SessionCreationCaller } from '../../sessions/creation/caller.js';
 import { isAbsolute } from 'node:path';
 import {
   runtimeIdentitySchema,
@@ -108,6 +109,20 @@ export class RuntimeStore {
           .prepare(
             `SELECT s.session_id FROM puddlang_runtime_spawns s WHERE s.runtime_id IS NULL
       AND NOT EXISTS (SELECT 1 FROM terminal_placements p WHERE p.session_id = s.session_id)`,
+          )
+          .all() as Array<{ session_id: string }>
+      ).map((row) => row.session_id),
+    );
+  }
+
+  unstartedHuddleSessions(): Set<string> {
+    return new Set(
+      (
+        this.db
+          .prepare(
+            `SELECT s.session_id FROM huddle_runtime_spawns s
+      WHERE s.runtime_id IS NULL AND NOT EXISTS
+      (SELECT 1 FROM terminal_placements p WHERE p.session_id = s.session_id)`,
           )
           .all() as Array<{ session_id: string }>
       ).map((row) => row.session_id),
@@ -303,9 +318,14 @@ export class RuntimeStore {
     releasePath: string;
     codeRunDirectory?: string;
     programme?: ProgrammeOperation;
+    creation?: SessionCreationCaller;
     huddle?: { id: string; capabilities: HuddleRuntimeCapabilities };
   }): RuntimeBinding {
     const identity = runtimeIdentitySchema.parse(input.identity);
+    if (input.creation && (input.programme || input.huddle || input.codeRunDirectory !== undefined))
+      throw new Error('Choose one runtime creation caller');
+    if (input.creation && !/^[a-f0-9]{64}$/.test(input.creation.identity))
+      throw new Error('Invalid runtime creation identity');
     if (input.huddle) {
       huddleIdSchema.parse(input.huddle.id);
       huddleRuntimeCapabilitiesSchema.parse(input.huddle.capabilities);
@@ -337,12 +357,14 @@ export class RuntimeStore {
         releasePath: input.releasePath,
         ...(input.huddle ? { role: 'huddle', huddle: input.huddle } : {}),
         ...(input.programme ? { programme: input.programme } : {}),
+        ...(input.creation ? { creation: input.creation.identity } : {}),
         ...(input.codeRunDirectory === undefined
           ? {}
           : { codeRunDirectory: input.codeRunDirectory }),
       }),
     );
     return this.db.transaction(() => {
+      input.creation?.check();
       const previous = this.db
         .prepare('SELECT * FROM runtime_bindings WHERE runtime_id = ? OR launch_id = ?')
         .get(identity.runtime_id, identity.launch_id) as RuntimeBinding | undefined;
@@ -408,6 +430,7 @@ export class RuntimeStore {
           identity.session_id,
           identity.runtime_id,
         );
+      input.creation?.bind(identity);
       if (input.codeRunDirectory !== undefined)
         this.db
           .prepare('INSERT INTO runtime_code_runs (runtime_id, directory) VALUES (?, ?)')

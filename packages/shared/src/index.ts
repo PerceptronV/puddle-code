@@ -83,6 +83,7 @@ export * from './runtime/huddle/triggers/completions.js';
 export * from './runtime/huddle/owner.js';
 export * from './runtime/huddle/capabilities.js';
 export * from './runtime/huddle/operations/agents.js';
+export * from './runtime/huddle/operations/spawns.js';
 export * from './runtime/huddle/operations/mailbox.js';
 export * from './runtime/capabilities.js';
 export * from './installation/stage.js';
