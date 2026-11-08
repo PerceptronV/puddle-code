@@ -554,7 +554,18 @@ before notifying; project session status/cursor atomically and never replay work
 on reconnect. Include this projector in maintenance pause/drain. Only exact clean
 exit plus launch/owner/memory claims releases ownership; a crash retains unresolved
 resources and never enters ordinary auto-resume or onboarding. Maintenance
-checkpoint integration is still required before enabling launches.
+checkpoint integration is still required before enabling public launch routes.
+`RuntimeLauncher.launchHuddle` shares ordinary launch admission and supervision,
+requires an installed capable release, validates captured activation before intent
+and observes uncertain dispatch without fallback. `runtime/huddle/lifecycle/` owns
+the role-specific preparation; `controller/controls.ts` serialises exact-owner
+Apply/Arm/Run/Interrupt/Stop. Migration 44 persists Stop consumption before sending
+shutdown; repeat observation cannot send another Stop. The existing kill/archive
+paths delegate to these controls and refuse unresolved owner cleanup. Keep huddle
+controls in the common maintenance pause/drain. Automatic service cleanup excludes
+interrupted huddles until descendant recovery is proven. A never-consumed attempt
+can retire under all owner/launch claims and a durable fence; missing consumed-owner
+state cannot. Public creation/Start routes remain unfinished.
 Runtime-role metadata lives separately in `RUNTIME_CAPABILITIES.json`; huddle
 selection must validate exact build/protocol/contracts/helpers and recheck the
 selected generation before intent. Keep historical host capability and ordinary

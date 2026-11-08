@@ -32,6 +32,8 @@ import type { ShellHooks } from '../../pty/shell-hooks.js';
 import type { ProgrammeOperation } from '../../puddlang/runtime-turn-store.js';
 import { selectRuntimeSupervisor } from './lifetime.js';
 import { reserveRuntimeLaunchMemory } from '../resources/host/bootstrap.js';
+import { resolveHuddleRuntimeRelease } from '../huddle/control/release.js';
+import { launchHuddleOwner, type HuddleLaunchOptions } from '../huddle/lifecycle/launch.js';
 
 interface LaunchOptions {
   provider?: RuntimeProviderLaunch;
@@ -95,6 +97,42 @@ export class RuntimeLauncher {
     };
   }
 
+  selectedHuddleRelease() {
+    if (!('installed' in this.configuration))
+      throw ApiError.conflict(
+        'huddle_runtime_unavailable',
+        'Huddles require an installed runtime with explicit huddle support',
+      );
+    return resolveHuddleRuntimeRelease(this.deps.home);
+  }
+
+  async checkHuddleAvailable() {
+    this.admission.assertOpen();
+    const lifetime = await this.lifetime();
+    const selected = this.selectedHuddleRelease();
+    this.admission.assertOpen();
+    return {
+      selected,
+      lifetime: lifetime.kind === 'detached' ? ('host_session' as const) : ('service' as const),
+    };
+  }
+
+  launchHuddle(sessionId: string, options: HuddleLaunchOptions): Promise<void> {
+    return this.admit(async () => {
+      const lifetime = await this.lifetime();
+      const selected = this.selectedHuddleRelease();
+      await launchHuddleOwner(
+        this.deps,
+        sessionId,
+        selected,
+        lifetime,
+        options,
+        () => this.closed,
+        this.configuration.run,
+      );
+    });
+  }
+
   private async supervisor(): Promise<RuntimeSupervisor['kind']> {
     if (this.configuration.kind !== undefined) return this.configuration.kind;
     try {
@@ -132,6 +170,10 @@ export class RuntimeLauncher {
     command: (hooks: ShellHooks) => RuntimeCommand,
     options: LaunchOptions = {},
   ): Promise<void> {
+    return this.admit(() => this.start(sessionId, command, options));
+  }
+
+  private admit(action: () => Promise<void>): Promise<void> {
     if (this.closed)
       return Promise.reject(new ApiError(503, 'host_maintenance', 'Runtime launcher is closing'));
     if (this.pending.size >= RUNTIME_LIMITS.pendingRequests)
@@ -142,7 +184,7 @@ export class RuntimeLauncher {
     } catch (error) {
       return Promise.reject(error);
     }
-    const pending = this.start(sessionId, command, options).finally(release);
+    const pending = action().finally(release);
     this.pending.add(pending);
     void pending.finally(() => this.pending.delete(pending)).catch(() => {});
     return pending;

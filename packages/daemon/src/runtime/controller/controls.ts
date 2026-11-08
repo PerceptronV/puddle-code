@@ -10,6 +10,7 @@ import { ApiError } from '../../http/errors.js';
 import { RuntimeConnectionLost, type RuntimeClient } from '../transport/client.js';
 import type { RuntimeConnections } from '../transport/connections.js';
 import type { RuntimeReconciler } from './reconcile.js';
+import { HuddleRuntimeControls } from '../huddle/controller/controls.js';
 
 interface Target {
   id: string;
@@ -25,6 +26,7 @@ const unavailable = () =>
 
 /** Serial host controls; the caller's placement is captured before any asynchronous wait. */
 export class RuntimeControls {
+  readonly huddles: HuddleRuntimeControls;
   private readonly queues = new Map<string, { tail: Promise<unknown>; count: number }>();
   private closed = false;
   private readonly admission = new HostAdmission();
@@ -32,7 +34,9 @@ export class RuntimeControls {
     private readonly runtimes: RuntimeStore,
     private readonly connections: RuntimeConnections,
     private readonly reconciler: RuntimeReconciler,
-  ) {}
+  ) {
+    this.huddles = new HuddleRuntimeControls(runtimes, connections, reconciler);
+  }
 
   private target(sessionId: string): Target {
     const owner = this.runtimes.ownerOf(sessionId);
@@ -221,12 +225,28 @@ export class RuntimeControls {
   }
 
   pause(): ReturnType<HostAdmission['pause']> {
-    return this.admission.pause();
+    const ordinary = this.admission.pause();
+    let huddles: ReturnType<HostAdmission['pause']>;
+    try {
+      huddles = this.huddles.pause();
+    } catch (error) {
+      ordinary.release();
+      throw error;
+    }
+    return {
+      drain: async (timeout) => {
+        await Promise.all([ordinary.drain(timeout), huddles.drain(timeout)]);
+      },
+      release: () => {
+        huddles.release();
+        ordinary.release();
+      },
+    };
   }
 
   async close(): Promise<void> {
     this.closed = true;
     this.admission.close();
-    await this.admission.drain();
+    await Promise.all([this.admission.drain(), this.huddles.close()]);
   }
 }

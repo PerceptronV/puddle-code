@@ -11,8 +11,10 @@ runtime-role metadata and pinned capability checks. Phase 2 has the third sessio
 kind, immutable application placement and common runtime inventory role, with
 application protocol 27.0; public creation and the IDE remain unfinished. Daemon
 adoption/projection now observes independent huddle owners alongside ordinary
-runtimes, including across isolated daemon replacement. Production launch,
-maintenance checkpoints, native supervision, provider dispatch and UI integration remain unfinished.
+runtimes, including across isolated daemon replacement. Pinned production launch
+and exact-owner controls now integrate with session kill/archive. Authorised public
+creation/Start/Run, maintenance checkpoints, native supervision, provider dispatch
+and UI integration remain unfinished.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals, not available commands/imports.
 

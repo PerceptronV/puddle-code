@@ -20,7 +20,6 @@ it('keeps huddles out of ordinary launch, shell and runtime-restart paths', asyn
   for (const action of [
     () => f.service.resume(session.id),
     () => f.service.spawnShell(session.id),
-    () => f.service.kill(session.id),
     () => f.service.inspectRuntime(session.id, () => true),
     () => f.service.restartRuntime(session.id, { fingerprint: 'unreviewed' }, () => true),
   ]) {
@@ -29,6 +28,7 @@ it('keeps huddles out of ordinary launch, shell and runtime-restart paths', asyn
     expect(f.ptys.liveTerms(session.id)).toEqual([]);
     expect(new RuntimeStore(db).ownerOf(session.id)).toBeNull();
   }
+  expect((await f.service.kill(session.id)).status).toBe('exited');
   await f.service.archive(session.id);
   expect(f.stores.sessions.get(session.id).status).toBe('archived');
   await f.service.unarchive(session.id);

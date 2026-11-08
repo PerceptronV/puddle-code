@@ -5,7 +5,7 @@ import { RuntimeServiceCleanupStore } from '../../../src/db/stores/runtime-servi
 import { RuntimeServiceCleanup } from '../../../src/runtime/lifecycle/service-cleanup.js';
 import { acquireHostClaim } from '../../../src/security/claims.js';
 import { runtimeDatabase } from '../../helpers/runtime-database.js';
-import { dropResultCapacity } from '../../helpers/runtime/result-capacity.js';
+import { writeHistoricalDatabase } from '../../helpers/db/historical.js';
 import { openDatabase } from '../../../src/db/db.js';
 import {
   startRuntimeService,
@@ -154,14 +154,12 @@ it('keeps unconfirmed supervisor removal pending across controller replacement',
 
 it('queues previously ended owners when upgrading without claiming cleanup already happened', async () => {
   const f = runtimeDatabase();
-  dropResultCapacity(f.db);
   f.runtimes.finish(f.binding.runtime_id, 'exited', () => {});
-  f.db.exec(
-    'DROP TABLE puddlang_outcome_dispositions; DROP TRIGGER runtime_service_cleanup_insert; DROP TRIGGER runtime_service_cleanup_end; DROP TABLE runtime_service_cleanup; PRAGMA user_version = 38',
-  );
+  const historical = join(f.home, 'schema38.sqlite');
+  writeHistoricalDatabase(f.db, historical, 38);
   await f.reconciler.close();
   f.db.close();
-  const db = openDatabase(f.paths.dbFile);
+  const db = openDatabase(historical);
   try {
     const store = new RuntimeServiceCleanupStore(db);
     expect(store.pending().map((row) => row.runtime_id)).toEqual([f.binding.runtime_id]);

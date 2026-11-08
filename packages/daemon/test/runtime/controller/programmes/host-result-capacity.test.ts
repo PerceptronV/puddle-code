@@ -17,6 +17,7 @@ import {
 import { RESULT_RECLAIM_CANDIDATES } from '../../../../src/db/stores/runtime-results/capacity.js';
 import { programmeTurnFixture } from '../../../helpers/runtime/programme-turns.js';
 import { dropResultCapacity } from '../../../helpers/runtime/result-capacity.js';
+import { writeHistoricalDatabase } from '../../../helpers/db/historical.js';
 import { bundleDir, children } from '../../../helpers/runtime-fixture.js';
 
 const usage = (db: Db) => db.prepare('SELECT turns, bytes FROM host_result_usage').get();
@@ -211,9 +212,10 @@ it('migrates only above-watermark unknown reservations and permits reserved comp
   f.db
     .prepare(`INSERT INTO puddlang_runtime_turns VALUES (?, 3, ?, 1, ?, ?, NULL)`)
     .run(f.run.id, other.runtime_id, other.active_session_id, other.active_segment_id);
-  f.db.pragma('user_version = 40');
+  const historical = join(f.home, 'schema40.sqlite');
+  writeHistoricalDatabase(f.db, historical, 40);
   await f.close();
-  const db = openDatabase(f.paths.dbFile);
+  const db = openDatabase(historical);
   try {
     expect(usage(db)).toEqual({ turns: 2, bytes: 2 * reservation });
     expect(db.prepare('SELECT * FROM puddlang_outcome_dispositions').all()).toEqual([]);

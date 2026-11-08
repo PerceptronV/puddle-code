@@ -15,6 +15,7 @@ import { RuntimeConnections } from '../../../src/runtime/transport/connections.j
 import { runtimeDirectory } from '../../../src/runtime/ownership/storage.js';
 import { HuddleRevisionStore } from '../../../src/runtime/huddle/state/revisions.js';
 import { HostMemoryLedger } from '../../../src/runtime/resources/host/ledger.js';
+import { RuntimeServiceCleanupStore } from '../../../src/db/stores/runtime-service-cleanup.js';
 import { runtimeDatabase } from '../../helpers/runtime-database.js';
 import { launchOwner, waitForOwner } from '../../helpers/runtime-fixture.js';
 import { schedulerSnapshot } from '../../helpers/huddle/scheduler.js';
@@ -316,6 +317,9 @@ it('records owner loss as interrupted, retaining unresolved worktree, release an
     });
     expect(f.reconciler.autoResumeIds()).not.toContain(f.session.id);
     expect(existsSync(join(f.directory, 'retired.json'))).toBe(true);
+    expect(
+      new RuntimeServiceCleanupStore(f.db).pending().map((row) => row.runtime_id),
+    ).not.toContain(f.binding.runtime_id);
     const memory = HostMemoryLedger.openExisting(f.home)!;
     try {
       expect(memory.readGrant(f.launch.identity)).not.toBeNull();
@@ -360,6 +364,44 @@ it('projects a surviving huddle through real isolated daemon replacement without
     }
   } finally {
     await stopDaemon();
+    await f.close();
+  }
+});
+
+it('archives a running huddle through the ordinary daemon route only after clean owner shutdown', async () => {
+  const f = await fixture();
+  let daemon: ReturnType<typeof launchOwner> | undefined;
+  try {
+    await f.run();
+    await f.disconnect();
+    const readyFile = join(f.home, 'test-daemon-ready.json');
+    daemon = launchOwner(f.home, f.binding.runtime_id, 'daemon-owner.mjs');
+    await until(() => {
+      if (daemon!.child.exitCode !== null) throw new Error(daemon!.errors());
+      return existsSync(readyFile);
+    });
+    const ready = JSON.parse(readFileSync(readyFile, 'utf8')) as { port: number; token: string };
+    const response = await fetch(
+      `http://127.0.0.1:${ready.port}/api/sessions/${f.session.id}/archive`,
+      {
+        method: 'POST',
+        headers: { authorization: `Bearer ${ready.token}`, 'content-type': 'application/json' },
+        body: '{}',
+        signal: AbortSignal.timeout(20_000),
+      },
+    );
+    const result = await response.json();
+    expect(response.status, JSON.stringify(result)).toBe(200);
+    expect(f.runtimes.get(f.binding.runtime_id)?.state).toBe('exited');
+    expect(f.sessions.get(f.session.id).status).toBe('archived');
+    expect(readFileSync(join(f.home, 'entered'), 'utf8')).toBe('x');
+    expect(existsSync(f.home)).toBe(true);
+  } finally {
+    if (daemon && daemon.child.exitCode === null && daemon.child.signalCode === null) {
+      const ended = once(daemon.child, 'exit');
+      daemon.child.kill('SIGTERM');
+      await ended;
+    }
     await f.close();
   }
 });

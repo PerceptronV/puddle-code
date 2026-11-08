@@ -1384,7 +1384,7 @@ launch intent once; and provides bounded authenticated controller commands.
 Controller loss leaves local scripts running; a replacement observes retained
 results without replay. Managed graph, transport and worker capacity spends the
 common host allowance. Shutdown retains ownership until worker exit is confirmed.
-Production service launch, host operation authority, complete resource
+Host operation authority, complete resource
 accounting and service-scope recovery remain integration work. Retained auto-start
 intent alone provides no reboot promise.
 Archives separately declare huddle role/format support in `RUNTIME_CAPABILITIES.json`.
@@ -1399,7 +1399,18 @@ Ordinary agent/terminal launch fingerprints, records and runtime protocol 1.1 ar
 unchanged. The internal placement store does not launch an owner or grant project
 authority; its future service must validate scope and runtime capability first.
 There is no huddle creation API or IDE yet. Existing agent/terminal creation and
-restart controls cannot launch huddles. Role-aware daemon discovery now adopts
+restart controls cannot launch huddles. The shared launcher now has a huddle path
+under the existing admission, supervisor and host memory controls. It requires an
+installed capable release, validates the retained activation before intent, pins
+the complete runtime and rechecks selection/authority before dispatch. Lost
+supervisor replies are observed without retry. A newly launched owner is stopped
+until an explicit Arm. Exact-owner queues provide Apply/Arm/Run/Interrupt/Stop and
+participate in common maintenance pause/drain. Migration 44 adds
+`huddle_stop_requests(runtime_id, session_id, requested_at)`; consumed Stop is
+observed after a lost reply. Existing session kill/archive delegates to huddle Stop
+and cannot archive unresolved ownership. Automatic service cleanup retains
+interrupted huddle resources. A fenced attempt that never consumed its launch can
+retire without inventing an executed result. Role-aware daemon discovery now adopts
 both owner kinds under one controller claim. Bounded owner invalidations trigger
 inspection and atomic coarse status/cursor projection; idle owners are not polled.
 Armed huddles remain `running`, stopped owners project `exited`, and interruption

@@ -47,7 +47,15 @@ definition, component and ledger support plus pinned helper files, then rechecks
 the exact selection before launch intent. Private huddle launches retain those
 requirements and live adoption verifies actual capabilities. Ordinary owners need
 no new metadata and historical `HOST_CAPABILITIES.json` readers are unchanged.
-No production creation path is enabled yet. Daemon adoption/projection is wired;
+The daemon launcher now selects and pins capable installed releases, publishes a
+validated initial revision and uses the common supervisor/grant path once. Owners
+start stopped. Exact-owner controls retain authority across queueing and never
+redirect a queued command to a replacement. Application migration 44 records Stop
+consumption separately from terminal stop records; lost replies are observation-only.
+Ordinary kill/archive delegates to this path. Never-consumed launches can retire
+under all ownership claims and a durable fence; interrupted consumed owners retain
+their resource references and are excluded from automatic service cleanup.
+No production creation path is enabled yet. Daemon launch/adoption/projection is wired;
 application admission and maintenance/checkpoint integration must precede product enablement; executable
 presence or the ordinary runtime protocol alone is not huddle admission evidence.
 See [huddle acceptance](../../docs/acceptance/huddle.md) for the tested scope.

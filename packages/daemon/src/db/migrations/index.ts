@@ -41,6 +41,7 @@ import { migration040 } from './040-programme-outcome-dispositions.js';
 import { migration041 } from './041-runtime-result-capacity.js';
 import { migration042 } from './042-window-arrangements.js';
 import { migration043 } from './043-huddle-placements.js';
+import { migration044 } from './044-huddle-stop-requests.js';
 
 export interface Migration {
   version: number;
@@ -93,6 +94,7 @@ export const MIGRATIONS: Migration[] = [
   migration041,
   migration042,
   migration043,
+  migration044,
 ];
 
 /** Highest application database migration understood by this daemon build. */

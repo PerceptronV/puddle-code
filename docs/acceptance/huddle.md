@@ -4,7 +4,9 @@ Status: foundation in progress, 2026-11-08. The full objective remains the
 [huddle roadmap](../roadmap/huddle.md). Huddles cannot yet be created or run through
 the application. Runtime archives declare their internal huddle-role contracts;
 application 27.0 now includes huddle session identity and migration 43 records
-placements/owner roles. No huddle creation route, user CLI command or IDE is enabled yet.
+placements/owner roles. The daemon launcher and lifecycle controls now integrate
+with session kill/archive; migration 44 retains Stop intent. No huddle creation
+route, user CLI command or IDE is enabled yet.
 
 ## Implemented: application placements and runtime inventory
 
@@ -27,10 +29,11 @@ before calling this store; this helper grants neither scope nor runtime admissio
 Database guards forbid provider/account/conversation attachment, branch ownership,
 implicit cwd, conversion of an ordinary placement and relocation of a huddle's
 identity. Huddle projections omit agent mode. Ordinary session creation retains
-the agent/terminal-only request and UI types; ordinary resume, kill, shell creation
+the agent/terminal-only request and UI types; ordinary resume, shell creation
 and runtime inspection/restart refuse huddles before launch effects. A stopped
 placement can use reversible archive/unarchive without registering onboarding.
-Full running-huddle lifecycle routing remains pending.
+Running huddle kill/archive now uses the controls described below; creation and
+Start/Run routes remain pending.
 
 `RuntimeStore.prepare` records the huddle role, id and required capabilities in the
 existing runtime inventory, checks that they match the placement and preserves
@@ -90,7 +93,7 @@ retaining unresolved worktree, release and memory references; recovery still nee
 descendant/service fencing. Corrupt, missing previously observed or mismatched
 records remain unavailable. Boot reconciliation excludes huddles from ordinary
 auto-resume and onboarding. This does not implement a new owner after a crash,
-native service recovery, public Start/Stop or host-update checkpoint compatibility.
+native service recovery, public Start or host-update checkpoint compatibility.
 
 Verification: the expanded shared/huddle and ordinary discovery, daemon adoption,
 ownership, host-memory retirement, maintenance and compatibility suites passed
@@ -103,6 +106,62 @@ observations, mismatched live metadata, clean shutdown and crash retention.
 These fixtures use temporary homes, sanitized environments and deterministic
 independent processes; they establish no native supervision or reboot promise.
 Shared/daemon/web TypeScript, scoped ESLint and changed-file formatting checks passed.
+
+## Implemented: pinned launch and exact-owner lifecycle controls
+
+`RuntimeLauncher.launchHuddle` shares the ordinary launch admission, maintenance
+pause, pending-attempt limit and independent supervisor. Its role-specific code
+lives in `runtime/huddle/lifecycle/`. Only a capable installed runtime is accepted;
+the ordinary explicit executable override does not silently imply huddle support.
+The launcher captures the selected release, validates source/activation/bindings,
+publishes an immutable revision, writes one launch intent, reserves host memory
+and dispatches the common supervisor once. Authority and exact selection are
+rechecked before intent/dispatch, including between systemd commands. Revoked
+authority, changed selection, archived placement and unresolved prior ownership
+refuse launch. An accepted or uncertain dispatch never falls back or redispatches.
+Readiness requires authenticated adoption and committed projection. New owners
+remain stopped until explicitly armed; launch alone executes no graph.
+
+`runtime/huddle/controller/controls.ts` supplies queued Inspect, Apply, Arm, Run,
+Interrupt and Stop. Each queued operation retains its original owner/client and
+rechecks authority before dispatch; it cannot target a later owner. Commands wait
+for durable projection where relevant, while unknown outcomes stay explicit.
+Apply expects its revision already published by the authorised source service.
+Run carries a stable caller event id and observes duplicate acceptance rather
+than creating another execution. Resource bindings remain supplied by a trusted
+caller; public project/account/worktree resolution is not enabled by these helpers.
+
+Migration **44** adds `huddle_stop_requests`, without a terminal segment. Stop is
+consumed durably before shutdown, so a repeated request only observes the exact
+owner's outcome. Kill and Archive on existing huddle sessions use this path; Archive
+waits for verified clean shutdown and refuses unresolved crashed ownership. It
+keeps definition/worktree files and session history. These controls share ordinary
+maintenance pause/drain. Changing the selected default to an unsupported runtime
+does not block Stop on an existing capable owner.
+
+A launch which has neither retained state nor a consumption marker can retire
+under all launch/dispatch/execution/memory claims and a durable delayed-start fence.
+This permits a new explicit attempt after pre-dispatch memory refusal. Missing state
+after consumption does not prove that scripts never started. Automatic service
+cleanup now excludes interrupted huddles; their memory/worktree/release references
+remain protected until descendant recovery is proven.
+
+Lifecycle verification uses a temporary installed layout containing the bundled
+owner/helpers and a copied Node executable, with a deterministic supervisor runner.
+It covers inactive launch, pinned selection, a lost supervisor reply, stable Run
+deduplication, interruption, lost Stop acknowledgement, consumed Stop, authority
+revocation while queued, unsupported/default changes, invalid activation and memory
+refusal. A real isolated daemon HTTP Archive request stops a busy huddle before
+archiving its placement. This establishes backend integration, not native manager
+or reboot acceptance. Historical migration fixtures now build actual schema-36/38/39/40
+databases from the ordered migrations instead of relabelling current tables.
+
+Verification: the expanded shared/huddle, runtime controller/lifecycle, host-memory,
+maintenance, database and puddlang outcome run covered **492 tests in 74 files**.
+It passed 488 tests and exposed four historical-fixture failures; after the fixture
+corrections, all **34 tests in those four files** passed. Shared/daemon/web
+TypeScript, scoped ESLint and changed-file formatting checks passed. Native service
+manager and reboot acceptance remain unperformed.
 
 ## Implemented: definition and validation foundation
 
@@ -248,7 +307,7 @@ admits no next invocation; the scheduler records failure and cancels dependent
 work. An incomplete join or failed invocation cannot be reported as
 successful execution completion. Interrupt/recovery also cancels waiting joins.
 
-Routing composes with the scheduler below. Production service launch,
+Routing composes with the scheduler and launch path below. Public lifecycle admission,
 non-manual trigger subscriptions and live-agent dispatch remain unimplemented;
 these internal helpers alone do not expose huddles in the application.
 
@@ -360,7 +419,7 @@ reservations; physical ENOSPC still requires storage recovery.
 The scheduler can call an injected host operation bridge, but a production bridge
 with account/session/worktree authorisation and exact dispatch is not installed.
 Existing-agent cleanup, external adapter shutdown, native supervision and
-production launch remain integration work. Application-side daemon adoption is
+public launch admission remain integration work. Application-side daemon adoption is
 implemented above. The stored auto-start setting is not proof of restart/reboot continuity.
 
 ## Implemented: independent owner process and private controller
@@ -410,8 +469,8 @@ recovery remain acceptance gates.
 
 This owner increment left application and agent/terminal runtime versions unchanged;
 the later placement increment introduced application 27.0. Runtime-role
-capabilities are described below; no production launcher/API exists yet. Tests
-supply private launch records directly. Application admission,
+capabilities are described below. The launcher increment above now supplies private
+launch records; public creation/Start APIs remain unfinished. Application admission,
 maintenance checkpoints/removal,
 provider-operation dispatch and fenced owner replacement/reboot recovery must be
 connected before enabling creation. Do not infer production support from this
@@ -581,7 +640,7 @@ software and did not start a service.
 Phase 0 remains open for the full component contract catalogue and lifecycle
 admission. Phase 1 has retained revisions/activation, the ledger, routing, workers
 and a manual scheduler composed in an independent owner process. Next connect
-the production launcher and exact-operation bridge, including
+authorised public lifecycle admission and the exact-operation bridge, including
 complete host resource accounting and lifecycle fencing. Connect the implemented
 runtime capability checks and application placements to authorised creation;
 build the IDE and normal windows; actual trigger/readout adapters; provider-backed

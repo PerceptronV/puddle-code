@@ -1,9 +1,10 @@
+import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { RUNTIME_LIMITS } from '@puddle/shared';
 import { openDatabase } from '../../../../src/db/db.js';
 import { RuntimeObservationStore } from '../../../../src/db/stores/runtime-observations.js';
 import { programmeTurnFixture as fixture } from '../../../helpers/runtime/programme-turns.js';
-import { dropResultCapacity } from '../../../helpers/runtime/result-capacity.js';
+import { writeHistoricalDatabase } from '../../../helpers/db/historical.js';
 
 it('serves hundreds of turns while retaining unread outcomes and rejecting reclaimed identities', async () => {
   const f = fixture();
@@ -132,12 +133,10 @@ it('rolls back result reclamation and its watermark when the replacement observa
 it('upgrades existing private results conservatively and restores their monotonic watermark', async () => {
   const f = fixture();
   f.save(41);
-  dropResultCapacity(f.db);
-  f.db.exec(
-    'DROP TABLE puddlang_outcome_dispositions; DROP TRIGGER runtime_service_cleanup_insert; DROP TRIGGER runtime_service_cleanup_end; DROP TABLE runtime_service_cleanup; DROP TABLE runtime_attention; ALTER TABLE runtime_turns DROP COLUMN consumed; DROP TABLE runtime_turn_watermarks; PRAGMA user_version = 36',
-  );
+  const historical = join(f.home, 'schema36.sqlite');
+  writeHistoricalDatabase(f.db, historical, 36);
   await f.close();
-  const db = openDatabase(f.paths.dbFile);
+  const db = openDatabase(historical);
   try {
     expect(db.prepare('SELECT consumed FROM runtime_turns').get()).toEqual({ consumed: 0 });
     expect(db.prepare('SELECT turn FROM runtime_turn_watermarks').get()).toEqual({ turn: 41 });

@@ -93,13 +93,29 @@ export function retireMissingHuddle(
       if (binding.event_cursor >= 0)
         throw new Error('Previously observed huddle state is missing', { cause: error });
     }
+    let neverConsumed = false;
+    if (state === null) {
+      try {
+        const consumed = runtimeRetiredSchema.parse(
+          readRuntimeJson(join(directory, 'consumed.json')),
+        );
+        if (canonicalHuddleJson(consumed.identity) !== canonicalHuddleJson(launch.identity))
+          throw new Error('Huddle consumption identity changed');
+      } catch (error) {
+        if ((error as NodeJS.ErrnoException).code !== 'ENOENT') throw error;
+        // No worker can start before consumption. The claims plus the fence below
+        // exclude active and delayed starts, including an uncertain dispatcher.
+        neverConsumed = true;
+      }
+    }
     const clean =
-      state !== null &&
-      state.state === 'exited' &&
-      !state.executing &&
-      !state.liveWorkers &&
-      state.failure === null &&
-      state.control.state === 'stopped';
+      neverConsumed ||
+      (state !== null &&
+        state.state === 'exited' &&
+        !state.executing &&
+        !state.liveWorkers &&
+        state.failure === null &&
+        state.control.state === 'stopped');
     const file = join(directory, 'retired.json');
     try {
       const retired = runtimeRetiredSchema.parse(readRuntimeJson(file));

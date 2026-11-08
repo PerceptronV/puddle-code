@@ -160,7 +160,32 @@ export class RuntimeStore {
   }
 
   stopRequested(id: string): boolean {
-    return !!this.db.prepare('SELECT 1 FROM runtime_stop_requests WHERE runtime_id = ?').get(id);
+    return !!this.db
+      .prepare(
+        'SELECT 1 FROM runtime_stop_requests WHERE runtime_id = ? UNION ALL SELECT 1 FROM huddle_stop_requests WHERE runtime_id = ? LIMIT 1',
+      )
+      .get(id, id);
+  }
+
+  /** Returns true only for a newly consumed exact Stop, never after a lost reply. */
+  requestHuddleStop(id: string, sessionId: string): boolean {
+    return this.db.transaction(() => {
+      const current = this.get(id);
+      if (
+        !current ||
+        current.role !== 'huddle' ||
+        current.active_session_id !== sessionId ||
+        !['prepared', 'running'].includes(current.state)
+      )
+        throw new Error('Huddle changed before Stop admission');
+      return (
+        this.db
+          .prepare(
+            'INSERT OR IGNORE INTO huddle_stop_requests (runtime_id, session_id, requested_at) VALUES (?, ?, ?)',
+          )
+          .run(id, sessionId, new Date().toISOString()).changes === 1
+      );
+    })();
   }
 
   hasUnreleasedWorktree(canonicalPath: string): boolean {
@@ -172,6 +197,14 @@ export class RuntimeStore {
       AND state != 'exited' LIMIT 1`,
       )
       .get(canonicalPath);
+  }
+
+  hasUnreleasedHuddle(sessionId: string): boolean {
+    return !!this.db
+      .prepare(
+        "SELECT 1 FROM runtime_bindings WHERE role = 'huddle' AND active_session_id = ? AND state != 'exited' LIMIT 1",
+      )
+      .get(sessionId);
   }
 
   hasUnreleasedCodeRun(directory: string): boolean {

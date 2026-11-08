@@ -13,6 +13,7 @@ export class RuntimeServiceCleanupStore {
       JOIN runtime_bindings r ON r.runtime_id = c.runtime_id
       WHERE c.completed_at IS NULL AND c.runtime_id > ?
         AND r.state IN ('exited', 'failed', 'interrupted')
+        AND (r.role != 'huddle' OR r.state = 'exited')
       ORDER BY c.runtime_id LIMIT 32
     `,
       )
@@ -27,6 +28,7 @@ export class RuntimeServiceCleanupStore {
       WHERE runtime_id = ? AND completed_at IS NULL AND EXISTS (
         SELECT 1 FROM runtime_bindings r WHERE r.runtime_id = runtime_service_cleanup.runtime_id
           AND r.state IN ('exited', 'failed', 'interrupted')
+          AND (r.role != 'huddle' OR r.state = 'exited')
       )
     `,
       )

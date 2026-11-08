@@ -1065,11 +1065,19 @@ export class SessionService extends EventEmitter {
   /** SIGTERM the session's PTYs and wait for the agent to exit. */
   async kill(id: string, authorised: () => boolean = () => true): Promise<Session> {
     if (!authorised()) throw new ApiError(401, 'upstream_expired', 'Connection authority expired');
-    if (this.deps.sessions.get(id).kind === 'huddle')
-      throw ApiError.conflict(
-        'huddle_control_required',
-        'Use huddle lifecycle controls for this placement',
-      );
+    if (this.deps.sessions.get(id).kind === 'huddle') {
+      if (this.deps.runtimes?.ownerOf(id)) {
+        if (!this.deps.runtimeControls)
+          throw ApiError.conflict('huddle_unavailable', 'Huddle control is unavailable');
+        await this.deps.runtimeControls.huddles.stop(id, authorised);
+      } else if (this.deps.runtimes?.hasUnreleasedHuddle(id)) {
+        throw ApiError.conflict(
+          'huddle_stop_unconfirmed',
+          'This huddle has unresolved runtime ownership; inspect it before cleanup',
+        );
+      }
+      return this.get(id);
+    }
     if (this.deps.runtimes?.ownerOf(id)) {
       if (!this.deps.runtimeControls) this.assertLegacyRuntime(id);
       await this.deps.runtimeControls!.stop(id, authorised);
@@ -1100,6 +1108,7 @@ export class SessionService extends EventEmitter {
     if (
       LIVE_STATUSES.includes(session.status) ||
       this.deps.runtimes?.ownerOf(id) ||
+      (session.kind === 'huddle' && this.deps.runtimes?.hasUnreleasedHuddle(id)) ||
       this.deps.ptys.liveTerms(id).length > 0
     )
       await this.kill(id, authorised);

@@ -1,9 +1,10 @@
 import { randomUUID } from 'node:crypto';
+import { join } from 'node:path';
 import { Hono } from 'hono';
 import { expect, it } from 'vitest';
 import { puddlangOutcomeResponseSchema, puddlangOutcomesSchema } from '@puddle/shared';
 import { programmeTurnFixture } from '../helpers/runtime/programme-turns.js';
-import { dropResultCapacity } from '../helpers/runtime/result-capacity.js';
+import { writeHistoricalDatabase } from '../helpers/db/historical.js';
 import { puddlangRoutes } from '../../src/http/routes/execution/puddlang.js';
 import type { PuddlangService } from '../../src/puddlang/service.js';
 import { ApiError } from '../../src/http/errors.js';
@@ -296,18 +297,10 @@ it('adds disposition audit storage to schema39 without releasing existing unread
   f.reserve(1);
   f.save(1);
   f.runs.finish(f.run.id, 'interrupted');
-  f.db.exec('DROP TABLE puddlang_outcome_dispositions; PRAGMA user_version = 39');
-  f.db.exec('ALTER TABLE layouts DROP COLUMN window_arrangement');
-  f.db.exec(`DROP TRIGGER huddle_session_insert;
-    DROP TRIGGER huddle_session_update;
-    DROP INDEX idx_huddle_definition_placement;
-    ALTER TABLE sessions DROP COLUMN huddle_id;
-    ALTER TABLE runtime_bindings DROP COLUMN role;
-    ALTER TABLE runtime_bindings DROP COLUMN huddle_id;
-    ALTER TABLE runtime_bindings DROP COLUMN huddle_capabilities;`);
-  dropResultCapacity(f.db);
+  const historical = join(f.paths.home, 'schema39.sqlite');
+  writeHistoricalDatabase(f.db, historical, 39);
   await f.close();
-  const db = openDatabase(f.paths.dbFile);
+  const db = openDatabase(historical);
   try {
     const store = new PuddlangStore(db);
     const outcome = store.outcomes.list(f.profile.id, f.run.id).outcomes[0]!;

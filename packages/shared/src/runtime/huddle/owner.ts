@@ -9,6 +9,7 @@ import { huddleRuntimeCapabilitiesSchema } from './capabilities.js';
 export const HUDDLE_OWNER_CONTRACT = 1 as const;
 const sequence = z.number().int().nonnegative().safe();
 export const huddleActivationInputSchema = huddleRevisionActivationSchema.omit({ appliedAt: true });
+export type HuddleActivationInput = z.infer<typeof huddleActivationInputSchema>;
 export const huddleOwnerLaunchSchema = z
   .strictObject({
     format: z.literal(1),
