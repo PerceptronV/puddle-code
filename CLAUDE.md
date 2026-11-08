@@ -47,6 +47,7 @@ packages/
 │   ├── src/features/editor/ # buffers/, conflicts/, compilation/, monaco/, notebooks/ (including widgets/),
 │   │                       # previews/ (html/, markdown/, pdf/), tabs/; pane composition stays at the root
 │   ├── src/features/workspace/ # layout/, panes/, sessions/, sidebar/, tabs/; Workspace and shared context at the root
+│   ├── src/features/windows/ # native window context, durable working sets, staged pane handoff and recovery
 │   ├── src/features/terminal/ # clipboard/, input/, links/, rich-output/, scroll/; terminal composition at the root
 │   ├── src/features/guide/ # public deployed-app /guide; edit guide.md for setup/upgrade instructions
 │   └── src/features/remote/ + mobile/ # remote account/pairing/settings + host-grouped project cards,
@@ -70,6 +71,7 @@ packages/
                # embedded cockpit. Shell concerns only (windows, OS links, notification raise);
                # anything both shells need goes in cli/src/lib, NEVER here. Build mirrors the
                # CLI's (scripts/build.mjs); `pnpm --filter @puddle-code/desktop dist` packages it.
+               # src/windows/ owns shared host connections, window state, private IPC and transfer coordination.
 deploy/remote/       # self-hosted service/static app images, Caddy TLS ingress and private env example
 scripts/build-tarball.mjs   # self-contained host archive: puddled, puddler and connector, CURRENT platform
 scripts/build-cli-tarball.mjs # self-contained CLI archive; shares scripts/lib/node-runtime.mjs

@@ -19,7 +19,8 @@ verification; pending items are not support claims.
   and SPA destinations are captured during use as well as orderly quit.
 - `desktop/src/windows/state.ts` owns versioned working sets and dirty-buffer
   snapshots independently of renderer lifetime. Preparation retains the source;
-  exact destination acknowledgement commits both revisions in one atomic write.
+  destination readiness followed by source confirmation commits both revisions
+  in one atomic write.
   Startup cancels unaccepted preparations and retains committed outcomes.
 - Private main-frame IPC resolves the window/host from the registered sender.
   Desktop workspace writes are serial and revisioned. Lost write replies are
@@ -36,24 +37,31 @@ verification; pending items are not support claims.
   A failed or missing acknowledgement cancels closure and resumes editing;
   renderer reload/crash invalidates outstanding commands. Quitting retains the
   arrangement, while explicit closure removes its window from the reopen set.
-- `web/features/windows/transfer-content.ts` provides the pure pane extraction
-  projection for the upcoming live handoff. It preserves tab order, active and
+- `web/features/windows/transfer-content.ts` provides the pane extraction
+  projection. It preserves tab order, active and
   preview selection, view state, and relevant dirty buffers; duplicate source
   views keep their recoverable text. Other project slices and orphaned recovery
   drafts stay with the source. Mixed-project panes move intact with the current
-  project as their anchor. No context-menu action calls this projection yet.
+  project as their anchor.
+- The pane tab-strip context menu now offers **Open pane in window** on native
+  host/project windows. `desktop/windows/transfers.ts` stages the destination,
+  waits for its shared Workspace to mount, and then requires source confirmation.
+  Source/destination renderers remain fenced during handoff. Failure or timeout
+  rolls back; uncertain replies are observed without repeating the move. A dirty
+  edit before confirmation cancels the move; one arriving afterward remains open
+  in source recovery and is persisted. Application protocol 26.8 carries the
+  capability-detected private lifecycle/transfer bridge.
 
-Detach actions are not exposed yet. Transfer orchestration between live renderers,
-project redirects, docking, and named window
-arrangements are still pending. The state engine and presentations alone do not
-deliver the roadmap. Undo-stack transfer is not implemented; restored editors use
+Individual file/session context actions, project detachment and redirects, docking,
+and named window arrangements are still pending. Whole-pane detachment alone does
+not deliver the roadmap. Undo-stack transfer is not implemented; restored editors use
 new Monaco models with recovered text.
 
 ## Verification record
 
 2026-11-07, macOS development checkout:
 
-- Desktop tests, shared API contract tests, and web workspace/editor/window tests:
+- Desktop tests and web workspace/editor/window tests:
   446 tests passed across 60 files. SSH askpass fixtures required loopback access outside the
   restricted sandbox; no production daemon was started.
 - Desktop and web TypeScript checks passed after rebuilding shared declarations.
@@ -80,6 +88,24 @@ The pane projection increment passed all 17 web window tests and the web
 TypeScript/targeted ESLint checks. Coverage includes dirty duplicate views,
 unrelated project slices, stale pane selection, and preventing inactive historical
 layout trees from recapturing a moved buffer during React cleanup.
+
+The live pane increment passed 468 tests across 65 desktop/web test files,
+including destination failure, both handoff acknowledgements, source disconnection,
+timeout, wrong-window/profile replies, lost commit replies, and overlapping quit.
+The shared API contract suite separately passed all 18 tests. The final late-draft
+recovery adjustment also passed all 21 web window tests.
+Desktop/web type checks, targeted lint, and the production web build passed.
+`web/test/dev/window-transfer.mjs` uses real desktop state/transfer modules with
+isolated Chromium pages: context-menu detachment, dirty text, source view removal,
+closing the host, and independent pane reload all passed. The screenshot is
+`/tmp/puddle-live-pane-transfer.png`. This is integrated renderer coverage, not
+native OS drag, title-bar, or process-restart acceptance.
+
+To repeat the integrated check, run the UI-only preview, then
+`PREVIEW_URL=http://127.0.0.1:5174/ pnpm --filter @puddle/web exec node test/dev/window-transfer.mjs`.
+The script builds the desktop state/transfer modules into an isolated temporary
+directory and cleans up its browser and state afterwards. It never calls host
+bootstrap or starts a daemon.
 
 Native acceptance has not run. Use an isolated UI preview for desktop interaction;
 start any real daemon from a plain shell, never from a coding-agent session.

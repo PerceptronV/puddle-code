@@ -6,6 +6,7 @@ import {
   type DesktopWindowWriteResult,
   type UiStateSnapshot,
 } from '@puddle/shared';
+import { retainLateDrafts } from './late-draft-recovery';
 
 export interface WindowContentSource {
   capture(snapshot: UiStateSnapshot): Pick<DesktopWorkspaceContent, 'buffers' | 'views'>;
@@ -24,6 +25,7 @@ export class DesktopWorkingSet {
   private savedGeneration = 0;
   private ready = false;
   private frozen = false;
+  private checkpointing = false;
   private loading: Promise<void> | null = null;
   private writing: Promise<void> | null = null;
   private timer: ReturnType<typeof setTimeout> | undefined;
@@ -35,7 +37,10 @@ export class DesktopWorkingSet {
     private readonly content: WindowContentSource,
     private readonly reportError: (error: unknown) => void,
     private readonly onSaved?: (result: DesktopWindowWriteResult) => void,
-  ) {}
+    private staged = false,
+  ) {
+    this.frozen = staged;
+  }
 
   get = (): UiStateSnapshot => this.snapshot;
   loaded = (): boolean => this.ready;
@@ -57,6 +62,7 @@ export class DesktopWorkingSet {
         this.snapshot = stored.content.snapshot;
         this.content.restore(stored.content);
       } else {
+        if (this.staged) throw new Error('The prepared window is no longer available');
         this.snapshot = await seed();
         this.content.restore({ snapshot: this.snapshot, buffers: [], views: {} });
       }
@@ -75,6 +81,9 @@ export class DesktopWorkingSet {
 
   update(patch: Partial<UiStateSnapshot>): void {
     if (!this.ready) throw new Error('Window working set has not loaded');
+    // The first render may propose migration/pruning defaults. A staging
+    // destination must show exactly its capture until ownership is committed.
+    if (this.staged) return;
     if (this.frozen) throw new Error('Window transfer is pending');
     this.snapshot = { ...this.snapshot, ...patch };
     this.changed();
@@ -83,7 +92,7 @@ export class DesktopWorkingSet {
 
   /** Buffers/view state can change without changing the layout tree. */
   changed(): void {
-    if (!this.ready) return;
+    if (!this.ready || this.staged) return;
     this.generation++;
     if (this.frozen) return;
     clearTimeout(this.timer);
@@ -96,6 +105,7 @@ export class DesktopWorkingSet {
   flush(): Promise<void> {
     clearTimeout(this.timer);
     this.timer = undefined;
+    if (this.staged) return Promise.resolve();
     if (this.writing) return this.writing;
     const operation = this.drain().finally(() => {
       if (this.writing === operation) this.writing = null;
@@ -137,9 +147,10 @@ export class DesktopWorkingSet {
   }
 
   /** The caller fences editor interaction before capture, then asks main to prepare. */
-  async freeze(): Promise<DesktopWorkspaceVersion> {
+  async freeze(reason: 'transfer' | 'checkpoint' = 'transfer'): Promise<DesktopWorkspaceVersion> {
     if (!this.ready || this.frozen) throw new Error('Window cannot start another transfer');
     this.frozen = true;
+    this.checkpointing = reason === 'checkpoint';
     this.generation++;
     this.notify();
     try {
@@ -157,8 +168,9 @@ export class DesktopWorkingSet {
 
   /** Cancel a close/transfer without replacing live models with an older capture. */
   resume(): void {
-    if (!this.frozen) return;
+    if (!this.frozen || this.staged) return;
     this.frozen = false;
+    this.checkpointing = false;
     this.changed();
     this.notify();
   }
@@ -168,18 +180,70 @@ export class DesktopWorkingSet {
     await this.loading;
     if (!this.ready) return;
     if (this.frozen) throw new Error('A window transfer is still pending');
-    await this.freeze();
+    await this.freeze('checkpoint');
+  }
+
+  resumeCheckpoint(): void {
+    if (this.checkpointing) this.resume();
+  }
+
+  matchesCapture(version: DesktopWorkspaceVersion): boolean {
+    if (!this.frozen || this.revision !== version.revision) return false;
+    const current = {
+      snapshot: this.snapshot,
+      buffers: this.content.capture(this.snapshot).buffers,
+    };
+    return (
+      JSON.stringify(current) ===
+      JSON.stringify({ snapshot: version.content.snapshot, buffers: version.content.buffers })
+    );
   }
 
   /** After a committed/aborted transfer, adopt the main process's exact outcome. */
-  adopt(version: DesktopWorkspaceVersion): void {
+  adopt(
+    version: DesktopWorkspaceVersion,
+    captured?: DesktopWorkspaceVersion,
+    projectId?: string,
+  ): number {
     if (!this.frozen || this.writing) throw new Error('Window is not ready to adopt a transfer');
     if (version.revision < this.revision) throw new Error('Window revision moved backwards');
-    this.snapshot = version.content.snapshot;
+    const key = (buffer: DesktopWorkspaceContent['buffers'][number]) =>
+      JSON.stringify([buffer.session, buffer.path, buffer.root ?? null]);
+    const before = new Map(captured?.content.buffers.map((buffer) => [key(buffer), buffer]));
+    // Kernel output or a pending editor operation can finish after source
+    // confirmation. Keep that newer dirty text as source recovery instead of
+    // replacing it with the earlier capture when the IPC reply arrives.
+    const late = captured
+      ? this.content
+          .capture(this.snapshot)
+          .buffers.filter(
+            (buffer) => JSON.stringify(before.get(key(buffer))) !== JSON.stringify(buffer),
+          )
+      : [];
+    const buffers = new Map(version.content.buffers.map((buffer) => [key(buffer), buffer]));
+    for (const buffer of late) buffers.set(key(buffer), buffer);
+    this.snapshot = late.length
+      ? retainLateDrafts(version.content.snapshot, late, projectId)
+      : version.content.snapshot;
     this.revision = version.revision;
-    this.content.restore(version.content);
+    this.content.restore(
+      late.length
+        ? { ...version.content, snapshot: this.snapshot, buffers: [...buffers.values()] }
+        : version.content,
+    );
     this.savedGeneration = this.generation;
     this.frozen = false;
+    this.staged = false;
+    this.checkpointing = false;
     this.notify();
+    if (late.length) {
+      this.changed();
+      this.reportError(
+        new Error(
+          'An edit finished during the move. Its latest text remains open in this window for review.',
+        ),
+      );
+    }
+    return late.length;
   }
 }

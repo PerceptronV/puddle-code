@@ -36,7 +36,12 @@ interface WindowState {
   pending: Record<string, DesktopWindowTransfer>;
   outcomes: Record<
     string,
-    { status: 'committed' | 'cancelled'; sourceId: string; destinationId: string }
+    {
+      status: 'committed' | 'cancelled';
+      sourceId: string;
+      destinationId: string;
+      profileId?: string;
+    }
   >;
 }
 type Transfer = DesktopWindowTransfer;
@@ -235,6 +240,36 @@ export class DesktopWindowState {
     return structuredClone(this.entry(id).workspaces[profile] ?? null);
   }
 
+  staging(id: string): Transfer | null {
+    return structuredClone(
+      Object.values(this.state.pending).find((transfer) => transfer.destinationId === id) ?? null,
+    );
+  }
+
+  /** Prepared content is visible only to its exact destination, never as committed state. */
+  readPresentation(id: string, profile: string): DesktopWorkspaceVersion | null {
+    this.assertProfile(id, profile);
+    const staged = this.staging(id);
+    if (staged) {
+      if (staged.profileId !== profile) throw new Error('Transfer belongs to another profile');
+      return { revision: staged.destinationRevision, content: staged.destinationContent };
+    }
+    return this.read(id, profile);
+  }
+
+  transferParty(id: string, windowId: string): 'source' | 'destination' | null {
+    const transfer = this.state.pending[id] ?? this.state.outcomes[id];
+    return transfer?.sourceId === windowId
+      ? 'source'
+      : transfer?.destinationId === windowId
+        ? 'destination'
+        : null;
+  }
+
+  transferProfile(id: string): string | undefined {
+    return (this.state.pending[id] ?? this.state.outcomes[id])?.profileId;
+  }
+
   /** A complete profile seed, never one detached renderer's partial workspace. */
   seed(id: string, profile: string): DesktopProfileSeed {
     this.assertProfile(id, profile);
@@ -352,6 +387,7 @@ export class DesktopWindowState {
     };
     next.entries[transfer.sourceId]!.open =
       !transfer.closeSource && this.entry(transfer.sourceId).open;
+    if (transfer.sourceRoute) next.entries[transfer.sourceId]!.record.route = transfer.sourceRoute;
     next.entries[transfer.destinationId]!.workspaces[transfer.profileId] = {
       revision: transfer.destinationRevision + 1,
       content: transfer.destinationContent,
@@ -383,6 +419,7 @@ export class DesktopWindowState {
       status: outcome,
       sourceId: transfer.sourceId,
       destinationId: transfer.destinationId,
+      profileId: transfer.profileId,
     };
     const outcomes = Object.keys(state.outcomes);
     for (const old of outcomes.slice(0, Math.max(0, outcomes.length - MAX_OUTCOMES)))

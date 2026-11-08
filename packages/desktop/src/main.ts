@@ -46,6 +46,7 @@ import { HostConnections, type HostConnection } from './windows/connections.js';
 import { DesktopWindowState } from './windows/state.js';
 import { registerWindowStateIpc } from './windows/ipc.js';
 import { WindowCommands } from './windows/commands.js';
+import { WindowTransfers, registerWindowTransferIpc } from './windows/transfers.js';
 
 /**
  * The desktop shell (SPEC §10): an Electron main process that drives the SAME
@@ -105,6 +106,34 @@ let windowStateLoaded = false;
 let windowState: DesktopWindowState | null = null;
 const windowCommands = new WindowCommands();
 const checkpoints = new Map<string, Promise<void>>();
+const windowTransfers = new WindowTransfers({
+  state: () => {
+    if (!windowState || quitting) throw new Error('Window state is unavailable');
+    return windowState;
+  },
+  record: (id) => {
+    if (quitting || quitPending) throw new Error('Application is closing');
+    for (const host of shells.values()) {
+      const window = host.windows.get(id);
+      if (window && !window.win.isDestroyed()) return reopenWindow(host.target, window);
+    }
+    throw new Error('Source window is unavailable');
+  },
+  open: (record) => openShell(record.target, record.placement, record),
+  dismiss: (id) => {
+    rememberedWindows.delete(id);
+    for (const host of shells.values()) {
+      const window = host.windows.get(id);
+      if (window && !window.win.isDestroyed()) window.win.destroy();
+    }
+    persistWindows();
+  },
+  report: (error) => logger.warn(errorText(error)),
+  committed: () => {
+    for (const record of windowState?.openWindows() ?? [])
+      rememberedWindows.set(reopenWindowId(record), record);
+  },
+});
 
 function checkpointWindow(id: string): Promise<void> {
   const pending = checkpoints.get(id);
@@ -307,16 +336,28 @@ function createWindow(
     delivery.close();
     notifications.delete(contentsId);
     windowCommands.disconnected(identity.id);
+    windowTransfers.disconnected(identity.id);
   });
-  win.webContents.on('render-process-gone', () => windowCommands.disconnected(identity.id));
+  win.webContents.on('render-process-gone', () => {
+    windowCommands.disconnected(identity.id);
+    windowTransfers.disconnected(identity.id);
+  });
   win.webContents.on('did-start-navigation', (_event, _url, inPlace, mainFrame) => {
-    if (mainFrame && !inPlace) windowCommands.disconnected(identity.id);
+    if (mainFrame && !inPlace && windowCommands.available(identity.id)) {
+      windowCommands.disconnected(identity.id);
+      windowTransfers.disconnected(identity.id);
+    }
   });
 
   let closeAccepted = false;
   let closePending = false;
   win.on('close', (event) => {
     if (quitting || closeAccepted) return;
+    if (windowState?.staging(identity.id)) {
+      event.preventDefault();
+      windowTransfers.disconnected(identity.id);
+      return;
+    }
     if (quitPending) {
       event.preventDefault();
       return;
@@ -618,7 +659,12 @@ function windowContext(event: IpcMainInvokeEvent) {
     );
     if (!window) continue;
     if (new URL(event.senderFrame.url).origin !== new URL(host.cockpit.origin).origin) break;
-    return { identity: window.identity, hostId: reopenWindowId({ target: host.target }) };
+    const staging = windowState?.staging(window.identity.id);
+    return {
+      identity: window.identity,
+      hostId: reopenWindowId({ target: host.target }),
+      ...(staging ? { stagingTransfer: staging.id } : {}),
+    };
   }
   throw new Error('Window is unavailable');
 }
@@ -631,6 +677,7 @@ registerWindowStateIpc({
     return windowState;
   },
 });
+registerWindowTransferIpc(ipcMain, windowContext, windowTransfers);
 
 ipcMain.handle('puddle:window-ready', (event) => {
   const owner = windowContext(event);

@@ -22,8 +22,13 @@ export async function registerDesktopWindowLifecycle(): Promise<void> {
   if (!bridge) return;
   await registerRendererLifecycle(
     bridge,
-    () => workingSets.values(),
-    fenceWindowInteraction,
+    () =>
+      [...workingSets.values()].map((owner) => ({
+        checkpoint: () => owner.checkpoint(),
+        resume: () => owner.resumeCheckpoint(),
+      })),
+    (active) =>
+      fenceWindowInteraction(active || [...workingSets.values()].some((owner) => owner.locked())),
     toastError,
   );
 }
@@ -39,9 +44,16 @@ export function desktopWorkingSet(profileId: string): DesktopWorkingSet | null {
     const seedWriter = debounce((seed: Parameters<typeof desktopProfileSeed>[0]) => {
       void putProfileState(profileId, desktopProfileSeed(seed)).catch(toastError);
     }, 2000);
-    workingSet = new DesktopWorkingSet(profileId, bridge, content, toastError, (saved) => {
-      if (saved.seed) seedWriter(saved.seed);
-    });
+    workingSet = new DesktopWorkingSet(
+      profileId,
+      bridge,
+      content,
+      toastError,
+      (saved) => {
+        if (saved.seed) seedWriter(saved.seed);
+      },
+      desktopWindowContext()?.stagingTransfer !== undefined,
+    );
     const owner = workingSet;
     content.subscribe(() => owner.changed());
     workingSets.set(profileId, workingSet);

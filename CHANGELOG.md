@@ -13,6 +13,7 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Open an entire pane in its own native window from its tab-strip context menu, preserving dirty text through an acknowledged handoff (application protocol 26.8; individual file/session actions, project detachment and docking remain in progress).
 - Highlight TeX and LaTeX commands, comments, environments, mathematics and verbatim text, with automatic file detection and a per-file language choice.
 
 #### Changed

@@ -1,6 +1,11 @@
 import { useEffect, useState, type ReactNode } from 'react';
-import { desktopWindowIdentitySchema, type DesktopWindowContext } from '@puddle/shared';
+import {
+  desktopWindowIdSchema,
+  desktopWindowIdentitySchema,
+  type DesktopWindowContext,
+} from '@puddle/shared';
 import { desktopBridge } from '../../lib/desktop';
+import { fenceWindowInteraction } from './interaction-fence';
 
 let context: DesktopWindowContext | null = null;
 let initialising: Promise<void> | null = null;
@@ -18,7 +23,11 @@ function initialise(): Promise<void> {
           context = {
             identity: desktopWindowIdentitySchema.parse(value.identity),
             hostId: value.hostId,
+            ...(value.stagingTransfer
+              ? { stagingTransfer: desktopWindowIdSchema.parse(value.stagingTransfer) }
+              : {}),
           };
+          if (context.stagingTransfer) fenceWindowInteraction(true);
           const { registerDesktopWindowLifecycle } = await import('./use-desktop-state');
           await registerDesktopWindowLifecycle();
         })

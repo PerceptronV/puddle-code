@@ -84,6 +84,10 @@ vi.mock('electron', async () => {
       this.destroyed = true;
       this.emit('closed');
     }
+    destroy() {
+      this.destroyed = true;
+      this.emit('closed');
+    }
   }
   return {
     BrowserWindow,
@@ -474,4 +478,60 @@ it('cancels quit after a failed save and releases the interaction fence in every
   owner.reply(owner.lastCommand().id);
   await flush();
   expect(app.quit).toHaveBeenCalledOnce();
+});
+
+it('opens a staged native pane on the same connection and preserves it after its host closes', async () => {
+  saveReopenWindows(file(), [{ target: 'local' }]);
+  await boot();
+  const source = BrowserWindow.getAllWindows()[0]!;
+  const sourceRenderer = renderer(source);
+  const profileId = '1234567890';
+  const content = {
+    snapshot: uiStateSnapshotSchema.parse({
+      layout_mode: 'profile',
+      layout_tree: { kind: 'leaf', id: 'pane', tabs: [], activeKey: null },
+    }),
+    buffers: [{ session: 's', path: 'a.ts', content: 'draft', baseMtimeMs: 1 }],
+    views: {},
+  };
+  sourceRenderer.write({ profileId, revision: 0, content });
+  const invoke = (win: BrowserWindow, channel: string, value: unknown) => {
+    const handler = vi.mocked(ipcMain.handle).mock.calls.find(([name]) => name === channel)![1];
+    return handler(
+      {
+        sender: win.webContents,
+        senderFrame: win.webContents.mainFrame,
+      } as Electron.IpcMainInvokeEvent,
+      value,
+    );
+  };
+  const reference = { id: 'move', profileId };
+  const preparation = invoke(source, 'puddle:window-prepare-pane', {
+    ...reference,
+    projectId: 'abcdef1234',
+    revision: 1,
+    source: { ...content, buffers: [] },
+    destination: content,
+  });
+  await flush();
+  const destination = BrowserWindow.getAllWindows()[1]!;
+  renderer(destination);
+  expect(mocks.startLocal).toHaveBeenCalledOnce();
+  expect(invoke(destination, 'puddle:window-context', undefined).stagingTransfer).toBe('move');
+  expect(invoke(destination, 'puddle:window-read', { profileId }).content.buffers).toEqual(
+    content.buffers,
+  );
+  // Prepared destinations are not in the reopen set until both renderers accept.
+  expect(targets()).toEqual(['local']);
+  const acceptance = invoke(destination, 'puddle:window-transfer-accept', reference);
+  await preparation;
+  invoke(source, 'puddle:window-transfer-commit', reference);
+  expect((await acceptance).content.buffers).toEqual(content.buffers);
+  expect(targets()).toEqual(['local', 'local']);
+  source.close();
+  sourceRenderer.reply(sourceRenderer.lastCommand().id);
+  await flush();
+  expect(BrowserWindow.getAllWindows()).toEqual([destination]);
+  expect(targets()).toEqual(['local']);
+  expect(loadReopenWindows(file())[0]?.window?.kind).toBe('pane');
 });

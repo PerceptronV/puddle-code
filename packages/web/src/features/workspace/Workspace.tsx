@@ -1,6 +1,7 @@
 import { ContentMotion } from '../../components/ui/content-motion';
 import { TrayMotionProvider } from '../../components/ui/tray-motion';
 import { animateSidebar } from './layout/animate-sidebar';
+import { useAcceptWindowTransfer } from '../windows/use-window-transfer';
 import { IslandSeparator } from './layout/IslandSeparator';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';
@@ -178,6 +179,7 @@ function WorkspaceInner() {
     projects: profileProjects.data,
     orderedProjects,
   });
+  useAcceptWindowTransfer(profileId, chunksReady && uiState.loaded);
   const sessionGroups = useMemo<SessionGroup[]>(() => {
     const active = (s: Session) => s.status !== 'archived';
     const all = allSessions.data ?? sessions;

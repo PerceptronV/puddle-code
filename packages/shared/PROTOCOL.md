@@ -1,13 +1,18 @@
 # The puddle communication protocol
 
+Application **26.8** adds the optional private desktop lifecycle and pane-transfer
+bridges. Bounded checkpoint/resume commands retain exact-window replies. A pane
+destination stages read-only content, then the source confirms its unchanged
+capture before ownership commits. Transfer references bind window/profile identity;
+lost replies are observed rather than replayed. These capabilities are detected
+on the preload bridge and add no daemon REST/WS, runtime or remote operation.
+
 Application **26.7** adds shared private desktop window identities, revisioned
 working-set snapshots and acknowledged transfer records. The desktop shell owns
 host association and durable state; renderer identities do not select transports
 or grant authority. These records add no daemon REST/WS operation and do not
 change the remote or runtime protocol. Renderer window capabilities must be
 detected through the preload bridge; older shells retain their existing UI.
-The optional private lifecycle bridge adds bounded checkpoint/resume commands and
-exact-window replies for close and app quit. It is independently capability-detected.
 
 Runtime **1.1** advertises exact Claude-owned background job attachment. The
 application and remote protocols, IPC shapes and retained-state formats are

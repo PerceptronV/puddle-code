@@ -20,7 +20,7 @@ export function registerWindowStateIpc({
   ipc.handle('puddle:window-read', (event, value: unknown) => {
     const owner = context(event);
     const request = desktopWindowReadSchema.parse(value);
-    return state().read(owner.identity.id, request.profileId);
+    return state().readPresentation(owner.identity.id, request.profileId);
   });
   ipc.handle('puddle:window-write', (event, value: unknown) => {
     const owner = context(event);

@@ -1,7 +1,8 @@
 # Detached desktop windows
 
-Status: proposed, 2026-11-07. This document describes planned work; no detached
-window implementation or native acceptance is claimed. This concerns multiple
+Status: implementation in progress, 2026-11-07. This document describes the full
+design intent; actual delivery and verification are tracked in the acceptance
+document below. This concerns multiple
 native app windows, independently of the Windows operating-system work in
 [windows-cockpit.md](windows-cockpit.md).
 

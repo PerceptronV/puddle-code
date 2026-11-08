@@ -2292,7 +2292,8 @@ existing last-writer-wins profile seed. Transfer preparation retains the source;
 acknowledgement commits source/destination revisions atomically. Restart cancels
 unaccepted preparations, without reversing a committed transfer.
 
-Native close and app quit checkpoint registered renderers before teardown, with
+Application 26.8 adds the private lifecycle and pane-transfer bridges. Native
+close and app quit checkpoint registered renderers before teardown, with
 bounded exact-window acknowledgements. Failure cancels closure and releases the
 interaction fence. App quit preserves the arrangement; explicit closure removes
 its window from the reopen set. A renderer crash can restore its last durable
@@ -2301,12 +2302,18 @@ snapshot. Refresh/reload checkpoint integration remains pending.
 The pane transfer projection preserves the selected pane intact, including
 mixed-project tabs; its current project becomes the detached window's anchor.
 Source duplicates retain their recoverable dirty text. Inactive historical trees
-do not authorise recapturing a moved source model during React cleanup. This
-projection is not yet connected to a live detach action.
+do not authorise recapturing a moved source model during React cleanup. A pane's
+tab-strip context menu now opens it in a dedicated native window. The destination
+mounts read-only captured content before signalling readiness; the source rechecks
+its capture before committing both ownership revisions. Cancellation, timeout and
+renderer failure leave the uncommitted source intact. Lost replies are observed.
+Unexpected dirty edits arriving after confirmation remain open in the source for
+review and are checkpointed as additional recovery state. A whole-pane move does
+not close the source native window or stop its sessions.
 
 The shared workspace can render full host, headerless project, and pane-only
-presentations; detached windows use native title bars. Context-menu detachment,
-live transfer orchestration, docking, project redirects, and
+presentations; detached windows use native title bars. Individual file/session
+actions, project detachment, docking, project redirects, and
 named window arrangements remain in progress. See
 `docs/roadmap/windows.md` for the full contract and `docs/acceptance/windows.md`
 for implemented behaviour and verified scope. These foundations do not yet

@@ -71,6 +71,7 @@ export const desktopWindowTransferSchema = z.object({
   sourceContent: desktopWorkspaceContentSchema,
   destinationContent: desktopWorkspaceContentSchema,
   closeSource: z.boolean(),
+  sourceRoute: desktopWindowRouteSchema.optional(),
 });
 export type DesktopWindowTransfer = z.infer<typeof desktopWindowTransferSchema>;
 
@@ -92,6 +93,7 @@ export const desktopWindowStateSchema = z.object({
       status: z.enum(['committed', 'cancelled']),
       sourceId: desktopWindowIdSchema,
       destinationId: desktopWindowIdSchema,
+      profileId: profileId.optional(),
     }),
   ),
 });
@@ -117,6 +119,34 @@ export interface DesktopWindowContext {
   identity: DesktopWindowIdentity;
   /** Opaque, shell-selected host association for compatible drag destinations. */
   hostId: string;
+  /** A newly opened destination remains read-only until its source commits. */
+  stagingTransfer?: string;
+}
+
+export const desktopPaneDetachSchema = z.object({
+  id: desktopWindowIdSchema,
+  profileId,
+  projectId,
+  revision: z.number().int().nonnegative(),
+  source: desktopWorkspaceContentSchema,
+  destination: desktopWorkspaceContentSchema,
+});
+export type DesktopPaneDetach = z.infer<typeof desktopPaneDetachSchema>;
+export const desktopTransferReferenceSchema = z.object({ id: desktopWindowIdSchema, profileId });
+export type DesktopTransferReference = z.infer<typeof desktopTransferReferenceSchema>;
+export interface DesktopTransferObservation {
+  status: 'prepared' | 'committed' | 'cancelled' | 'unknown';
+  version: DesktopWorkspaceVersion | null;
+}
+export interface DesktopWindowTransfersBridge {
+  /** Resolves once the destination has mounted its staged workspace. */
+  preparePane(request: DesktopPaneDetach): Promise<void>;
+  /** The source rechecks its capture before committing the accepted destination. */
+  commit(request: DesktopTransferReference): Promise<DesktopWorkspaceVersion>;
+  cancel(request: DesktopTransferReference): Promise<DesktopTransferObservation>;
+  observe(request: DesktopTransferReference): Promise<DesktopTransferObservation>;
+  /** Resolves only when the source has confirmed the handoff. */
+  accept(request: DesktopTransferReference): Promise<DesktopWorkspaceVersion>;
 }
 
 export const desktopWindowCommandSchema = z.object({
@@ -143,4 +173,5 @@ export interface DesktopWindowsBridge {
   read(profileId: string): Promise<DesktopWorkspaceVersion | null>;
   write(request: DesktopWindowWrite): Promise<DesktopWindowWriteResult>;
   lifecycle?: DesktopWindowLifecycleBridge;
+  transfers?: DesktopWindowTransfersBridge;
 }

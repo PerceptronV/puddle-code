@@ -39,6 +39,7 @@ import { SessionTabActions } from '../sessions/SessionTabActions';
 import { TabTooltipBody } from './TabTooltip';
 import { tabRefKey } from '../layout/layout-tree';
 import { useDropIndicator } from '../layout/TilingDnd';
+import { PaneWindowContextMenu } from '../../windows/PaneWindowContextMenu';
 
 // The 7.2rem floor leaves a clickable title beside the three hover controls a stopped
 // session can show (resume, archive and close). Controls overlay the right edge
@@ -131,7 +132,7 @@ export function PaneTabStrip({
     return base;
   };
 
-  return (
+  const strip = (
     <div
       ref={(node) => {
         setStripRef(node);
@@ -234,6 +235,7 @@ export function PaneTabStrip({
       {caretAt === leaf.tabs.length && <InsertionCaret />}
     </div>
   );
+  return <PaneWindowContextMenu paneId={leaf.id}>{strip}</PaneWindowContextMenu>;
 }
 
 /** The live insertion marker a strip drag will drop the tab at. */
