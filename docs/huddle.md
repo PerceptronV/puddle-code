@@ -4,7 +4,8 @@ Huddles are project orchestration graphs powered by puddlang. This guide describ
 the implemented local/SSH workflow. The [roadmap](roadmap/huddle.md) covers the full
 design; [acceptance](acceptance/huddle.md) records verified behaviour and remaining
 work. Interval, calendar and one-off date triggers are available on supporting
-runtimes. File/Git/session subscriptions, agent spawn/resume nodes and authoring CLI/skills
+runtimes. Filetree observation is also available. Git/session subscriptions, agent
+spawn/resume nodes and authoring CLI/skills
 remain unfinished. Native provider, supervisor and reboot acceptance is pending.
 
 ## Create and edit
@@ -134,6 +135,44 @@ interval nodes. All use one owner timer, existing execution/storage budgets and
 explicit memory admission. Completed one-offs leave no idle timer. Closing the
 frontend does not stop an armed owner. Host sleep/reboot and owner-crash recovery
 still require separate native acceptance; retained state alone is not that promise.
+
+## React to file changes
+
+Add **Filetree**, choose an explicit project **Worktree**, and set **Directory**
+to a relative directory (`.` means the worktree root). Include/exclude settings
+are JSON lists of globs relative to that directory, for example `["**/*.ts"]`.
+Hidden files need an explicit dot glob. `node_modules` is excluded by default;
+Git metadata and every `.puddle/huddle` subtree are always excluded. Symlinks are
+not followed. Declare the files/directories your graph writes in **Output paths**,
+relative to the worktree, to exclude them and prevent self-triggering loops.
+
+Start, Resume and armed Apply take a fresh baseline before completing their
+arming response. Existing files and changes made while paused do not trigger runs.
+A live owner watches directories, coalesces notifications within a debounce window
+(default 250 ms), and reconciles a bounded metadata snapshot every 30 seconds.
+Closing the frontend or losing the daemon controller does not stop observation.
+
+An event contains up to 64 `changes`, each with a worktree-relative `path` and
+`kind` (`create`, `change`, `remove`), plus `reconciled`, `observedAt`, `batch`
+and `final`. More changes use ordered batches. They describe net observations,
+not every intermediate edit: an atomic save is usually a change, and a rename
+is remove/create. Metadata changes can trigger a change too. Empty directories,
+symlinks and special files do not produce file events. File contents are not read.
+There is no invented exact edit timestamp or claim of atomic filesystem snapshots.
+
+The first release bounds each source to 128 directories, 8,192 scanned entries,
+1,024 matched files, 256 KiB per snapshot and 256-character relative file paths.
+There are at most eight sources per huddle. Narrow Directory and exclusions for
+large trees; include filters alone do not prune directory traversal. Watch errors,
+missing roots/source, scan timeouts and exhausted execution/storage limits report
+an observation gap and stop automatic admission. Accepted batches remain retained;
+inspect the failure, restore resources and explicitly Stop/Start to establish a
+new baseline. Do not interpret that new baseline as replay of unobserved edits.
+
+Filetree requires runtime capability `filetree: 1`. Native watcher behaviour
+varies across filesystems; bounded rescans recover net changes from silent missed
+notifications. Packaged supervisor/SSH/reboot recovery and a richer per-trigger
+health/backlog inspector remain unfinished.
 
 ## Prompt existing agents
 

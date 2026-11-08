@@ -2,7 +2,7 @@ import type { HuddleComponent, HuddleJson } from '@puddle/shared';
 import { huddleRevisionDigest } from '../../../src/huddle/definitions/revision.js';
 import type { HuddleDefinitionSnapshot } from '../../../src/huddle/definitions/capture.js';
 
-export function withSchedule(
+export function withTrigger(
   snapshot: HuddleDefinitionSnapshot,
   component: HuddleComponent,
   parameters: Record<string, HuddleJson>,

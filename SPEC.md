@@ -1395,8 +1395,17 @@ atomically. Calendar Resume excludes paused time and preserves the consumed inst
 through clock rollback. One-off consumption persists within an activation; Apply
 and a new Start create fresh activation intent and can fire a past date again.
 A single timer serves all time sources, with bounded plans and a 366-day calendar
-lookback; larger gaps fail visibly. Filetree/Git/Puddle subscriptions and custom
-adapters remain unfinished.
+lookback; larger gaps fail visibly.
+Optional `filetree: 1` adds owner-managed directory watches and bounded metadata
+reconciliation under `triggers/filetree/`. Explicit registered worktree bindings,
+relative directories, glob filters and declared output exclusions scope observation.
+Regular-file net changes use durable 64-change batches; `state/filetrees.ts` retains
+bounded baseline/pending snapshots and batch progress atomically with admission.
+Start/Resume/armed Apply establish new baselines; paused changes do not replay.
+Source/root loss, watch/scan failure and exhausted budgets stop automatic admission
+with a visible gap. Cancellation fences scans, and clean owner shutdown waits for
+settlement before releasing resources. Git/Puddle subscriptions, full per-trigger
+health/backlog inspection and custom adapters remain unfinished.
 The runtime entry point selects a separate huddle owner from a strict private launch
 record. It reuses runtime/memory claims, host grants and lifetime checks; consumes
 launch intent once; and provides bounded authenticated controller commands.

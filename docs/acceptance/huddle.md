@@ -18,7 +18,90 @@ host-side agent-turn identities; the owner mailbox now has private transport,
 and production daemon dispatch now supports declared attach/ask scripts. Migration
 46 retains exact cancellation attempts. Optional runtime `timers: 1` now admits
 interval events without a controller. Optional `calendar: 1` adds timezone calendar
-and one-off date triggers. No user CLI command is enabled yet.
+and one-off date triggers. Optional `filetree: 1` adds regular-file observation.
+No user CLI command is enabled yet.
+
+## Implemented: bounded Filetree observation
+
+`puddle.trigger.filetree@1` exposes required `worktree`, relative `directory`
+(default `.`), `include`/`exclude` glob lists, declared `outputPaths`, `debounceMs`
+(50–10,000, default 250) and `reconcileMs` (1,000–300,000, default 30,000).
+The inspector reuses project worktree selection and ordinary parameter bindings.
+Globs are relative to Directory; output paths and emitted paths are relative to
+the canonical worktree. The built-in always excludes Git metadata and every
+`.puddle/huddle` subtree, and excludes `node_modules` by default. It skips symlinks
+and special files; empty-directory changes are not file events. File contents
+are not read. Hidden files require explicit dot globs.
+
+`runtime/huddle/triggers/filetree/` owns settings/resource validation, streamed
+bounded scans, native directory watches and lifecycle composition. It follows the
+existing dependency observer's invalidation/reconciliation approach while retaining
+its own durable source state. Node's [watch caveats](https://nodejs.org/api/fs.html#caveats)
+mean notifications are not a complete edit log; periodic snapshots reconcile net
+changes, and inode-aware directory observations renew replaced watches. Native
+notifications never directly become trigger events. Include/exclude matching uses
+[Node's stable path glob matcher](https://nodejs.org/api/path.html#pathmatchesglobpath-pattern),
+available in the required Node 22.21.1 runtime. There is no new dependency.
+
+Start/Resume/armed Apply establish a baseline and finish initial scan admission
+before returning their arming response. Existing files and paused changes do not
+produce runs. A same-generation retained baseline/pending observation is preserved,
+but automatic owner-crash recovery is not yet wired. Live subscriptions continue
+through controller loss. Watch invalidation uses a bounded debounce window and
+periodic reconciliation; atomic saves usually produce a change, and renames are
+net remove/create. Metadata-only changes can also produce change events. The
+snapshot is not a filesystem transaction and cannot reconstruct intervening edits.
+
+`state/filetrees.ts` keeps eight reusable ledger slots across Apply, each bound to
+node, activation, generation and worktree. A slot retains a baseline snapshot,
+one pending snapshot and its admitted batch offset. Admission commits an event,
+execution, source cursor and batch progress together. The baseline advances on
+the final batch. Pending observations cannot be replaced before draining; refusal
+preserves both the pending snapshot and consumed batch offset. Event ids bind
+activation/generation/sequence within source identity. Payloads contain up to 64
+`{path, kind}` changes, `reconciled: true`, observation time, batch number and
+`final`. The envelope binds the worktree resource and deliberately omits an exact
+`occurredAt`. Ledger reopening drains remaining batches without duplicate events.
+
+Bounds: eight sources per owner; 128 watched directories, 8,192 visited entries,
+1,024 matched files, 256-character relative paths and 256 KiB per snapshot per
+source. Include globs do not prune traversal; Directory/exclusions do. Each source
+reserves 4 MiB from the common host allowance. Admission yields between at most
+32 batches for one reconciliation. A watchdog reports scans stalled beyond ten
+seconds, stops subscriptions and retains capacity until the read settles. Watch
+errors, missing/substituted roots, missing definitions, scan bounds and exhausted
+queue/storage/daily budgets report a visible observation gap; all automatic
+triggers stop. Cancellation closes watches/timers immediately and fences callbacks
+before ledger access. Shutdown cancels the scheduler before waiting for scans;
+unknown scan settlement blocks clean owner retirement rather than releasing claims.
+
+Optional **`filetree: 1`** gates Start/Apply and independent-owner validation.
+Older owners remain supported; older daemon candidates cannot adopt Filetree
+owners. No REST/WS, ordinary runtime, SQLite schema or desktop format changes.
+The existing failure inspector exposes gaps. Rich per-trigger ready/degraded state,
+backlog inspection and automatic crash/reboot recovery remain unfinished; an
+explicit Stop/Start acknowledges a new baseline, not replay of missing edits.
+
+Verification: bounded scan tests cover glob/default/output exclusions, symlinks,
+atomic save, rename, remove, file limits and replaced roots. Ledger tests retain
+130 changes through queue refusal/reopen and replace two complete 1,024-file
+snapshots within bounded state. Watcher tests cover new directories, cancellation,
+source loss and memory refusal; a silent-watch fixture verifies periodic net-change
+reconciliation. Delayed-read tests verify fencing, watchdog faults and retained
+capacity. An isolated owner admits/completes changes without a controller, rearms
+with a fresh baseline and exits after Stop. The public API refuses unsupported
+runtime metadata before intent and replaces watched scope on Apply. Native watch
+checks require unsandboxed temporary-directory access on this macOS host; the
+sandbox otherwise reports EMFILE. The focused source/API/capability suite passed
+22 tests, and both delayed-read checks pass. Headless UI checks verify explicit
+worktree/settings/save without execution; light/dark settings were visually reviewed.
+The final huddle, installation and host-update regression suite passed **647 tests
+in 104 files**, with **4 tests skipped in 2 files**. Shared/daemon/CLI TypeScript
+builds, web typechecking, repository ESLint/Prettier, 70 contrast pairs per theme,
+semantic-colour checks and `git diff --check` pass. A final equivalent glob-control
+validation lint fix also passed its focused shared checks. Native/platform
+filesystem matrices, packaged supervisor/SSH/reboot and real-provider acceptance
+remain open.
 
 ## Implemented: calendar and one-off date triggers
 

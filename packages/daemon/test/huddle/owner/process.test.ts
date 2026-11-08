@@ -16,6 +16,7 @@ import {
   huddleOwnerLaunchSchema,
   HUDDLE_RUNTIME_CAPABILITIES,
   dateHuddleTrigger,
+  filetreeHuddleTrigger,
   type HuddleOwnerLaunch,
 } from '@puddle/shared';
 import { atomicPrivateJson, ipcPath } from '@puddle/shared/node';
@@ -30,7 +31,7 @@ import {
 } from '../../../src/runtime/ownership/storage.js';
 import { acquireHostClaim } from '../../../src/security/claims.js';
 import { withInterval } from '../../helpers/huddle/interval.js';
-import { withSchedule } from '../../helpers/huddle/calendar.js';
+import { withTrigger } from '../../helpers/huddle/trigger.js';
 import { schedulerSnapshot } from '../../helpers/huddle/scheduler.js';
 import {
   prepare,
@@ -54,7 +55,7 @@ async function until(check: () => boolean | Promise<boolean>) {
     await sleep(20);
   }
 }
-function fixture(source: string, concurrency = 1, interval: boolean | 'date' = false) {
+function fixture(source: string, concurrency = 1, interval: boolean | 'date' | 'filetree' = false) {
   const base = prepare();
   if (interval) {
     base.home = realpathSync(base.home);
@@ -68,8 +69,16 @@ function fixture(source: string, concurrency = 1, interval: boolean | 'date' = f
   snapshot.digest = huddleRevisionDigest(snapshot.files, snapshot.components);
   if (interval) {
     if (interval === 'date')
-      withSchedule(snapshot, dateHuddleTrigger, { at: new Date(Date.now() + 1500).toISOString() });
-    else withInterval(snapshot);
+      withTrigger(snapshot, dateHuddleTrigger, { at: new Date(Date.now() + 1500).toISOString() });
+    else if (interval === 'filetree') {
+      mkdirSync(join(base.home, 'watched'));
+      withTrigger(snapshot, filetreeHuddleTrigger, {
+        worktree: base.home,
+        directory: 'watched',
+        debounceMs: 50,
+        reconcileMs: 1000,
+      });
+    } else withInterval(snapshot);
     const root = join(base.home, '.puddle', 'huddle', huddleId);
     mkdirSync(root, { recursive: true });
     writeFileSync(join(root, 'huddle.json'), snapshot.files['huddle.json']!);
@@ -96,7 +105,7 @@ function fixture(source: string, concurrency = 1, interval: boolean | 'date' = f
       revision: snapshot.digest,
       worktree: base.home,
       variables: {},
-      bindings: {},
+      bindings: interval === 'filetree' ? { run: { worktree: base.home } } : {},
     },
   });
   const directory = runtimeDirectory(base.home, launch.identity.runtime_id);
@@ -142,6 +151,45 @@ const wrap = (source: string) =>
   `import {HuddleNode} from 'puddlang/huddle'; import fs from 'node:fs'; export default HuddleNode({contract:'./node.json', async run({inputs}) { ${source} }});`;
 
 describe('independent huddle owner process', () => {
+  it('observes file changes without a controller, resets the baseline on Resume and releases watches on Stop', async () => {
+    const f = fixture(wrap('return {completed: inputs.value};'), 1, 'filetree');
+    const { client, child } = await start(f);
+    await arm(client);
+    client.close();
+    f.controller.release();
+    writeFileSync(join(f.home, 'watched/new.txt'), 'first');
+    await sleep(200);
+    const replacement = await acquireRuntimeControllerWhenAvailable(f.home);
+    controllers.push(replacement);
+    const observer = await connect(f, f.launch, replacement.record);
+    const records = () => observer.request({ t: 'records', collection: 'executions', after: 0 });
+    await until(async () => {
+      const response = await records();
+      return (
+        response.t === 'records' &&
+        response.rows.some((row) => JSON.parse(row.body).state === 'completed')
+      );
+    });
+    await observer.request({ t: 'interrupt' });
+    const before = await records();
+    writeFileSync(join(f.home, 'watched/paused.txt'), 'paused');
+    await arm(observer);
+    await sleep(100);
+    expect(await records()).toMatchObject({ rows: before.t === 'records' ? before.rows : [] });
+    writeFileSync(join(f.home, 'watched/new.txt'), 'second');
+    await until(async () => {
+      const response = await records();
+      return (
+        response.t === 'records' &&
+        before.t === 'records' &&
+        response.rows.length > before.rows.length
+      );
+    });
+    await observer.request({ t: 'shutdown' });
+    await until(() => child.exitCode !== null);
+    expect(child.exitCode).toBe(0);
+  });
+
   it('fires a one-off without a controller and does not fire it again after Resume', async () => {
     const f = fixture(wrap('return {completed: inputs.value};'), 1, 'date');
     const { client, child } = await start(f);

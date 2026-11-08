@@ -20,6 +20,7 @@ import { HuddleScheduler } from './execution/scheduler.js';
 import { HuddleOwnerServer } from './transport/server.js';
 import { requireHuddleDefinitionLocation } from '../../huddle/definitions/location.js';
 import { HuddleTimerController } from './triggers/controller.js';
+import { HuddleFiletreeController } from './triggers/filetree/controller.js';
 import { requireHuddleFeatures } from './triggers/definitions.js';
 import { HuddleOperationMailbox } from './operations/mailbox.js';
 
@@ -32,6 +33,7 @@ export class HuddleOwner {
   private readonly transport: HuddleOwnerServer;
   private readonly operations: HuddleOperationMailbox;
   private readonly timers: HuddleTimerController;
+  private readonly filetrees: HuddleFiletreeController;
   private status: HuddleOwnerState['state'] = 'running';
   private failure: string | null = null;
   private observation = 0;
@@ -79,14 +81,20 @@ export class HuddleOwner {
         this.store,
         launch.capabilities,
         () => this.drive(),
-        (error) => {
-          this.failure = (error instanceof Error ? error.message : String(error)).slice(0, 4096);
-          try {
-            this.persist();
-          } catch {
-            this.failure = 'Huddle timer state persistence failed';
-          }
-        },
+        (error) => this.triggerFailure(error),
+        () =>
+          requireHuddleDefinitionLocation(
+            launch.identity.canonical_worktree_path,
+            launch.scope.huddleId,
+          ),
+        memory.allowance,
+      );
+      this.filetrees = new HuddleFiletreeController(
+        this.ledger,
+        this.store,
+        launch.capabilities,
+        () => this.drive(),
+        (error) => this.triggerFailure(error),
         () =>
           requireHuddleDefinitionLocation(
             launch.identity.canonical_worktree_path,
@@ -187,13 +195,13 @@ export class HuddleOwner {
     const finished = (error?: unknown) => {
       if (this.driving === pending) this.driving = null;
       if (error !== undefined) {
-        this.timers.stop();
+        this.stopTriggers();
         this.failure = (error instanceof Error ? error.message : String(error)).slice(0, 4096);
       }
       try {
         this.persist();
       } catch {
-        this.timers.stop();
+        this.stopTriggers();
         this.failure = 'Huddle owner state persistence failed';
       }
     };
@@ -248,7 +256,7 @@ export class HuddleOwner {
       };
     }
     if (request.t === 'shutdown') {
-      this.timers.stop();
+      this.stopTriggers();
       // Acknowledgement is acceptance only. Retain ownership until workers and queued controls have drained.
       setImmediate(() => {
         void this.stop().catch(() => {});
@@ -257,10 +265,11 @@ export class HuddleOwner {
     }
     if (this.stopping || this.interrupting) throw new Error('Huddle lifecycle change is pending');
     if (request.t === 'interrupt') {
-      this.timers.stop();
+      this.stopTriggers();
       this.interrupting = this.scheduler.halt('interrupted', 'Huddle interrupted by controller');
       try {
         await this.interrupting;
+        await this.filetrees.settled();
         await this.driving;
         this.persist();
       } catch (error) {
@@ -282,12 +291,12 @@ export class HuddleOwner {
       const snapshot = this.store.read(request.activation.revision);
       requireHuddleFeatures(snapshot, this.memory.launch.capabilities);
       this.revisions.apply(snapshot, request.activation, request.expectedGeneration);
-      this.refreshTimers();
+      await this.refreshTriggers();
       return state();
     }
     if (request.t === 'arm') {
       this.ledger.activations.setIntent(request.expectedGeneration, 'armed', request.autoStart);
-      this.refreshTimers();
+      await this.refreshTriggers();
       this.drive();
       return state();
     }
@@ -307,12 +316,29 @@ export class HuddleOwner {
     };
   }
 
-  private refreshTimers() {
+  private stopTriggers() {
+    this.timers.stop();
+    this.filetrees.stop();
+  }
+  private triggerFailure(error: unknown) {
+    this.stopTriggers();
+    this.failure = (error instanceof Error ? error.message : String(error)).slice(0, 4096);
     try {
       this.persist();
+    } catch {
+      this.failure = 'Huddle trigger state persistence failed';
+    }
+  }
+  private async refreshTriggers() {
+    try {
+      this.stopTriggers();
+      await this.filetrees.settled();
+      this.persist();
+      await this.filetrees.refresh();
+      if (this.failure) throw new Error(this.failure);
       this.timers.refresh();
     } catch (error) {
-      this.timers.stop();
+      this.stopTriggers();
       this.failure = (error instanceof Error ? error.message : String(error)).slice(0, 4096);
       this.persist();
       throw error;
@@ -324,12 +350,13 @@ export class HuddleOwner {
     return this.stopping;
   }
   private async shutdown() {
-    this.timers.stop();
+    this.stopTriggers();
     this.status = 'stopping';
     try {
       this.persist();
       await this.interrupting;
       await this.scheduler.halt('stopped', 'Huddle owner stopped');
+      await this.filetrees.settled();
       await this.driving;
       if (this.scheduler.hasLiveWorkers)
         throw new Error('Huddle worker termination remains unknown');

@@ -667,6 +667,17 @@ share graph budgets. Stop timers before lifecycle waits and on persistence failu
 Validate selected/live timer support before launch/Apply, preserving old owners.
 New arming generations reset anchors; never catch up stopped time or replay an
 admitted occurrence. Reuse the source-location check before autonomous admission.
+Optional `filetree: 1` supports bounded regular-file observation. Keep watches,
+scans and lifecycle under `runtime/huddle/triggers/filetree/`; retain two bounded
+snapshots and batch progress per source in `state/filetrees.ts`. Reuse explicit
+resolved worktree bindings; never observe renderer-selected paths directly. Do not
+follow symlinks or include Git metadata/huddle definitions/declared output paths.
+Notifications invalidate snapshots; they are not exact edit events. Advance batch
+progress only with durable admission, preserve pending observations on queue/storage
+refusal and never replace a pending scan before draining its batches. Start/Resume
+and armed Apply create fresh baselines. Stop/failure cancels watches/timers and
+fences in-flight scans before admission. Keep scan capacity charged until settlement;
+a stalled scan must prevent clean owner shutdown, never release live claims.
 Optional `calendar: 1` adds one-off dates and daily/weekday timezone schedules.
 Keep civil-time conversion under `triggers/calendar/` with daemon-only Temporal;
 never use the renderer's timezone or hand-roll DST offsets. Skip missing local

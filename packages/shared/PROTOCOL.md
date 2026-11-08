@@ -1,5 +1,22 @@
 # The puddle communication protocol
 
+Optional private huddle capability **`filetree: 1`** enables
+`puddle.trigger.filetree@1`. Older owners remain supported; selected runtime
+launch/Apply and independent-owner validation require the capability before
+observing files. Older daemon candidates cannot adopt owners requiring it.
+Application 28.4, ordinary runtime 1.1, ledger format 1 and database schema 46
+remain unchanged. The component uses existing worktree parameters and event shapes.
+
+The owner ledger keeps at most eight reusable `filetrees` slots, each with exact
+node/activation/generation, canonical worktree, bounded baseline/pending snapshots
+and admission progress. Events carry a worktree resource and up to 64 regular-file
+net changes; no exact filesystem occurrence time is invented. Batch cursor progress
+commits with admission and the baseline advances after the last batch. Refusal
+retains pending changes. Initial arming, Resume and armed Apply establish a fresh
+baseline rather than replay paused activity. Cancellation fences async scans before
+ledger access; clean owner shutdown requires their settlement. These records do
+not add automatic owner-crash/reboot recovery or a public health/history command.
+
 Optional private huddle capability **`calendar: 1`** enables the version-1
 `puddle.trigger.calendar` and `puddle.trigger.date` built-ins. Older owners without
 this capability remain supported; older candidates cannot adopt owners requiring

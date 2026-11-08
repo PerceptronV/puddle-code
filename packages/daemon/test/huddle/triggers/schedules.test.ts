@@ -9,7 +9,7 @@ import {
 } from '@puddle/shared';
 import { huddleLedgerFixture } from '../../helpers/huddle/ledger.js';
 import { schedulerSnapshot } from '../../helpers/huddle/scheduler.js';
-import { withSchedule } from '../../helpers/huddle/calendar.js';
+import { withTrigger } from '../../helpers/huddle/trigger.js';
 import { HuddleRevisionStore } from '../../../src/runtime/huddle/state/revisions.js';
 import { HuddleRevisionController } from '../../../src/runtime/huddle/control/revisions.js';
 import { scheduleDefinitions } from '../../../src/runtime/huddle/triggers/calendar/definitions.js';
@@ -32,7 +32,7 @@ function fixture(
 ) {
   const base = huddleLedgerFixture();
   cleanups.push(base.cleanup);
-  const snapshot = withSchedule(
+  const snapshot = withTrigger(
     schedulerSnapshot(base.identity.huddleId, ''),
     component,
     parameters,
@@ -98,7 +98,7 @@ it('records the explicit past-date policy and resets it only on a new activation
   const f = fixture(dateHuddleTrigger, { at: new Date(now - 1000).toISOString(), past: 'skip' });
   expect(f.ledger.schedules.current()!.schedules[0]).toMatchObject({ disposition: 'skipped' });
   expect(f.ledger.schedules.plan(now)[0]!.occurrences).toEqual([]);
-  const snapshot = withSchedule(f.snapshot, dateHuddleTrigger, {
+  const snapshot = withTrigger(f.snapshot, dateHuddleTrigger, {
     at: new Date(now - 1000).toISOString(),
     past: 'fire',
   });
@@ -200,7 +200,7 @@ it('validates calendar/date settings before activation and gates old runtimes', 
     [dateHuddleTrigger, { at: '2026-02-30T00:00:00Z' }],
   ];
   for (const [component, parameters] of invalid) {
-    const snapshot = withSchedule(f.snapshot, component, parameters);
+    const snapshot = withTrigger(f.snapshot, component, parameters);
     expect(() =>
       f.revisions.apply(
         snapshot,

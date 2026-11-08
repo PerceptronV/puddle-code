@@ -6,10 +6,11 @@ import {
   huddleRuntimeInspectionSchema,
   huddleHistoryPageSchema,
   dateHuddleTrigger,
+  filetreeHuddleTrigger,
 } from '@puddle/shared';
 import { huddleExecutionFixture as fixture } from '../../helpers/huddle/execution.js';
 import { withInterval } from '../../helpers/huddle/interval.js';
-import { withSchedule } from '../../helpers/huddle/calendar.js';
+import { withTrigger } from '../../helpers/huddle/trigger.js';
 import { until } from '../../helpers/huddle/controller.js';
 import { runtimeRelease } from '../../helpers/runtime-release.js';
 import { RuntimeConnectionLost } from '../../../src/runtime/transport/client.js';
@@ -317,7 +318,7 @@ it('refuses unavailable bridges and rechecks declared worktrees after storage ad
   }
 });
 
-it.each(['interval', 'date'] as const)(
+it.each(['interval', 'date', 'filetree'] as const)(
   'gates %s launch on the selected runtime and replaces automatic schedules on Apply',
   async (kind) => {
     const f = await fixture();
@@ -325,9 +326,17 @@ it.each(['interval', 'date'] as const)(
       const snapshot =
         kind === 'interval'
           ? withInterval(f.options.snapshot)
-          : withSchedule(f.options.snapshot, dateHuddleTrigger, {
-              at: new Date(Date.now() + 1000).toISOString(),
-            });
+          : kind === 'date'
+            ? withTrigger(f.options.snapshot, dateHuddleTrigger, {
+                at: new Date(Date.now() + 1000).toISOString(),
+              })
+            : withTrigger(f.options.snapshot, filetreeHuddleTrigger, {
+                worktree: f.home,
+                directory: 'watched',
+                debounceMs: 50,
+                reconcileMs: 1000,
+              });
+      if (kind === 'filetree') mkdirSync(join(f.home, 'watched'));
       writeFileSync(join(f.root, 'huddle.json'), snapshot.files['huddle.json']!);
       writeFileSync(
         join(f.root, 'nodes/example/run.ts'),
@@ -335,7 +344,7 @@ it.each(['interval', 'date'] as const)(
       );
       const metadataPath = join(f.installed.release, 'RUNTIME_CAPABILITIES.json');
       const metadata = JSON.parse(readFileSync(metadataPath, 'utf8'));
-      const capability = kind === 'interval' ? 'timers' : 'calendar';
+      const capability = kind === 'interval' ? 'timers' : kind === 'date' ? 'calendar' : 'filetree';
       delete metadata.roles.huddle[capability];
       writeFileSync(metadataPath, JSON.stringify(metadata));
       let document = await f.source();
@@ -348,6 +357,7 @@ it.each(['interval', 'date'] as const)(
       const started = await f.request('start', { expected_digest: document.digest, variables: {} });
       expect(started.status, JSON.stringify(started.body)).toBe(200);
       const target = started.body.owner.target;
+      if (kind === 'filetree') writeFileSync(join(f.home, 'watched/first.txt'), 'first');
       const history = {
         owner: { runtimeId: target.runtimeId, incarnation: target.incarnation },
         collection: 'executions',
@@ -360,7 +370,12 @@ it.each(['interval', 'date'] as const)(
       );
       const definition = JSON.parse(readFileSync(join(f.root, 'huddle.json'), 'utf8'));
       if (kind === 'interval') definition.nodes[0].parameters.intervalMs.value = 60000;
-      else definition.nodes[0].parameters.at.value = new Date(Date.now() + 60000).toISOString();
+      else if (kind === 'date')
+        definition.nodes[0].parameters.at.value = new Date(Date.now() + 60000).toISOString();
+      else {
+        mkdirSync(join(f.home, 'replacement'));
+        definition.nodes[0].parameters.directory.value = 'replacement';
+      }
       writeFileSync(join(f.root, 'huddle.json'), JSON.stringify(definition));
       document = await f.source();
       const applied = await f.request('apply', {
@@ -370,6 +385,7 @@ it.each(['interval', 'date'] as const)(
       });
       expect(applied.status, JSON.stringify(applied.body)).toBe(200);
       const before = (await f.request('history', history)).body.records.length;
+      if (kind === 'filetree') writeFileSync(join(f.home, 'watched/old.txt'), 'old scope');
       await new Promise((resolve) => setTimeout(resolve, 1250));
       expect((await f.request('history', history)).body.records).toHaveLength(before);
       expect((await f.request('stop', { target: applied.body.owner.target })).status).toBe(200);

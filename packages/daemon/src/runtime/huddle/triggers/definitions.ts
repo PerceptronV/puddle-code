@@ -4,6 +4,7 @@ import {
   intervalHuddleTrigger,
   calendarHuddleTrigger,
   dateHuddleTrigger,
+  filetreeHuddleTrigger,
   HUDDLE_INTERVAL_LIMIT,
   huddleIntervalSettingsSchema,
   resolveHuddleParameters,
@@ -41,6 +42,12 @@ export function requireHuddleFeatures(
 ) {
   for (const node of snapshot.definition.nodes) {
     const component = snapshot.components[node.id]!;
+    if (
+      component.id === filetreeHuddleTrigger.id &&
+      node.source.kind === 'builtin' &&
+      capabilities.filetree !== 1
+    )
+      throw new Error('This runtime does not support huddle Filetree triggers');
     if (node.source.kind !== 'builtin') continue;
     const expected = coreHuddleComponents.get(`${node.source.component}@${node.source.version}`);
     if (
