@@ -6,7 +6,8 @@ import type { EventStore } from '../../../db/stores/events.js';
 import type { Db } from '../../../db/db.js';
 import { HostAdmission } from '../../../host/lifecycle/admission.js';
 import type { HuddleOwnerClient } from '../transport/client.js';
-import { huddleBindingLaunch, requireHuddleState, retireMissingHuddle } from './discovery.js';
+import { retireMissingHuddle } from './discovery.js';
+import { huddleBindingLaunch, requireHuddleState } from '../ownership/binding.js';
 
 interface Attachment {
   client: HuddleOwnerClient;

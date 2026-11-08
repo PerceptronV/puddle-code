@@ -1423,8 +1423,12 @@ adoption/recovery now preserve explicit huddle identity/contracts. Candidate
 from runtime execution metadata, without changing historical host capabilities.
 Activation and restart recovery refuse unsupported huddles, including owners
 created after the original checkpoint. Fresh adoption verifies huddle state and
-settled projection under the new controller without replay. Host removal/collection,
-stopped-host startup and native supervision acceptance remain unfinished. Contracts, bounds, verification and unfinished
+settled projection under the new controller without replay. Offline host removal now adopts huddles and rechecks their activation/impact
+inside the Stop queue. Shared `runtime/huddle/ownership/` validation gates purge
+fencing and release-reference retirement on clean shutdown or never-consumed
+intent; unresolved bindings keep their pins. The existing later-boot barrier
+still applies and reference retirement retains definitions, revisions and ledger.
+Stopped-host startup and native supervision acceptance remain unfinished. Contracts, bounds, verification and unfinished
 work are recorded in [huddle acceptance](docs/acceptance/huddle.md); the complete
 design is in the [roadmap](docs/roadmap/huddle.md).
 

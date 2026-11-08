@@ -171,8 +171,14 @@ export class HuddleRuntimeControls {
       return { executionId: response.executionId, duplicate: response.duplicate };
     });
   }
-  stop(sessionId: string, authorised: Authorised): Promise<void> {
+  stop(
+    sessionId: string,
+    authorised: Authorised,
+    review?: (state: HuddleOwnerState) => void,
+  ): Promise<void> {
     return this.run(sessionId, authorised, async (target) => {
+      if (review) review(await this.inspectTarget(target, authorised));
+      this.check(target, authorised);
       if (this.runtimes.requestHuddleStop(target.id, target.sessionId)) {
         try {
           await target.client.request({ t: 'shutdown' });

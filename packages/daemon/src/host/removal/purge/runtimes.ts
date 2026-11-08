@@ -6,6 +6,8 @@ import { openDatabase } from '../../../db/db.js';
 import { requireOwnedDatabase } from '../../../db/paths.js';
 import { RuntimeStore } from '../../../db/stores/runtimes.js';
 import { readRuntimeJson } from '../../../runtime/ownership/storage.js';
+import { huddleBindingLaunch } from '../../../runtime/huddle/ownership/binding.js';
+import { huddleRetirementState } from '../../../runtime/huddle/ownership/retirement.js';
 import { runtimeBindingIdentity } from '../../../runtime/transport/connections.js';
 import { removeRuntimeService } from '../../../runtime/lifecycle/supervisor.js';
 import type { CompilationCommandRunner } from '../../../compilation/process.js';
@@ -49,8 +51,31 @@ export async function retirePurgeRuntimes(
       const directory = join(root, id);
       privatePath(directory, true);
       if (lstatSync(directory).isSymbolicLink()) throw new Error('Linked runtime blocks purge');
-      const launch = runtimeLaunchSchema.parse(readRuntimeJson(join(directory, 'launch.json')));
       const owner = runtimes.get(id)!;
+      const launch =
+        owner.role === 'huddle'
+          ? huddleBindingLaunch(guard.home, owner)
+          : runtimeLaunchSchema.parse(readRuntimeJson(join(directory, 'launch.json')));
+      if (owner.role === 'huddle') {
+        const read = (name: string) => {
+          try {
+            return readRuntimeJson(join(directory, name));
+          } catch (error) {
+            if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+            throw error;
+          }
+        };
+        if (
+          owner.state !== 'exited' ||
+          !huddleRetirementState(
+            owner,
+            huddleBindingLaunch(guard.home, owner),
+            read('huddle-owner.json'),
+            read('consumed.json'),
+          ).clean
+        )
+          throw new Error('Huddle shutdown is unresolved before purge');
+      }
       if (JSON.stringify(launch.identity) !== JSON.stringify(runtimeBindingIdentity(owner)))
         throw new Error('Runtime launch identity changed before purge');
       if (

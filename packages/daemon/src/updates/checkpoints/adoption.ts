@@ -23,10 +23,7 @@ import {
   type RuntimeConnections,
 } from '../../runtime/transport/connections.js';
 import { flushUpdateDatabase, runtimeCheckpointOwner } from './store.js';
-import {
-  huddleBindingLaunch,
-  requireHuddleState,
-} from '../../runtime/huddle/controller/discovery.js';
+import { huddleBindingLaunch, requireHuddleState } from '../../runtime/huddle/ownership/binding.js';
 import { readUpdateAdoptionRequirements } from './requirements.js';
 
 export function readHostUpdateAdoption(home: string, operationId: string): HostUpdateAdoption {

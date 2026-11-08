@@ -17,6 +17,8 @@ import { serviceIsRemoved } from '../../../supervision/removed.js';
 import { optionalRecord } from '../inventory.js';
 import type { CollectionBudget } from '../budget.js';
 import { acquireRuntimeRetirementClaims } from '../../../../runtime/ownership/retirement-claims.js';
+import { requireHuddleBindingLaunch } from '../../../../runtime/huddle/ownership/binding.js';
+import { huddleRetirementState } from '../../../../runtime/huddle/ownership/retirement.js';
 import { retireRuntimeMemoryGrant } from '../../../../runtime/resources/host/retirement.js';
 
 const receiptSchema = z
@@ -34,7 +36,12 @@ const receiptFile = (home: string, id: string) =>
   join(home, 'runtimes', id, 'release-retirement.json');
 
 function evidence(home: string, binding: RuntimeBinding, budget?: CollectionBudget) {
-  if (binding.state === 'prepared' || binding.state === 'running') return null;
+  if (
+    binding.state === 'prepared' ||
+    binding.state === 'running' ||
+    (binding.role === 'huddle' && binding.state !== 'exited')
+  )
+    return null;
   const directory = join(home, 'runtimes', binding.runtime_id);
   privatePath(directory, true);
   const read = (name: string, bytes = 64 * 1024) =>
@@ -42,9 +49,22 @@ function evidence(home: string, binding: RuntimeBinding, budget?: CollectionBudg
   const launch = read('launch.json', RUNTIME_LIMITS.frameBytes);
   const retired = read('retired.json');
   if (!launch || !retired) return null;
+  const huddle =
+    binding.role === 'huddle'
+      ? huddleRetirementState(
+          binding,
+          requireHuddleBindingLaunch(binding, launch),
+          read('huddle-owner.json', RUNTIME_LIMITS.frameBytes),
+          read('consumed.json'),
+        )
+      : null;
+  if (huddle && !huddle.clean) return null;
   const identity = runtimeBindingIdentity(binding);
   for (const actual of [
-    runtimeLaunchSchema.parse(launch).identity,
+    (binding.role === 'huddle'
+      ? requireHuddleBindingLaunch(binding, launch)
+      : runtimeLaunchSchema.parse(launch)
+    ).identity,
     runtimeRetiredSchema.parse(retired).identity,
   ])
     if (JSON.stringify(actual) !== JSON.stringify(identity))
@@ -68,7 +88,16 @@ function evidence(home: string, binding: RuntimeBinding, budget?: CollectionBudg
   return {
     directory,
     service,
-    digest: digest(JSON.stringify({ binding, launch, retired, assets, supervisor })),
+    digest: digest(
+      JSON.stringify({
+        binding,
+        launch,
+        retired,
+        assets,
+        supervisor,
+        ...(huddle ? { huddle } : {}),
+      }),
+    ),
   };
 }
 

@@ -60,6 +60,8 @@ export async function withRemovalRuntimes<T>(
       {
         connected: (id, client) => observation.attach(id, client),
         missing: (id) => observation.retire(id),
+        huddleConnected: (id, client) => observation.attachHuddle(id, client),
+        huddleMissing: (id) => observation.retire(id),
       },
       controller,
     );

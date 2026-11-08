@@ -18,10 +18,7 @@ import {
   readStageDaemonRuntimeCapabilities,
 } from '@puddle/shared/node/host-control';
 
-import {
-  huddleBindingLaunch,
-  requireHuddleState,
-} from '../../runtime/huddle/controller/discovery.js';
+import { huddleBindingLaunch, requireHuddleState } from '../../runtime/huddle/ownership/binding.js';
 import { runtimeCheckpointOwner } from '../checkpoints/store.js';
 
 type Protocol = HostReleaseCapabilities['application'];

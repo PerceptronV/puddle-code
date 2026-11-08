@@ -63,8 +63,12 @@ binds the candidate version/application protocol; ordinary host metadata is unch
 Missing metadata is not huddle support. Fresh adoption checks the authenticated
 huddle state and settled committed observation, including after controllerless
 completion. Recovery retains immutable role requirements across later attempts.
-Public admission, removal/collection and stopped-host startup integration must
-precede product enablement; executable presence or the ordinary runtime protocol alone is not huddle admission evidence.
+Offline removal now adopts both roles and reviews huddle activation/impact inside
+its Stop queue. Purge fencing and release collection share exact binding and clean
+final-state evidence under `runtime/huddle/ownership/`. Live/unresolved workers keep
+references pinned; the existing later-boot barrier still gates executable retirement.
+Source revisions and execution history remain intact. Public admission and
+stopped-host startup integration must precede product enablement; executable presence or the ordinary runtime protocol alone is not huddle admission evidence.
 See [huddle acceptance](../../docs/acceptance/huddle.md) for the tested scope.
 
 Runtime 1.1 adds exact attachment to Claude-owned background jobs. Before writing

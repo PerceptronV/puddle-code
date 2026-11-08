@@ -1,102 +1,19 @@
-import { HOST_REMOVAL_RUNTIME_LIMIT, type RuntimeState } from '@puddle/shared';
-import { digest } from '@puddle/shared/node';
+import {
+  HOST_REMOVAL_RUNTIME_LIMIT,
+  type RuntimeState,
+  type HuddleOwnerState,
+} from '@puddle/shared';
 import type { RuntimeBinding, RuntimeStore } from '../../db/stores/runtimes.js';
 import type { RuntimeControls } from '../../runtime/controller/controls.js';
-import { runtimeBindingIdentity } from '../../runtime/transport/connections.js';
+import {
+  removalRuntimeInventory as inventory,
+  inspectSessionRemoval as inspect,
+  type RuntimeRemovalOwner,
+  type RuntimeRemovalReview,
+} from './runtimes/inspection.js';
+import { inspectHuddleRemoval } from './runtimes/huddle.js';
 
 type Authority = () => boolean;
-
-export interface RuntimeRemovalOwner {
-  id: string;
-  session: string;
-  version: string;
-  release: string;
-  terminals: string[] | null;
-  stop: { fingerprint: string } | { reason: 'unavailable' | 'unsaved' | 'stop_pending' };
-}
-
-/** Private host review. It is never sufficient authority to delete files or purge a home. */
-export interface RuntimeRemovalReview {
-  inventory: string;
-  owners: RuntimeRemovalOwner[];
-}
-
-function inventory(rows: RuntimeBinding[]): string {
-  return digest(
-    JSON.stringify(
-      rows
-        .map((row) => ({
-          identity: runtimeBindingIdentity(row),
-          session: row.active_session_id,
-          segment: row.active_segment_id,
-          conversation: row.conversation_id,
-          account: row.account_id,
-          build: row.build,
-          protocol: [row.protocol_major, row.protocol_minor],
-          release: row.release_path,
-          state: row.state,
-        }))
-        .sort((a, b) => a.identity.runtime_id.localeCompare(b.identity.runtime_id)),
-    ),
-  );
-}
-
-function inspect(
-  owner: RuntimeBinding,
-  state: RuntimeState | null,
-  requested: boolean,
-): RuntimeRemovalOwner {
-  let reason: 'unavailable' | 'unsaved' | 'stop_pending' | null = null;
-  if (requested) reason = 'stop_pending';
-  else if (
-    !state ||
-    state.state !== 'running' ||
-    JSON.stringify(state.identity) !== JSON.stringify(runtimeBindingIdentity(owner)) ||
-    state.build !== owner.build ||
-    state.protocol.major !== owner.protocol_major ||
-    state.protocol.minor !== owner.protocol_minor ||
-    state.binding?.session_id !== owner.active_session_id ||
-    state.binding.segment_id !== owner.active_segment_id ||
-    state.history.current.id !== owner.active_segment_id
-  )
-    reason = 'unavailable';
-  else if (
-    state.persistence_pending ||
-    state.journal.persistence_pending ||
-    state.history.gap ||
-    state.history.pending_checkpoints
-  )
-    reason = 'unsaved';
-  const terminals =
-    state?.terminals
-      .filter((term) => term.exit_code === null)
-      .map(({ term, generation }) => ({ term, generation }))
-      .sort((a, b) => a.term.localeCompare(b.term)) ?? null;
-  return {
-    id: owner.runtime_id,
-    session: owner.active_session_id,
-    version: owner.build,
-    release: owner.release_path,
-    terminals: terminals?.map(({ term }) => term) ?? null,
-    stop: reason
-      ? { reason }
-      : {
-          fingerprint: digest(
-            JSON.stringify({
-              owner: inventory([owner]),
-              // Acknowledgement progress is not a change to interruption impact.
-              binding: {
-                session_id: state!.binding!.session_id,
-                segment_id: state!.binding!.segment_id,
-              },
-              terminals,
-              conversation: state!.agent?.agent_session_ref ?? null,
-              segmentConversation: state!.history.current.agent_session_ref,
-            }),
-          ),
-        },
-  };
-}
 
 /**
  * Runtime disposition for host removal, reusing the ordinary control queue and
@@ -107,7 +24,8 @@ export class HostRuntimeRemoval {
   constructor(
     private readonly deps: {
       runtimes: Pick<RuntimeStore, 'live' | 'get' | 'stopRequested'>;
-      controls: Pick<RuntimeControls, 'inspect' | 'stop'>;
+      controls: Pick<RuntimeControls, 'inspect' | 'stop'> &
+        Partial<Pick<RuntimeControls, 'huddles'>>;
     },
   ) {}
 
@@ -134,6 +52,23 @@ export class HostRuntimeRemoval {
           this.requireAuthority(authorised);
           const position = index++;
           const row = rows[position]!;
+          if (row.role === 'huddle') {
+            let state: HuddleOwnerState | null = null;
+            try {
+              state =
+                (await this.deps.controls.huddles?.inspect(row.active_session_id, authorised)) ??
+                null;
+            } catch {
+              /* Retain unavailable owners; never infer stop authority. */
+            }
+            this.requireAuthority(authorised);
+            owners[position] = inspectHuddleRemoval(
+              row,
+              state,
+              this.deps.runtimes.stopRequested(row.runtime_id),
+            );
+            continue;
+          }
           let state: RuntimeState | null = null;
           try {
             state = await this.deps.controls.inspect(row.active_session_id, authorised);
@@ -177,6 +112,24 @@ export class HostRuntimeRemoval {
       const rows = this.live();
       if (rows.length !== remaining.size || rows.some((row) => !remaining.has(row.runtime_id)))
         throw new Error('Runtime inventory changed during removal');
+      const target = rows.find((row) => row.runtime_id === expected.id)!;
+      if (target.role === 'huddle') {
+        if (!this.deps.controls.huddles) throw new Error('Huddle control unavailable');
+        await this.deps.controls.huddles.stop(expected.session, authorised, (state) => {
+          this.requireAuthority(authorised);
+          const owner = this.deps.runtimes.get(expected.id);
+          if (!owner || owner.role !== 'huddle') throw new Error('Huddle removal owner changed');
+          const observed = inspectHuddleRemoval(
+            owner,
+            state,
+            this.deps.runtimes.stopRequested(owner.runtime_id),
+          );
+          if (JSON.stringify(observed) !== JSON.stringify(expected))
+            throw new Error('Huddle removal impact changed');
+        });
+        remaining.delete(expected.id);
+        continue;
+      }
       await this.deps.controls.stop(expected.session, authorised, (state) => {
         this.requireAuthority(authorised);
         const owner = this.deps.runtimes.get(expected.id);

@@ -205,8 +205,8 @@ completion with one side effect. Candidate metadata tests cover old releases,
 version/protocol mismatch, bounds, symlinks, non-files and changed stage receipts.
 These fixtures simulate service lifetime and use metadata-only candidate paths;
 they establish neither native supervision nor packaged upgrade/reboot acceptance.
-Public creation/Start, stopped-host startup, removal/collection integration and
-fenced recovery of a crashed huddle remain unfinished.
+Public creation/Start, stopped-host startup and fenced recovery of a crashed huddle
+remain unfinished; removal/collection integration follows below.
 
 The expanded shared, host-update and huddle-controller regression run passed
 **488 tests in 66 files**, with **4 tests in 2 files skipped** by their existing
@@ -214,6 +214,53 @@ historical-upgrade/native-supervisor gates. Shared/daemon/web TypeScript, scoped
 ESLint and formatting checks passed. The compiled daemon's passive role inspection
 also returned the declared contracts with an empty isolated home remaining empty.
 No host archive was built or native service started for this increment.
+
+## Implemented: host removal, purge fencing and release references
+
+The offline removal controller adopts huddles through their own connection and
+projector beside ordinary runtimes. Internal review/inspection code lives under
+`host/removal/runtimes/`. A huddle review binds its immutable placement, release,
+contract requirements, current activation/control generation, executing/live-worker
+state and failure. It targets the entire owner and work admitted under that
+activation. Retain sends no lifecycle command. Stop re-inspects inside the existing
+huddle control queue, rechecks participating authority and consumes durable Stop
+only after the review still matches. A changed activation/impact or unresolved Stop
+refuses dispatch; no command moves to a replacement owner. The existing public
+removal reply remains unchanged: a huddle is an owner with zero terminal PTYs.
+A richer huddle-specific review presentation remains part of product UI integration.
+
+Shared exact-binding and retained-state validation now lives under
+`runtime/huddle/ownership/`, used directly by adoption, update recovery, removal
+and collection. Purge fencing requires a clean exited huddle (or positively
+never-consumed launch) before unregistering its runtime service. Missing previously
+observed state, pending persistence, mismatched identities/contracts and live or
+unresolved workers cannot prove retirement. The existing ownership claims and
+permanent launch fence still exclude running or delayed owners. Purge continues
+to require the separate later-boot barrier and worktree review before data deletion.
+
+Release collection retains all live and unresolved huddle bindings and their pinned
+software. Clean exit alone does not retire executable references: the unchanged
+launch/consumption/final-state/service evidence must span the existing later-boot
+barrier. Collection fingerprints the huddle evidence as well as the binding,
+assets and supervisor, and charges reads to the common bounded inventory budget.
+Changed final-state evidence restores the release pin. Executable reference
+retirement preserves source definitions, revisions, execution ledger and session
+history. Ordinary-owner fingerprints and public protocol shapes remain unchanged.
+
+Verification uses independent huddle/ordinary processes in temporary homes. It
+covers offline Retain/Stop, changed activation inside the Stop queue, revoked
+authority before Stop intent, consumed Stop without redispatch, purge refusal for
+unresolved workers, ownership exclusion and retained release pins until a simulated
+later boot. Definition files and `huddle.sqlite` survive runtime disposition and
+reference retirement. Metadata-only release files and simulated boot UUIDs are
+not native manager, installed-release deletion or reboot acceptance.
+
+The focused lifecycle/removal run passed **39 tests in 7 files**. The expanded
+removal, collection, huddle-controller/lifecycle and memory-retirement run passed
+**227 tests**, skipped **1** existing gated test, and found two process tests using
+a stale protocol-26 CLI bundle. Rebuilding the local CLI and rerunning those two
+tests passed **2/2**. Shared/daemon/web TypeScript, scoped ESLint and formatting
+checks passed. No production daemon or native supervisor was started.
 
 ## Implemented: definition and validation foundation
 
@@ -523,7 +570,7 @@ This owner increment left application and agent/terminal runtime versions unchan
 the later placement increment introduced application 27.0. Runtime-role
 capabilities are described below. The launcher increment above now supplies private
 launch records; public creation/Start APIs remain unfinished. Application admission,
-host removal/collection integration,
+stopped-host startup,
 provider-operation dispatch and fenced owner replacement/reboot recovery must be
 connected before enabling creation. Do not infer production support from this
 entry point or its private schemas.

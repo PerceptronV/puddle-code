@@ -22,7 +22,7 @@ import { runtimeCheckpointOwner } from '../../checkpoints/store.js';
 import {
   huddleBindingLaunch,
   requireHuddleState,
-} from '../../../runtime/huddle/controller/discovery.js';
+} from '../../../runtime/huddle/ownership/binding.js';
 
 /** Caller holds the controller claim. Read current committed WAL data; never migrate or restore it. */
 export async function inspectRecoveryDatabase(

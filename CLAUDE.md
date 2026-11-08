@@ -552,8 +552,8 @@ from PTY clients under the existing controller claim. Persist observation versio
 before notifying; project session status/cursor atomically and never replay work
 on reconnect. Include this projector in maintenance pause/drain. Only exact clean
 exit plus launch/owner/memory claims releases ownership; a crash retains unresolved
-resources and never enters ordinary auto-resume or onboarding. Host removal,
-collection and stopped-host startup integration remain required before public launch.
+resources and never enters ordinary auto-resume or onboarding. Stopped-host
+startup integration remains required before public launch.
 `RuntimeLauncher.launchHuddle` shares ordinary launch admission and supervision,
 requires an installed capable release, validates captured activation before intent
 and observes uncertain dispatch without fallback. `runtime/huddle/lifecycle/` owns
@@ -565,6 +565,13 @@ controls in the common maintenance pause/drain. Automatic service cleanup exclud
 interrupted huddles until descendant recovery is proven. A never-consumed attempt
 can retire under all owner/launch claims and a durable fence; missing consumed-owner
 state cannot. Public creation/Start routes remain unfinished.
+`runtime/huddle/ownership/` owns shared exact-binding and clean-retirement evidence;
+import it directly from adoption, maintenance and collection. Offline removal adopts
+both roles; `host/removal/runtimes/` separates their interruption reviews. Recheck
+huddle activation/impact and authority inside its Stop queue before consuming intent.
+Purge fencing and release collection require clean final or never-consumed evidence;
+retain unresolved workers and bindings. The existing later-boot barrier still gates
+reference retirement/deletion. Keep huddle source, revisions, ledger and history.
 Host-update checkpoints retain each huddle's id and required contracts. Preflight,
 activation and recovery require explicit candidate support from separate
 `DAEMON_RUNTIME_CAPABILITIES.json`; keep historical `HOST_CAPABILITIES.json` closed.

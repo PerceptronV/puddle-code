@@ -14,7 +14,7 @@ import { HostRemovalGuard } from './guard.js';
 import { reviewInstalledRemovalServices, type RemovalInventoryOptions } from './inventory.js';
 import { HostRemovalServiceOperation } from './operations/services.js';
 import { removalRemoteAccess } from './remote.js';
-import type { RuntimeRemovalReview } from './runtimes.js';
+import type { RuntimeRemovalReview } from './runtimes/inspection.js';
 
 interface Options extends RemovalInventoryOptions {
   authorised: () => boolean;
