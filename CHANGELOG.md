@@ -11,6 +11,10 @@ Past releases: see docs/changelogs/.
 
 ### Cockpit
 
+#### Added
+
+- Highlight TeX and LaTeX commands, comments, environments, mathematics and verbatim text, with automatic file detection and a per-file language choice.
+
 #### Changed
 
 - Separate native window lifetime from host connections and retain revisioned desktop working sets and acknowledged transfer records (application protocol 26.7; detached-window controls are in progress).

@@ -19,6 +19,15 @@ import HtmlWorker from 'monaco-editor/esm/vs/language/html/html.worker?worker';
 import TsWorker from 'monaco-editor/esm/vs/language/typescript/ts.worker?worker';
 import { loader } from '@monaco-editor/react';
 import { monacoThemeFromCss, onThemeChange } from '../../../lib/appearance/theme';
+import { texConfiguration, texLanguage } from './tex-language';
+
+monaco.languages.register({
+  id: 'tex',
+  extensions: ['.tex', '.ltx', '.sty'],
+  aliases: ['TeX / LaTeX', 'TeX', 'LaTeX'],
+});
+monaco.languages.setLanguageConfiguration('tex', texConfiguration);
+monaco.languages.setMonarchTokensProvider('tex', texLanguage);
 
 self.MonacoEnvironment = {
   getWorker(_workerId: string, label: string): Worker {
