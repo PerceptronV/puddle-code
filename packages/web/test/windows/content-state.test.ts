@@ -36,4 +36,25 @@ describe('desktop content handoff seam', () => {
     state.registerBuffer(buffer, () => null);
     expect(state.capture().buffers).toEqual([other]);
   });
+
+  it('does not recapture a moved model from an inactive historical layout tree', () => {
+    const state = new DesktopContentState();
+    const moved = { ...buffer, session: '00000000-0000-4000-8000-000000000001' };
+    state.restore({ ...empty(), buffers: [moved] });
+    const release = state.registerBuffer(moved, () => moved);
+    const snapshot = uiStateSnapshotSchema.parse({
+      layout_mode: 'project',
+      // This tree is retained across layout-mode switches but is not live.
+      layout_tree: {
+        kind: 'leaf',
+        id: 'old',
+        activeKey: null,
+        tabs: [{ type: 'editor', tab: { session: moved.session, path: moved.path } }],
+      },
+    });
+    state.restore({ snapshot, buffers: [], views: {} });
+    expect(state.capture(snapshot).buffers).toEqual([]);
+    release();
+    expect(state.capture().buffers).toEqual([]);
+  });
 });

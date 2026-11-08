@@ -19,8 +19,9 @@ function referencedBuffers(snapshot: UiStateSnapshot): Set<string> {
     if (node.kind === 'split') node.children.forEach(visit);
     else for (const tab of node.tabs) if (tab.type === 'editor') keys.add(windowBufferKey(tab.tab));
   };
-  visit(snapshot.layout_tree);
-  for (const slice of Object.values(snapshot.project_layouts)) visit(slice.layout_tree);
+  if (snapshot.layout_mode === 'project') {
+    for (const slice of Object.values(snapshot.project_layouts)) visit(slice.layout_tree);
+  } else visit(snapshot.layout_tree);
   return keys;
 }
 

@@ -2298,6 +2298,12 @@ interaction fence. App quit preserves the arrangement; explicit closure removes
 its window from the reopen set. A renderer crash can restore its last durable
 snapshot. Refresh/reload checkpoint integration remains pending.
 
+The pane transfer projection preserves the selected pane intact, including
+mixed-project tabs; its current project becomes the detached window's anchor.
+Source duplicates retain their recoverable dirty text. Inactive historical trees
+do not authorise recapturing a moved source model during React cleanup. This
+projection is not yet connected to a live detach action.
+
 The shared workspace can render full host, headerless project, and pane-only
 presentations; detached windows use native title bars. Context-menu detachment,
 live transfer orchestration, docking, project redirects, and

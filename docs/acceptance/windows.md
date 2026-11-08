@@ -36,6 +36,12 @@ verification; pending items are not support claims.
   A failed or missing acknowledgement cancels closure and resumes editing;
   renderer reload/crash invalidates outstanding commands. Quitting retains the
   arrangement, while explicit closure removes its window from the reopen set.
+- `web/features/windows/transfer-content.ts` provides the pure pane extraction
+  projection for the upcoming live handoff. It preserves tab order, active and
+  preview selection, view state, and relevant dirty buffers; duplicate source
+  views keep their recoverable text. Other project slices and orphaned recovery
+  drafts stay with the source. Mixed-project panes move intact with the current
+  project as their anchor. No context-menu action calls this projection yet.
 
 Detach actions are not exposed yet. Transfer orchestration between live renderers,
 project redirects, docking, and named window
@@ -69,6 +75,11 @@ checkpointing before the debounce timer, interaction fencing, cancellation, and
 reload recovery in all three presentations. Host refresh/reload still needs the
 same checkpoint integration; a renderer
 crash can only recover the last durable snapshot.
+
+The pane projection increment passed all 17 web window tests and the web
+TypeScript/targeted ESLint checks. Coverage includes dirty duplicate views,
+unrelated project slices, stale pane selection, and preventing inactive historical
+layout trees from recapturing a moved buffer during React cleanup.
 
 Native acceptance has not run. Use an isolated UI preview for desktop interaction;
 start any real daemon from a plain shell, never from a coding-agent session.
