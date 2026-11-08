@@ -356,6 +356,11 @@ export function PaneLeaf({
             ref={slotRef}
             className={cn('absolute inset-0 py-1 pl-4 pr-2', !terminalKey && 'hidden')}
           />
+          {terminalKey && !shownSession && (
+            <div className="absolute inset-0 flex items-center justify-center text-sm text-fg-muted">
+              Session unavailable — this tab is retained for reconnection.
+            </div>
+          )}
           {/* Embedded browsing contexts consume pointer events before dnd-kit's
             document-level sensor can see them. Cover every pane body for the
             duration of a strip drag so HTML iframes remain

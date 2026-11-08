@@ -47,7 +47,7 @@ packages/
 │   ├── src/features/editor/ # buffers/, conflicts/, compilation/, monaco/, notebooks/ (including widgets/),
 │   │                       # previews/ (html/, markdown/, pdf/), tabs/; pane composition stays at the root
 │   ├── src/features/workspace/ # layout/, panes/, sessions/, sidebar/, tabs/; Workspace and shared context at the root
-│   ├── src/features/windows/ # state/, transfers/content/, arrangements/, drag/, navigation/, lifecycle/, menus/;
+│   ├── src/features/windows/ # state/, transfers/content/, arrangements/, drag/, navigation/, lifecycle/, effects/, recovery/, menus/;
 │   │                        # native window context and renderer composition stay at the root
 │   ├── src/features/terminal/ # clipboard/, input/, links/, rich-output/, scroll/; terminal composition at the root
 │   ├── src/features/guide/ # public deployed-app /guide; edit guide.md for setup/upgrade instructions
@@ -150,6 +150,9 @@ never starts a daemon, and intentionally crashes only its own test processes.
 Set `PREVIEW_URL` (default `http://127.0.0.1:5186/`); optionally set
 `PUDDLE_NATIVE_REPORT` to write idle/editor-work process measurements. See
 `docs/acceptance/windows.md` for scope and remaining native checks.
+`PUDDLE_NATIVE_RECOVERY_ONLY=1` explicitly omits OS focus/fullscreen assertions
+while exercising lifecycle and missing-resource recovery; it does not replace
+the full native acceptance run.
 
 For manual testing before a release exists: `pnpm build && pnpm build:tarball`, then
 `node packages/cli/dist/index.js launch --tarball dist-release/puddled-v*.tar.gz` (or

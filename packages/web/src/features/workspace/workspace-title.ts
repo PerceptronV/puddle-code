@@ -1,8 +1,8 @@
-/**
- * The browser/Electron window title for a project workspace. Waiting state is
- * prominent, but never replaces the host identity — several Puddle windows can
- * show the same project name while controlling different machines.
- */
-export function workspaceTitle(project: string, host: string, waiting: number): string {
-  return waiting > 0 ? `● ${waiting} waiting — ${project} (${host})` : `${project} — ${host}`;
+import type { TabRef } from '@puddle/shared';
+
+/** Workspace titles use the project name; an isolated pane uses its active tab's name. */
+export function workspaceTitle(project: string, tab?: TabRef | null, sessionName?: string): string {
+  if (!tab) return project;
+  if (tab.type === 'terminal') return sessionName ?? tab.session.slice(0, 8);
+  return tab.tab.path.split('/').at(-1) || tab.tab.path;
 }

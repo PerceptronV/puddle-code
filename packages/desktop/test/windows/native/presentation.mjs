@@ -1,9 +1,9 @@
 /* global document, performance */
 import assert from 'node:assert/strict';
 
-export async function checkNativeTitle(application, page, expect) {
+export async function checkNativeTitle(application, page, expect, title) {
   await expect(page.locator('header .profile-trigger')).toHaveCount(0);
-  await expect(page).toHaveTitle('puddle — UI preview');
+  await expect(page).toHaveTitle(title);
   const afterStatus = await page.evaluate(async () => {
     const { wsManager } = await import(
       performance
@@ -18,13 +18,9 @@ export async function checkNativeTitle(application, page, expect) {
     });
     return document.title;
   });
-  assert.equal(
-    afterStatus,
-    'puddle — UI preview',
-    'unrelated host activity must retain the project title',
-  );
+  assert.equal(afterStatus, title, 'unrelated host activity must retain the window title');
   const native = await application.browserWindow(page);
-  await expect.poll(() => native.evaluate((win) => win.getTitle())).toBe('puddle — UI preview');
+  await expect.poll(() => native.evaluate((win) => win.getTitle())).toBe(title);
   if (process.platform === 'darwin') {
     const inset = await native.evaluate((win) => win.getContentBounds().y - win.getBounds().y);
     assert.ok(inset >= 20, 'detached content must sit below a real native title bar');

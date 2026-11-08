@@ -632,6 +632,64 @@ SSH/daemon recovery, Linux behaviour, or sustained production resource costs.
 The complete checks below remain required; passing native lifecycle checks alone
 is not completion of this roadmap.
 
+### Missing resources and simplified titles — 2026-11-07
+
+Implemented native recovery under `web/features/windows/recovery/`, reusing the
+existing button, text field, download helper and editor query caches. Native
+workspace remount no longer prunes tabs against the current session list. An
+unavailable session keeps its tab and displays a placeholder. A failed file/draft
+read with retained text displays that text read-only for selection/copy and local
+download. It adds no background reads or polling; Retry uses the original query.
+Failed project lookups retain the arrangement and show the available drafts with
+a Retry action. Successful retries return to the normal editor. Existing file-tab
+close confirmation recognises retained drafts even without a loaded Monaco model.
+No recovery action recreates a host file or executes saved notebook contents.
+
+Window titles now follow the requested naming: project name only for workspaces,
+active file basename or session label for detached panes. They omit app/host
+affixes and waiting counts. The shared title owner still prevents unrelated host
+status events from overwriting those names. The native title assertions now expect
+`puddle` for the preview project and `README.md` for its detached file pane.
+
+The new native resource-loss fixture uses the actual main process/preloads and
+synthetic missing-file/session/project responses. It remounts the pane against an
+empty session list, verifies both tabs remain, checks the missing-session
+placeholder, cancels file discard through the existing dialogue, downloads the
+retained text into the fixture's temporary directory, and compares exact bytes.
+File/project retries restore normal editing with the original dirty text, and
+no file/untitled mutation is issued by these recovery actions. Electron's own
+`will-download`/`done` events observe the download; Playwright's browser download
+event does not fire for this native path.
+
+The focused command is:
+
+```sh
+PUDDLE_NATIVE_RECOVERY_ONLY=1 PREVIEW_URL=http://127.0.0.1:5186/ \
+pnpm --filter @puddle-code/desktop test:native-windows
+```
+
+The focused run passed on macOS 26.5.2 arm64 / Electron 43.2.0, including the
+simplified document/native titles. The automated web window/workspace/editor/shell
+suite passed 449 tests across 64 files, and the ordinary-browser pane-drag check
+passed split, swap, tab preservation, edge move and cancellation. TypeScript and
+targeted ESLint passed.
+
+The full native run currently stops at its focus assertion: all three test
+windows reported `isFocused() === false`, including after requesting app focus,
+while project routing returned true. Its cause has not been established. The
+focused mode explicitly omits OS focus and fullscreen; the default full mode
+retains both assertions. Earlier successful native focus/fullscreen observations
+above remain historical evidence, not a claim that this increment revalidated them.
+The recovery surface screenshot at `/tmp/puddle-native-draft-recovery.png` was
+inspected; it uses shared fields/actions inside the existing pane chrome.
+
+Still outstanding: native pane-window close bypasses individual tab discard
+review, although its checkpoint retains closed-window drafts. Those closed pane
+records need an accessible recovery/close policy before completion. The keyboard
+file-tab close path also needs a review against the button's discard policy.
+Untitled missing-resource/discard and notebook/preview recovery acceptance have
+not run. Keep these gaps separate from the verified ordinary-file recovery path.
+
 ## Required acceptance before completion
 
 1. Open files, sessions, full panes, and projects using their context menus.

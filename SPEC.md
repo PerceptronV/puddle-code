@@ -2340,11 +2340,25 @@ and otherwise uses the shared project-window router. IPC uses the existing exact
 origin/main-frame boundary. Browser/older-shell notification behaviour is unchanged.
 
 Document titles have one composition owner under `shell/title/`: the mounted
-workspace's project/host title and waiting count take precedence over the shell's
-host-wide status title. Unrelated session status events cannot erase a project or
-pane window's identity. Leaving the workspace reveals the latest shell title;
+workspace shows only its project name. An isolated pane shows its active file's
+basename or session label, following tab switches. App/host prefixes, suffixes and
+waiting counts are omitted from workspace titles. These names take precedence
+over the shell's host-wide status title. Unrelated session status events cannot
+erase a project or pane window's identity. Leaving the workspace reveals the latest shell title;
 stale effect cleanup cannot erase a newer workspace title. Browser/mobile shells
 use the same ownership rule.
+
+Native startup retains unavailable file/session references instead of pruning
+their tabs against the current session list. Missing sessions have an explicit
+placeholder. When an original file/draft cannot be read, `windows/recovery/`
+observes the existing editor query and exposes retained unsaved text through a
+read-only selection surface and local download. Retry restores the normal editor
+and its existing draft/conflict rules; recovery never recreates a host file or
+executes saved content. Existing file-tab discard confirmation also recognises
+retained native drafts before a Monaco model can load. Failed project lookups
+show a retryable native placeholder with retained drafts, using the window's
+profile context. These placeholders preserve arrangement state and can acknowledge
+mounted layout recovery. Browser restore pruning keeps its existing policy.
 
 The native shell now separates one host cockpit connection from its native
 window records (`desktop/src/windows/`). Its `hosts/`, `persistence/`, `lifecycle/`
@@ -2869,7 +2883,7 @@ Puddle's UI must read as a polished, intentional developer cockpit — dense, ca
 
   Monaco refreshes its cached font measurements after the initial document fonts settle and after subsequent font loads. Editors and diff views remain usable with fallback fonts during loading; bracket highlights, selections and carets realign when the self-hosted face replaces them.
 
-- **Status is carried by colour, not motion.** A session's state reads from the colour of its indicator alone: `--status-running` amber, `--status-waiting` green, `--status-interrupted` ember, `--status-idle` grey, and `--status-terminal` blue for a shell so a terminal reads apart from an agent at a glance; `waiting_input` is additionally mirrored in the tab title/favicon, and a `stale_running` session is faded to 45%. **Where a row has room for the agent's brand mark — the expanded sidebar rows and the tiling tab chips — the mark IS the indicator** (`status-glyph`), rather than a dot beside a mark saying the same thing twice; a terminal shows a terminal glyph. The mark is now the **only** indicator — the collapsed session rail was the last place a bare dot survived and it shows the glyph too (2026-08-03), so `status-dot` no longer exists.
+- **Status is carried by colour, not motion.** A session's state reads from the colour of its indicator alone: `--status-running` amber, `--status-waiting` green, `--status-interrupted` ember, `--status-idle` grey, and `--status-terminal` blue for a shell so a terminal reads apart from an agent at a glance; `waiting_input` also follows the configured notification policy, and a `stale_running` session is faded to 45%. **Where a row has room for the agent's brand mark — the expanded sidebar rows and the tiling tab chips — the mark IS the indicator** (`status-glyph`), rather than a dot beside a mark saying the same thing twice; a terminal shows a terminal glyph. The mark is now the **only** indicator — the collapsed session rail was the last place a bare dot survived and it shows the glyph too (2026-08-03), so `status-dot` no longer exists.
 
   **There are no status animations** (decision 2026-08-03). The interface previously rippled a running dot and pulsed a waiting one — its one animated flourish — bounded to ~30 s and ~1 min so the compositor eventually settled. Both are gone: the colour already carried the state, the motion only repeated it, and every status change across every visible session was paying for frames to say so. A ring drawn around a brand mark also reads as a border badge rather than a ripple, which HUMANS.md rules out. Consequently there is nothing for `prefers-reduced-motion` to degrade and **no reduced-motion client setting** — it existed solely to switch these off. Everything in the interface is now instant or a ≤150 ms fade.
 
@@ -2898,7 +2912,7 @@ Puddle's UI must read as a polished, intentional developer cockpit — dense, ca
 
 - **Quality floor**: visible keyboard focus everywhere (`--focus-ring`); session tabs, palette, and explorer fully keyboard-navigable; empty states direct action ("No sessions yet — press ⌘K to start one"); error copy states cause and fix, never apologises vaguely.
 
-- **Window title**: a project workspace normally reads `<project> — <host>`; while agents wait it reads `● <n> waiting — <project> (<host>)`. Waiting status never replaces the host label, because similarly named projects can be open against different machines.
+- **Window title**: a project workspace shows only its project name. A detached pane shows its active file basename or session label. Do not add the app name, host label or waiting count. Dashboard titles retain their host/status identity; session indicators and notifications carry attention within workspaces.
 
 ### Single-tab pane presentation
 
@@ -2936,7 +2950,7 @@ Each phase must be independently verifiable before the next starts.
 - **Phase 5 — ports.** Detection table + copyable `ssh -L`; then tier-2 proxy with WS upgrade. AT: a Vite dev server started by an agent is usable through `/proxy/...` including HMR.
 - **Phase 6 — CLI.** `puddle launch` bootstrap/upgrade/tunnel/browser; `attach`, `status`, `logs`; **the serving switch**: the CLI serves the UI at a stable local origin and proxies `/api` + `/ws` (local and SSH modes alike — §2), the daemon build stops embedding web assets and its default binding moves to `127.0.0.1:7434`, and the shared protocol handshake with confirmed older-major daemon updates goes live (§6). AT: on a box with no puddle installed, one `puddle launch user@host` lands in a working cockpit at `http://localhost:7433`; `puddle launch` locally lands in the same cockpit at the same origin; against a daemon with an older protocol major, `launch` shows the interrupted-session count, asks for approval, updates it and reconnects; cancellation leaves the host untouched.
 - **Phase 7 — more agents + continuation. DONE.** codex, opencode and gemini-cli adapters (gemini-cli beyond the original scope), capability matrix verified against installed versions, degradation paths exercised; cross-agent (tier-2) hand-off (AT: hand off a claude session to codex — new session in the same worktree opens with the transcript summary as its first prompt). **Tier-1 same-agent migration ships ahead of this phase** (Workstream S, on the shared conversation store): `POST /api/sessions/:id/migrate` and the "Move to account…" menu are already live for claude-code; its acceptance script is `docs/acceptance/tier1-migration.md` (AT: exhaust-simulate a claude session, migrate it to a second claude account — conversation resumes with history intact). Phase 7 extends migration to the newly added agents and adds the tier-2 hand-off.
-- **Phase 8 — polish.** **Scratchpad** (right-sidebar CRUD, drag-reorder, tag/agent filter, insert-into-terminal + copy; AT: save a profile-scoped prompt and a project-A-scoped note — from project B the profile prompt shows and the project-A note does not; insert pastes into the focused terminal without submitting); waiting_input notifications (title badge + optional sound), archive/cleanup flows, log rotation (size cap from config.json), shell tabs.
+- **Phase 8 — polish.** **Scratchpad** (right-sidebar CRUD, drag-reorder, tag/agent filter, insert-into-terminal + copy; AT: save a profile-scoped prompt and a project-A-scoped note — from project B the profile prompt shows and the project-A note does not; insert pastes into the focused terminal without submitting); waiting_input notifications (desktop delivery + optional sound), archive/cleanup flows, log rotation (size cap from config.json), shell tabs.
 
 ## 15. Open questions (resolve during build, record decisions in CLAUDE.md)
 

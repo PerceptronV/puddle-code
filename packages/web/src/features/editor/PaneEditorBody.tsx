@@ -14,6 +14,8 @@ import { mediaKind } from './previews/media-kind';
 import { MediaViewer } from './previews/MediaViewer';
 import { previewKind } from './previews/preview-kind';
 import { tabKey, tabKind, type EditorTab } from './tabs/editor-tabs';
+import { desktopWindowContext } from '../windows/window-context';
+import { EditorRecovery } from '../windows/recovery/EditorRecovery';
 
 /**
  * The body of one editor tab (SPEC §8) — a plain file editor (or media viewer),
@@ -185,9 +187,14 @@ function PaneEditorContent({
 }
 
 export function PaneEditorBody(props: Parameters<typeof PaneEditorContent>[0]) {
+  const content = <PaneEditorContent {...props} />;
   return (
     <FileEditorSettingsProvider tab={props.tab}>
-      <PaneEditorContent {...props} />
+      {desktopWindowContext() && tabKind(props.tab) !== 'commit' ? (
+        <EditorRecovery tab={props.tab}>{content}</EditorRecovery>
+      ) : (
+        content
+      )}
     </FileEditorSettingsProvider>
   );
 }

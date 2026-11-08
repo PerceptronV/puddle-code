@@ -21,11 +21,11 @@ export function untitledQueryKey(profileId: string | null, name: string) {
   return ['untitled', profileId, name] as const;
 }
 
-export function useUntitledFile(profileId: string | null, name: string) {
+export function useUntitledFile(profileId: string | null, name: string, enabled = true) {
   return useQuery({
     queryKey: untitledQueryKey(profileId, name),
     queryFn: () => api<UntitledFileResponse>('GET', `/api/profiles/${profileId}/untitled/${name}`),
-    enabled: profileId !== null,
+    enabled: profileId !== null && enabled,
     // The open tab's model is the source of truth while editing; never let a
     // background refetch fight the debounced persistence writes.
     staleTime: Infinity,

@@ -17,6 +17,7 @@ import {
   unionToProfile,
 } from './project-layout';
 import { layoutSignature } from './layout-signature';
+import { desktopWindowContext } from '../../windows/window-context';
 
 /** Own scope transitions, saved-layout restoration and focus over the persisted working set. */
 export function useWorkspaceLayout(
@@ -172,6 +173,9 @@ export function useWorkspaceLayout(
   const pruned = useRef(false);
   useEffect(() => {
     if (pruned.current || !uiState.loaded || !sessions) return;
+    // Native arrangements own these references independently of host resources.
+    // Keep unavailable tabs as placeholders, including their recoverable drafts.
+    if (desktopWindowContext()) return;
     pruned.current = true;
     const alive = new Set(sessions.filter((s) => s.status !== 'archived').map((s) => s.id));
     layoutRef.current.pruneSessions(alive);

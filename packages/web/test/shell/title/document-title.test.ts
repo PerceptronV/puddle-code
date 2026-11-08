@@ -16,22 +16,22 @@ afterEach(() => {
 it('keeps project identity through unrelated host status and restores the latest host title on exit', () => {
   vi.stubGlobal('document', { title: 'Puddle' });
   title('shell', 'Laptop');
-  const leaveProject = title('workspace', 'Project — Laptop');
+  const leaveProject = title('workspace', 'Project');
   title('shell', '(1) Laptop');
-  expect(document.title).toBe('Project — Laptop');
+  expect(document.title).toBe('Project');
   title('shell', '(1) Renamed laptop');
-  expect(document.title).toBe('Project — Laptop');
+  expect(document.title).toBe('Project');
   leaveProject();
   expect(document.title).toBe('(1) Renamed laptop');
 });
 
-it('does not let an old workspace cleanup erase its replacement or its waiting count', () => {
+it('does not let an old workspace cleanup erase its replacement', () => {
   vi.stubGlobal('document', { title: 'Puddle' });
   title('shell', 'Laptop');
-  const leaveOld = title('workspace', 'Old project — Laptop');
-  const leaveNew = title('workspace', '● 2 waiting — New project (Laptop)');
+  const leaveOld = title('workspace', 'Old project');
+  const leaveNew = title('workspace', 'New project');
   leaveOld();
-  expect(document.title).toBe('● 2 waiting — New project (Laptop)');
+  expect(document.title).toBe('New project');
   leaveNew();
   expect(document.title).toBe('Laptop');
 });

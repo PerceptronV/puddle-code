@@ -15,13 +15,26 @@ import { announceDraftDiscarded } from '../buffers/editor-sync';
 import type { EditorTabKind } from './editor-tabs';
 import { useCurrentProfileId } from '../../profile/profile-store';
 import { desktopContentState } from '../../windows/state/content-state';
+import { desktopWindowContext } from '../../windows/window-context';
 
 /** Reactive dirty flag for one (session, path[, root]) buffer. */
 function useDirty(session: string, path: string, root?: string): boolean {
   const key = bufferKey(session, path, root);
+  const profile = useCurrentProfileId();
+  const recovery = profile && desktopWindowContext() ? desktopContentState(profile) : null;
   return useSyncExternalStore(
-    useCallback((cb: () => void) => subscribe(key, cb), [key]),
-    () => isDirty(key),
+    useCallback(
+      (cb: () => void) => {
+        const offModel = subscribe(key, cb);
+        const offRecovery = recovery?.subscribe(cb);
+        return () => {
+          offModel();
+          offRecovery?.();
+        };
+      },
+      [key, recovery],
+    ),
+    () => isDirty(key) || !!recovery?.buffer({ session, path, root }),
   );
 }
 

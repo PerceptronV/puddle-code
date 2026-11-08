@@ -17,7 +17,7 @@ remains the design intent; the acceptance document describes what was implemente
 
 Keep implementation modules in hierarchical directories grouped by responsibility.
 Use the window feature's `state/`, `transfers/content/`, `arrangements/`, `drag/`, `navigation/`,
-`lifecycle/`, `effects/` and `menus/` groups, leaving shared context and composition at its
+`lifecycle/`, `effects/`, `recovery/` and `menus/` groups, leaving shared context and composition at its
 root. Desktop window code groups host connections, persistence, lifecycle and
 transfers separately; private contracts belong under `shared/src/desktop/windows/`.
 Tests mirror those responsibilities. Extend the appropriate group as work grows,

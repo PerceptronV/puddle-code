@@ -7,6 +7,7 @@ import { join } from 'node:path';
 import { buildNativePreview } from './build.mjs';
 import { measureNativeWindows } from './resources.mjs';
 import { checkNativeTitle, changeFullScreen } from './presentation.mjs';
+import { checkMissingResources } from './recovery.mjs';
 
 const require = createRequire(import.meta.url);
 const { _electron: electron, expect } = createRequire(
@@ -17,6 +18,7 @@ const preview = process.env.PREVIEW_URL ?? 'http://127.0.0.1:5186/';
 const dirtyText = 'Unsaved native window acceptance text';
 let application;
 const errors = [];
+const recoveryOnly = process.env.PUDDLE_NATIVE_RECOVERY_ONLY === '1';
 const samples = [];
 const measure = async (phase, editor) => {
   if (!process.env.PUDDLE_NATIVE_REPORT) return;
@@ -109,7 +111,7 @@ try {
   const paneIdentity = await identity(pane);
   assert.equal(paneIdentity.identity.kind, 'pane');
   await expect.poll(async () => Object.keys((await state()).pending).length).toBe(0);
-  await checkNativeTitle(application, pane, expect);
+  await checkNativeTitle(application, pane, expect, 'README.md');
   console.log('Native pane context action and acknowledged dirty-editor transfer passed.');
   await measure('host-and-pane', pane);
 
@@ -123,15 +125,17 @@ try {
   ]);
   await expect.poll(async () => (await identity(project)).identity.kind).toBe('project');
   await expect.poll(async () => Object.keys((await state()).pending).length).toBe(0);
-  await checkNativeTitle(application, project, expect);
+  await checkNativeTitle(application, project, expect, 'puddle');
   assert.deepEqual(await application.evaluate(() => globalThis.nativePreviewConnections), {
     starts: 1,
     closes: 0,
   });
   const projectIdentity = await identity(project);
   await host.locator('a[href="/project/0000000002"]').first().click();
-  const nativeProject = await application.browserWindow(project);
-  await expect.poll(() => nativeProject.evaluate((win) => win.isFocused())).toBe(true);
+  if (!recoveryOnly) {
+    const nativeProject = await application.browserWindow(project);
+    await expect.poll(() => nativeProject.evaluate((win) => win.isFocused())).toBe(true);
+  }
   assert.equal(application.windows().length, 3);
   await measure('host-project-and-pane', pane);
 
@@ -143,12 +147,17 @@ try {
     closes: 0,
   });
   await dirtyEditor(pane);
-  const nativePane = await application.browserWindow(pane);
-  await changeFullScreen(nativePane, true);
-  assert.equal(await nativePane.evaluate((win) => win.isFullScreen()), true);
-  await changeFullScreen(nativePane, false);
-  assert.equal(await nativePane.evaluate((win) => win.isFullScreen()), false);
-  console.log('Native project routing/focus, independent host closure and pane fullscreen passed.');
+  if (!recoveryOnly) {
+    const nativePane = await application.browserWindow(pane);
+    await changeFullScreen(nativePane, true);
+    assert.equal(await nativePane.evaluate((win) => win.isFullScreen()), true);
+    await changeFullScreen(nativePane, false);
+    assert.equal(await nativePane.evaluate((win) => win.isFullScreen()), false);
+    console.log(
+      'Native project routing/focus, independent host closure and pane fullscreen passed.',
+    );
+  } else
+    console.log('Independent host closure passed; focus/fullscreen omitted in recovery-only mode.');
   await quit();
   const retained = (await state()).windows.map((record) => record.window.id).sort();
   assert.deepEqual(retained, [paneIdentity.identity.id, projectIdentity.identity.id].sort());
@@ -229,6 +238,7 @@ try {
     ({ context }) => context.identity.kind === 'project',
   ).page;
   await dirtyEditor(lastPane);
+  await checkMissingResources(application, lastPane, expect, dirtyText);
   await Promise.all([
     lastProject.waitForEvent('close'),
     lastProject.evaluate(() => window.puddleDesktop.closeWindow()),
@@ -243,7 +253,14 @@ try {
   );
   await quit();
   assert.deepEqual(errors, []);
-  console.log(JSON.stringify({ platform: process.platform, arch: process.arch, result: 'passed' }));
+  console.log(
+    JSON.stringify({
+      platform: process.platform,
+      arch: process.arch,
+      result: 'passed',
+      omitted: recoveryOnly ? ['native focus', 'fullscreen'] : [],
+    }),
+  );
 } catch (error) {
   if (application)
     for (const page of application.windows())

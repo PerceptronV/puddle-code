@@ -22,12 +22,10 @@ import { useWorkspaceCompilation } from '../editor/compilation/use-workspace-com
 import { useClientSettings } from '../../lib/settings/client-settings';
 import { useSessionTitleRenderer } from '../profile/use-session-title';
 import {
-  hostLabel,
   useAccounts,
   useAllSessions,
   useCreateSession,
   useDaemonVersion,
-  useHostInfo,
   usePatchProfileSettings,
   useProfileSettings,
   useProjectDetail,
@@ -69,6 +67,8 @@ import { useUiState } from './use-ui-state';
 import { workspaceTitle } from './workspace-title';
 import { useDocumentTitle } from '../shell/title/document-title';
 import { desktopWindowContext } from '../windows/window-context';
+import { ProjectRecovery } from '../windows/recovery/ProjectRecovery';
+import { useCurrentProfileId } from '../profile/profile-store';
 
 /**
  * Project workspace (SPEC §8): the left navigator, the centre free-form tiling
@@ -93,6 +93,7 @@ export function Workspace() {
 
 function WorkspaceInner() {
   const windowIdentity = desktopWindowContext()?.identity;
+  const selectedProfileId = useCurrentProfileId();
   const paneWindow = windowIdentity?.kind === 'pane';
   const detachedWindow = windowIdentity !== undefined && windowIdentity.kind !== 'host';
   const params = useParams();
@@ -150,7 +151,13 @@ function WorkspaceInner() {
   // all-sessions list the tiling area uses), or just the current project's
   // under project-based layout — project names always stay as navigation
   // targets; drag reorders session_order in both.
-  const profileId = detail.data?.project.profile_id;
+  const profileId =
+    projectDetail?.project.profile_id ??
+    (windowIdentity && windowIdentity.kind !== 'host'
+      ? windowIdentity.profileId
+      : windowIdentity
+        ? (selectedProfileId ?? undefined)
+        : detail.data?.project.profile_id);
   const profileProjects = useProjects(profileId);
   const profileSettings = useProfileSettings(profileId);
   const patchProfileSettings = usePatchProfileSettings(profileId ?? '');
@@ -186,7 +193,10 @@ function WorkspaceInner() {
     orderedProjects,
   });
   useAcceptWindowTransfer(profileId, chunksReady && uiState.loaded);
-  useArrangementReady(profileId, chunksReady && uiState.loaded && !!project);
+  useArrangementReady(
+    profileId,
+    chunksReady && uiState.loaded && (!!project || (!!windowIdentity && !!detail.error)),
+  );
   const sessionGroups = useMemo<SessionGroup[]>(() => {
     const active = (s: Session) => s.status !== 'archived';
     const all = allSessions.data ?? sessions;
@@ -384,19 +394,6 @@ function WorkspaceInner() {
     return () => setHandler(null);
   }, [setHandler]);
 
-  // waiting_input is mirrored in the tab title (SPEC §12). The title's base
-  // is the machine's label (display-name customisation first, then hostname),
-  // not the app name — the window says which host and project it drives.
-  const host = useHostInfo();
-  useDocumentTitle(
-    'workspace',
-    workspaceTitle(
-      project?.name ?? 'Puddle',
-      hostLabel(host.data) ?? 'Puddle',
-      sessions.filter((session) => session.status === 'waiting_input').length,
-    ),
-  );
-
   // The whole left sidebar binds to one worktree: the pinned session if any,
   // otherwise the FOCUSED pane's active tab — every tab carries the worktree
   // it was opened from (a file tab its `session`, a terminal its own), so
@@ -406,6 +403,18 @@ function WorkspaceInner() {
   // tabs and profile-wide pins bind while you visit another project.
   const focusedRef =
     layout.focusedLeaf.tabs.find((t) => tabRefKey(t) === layout.focusedLeaf.activeKey) ?? null;
+  const titleSession =
+    focusedRef?.type === 'terminal'
+      ? tabSessions.find((session) => session.id === focusedRef.session)
+      : undefined;
+  useDocumentTitle(
+    'workspace',
+    workspaceTitle(
+      project?.name ?? (detail.error ? 'Unavailable project' : 'Project'),
+      paneWindow ? focusedRef : null,
+      titleSession ? renderTitle(titleSession) : undefined,
+    ),
+  );
   const rawFocusedSession =
     focusedRef === null
       ? null
@@ -690,6 +699,8 @@ function WorkspaceInner() {
   ]);
 
   if (!validProject) return null;
+  if (windowIdentity && !project && detail.error && uiState.loaded && profileId)
+    return <ProjectRecovery profileId={profileId} retry={() => void detail.refetch()} />;
   // The gate needs the project ROW, not its detail: within a profile the row is
   // already in hand when the URL changes, so switching projects renders straight
   // into the new one (its session list arriving a beat later) instead of
