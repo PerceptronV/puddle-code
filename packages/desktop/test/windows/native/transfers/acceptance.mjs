@@ -6,6 +6,7 @@ import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { buildNativePreview } from '../build.mjs';
 import { checkDocking } from './docking.mjs';
+import { checkProjectReturns } from './projects.mjs';
 
 const require = createRequire(import.meta.url);
 const { _electron: electron, expect } = createRequire(
@@ -166,6 +167,19 @@ try {
     reached,
     expect,
   });
+  await kill();
+  source = await launch();
+  await expect.poll(() => draft(source)).toBe(text);
+  await checkProjectReturns({
+    application,
+    host: source,
+    state,
+    draft,
+    text,
+    arm,
+    reached,
+    expect,
+  });
   assert.deepEqual(errors, []);
   console.log(
     JSON.stringify({
@@ -178,6 +192,8 @@ try {
         'lost-commit-reply',
         'dock-source-before-commit',
         'dock-destination-before-accept',
+        'project-return-cancel',
+        'project-return-lost-accept-reply',
       ],
     }),
   );

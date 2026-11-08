@@ -142,6 +142,11 @@ destination stages read-only content, then the source confirms its unchanged
 capture before ownership commits. Transfer references bind window/profile identity;
 lost replies are observed rather than replayed. These capabilities are detected
 on the preload bridge and add no daemon REST/WS, runtime or remote operation.
+The existing read-only observation accepts either exact transfer participant,
+returning only that participant's working-set revision. Destination recovery after
+a lost acceptance reply does not repeat acceptance, commit or cancellation. Source
+mutation checks remain source-only; sibling windows and other profiles are
+rejected. This correction adds no wire field or protocol-version change.
 
 Application **26.7** adds shared private desktop window identities, revisioned
 working-set snapshots and acknowledged transfer records. The desktop shell owns

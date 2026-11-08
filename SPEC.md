@@ -2444,6 +2444,11 @@ tab-strip context menu now opens it in a dedicated native window. The destinatio
 mounts read-only captured content before signalling readiness; the source rechecks
 its capture before committing both ownership revisions. Cancellation, timeout and
 renderer failure leave the uncommitted source intact. Lost replies are observed.
+Either registered participant can observe the outcome and its own working-set
+revision. A destination whose acceptance reply is lost adopts a confirmed commit
+through its normal completion path, including releasing the interaction fence;
+it never repeats acceptance or a move. Missing or unconfirmed outcomes retain
+recovery protection, and cancellation uses the coordinator's rollback command.
 Unexpected dirty edits arriving after confirmation remain open in the source for
 review and are checkpointed as additional recovery state. A whole-pane move does
 not close the source native window or stop its sessions.

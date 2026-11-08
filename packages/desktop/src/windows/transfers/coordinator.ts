@@ -416,7 +416,7 @@ export class WindowTransfers {
     const status = this.planning.has(request.id)
       ? 'prepared'
       : (state.outcome(request.id) ?? 'unknown');
-    if (status !== 'unknown') this.assertParty(windowId, request, 'source');
+    if (status !== 'unknown') this.assertParty(windowId, request, 'either');
     return { status, version: state.read(windowId, request.profileId) };
   }
 
@@ -463,21 +463,20 @@ export class WindowTransfers {
   private assertParty(
     windowId: string,
     request: DesktopTransferReference,
-    party: 'source' | 'destination',
+    party: 'source' | 'destination' | 'either',
   ): void {
     const state = this.dependencies.state();
     const plan = this.planning.get(request.id);
-    if (plan) {
-      if (
-        plan[party === 'source' ? 'sourceId' : 'destinationId'] !== windowId ||
-        plan.profileId !== request.profileId
-      )
-        throw new Error('Transfer belongs to another window or profile');
-      return;
-    }
-    if (state.transferParty(request.id, windowId) !== party)
+    const actual = plan
+      ? plan.sourceId === windowId
+        ? 'source'
+        : plan.destinationId === windowId
+          ? 'destination'
+          : null
+      : state.transferParty(request.id, windowId);
+    if (!actual || (party !== 'either' && actual !== party))
       throw new Error('Transfer belongs to another window');
-    const profile = state.transferProfile(request.id);
+    const profile = plan?.profileId ?? state.transferProfile(request.id);
     if (profile && profile !== request.profileId)
       throw new Error('Transfer belongs to another profile');
   }

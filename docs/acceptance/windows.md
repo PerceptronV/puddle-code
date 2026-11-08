@@ -987,6 +987,45 @@ targeted lint and formatting checks passed. Existing-window
 project returns, arrangement interruptions and the other native gates below
 remain unverified by this increment.
 
+### Project-return cancellation and destination reply recovery — 2026-11-08
+
+The extended native transfer runner exposed a lost-reply defect in destination
+acceptance: a project return committed and closed its source window, but rejecting
+the host's acceptance reply left the host's root inert. The dirty text was present
+and durable, but the host could not be used until recovery. Before the fix, the
+native test failed on the retained interaction fence and the coordinator test
+rejected outcome observation from the destination.
+
+The shared destination acceptance helper now observes a failed reply once. A
+committed outcome with a working-set revision follows ordinary destination
+adoption and releases the interaction fence. Prepared, cancelled, unknown or
+unavailable outcomes do not authorise adoption or another acceptance. Cancellation
+remains the coordinator's rollback responsibility. Main accepts read-only outcome
+observation from either exact participant and returns its own revision; profile
+checks and source-only commit/cancel rights remain intact. No wire shape, protocol
+version or recovery format changed. Older shells that reject destination
+observation retain the existing protected failure rather than retrying the move.
+
+`PREVIEW_URL=http://127.0.0.1:5188/ pnpm --filter @puddle-code/desktop
+test:native-window-transfers` passed all seven cases on macOS arm64. The new project
+cases use dashboard/sidebar context menus and real main/preload/renderer code:
+
+- Open the dirty project in its dedicated window. Hold its return before commit,
+  after the host has mounted the incoming draft. Cancel through the transfer
+  bridge and release the held reply. The project remounts its exact dirty text,
+  stays open and interactive, and the host returns to its original dashboard.
+- Return the project again, rejecting the destination's reply after actual commit.
+  The project window closes and is excluded from reopening; the host retains the
+  exact dirty text, releases its interaction fence and has no pending transfer.
+  Exactly one acceptance, one commit and one observation occur. The host's normal
+  dirty-file close review opens; choosing Keep editing retains the text.
+
+All 74 focused web/desktop transfer tests, both package typechecks, targeted lint
+and formatting checks passed. No renderer page errors occurred in the native run.
+The runner still uses an isolated preview host, synthetic menu gestures and
+test-only reply interception. This does not establish OS drag, real Command-Q,
+machine/host recovery or every arrangement interruption; those gates remain below.
+
 ## Required acceptance before completion
 
 1. Open files, sessions, full panes, and projects using their context menus.

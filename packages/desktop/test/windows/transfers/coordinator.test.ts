@@ -75,6 +75,29 @@ it('keeps source ownership until destination readiness and source confirmation b
   expect(state.openWindows()[0]!.route).toBe('/project/abcdef1234');
 });
 
+it('lets either transfer participant observe its own committed revision without granting mutation rights', async () => {
+  const { transfers, destinationId } = setup();
+  const prepared = transfers.preparePane('source', request);
+  const accepted = transfers.accept(destinationId(), request);
+  await prepared;
+  transfers.commit('source', request);
+  await accepted;
+  expect(transfers.observe(destinationId(), request)).toMatchObject({
+    status: 'committed',
+    version: { content: request.destination },
+  });
+  expect(transfers.observe('source', request)).toMatchObject({
+    status: 'committed',
+    version: { content: request.source },
+  });
+  expect(() => transfers.observe('sibling', request)).toThrow('another window');
+  expect(() => transfers.observe(destinationId(), { ...request, profileId: '0000000000' })).toThrow(
+    'another profile',
+  );
+  expect(() => transfers.commit(destinationId(), request)).toThrow('another window');
+  expect(() => transfers.cancel(destinationId(), request)).toThrow('another window');
+});
+
 it('rolls back a destination launch failure without removing source drafts', async () => {
   const { state, transfers, open, dismiss } = setup();
   open.mockRejectedValue(new Error('Window creation failed'));

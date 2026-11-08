@@ -85,6 +85,7 @@ export interface DesktopWindowTransfersBridge {
   /** The source rechecks its capture before committing the accepted destination. */
   commit(request: DesktopTransferReference): Promise<DesktopWorkspaceVersion>;
   cancel(request: DesktopTransferReference): Promise<DesktopTransferObservation>;
+  /** Either participant may observe the outcome and its own working-set revision. */
   observe(request: DesktopTransferReference): Promise<DesktopTransferObservation>;
   /** Resolves only when the source has confirmed the handoff. */
   accept(request: DesktopTransferReference): Promise<DesktopWorkspaceVersion>;

@@ -10,6 +10,7 @@ import { transferPane, transferTab, transferDock } from './pane-transfer';
 import { useCurrentProfileId } from '../../profile/profile-store';
 import { fetchProfileState } from '../../../lib/queries/queries';
 import { uiStateSnapshotSchema } from '@puddle/shared';
+import { acceptDestination } from './accept-destination';
 
 /** The native action is absent on browsers and shells without tab-window support. */
 export function useOpenTabWindow(
@@ -95,7 +96,7 @@ export function useAcceptWindowTransfer(profileId: string | undefined, ready: bo
     if (!owner?.loaded()) return;
     const id = context.stagingTransfer;
     accepting = id;
-    const accepted = bridge.accept({ id, profileId }).then(async (version) => {
+    const accepted = acceptDestination(bridge, { id, profileId }).then(async (version) => {
       if (!(await destinationTransfer.committed(id, version))) owner.adopt(version);
       delete context.stagingTransfer;
       fenceWindowInteraction(false);

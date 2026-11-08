@@ -43,6 +43,7 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
+- Recover a native destination's lost acceptance reply by observing the committed transfer, keeping returned projects editable after their source window closes.
 - Allow docking again after a destination renderer crashes and reloads, clearing its stale restoration flag while preserving draft rollback.
 - Keep Monaco hover services alive when source/preview panes detach or dock, preventing disposed diff-editor services from crashing sibling editors.
 - Preserve shared dirty text and draft persistence when closing a duplicate file view; ask to discard only when its last view closes.
