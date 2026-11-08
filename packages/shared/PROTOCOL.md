@@ -1,5 +1,29 @@
 # The puddle communication protocol
 
+Application **28.2** adds local/SSH huddle execution under
+`/api/huddle/:profile/sessions/:sid`: GET `runtime`; POST `start`, `apply`, `rearm`,
+`run`, `interrupt`, `stop` and `history`. The placement supplies its immutable
+project/worktree/definition scope. Start accepts an inspected `expected_digest`
+and explicit `variables`, captures saved source, launches one capable owner and
+arms it without sending input. Apply additionally requires the inspected owner,
+incarnation, generation and activation id. Rearm, Run, Interrupt and Stop require
+that same target; Run also carries a caller-generated UUID `event_id`, node id
+and explicit JSON data. Reconnection never authorises automatic mutation retries.
+Start after uncertain launch/arming must first inspect the retained owner.
+
+History is a bounded read submitted with POST: select one runtime/incarnation,
+collection and ordinal cursor, with an execution id required for invocation and
+operation records. Refresh earlier pages for mutable outcomes. Explicit public
+projections omit private owner identity/launch data and operation inputs/targets.
+Disconnected owners have no actionable target or invented lifecycle state.
+Schemas live in `api/huddle/execution.ts`; clients feature-detect 28.2. The IDE
+execution UI, stopped-owner history and active-revision detail remain pending.
+Only manual input, local scripts and result readouts are currently executable;
+unsupported adapters/agent bridges are rejected before launch. Existing owners
+remain usable if the selected default loses huddle support. Remote profile leases
+and the connector still deny all huddle routes. Ordinary runtime 1.1, private
+huddle contracts, database schema and remote protocol 5 are unchanged.
+
 Application **28.1** adds local/SSH `PUT /api/huddle/:profile/definitions/:id`.
 The body contains an explicit project/worktree, `expected_digest` from inspection,
 and one `edit`: `{ file: 'huddle.json' | 'layout.json', value: <matching document> }`.

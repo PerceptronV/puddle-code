@@ -4,12 +4,81 @@ Status: foundation in progress, 2026-11-08. The full objective remains the
 [huddle roadmap](../roadmap/huddle.md). Application 27.1 exposes inactive definition
 creation/opening through local/SSH HTTP. Application 28.0 adds the sidebar entry
 and graph panes. Manifest editing now shares ordinary editor drafts, undo and
-conflict review; layout editing and public execution controls remain unfinished.
+conflict review; layout editing and IDE execution controls remain unfinished.
+Application 28.2 exposes local/SSH manual execution and live-owner history APIs.
 Runtime archives declare their internal huddle-role contracts;
 application 27.0 now includes huddle session identity and migration 43 records
 placements/owner roles. The daemon launcher and lifecycle controls now integrate
 with session kill/archive; migration 44 retains Stop intent. No user CLI command
 is enabled yet.
+
+## Implemented: local/SSH lifecycle admission and live history API
+
+Application **28.2** adds the following placement-scoped routes under
+`/api/huddle/:profile/sessions/:sid`. Source creation/opening and saving remain
+inactive. These routes use the existing local/SSH lease and host-origin boundary;
+remote profile leases and connector requests remain excluded.
+
+| Route | Behaviour |
+| --- | --- |
+| GET `runtime` | Inspect the connected owner's target, build, lifetime, lifecycle and execution state. A disconnected owner exposes identity/build only. No owner plus unresolved ownership is distinct from a clean stopped placement. |
+| POST `start` | Require an inspected saved-source digest and explicit variable bindings. Capture and validate source under the registered repository lock, admit one pinned owner, then arm it. No manual event is sent. |
+| POST `apply` | Require the same source inputs plus the reviewed owner/activation target. Publish captured source, then activate it against that target. Previously accepted executions retain their original revision/bindings. |
+| POST `rearm` | Arm the reviewed retained activation; do not capture changed source or replay interrupted inputs. |
+| POST `run` | Require the reviewed target, manual-trigger node, caller-generated UUID event id and explicit JSON data. Return execution acceptance/duplicate status separately from completion. |
+| POST `interrupt` | Interrupt the reviewed owner, retaining its history. |
+| POST `stop` | Review the exact owner/activation, consume durable Stop once and observe clean shutdown before reporting success. |
+| POST `history` | Read one bounded page from an explicitly selected live runtime/incarnation. Execution pages may filter by revision; invocation/operation pages require an execution id. |
+
+`huddle/execution/` owns placement authority, source admission, registered-worktree
+binding and public projections. It shares `HuddleService.withSnapshot` rather than
+duplicating source capture or repository locking. Every asynchronous admission and
+private dispatch rechecks the profile, project, placement and request authority.
+Start and Apply reject archived placements/projects, stale captured source,
+invalid variables and unsupported execution modes. Concurrent Starts share the
+repository lock and cannot replace a newly admitted owner. A lost launch/arm reply
+leaves the actual owner observable; it never causes another launch. A later
+explicit Start after clean Stop creates a new runtime.
+
+This slice runs queued manual inputs, local script nodes and built-in result
+readouts. Explicit literal/variable worktree settings resolve to canonical roots
+registered to the definition's project. Agent-operation capabilities, account/
+session/project/agent resource settings and local trigger/readout adapters are
+rejected until their bridges are implemented. This is an implementation limit,
+not the final scope of huddles. Cross-project binding and provider dispatch remain
+required. Scripts retain the trusted-code execution model; these checks are not
+an OS sandbox.
+
+Installation event identity is a private `{ format: 1, id: UUID }` record in
+`huddle-host.json`, created once under a host claim with durable publication. It
+is not a credential. Corrupt/symlinked records are refused rather than replaced.
+Ordinary runtime 1.1, private huddle contracts and database schema are unchanged.
+Changing the selected default to an unsupported runtime blocks new Start, but does
+not replace or disable an existing capable owner. Missing/symlinked source blocks
+new work; inspection, history, Interrupt and Stop do not require source files.
+
+History projections omit private ledger keys/limits, invocation activation tokens,
+operation input/target data and all owner secrets, launch paths and process data.
+Node inputs/results remain visible as workflow data. Bound pages retain the
+existing 256-row/1 MiB private-ledger limits. Their cursor enumerates rows, not
+changes: refresh earlier pages for mutable outcomes. Public inspection identifies
+the active activation, but does not yet expose its revision digest/binding details.
+Retained history after owner shutdown, reboot recovery, auto-start controls,
+provider-backed nodes and the IDE's execution/history controls remain unfinished.
+
+Verification: **377 tests in 53 files** passed across the shared schemas, complete
+huddle suite, daemon profile-authority tests and connector policy tests. Six new
+API tests use in-process Hono routes with real isolated owner/worker processes,
+an installed-release fixture and a fake supervisor. They cover saved Start without
+input, exact Run deduplication and result observation, Apply to changed script
+bytes, stale targets, Interrupt/Rearm/Stop, concurrent Starts, lost arming/Run
+replies, later explicit Start, unsupported defaults, missing source, wrong/remote
+profiles, revoked authority and changed worktree bindings after storage admission.
+Additional tests cover public projections, bounded requests, empty-graph variable
+validation, unsupported adapters and persistent host identity. Shared, daemon, web,
+CLI and desktop TypeScript builds, scoped ESLint and formatting passed. This is
+isolated API/runtime evidence, not IDE interaction, native service supervision,
+live-provider, SSH or reboot acceptance. No production daemon was launched.
 
 ## Implemented: reviewed-owner commands and bounded history reads
 
@@ -33,9 +102,9 @@ These are retained-row cursors, not a stream of updates: refresh a previous page
 to observe its mutable outcomes. An empty page retains the requested cursor.
 Unknown operations remain unknown.
 
-This increment adds no HTTP routes or UI controls, does not read stopped owners'
-ledgers, and does not change application 28.1, private owner contracts, ordinary
-runtime 1.1, or remote protocol 5. Public lifecycle admission, retained/offline
+This controller increment originally added no HTTP routes or UI controls; the
+28.2 routes above now reuse it. It does not read stopped owners' ledgers or change
+private owner contracts, ordinary runtime 1.1, or remote protocol 5. Retained/offline
 history projection and the IDE's Start/Run/history integration remain pending.
 
 Verification: **184 tests in 31 files** passed across shared/huddle and
@@ -213,7 +282,7 @@ no assertion was weakened. Light and dark huddle screenshots were inspected.
 
 Later manifest editing is documented above. Still pending: node movement and wire
 dragging, complete generated settings and component-change observation,
-retained graph camera/selection across transfers, templates, public execution
+retained graph camera/selection across transfers, templates, IDE execution
 controls/history and authoring assistance. This is an initial inspectable pane,
 not acceptance of the complete IDE. Native OS focus/drag and packaged continuity
 remain separate pending checks.
@@ -278,7 +347,7 @@ required socket permission using isolated fixture homes. Shared/daemon/web
 TypeScript builds, scoped lint, formatting and whitespace checks passed.
 
 Still pending for the authoring API: source/graph conflict-aware editing,
-templates and public Start/Run. Sidebar opening and initial tab integration are
+templates and IDE Start/Run (the 28.2 HTTP controls above are implemented). Sidebar opening and initial tab integration are
 recorded above.
 
 ## Implemented: application placements and runtime inventory
@@ -306,7 +375,7 @@ the agent/terminal-only request and UI types; ordinary resume, shell creation
 and runtime inspection/restart refuse huddles before launch effects. A stopped
 placement can use reversible archive/unarchive without registering onboarding.
 Running huddle kill/archive now uses the controls described below; creation and
-Start/Run routes remain pending.
+Start/Run routes are now implemented in application 28.2 as described above.
 
 `RuntimeStore.prepare` records the huddle role, id and required capabilities in the
 existing runtime inventory, checks that they match the placement and preserves
@@ -366,7 +435,8 @@ retaining unresolved worktree, release and memory references; recovery still nee
 descendant/service fencing. Corrupt, missing previously observed or mismatched
 records remain unavailable. Boot reconciliation excludes huddles from ordinary
 auto-resume and onboarding. This does not implement a new owner after a crash,
-native service recovery or public Start. Host-update checkpoint compatibility is
+native service recovery or public Start at that increment; see the later 28.2 API
+evidence above. Host-update checkpoint compatibility is
 implemented in the later increment below.
 
 Verification: the expanded shared/huddle and ordinary discovery, daemon adoption,
@@ -882,7 +952,7 @@ This owner increment left application and agent/terminal runtime versions unchan
 the later placement increment introduced application 27.0. Runtime-role
 capabilities are described below. The launcher increment above now supplies private
 launch records; public creation/Start APIs remain unfinished. Application admission,
-authorised public lifecycle admission,
+complete public lifecycle/provider admission,
 provider-operation dispatch and fenced owner replacement/reboot recovery must be
 connected before enabling creation. Do not infer production support from this
 entry point or its private schemas.
@@ -1048,15 +1118,14 @@ software and did not start a service.
 
 ## Remaining implementation and acceptance
 
-Phase 0 remains open for the full component contract catalogue and lifecycle
-admission. Phase 1 has retained revisions/activation, the ledger, routing, workers
-and a manual scheduler composed in an independent owner process. Next connect
-authorised public lifecycle admission and the exact-operation bridge, including
-complete host resource accounting and lifecycle fencing. Connect the implemented
-runtime capability checks and application placements to authorised creation;
-build the IDE and normal windows; actual trigger/readout adapters; provider-backed
-lifecycle nodes; authoring
-tools, docs/skill and packaged integration.
+Phase 0 remains open for the full component catalogue and resource admission.
+Phase 1 has retained revisions/activation, the ledger, routing, workers and a manual
+scheduler composed in an independent owner process, now exposed through local/SSH
+lifecycle and live-history APIs. Next connect these APIs to IDE controls and
+complete retained/offline history, active-revision detail, the exact-operation
+bridge, host resource accounting and lifecycle fencing. Finish node movement and
+settings, actual trigger/readout adapters, provider-backed lifecycle nodes,
+authoring tools/docs/skills and packaged integration.
 
 All live provider, SSH, native window, supervisor, complete owner crash/reboot, trigger cadence,
 readout reconciliation, permission/takeover, persistence/retention and installation

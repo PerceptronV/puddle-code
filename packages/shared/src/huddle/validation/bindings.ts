@@ -5,12 +5,10 @@ import { isHuddleJson } from '../../api/huddle/values.js';
 import { validateHuddleValue } from './values.js';
 
 /** Resolve JSON settings only; the host must separately resolve and authorise resources. */
-export function resolveHuddleParameters(
+export function resolveHuddleVariables(
   definition: HuddleDefinition,
-  node: HuddleNodeDefinition,
-  component: HuddleComponent,
   supplied: Record<string, HuddleJson>,
-): Record<string, HuddleJson> {
+): Map<string, HuddleJson> {
   if (!isHuddleJson(supplied)) throw new Error('Expected bounded variable bindings');
   for (const name of Object.keys(supplied)) {
     if (!Object.hasOwn(definition.variables, name))
@@ -27,6 +25,16 @@ export function resolveHuddleParameters(
       throw new Error(`Invalid huddle variable: ${name}`);
     variables.set(name, value);
   }
+  return variables;
+}
+
+export function resolveHuddleParameters(
+  definition: HuddleDefinition,
+  node: HuddleNodeDefinition,
+  component: HuddleComponent,
+  supplied: Record<string, HuddleJson>,
+): Record<string, HuddleJson> {
+  const variables = resolveHuddleVariables(definition, supplied);
   for (const name of Object.keys(node.parameters)) {
     if (!Object.hasOwn(component.parameters, name))
       throw new Error(`Unknown node parameter: ${name}`);

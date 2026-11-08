@@ -69,6 +69,18 @@ describe('remote surface', () => {
       for (const method of ['GET', 'POST'] as const)
         expect(() => request(method, `/api/puddlang/1234567890/${suffix}`)).toThrow();
   });
+  it('does not expose huddle authoring, lifecycle or history through the remote relay', () => {
+    for (const suffix of [
+      'availability',
+      'definitions',
+      'open',
+      ...['runtime', 'start', 'apply', 'rearm', 'run', 'interrupt', 'stop', 'history'].map(
+        (action) => `sessions/${id}/${action}`,
+      ),
+    ])
+      for (const method of ['GET', 'POST'] as const)
+        expect(() => request(method, `/api/huddle/1234567890/${suffix}`)).toThrow();
+  });
   it('allows text review and placement terminals', () => {
     expect(request('GET', `/api/worktrees/${id}/file?path=README.md`).path).toContain('README.md');
     expect(permittedTerminal({ t: 'stdin', session: id, term: 'agent', data: 'hello' }).t).toBe(

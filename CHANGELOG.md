@@ -14,7 +14,7 @@ Past releases: see docs/changelogs/.
 #### Added
 
 - Add New huddle to the session tray, collapsed rail and project menus, with explicit worktree selection and saved-huddle opening. Huddles open as separate pane content; creating/opening stays inactive.
-- Edit huddle nodes, connections, parameter bindings, colours and icons using a shared graph/source draft with undo and save-conflict review. Manifest drafts follow pane/window transfers and closing duplicate views preserves them. Node movement and public execution controls remain pending.
+- Edit huddle nodes, connections, parameter bindings, colours and icons using a shared graph/source draft with undo and save-conflict review. Manifest drafts follow pane/window transfers and closing duplicate views preserves them. Node movement and IDE execution controls remain pending.
 - Preserve huddle tabs through layouts and native window content. Application protocol 28 and desktop recovery format 4 require supporting clients; existing agent/terminal runtime contracts remain unchanged.
 
 #### Changed
@@ -31,9 +31,11 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
-- Bind internal huddle commands to the inspected owner and activation, rejecting stale queued actions. Add bounded live-owner history reads for execution, node and operation outcomes; public execution controls remain pending.
+- Expose local/SSH huddle Start, Apply, Rearm, Run, Interrupt, Stop and live-history APIs (application 28.2). Run saved manual-input/local-script graphs in independent owners with reviewed activation targets; unsupported agent bridges and custom adapters remain gated. IDE execution controls are still pending.
+
+- Bind internal huddle commands to the inspected owner and activation, rejecting stale queued actions. Add bounded live-owner history reads for execution, node and operation outcomes; IDE execution controls remain pending.
 - Add revision-checked huddle manifest/layout saves over local/SSH connections. Detected concurrent source edits return a conflict; saves preserve unrelated files and stay inactive.
-- Add local/SSH huddle creation, discovery, inspection and opening APIs. New huddles save as inactive graphs under separate random-id directories; creation requires a capable installed runtime. The IDE and public execution controls remain pending.
+- Add local/SSH huddle creation, discovery, inspection and opening APIs. New huddles save as inactive graphs under separate random-id directories; creation requires a capable installed runtime. The IDE and IDE execution controls remain pending.
 
 - Add preparatory huddle document validation and bounded source discovery for independent project definitions, including typed settings and bounded feedback graphs; runtime and UI enablement remain pending.
 - Persist huddle session identities per project/worktree/definition and record their owners without terminal segments. Application protocol 27.0 requires a coordinated frontend/daemon update for the third session kind; huddle creation and lifecycle UI remain pending. Existing agent/terminal runtime protocol 1.1 is unchanged.

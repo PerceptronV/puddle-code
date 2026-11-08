@@ -28,6 +28,15 @@ interface Pending {
   timer: ReturnType<typeof setTimeout>;
 }
 
+export class HuddleOwnerRejected extends Error {
+  constructor(
+    readonly code: 'fenced' | 'duplicate' | 'rejected',
+    message: string,
+  ) {
+    super(`${code}: ${message}`);
+  }
+}
+
 /** Authenticated observation and commands. Neither disconnect nor timeout retries a mutation. */
 export class HuddleOwnerClient extends EventEmitter {
   private readonly pending = new Map<string, Pending>();
@@ -49,7 +58,7 @@ export class HuddleOwnerClient extends EventEmitter {
         this.pending.delete(response.id);
         clearTimeout(pending.timer);
         if (response.t === 'error')
-          pending.reject(new Error(`${response.code}: ${response.message}`));
+          pending.reject(new HuddleOwnerRejected(response.code, response.message));
         else {
           if (response.t === 'state') {
             this.state = response.state;

@@ -574,7 +574,15 @@ activation through `controller/observations.ts`; compare inside the queue and
 recheck authority/Stop synchronously at dispatch. Copy queued inputs. The internal
 `records` method binds one live owner and validates bounded history pages through
 `controller/history.ts`; ordinal cursors enumerate rows, not outcome updates.
-Refresh earlier pages for changed outcomes. Public lifecycle/history remains pending.
+Refresh earlier pages for changed outcomes. Application 28.2 exposes local/SSH
+lifecycle and history through `huddle/execution/` and `http/routes/execution/huddle/`.
+Start/Apply use `HuddleService.withSnapshot` under the repository lock and require
+an inspected saved digest. Rearm retains the current activation. Public schemas
+explicitly project owner/ledger data; never return private launch evidence or
+operation inputs/targets. Recheck declared worktree bindings after async admission.
+The installation event id in `huddle-host.json` is not authority. Agent bridges,
+custom trigger/readout adapters, stopped-owner history and active revision detail
+remain pending; unsupported execution is rejected before launch.
 Migration 44 persists Stop consumption before sending
 shutdown; repeat observation cannot send another Stop. The existing kill/archive
 paths delegate to these controls and refuse unresolved owner cleanup. Keep huddle
@@ -587,7 +595,7 @@ enter terminal keep-alive, stdin, ordinary Resume or provider controls. Keep kin
 selection in `sessionTabRef`, and preserve duplicate huddle views when closing one.
 Desktop persistence is format 4 (migrate 2/3); require `windows.huddles` before
 opening or saving huddle-containing working sets, including parked project slices.
-Keep source links on the existing editor path. Public Start/Run remains unfinished.
+Keep source links on the existing editor path. IDE Start/Run remains unfinished.
 Manifest graph editing uses the shared `huddle.json` editor model, existing conditional file
 saves/drafts/conflicts and undo history. `tabHoldsFile` recognises manifest ownership
 for window transfers, close review, arrangements and model retention. Keep source

@@ -356,7 +356,8 @@
 // 27.1: local/SSH inactive huddle creation, discovery, inspection and placement opening.
 // 28.0: huddle tabs extend the closed workspace content union; upgrade frontend/daemon together.
 // 28.1: revision-checked inactive huddle source saves (local/SSH only).
-export const PROTOCOL_VERSION = { major: 28, minor: 1 } as const;
+// 28.2: local/SSH huddle lifecycle commands, runtime observation and bounded history.
+export const PROTOCOL_VERSION = { major: 28, minor: 2 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

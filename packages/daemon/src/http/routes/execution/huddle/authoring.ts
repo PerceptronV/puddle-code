@@ -1,4 +1,4 @@
-import { Hono, type MiddlewareHandler } from 'hono';
+import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import {
   huddleAvailabilitySchema,
@@ -15,17 +15,15 @@ import type { HuddleService } from '../../../../huddle/control/service.js';
 import { requestAuthority } from '../../../../security/middleware.js';
 import { hexIdParam, parseBody } from '../../../validate.js';
 import { ApiError } from '../../../errors.js';
+import { localHuddleAccess } from './access.js';
 
 /** Remote profile leases cannot enter this namespace, even through a direct daemon request. */
 export function huddleAuthoringRoutes(service: HuddleService): Hono {
-  const localOnly: MiddlewareHandler = async (c, next) => {
-    if (c.get('remoteProfile'))
-      throw new ApiError(403, 'profile_scope', 'Huddles currently require local or SSH access');
-    await next();
-  };
   return new Hono()
-    .use('*', localOnly)
-    .use('*', bodyLimit({ maxSize: HUDDLE_LIMITS.fileBytes + 16 * 1024 }))
+    .use('*', localHuddleAccess)
+    .use('/:profile/definitions', bodyLimit({ maxSize: HUDDLE_LIMITS.fileBytes + 16 * 1024 }))
+    .use('/:profile/definitions/*', bodyLimit({ maxSize: HUDDLE_LIMITS.fileBytes + 16 * 1024 }))
+    .use('/:profile/open', bodyLimit({ maxSize: HUDDLE_LIMITS.fileBytes + 16 * 1024 }))
     .get('/:profile/availability', async (c) =>
       c.json(
         huddleAvailabilitySchema.parse(

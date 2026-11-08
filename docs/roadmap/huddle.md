@@ -9,15 +9,16 @@ captured-source script workers, retained revisions/activation and a manual sched
 in an independent owner process with private authenticated control, explicit
 runtime-role metadata and pinned capability checks. Phase 2 has the third session
 kind, immutable application placement and common runtime inventory role, with
-application protocol 28.1. Local/SSH inactive creation, discovery, inspection and
+application protocol 28.2. Local/SSH inactive creation, discovery, inspection and
 placement opening now have sidebar creation and a graph pane with manifest
 editing, shared source drafts, settings, undo and file-conflict review. Node
-movement, full visual editing and execution controls remain unfinished. Daemon
+movement, full visual editing and IDE execution controls remain unfinished. Daemon
 adoption/projection now observes independent huddle owners alongside ordinary
 runtimes, including across isolated daemon replacement. Pinned production launch
-and exact-owner controls now integrate with session kill/archive. Authorised public
-Start/Run, native supervision, provider dispatch and full IDE integration remain
-unfinished. Selected-daemon startup checks retained huddle contracts read-only
+and exact-owner controls now integrate with session kill/archive. Local/SSH APIs
+now admit saved-source Start/Apply, reviewed Rearm/Run/Interrupt/Stop and bounded
+live-owner history. Native supervision, provider dispatch and IDE execution
+integration remain unfinished. Selected-daemon startup checks retained huddle contracts read-only
 before service mutations, while allowing compatible controllers to inspect
 interrupted owners. Offline host removal, purge fencing and release
 collection now recognise huddle ownership and clean shutdown evidence. Host-update preflight, shutdown
@@ -29,7 +30,8 @@ digest save integration and retained graph view state remain unfinished.
 Internal queued Apply/Arm/Run/Interrupt now require the inspected owner and
 activation, preventing stale views from dispatching against a replacement.
 Bounded live-owner history reads validate execution/node/operation records;
-public history and lifecycle integration remain pending.
+application 28.2 exposes explicit public projections. Stopped-owner history, active
+revision detail and IDE lifecycle integration remain pending.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals except where explicitly documented
 in acceptance as implemented.
@@ -102,7 +104,7 @@ grid, bevelled boxes, thick borders or glossy headers.
 
 | Area | Existing code to reuse | Required extension |
 | --- | --- | --- |
-| Session identity | `shared/src/api/agents/sessions.ts`, daemon `db/stores/sessions.ts`, `db/stores/huddle/placements.ts` and `sessions/` | Migration 43 and application 27.0 add huddle placement identity without an account, native conversation or PTY. Inactive creation/opening is exposed in application 27.1; public execution controls and the remaining binary-kind audit are still required. |
+| Session identity | `shared/src/api/agents/sessions.ts`, daemon `db/stores/sessions.ts`, `db/stores/huddle/placements.ts` and `sessions/` | Migration 43 and application 27.0 add huddle placement identity without an account, native conversation or PTY. Inactive creation/opening is exposed in application 27.1; application 28.2 adds manual lifecycle/history APIs. IDE execution controls and the remaining binary-kind audit are still required. |
 | Sidebar and actions | Web `features/workspace/sessions/SessionSidebar.tsx`, `sidebar/`, `SessionActions.tsx`, `lifecycle.ts`, `session-selection.ts` | Add creation, glyph, opening and lifecycle policy to expanded/collapsed presentations and bulk actions. Current callbacks and rows assume ordinary sessions. |
 | Puddlang | Daemon `puddlang/service.ts`, `operations.ts`, `runner.ts`, `runtime-api.ts`, `outcomes/`; shared `api/agents/puddlang*.ts` | Reuse provider-neutral spawn/attach/ask/stop and exact turn handling. Current programmes are daemon-owned child processes and become interrupted on daemon replacement. No graph, durable scheduler or plug-in API exists. |
 | Independent ownership | Daemon `runtime/ownership/`, `transport/`, `lifecycle/`, `resources/`, `controller/`, `execution/turns.ts`; shared `runtime/` | Add a huddle owner role with retained graph state and triggers. Existing terminal snapshots, native-conversation segments and agent launch seeds cannot stand in for a huddle. |
@@ -700,8 +702,8 @@ graph routing, isolated script workers, retained revisions/activation and a manu
 scheduler and independent owner process/private control. Production launch/adoption
 and maintenance integration are implemented; the provider bridge and native continuity acceptance remain unfinished. Phase 2 has
 inactive creation/opening, sidebar integration and manifest graph editing with
-shared editor drafts; node movement, complete settings and public execution
-controls remain pending. Each phase
+shared editor drafts and local/SSH manual lifecycle/history APIs; node movement,
+complete settings and IDE execution controls remain pending. Each phase
 must update
 `docs/acceptance/huddle.md` with implemented details and evidence, rather than
 leaving the only accurate description in code or marking future phases complete.

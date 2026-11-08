@@ -1333,7 +1333,7 @@ All timestamps are ISO 8601 UTC. Git operations against a given repository (work
 
 ## 4. Session state machine
 
-### Huddle definition foundation (not yet enabled)
+### Huddle orchestration (implementation in progress)
 
 Format-1 huddle document contracts and graph/binding validation live in
 `shared/api/huddle/` and `shared/huddle/validation/`. Each project worktree may
@@ -1413,7 +1413,7 @@ and project menus. Huddle content renders saved nodes/ports/wires, a list/inspec
 and ordinary editor source links. Manifest graph edits now share the source file's
 Monaco model, drafts, undo, conditional saves and conflict review. Node creation,
 connection selectors, deletion, parameter bindings and appearance controls are
-available; node movement, complete settings and public Start/Run remain unfinished.
+available; node movement, complete settings and IDE Start/Run remain unfinished.
 Huddle views can move through panes, project layouts and native
 transfers without creating PTYs or owners. Closing a view is independent of Stop.
 Desktop recovery format 4 migrates versions 2/3; `windows.huddles` gates native
@@ -1438,7 +1438,20 @@ inspected runtime/incarnation and activation/generation, checked inside the queu
 before dispatch; stale commands cannot follow a replacement activation. Internal
 history reads bind one live owner and validate bounded execution/node/operation
 pages. Their ordinal cursors enumerate retained rows, so mutable outcomes require
-refreshing earlier pages. Public lifecycle/history projection remains pending.
+refreshing earlier pages. Application 28.2 exposes local/SSH placement-scoped
+runtime inspection, Start/Apply/Rearm/Run/Interrupt/Stop and bounded history under
+`/api/huddle/:profile/sessions/:sid`. Start/Apply capture an inspected saved digest
+and explicit variables under the registered repository lock; Start launches one
+capable owner and arms it without sending input. Rearm retains the active revision.
+All owner commands use reviewed targets, with no automatic retry after lost replies.
+Node worktrees resolve to registered roots in the placement's project and are
+rechecked after asynchronous admission. Unsupported agent bridges and local
+trigger/readout adapters fail before launch. Missing source blocks new work but
+not inspection or Stop. The event host id persists in private `huddle-host.json`
+and grants no authority. Public history omits private ledger keys and operation
+inputs/targets; stopped-owner history and active-revision details remain pending.
+Remote profile leases and the connector deny these APIs. IDE execution controls
+remain unfinished.
 Migration 44 adds
 `huddle_stop_requests(runtime_id, session_id, requested_at)`; consumed Stop is
 observed after a lost reply. Existing session kill/archive delegates to huddle Stop

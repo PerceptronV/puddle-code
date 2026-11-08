@@ -105,6 +105,7 @@ import { WsGateway } from './ws/gateway.js';
 import { PuddlangService } from './puddlang/service.js';
 import { PuddlangStore } from './puddlang/store.js';
 import { HuddleService } from './huddle/control/service.js';
+import { HuddleExecutionService } from './huddle/execution/service.js';
 import { HuddlePlacements } from './db/stores/huddle/placements.js';
 import type { HostUpdateCheckpointReference } from '@puddle/shared';
 import { HostUpdateCheckpointWriter } from './updates/checkpoints/store.js';
@@ -443,6 +444,17 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       launcher: runtimeLauncher,
       changed: (projectId) => service.emit('sessions-changed', { projectIds: [projectId] }),
     });
+    const huddleExecution = new HuddleExecutionService({
+      home: paths.home,
+      profiles,
+      projects,
+      sessions,
+      runtimes,
+      definitions: huddles,
+      controls: runtimeControls.huddles,
+      launcher: runtimeLauncher,
+      storage,
+    });
     const updateInspection = new HostUpdateInspection({
       connector: new HostUpdateConnector(paths.home),
       compatibility: new HostUpdateCompatibility({
@@ -591,6 +603,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
         latex,
         puddlang,
         huddles,
+        huddleExecution,
       },
       ws: { gateway, upgradeWebSocket },
     });

@@ -10,7 +10,7 @@ import { HostAdmission } from '../../../host/lifecycle/admission.js';
 import type { RuntimeConnections } from '../../transport/connections.js';
 import { RuntimeConnectionLost } from '../../transport/client.js';
 import type { RuntimeReconciler } from '../../controller/reconcile.js';
-import type { HuddleOwnerClient } from '../transport/client.js';
+import { HuddleOwnerRejected, type HuddleOwnerClient } from '../transport/client.js';
 import {
   requireHuddleControl,
   type HuddleControlTarget,
@@ -96,6 +96,11 @@ export class HuddleRuntimeControls {
           return action(target);
         })
         .catch((error: unknown) => {
+          if (error instanceof HuddleOwnerRejected)
+            throw ApiError.conflict(
+              'huddle_command_rejected',
+              'The owner refused the command; inspect its retained state before another mutation',
+            );
           if (error instanceof RuntimeConnectionLost)
             throw ApiError.conflict(
               'huddle_outcome_unknown',

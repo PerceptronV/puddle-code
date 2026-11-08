@@ -44,6 +44,12 @@ const unavailable = () =>
     'huddle_runtime_unavailable',
     'Select an installed runtime with huddle support and an available runtime lifetime',
   );
+interface Location {
+  worktree: string;
+  branch: string;
+  worktrees: string[];
+  check(): void;
+}
 
 /** Local/SSH authoring only. Saving/opening never launches, arms or prompts an agent. */
 export class HuddleService {
@@ -84,6 +90,21 @@ export class HuddleService {
       const snapshot = await this.capture(location.worktree, input.huddle_id);
       location.check();
       return this.document(snapshot);
+    });
+  }
+
+  /** Internal execution admission shares the same registered source scope and repository lock. */
+  withSnapshot<T>(
+    profile: string,
+    raw: HuddleOpen,
+    authority: () => boolean,
+    use: (snapshot: HuddleDefinitionSnapshot, location: Location) => Promise<T>,
+  ) {
+    const input = huddleOpenSchema.parse(raw);
+    return this.atLocation(profile, input, authority, async (location) => {
+      const snapshot = await this.capture(location.worktree, input.huddle_id);
+      location.check();
+      return use(snapshot, location);
     });
   }
 
@@ -206,7 +227,7 @@ export class HuddleService {
     profile: string,
     input: HuddleLocation,
     authority: () => boolean,
-    action: (location: { worktree: string; branch: string; check(): void }) => Promise<T>,
+    action: (location: Location) => Promise<T>,
   ) {
     const check = () => {
       this.checkProfile(profile, authority);
@@ -230,8 +251,11 @@ export class HuddleService {
       if (!worktree) throw ApiError.badRequest('unknown_worktree', 'Worktree is missing');
       const roots = await this.deps.worktrees.listWorktrees(repo);
       const matches = [];
+      const worktrees: string[] = [];
       for (const root of roots) {
-        if ((await realpath(root.path).catch(() => null)) === worktree) matches.push(root);
+        const canonical = await realpath(root.path).catch(() => null);
+        if (canonical) worktrees.push(canonical);
+        if (canonical === worktree) matches.push(root);
       }
       if (matches.length !== 1)
         throw ApiError.badRequest(
@@ -239,7 +263,7 @@ export class HuddleService {
           'Choose one registered worktree of this project',
         );
       check();
-      return action({ worktree, branch: matches[0]!.branch ?? 'HEAD', check });
+      return action({ worktree, branch: matches[0]!.branch ?? 'HEAD', worktrees, check });
     });
   }
 }

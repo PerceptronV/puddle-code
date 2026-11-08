@@ -162,7 +162,7 @@ describe('profile-bound host authority', () => {
       expect((await f.req(path!, method)).status).toBe(403);
     expect(f.dispatch).not.toHaveBeenCalled();
   });
-  it('denies huddle authoring and inspection to remote profile leases', async () => {
+  it('denies huddle authoring, execution and inspection to remote profile leases', async () => {
     const f = fixture();
     const prefix = `/api/huddle/${f.one.profile.id}`;
     for (const [path, method] of [
@@ -171,6 +171,11 @@ describe('profile-bound host authority', () => {
       [`${prefix}/definitions/${'a'.repeat(32)}`, 'GET'],
       [`${prefix}/definitions`, 'POST'],
       [`${prefix}/open`, 'POST'],
+      [`${prefix}/sessions/${f.one.session.id}/runtime`, 'GET'],
+      ...['start', 'apply', 'rearm', 'run', 'interrupt', 'stop', 'history'].map((action) => [
+        `${prefix}/sessions/${f.one.session.id}/${action}`,
+        'POST',
+      ]),
     ])
       expect((await f.req(path!, method)).status).toBe(403);
     expect(f.dispatch).not.toHaveBeenCalled();
