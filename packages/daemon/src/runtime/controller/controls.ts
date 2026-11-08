@@ -3,6 +3,7 @@ import {
   type RuntimeCommand,
   type RuntimePlacement,
   type RuntimeState,
+  type HuddleSessionFeedCursor,
 } from '@puddle/shared';
 import type { RuntimeStore } from '../../db/stores/runtimes.js';
 import { HostAdmission } from '../../host/lifecycle/admission.js';
@@ -34,8 +35,9 @@ export class RuntimeControls {
     private readonly runtimes: RuntimeStore,
     private readonly connections: RuntimeConnections,
     private readonly reconciler: RuntimeReconciler,
+    feedBaseline?: () => HuddleSessionFeedCursor,
   ) {
-    this.huddles = new HuddleRuntimeControls(runtimes, connections, reconciler);
+    this.huddles = new HuddleRuntimeControls(runtimes, connections, reconciler, feedBaseline);
   }
 
   private target(sessionId: string): Target {

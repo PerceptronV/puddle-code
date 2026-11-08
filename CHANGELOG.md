@@ -13,12 +13,13 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Add Session lifecycle huddle nodes with explicit worktrees, optional stopped/archived session selection and event/status filters. Saving remains inactive.
 - Add Git huddle nodes with explicit worktree/repository selection, ref globs, HEAD observation and debounce settings. Saving remains inactive.
 - Add Filetree huddle nodes with explicit worktrees, directories, glob filters, output exclusions and debounce settings. Saving remains inactive.
 - Add Calendar and Date and time huddle nodes with explicit timezone, weekday, missed-event and past-date settings. Saved edits stay inactive; Apply/Start create fresh activation intent.
 - Add Interval huddle nodes with duration and missed-occurrence settings. Start/Resume arm automatic triggers; editing and saving remain inactive.
 - Build huddles with editable Prompt agent and Review agent nodes, project worktree/agent selectors, input variables in prompts and bounded feedback settings. Templates save ordinary source files; graph editing and execution remain separate.
-- Start and apply saved huddle graphs, send manual input, interrupt/resume/stop execution and inspect paged results in the IDE on supporting local/SSH hosts. Failed replies require observation before another action; reconnect never resends input. Agent spawning and external triggers remain pending.
+- Start and apply saved huddle graphs, send manual input, interrupt/resume/stop execution and inspect paged results in the IDE on supporting local/SSH hosts. Failed replies require observation before another action; reconnect never resends input. Agent spawning and custom external adapters remain pending.
 - Add New huddle to the session tray, collapsed rail and project menus, with explicit worktree selection and saved-huddle opening. Huddles open as separate pane content; creating/opening stays inactive.
 - Edit huddle nodes, connections, parameter bindings, colours and icons using shared source drafts. Move nodes with mouse, touch, arrow keys or position fields; pan and fit the graph. Drag between sockets or use click/keyboard controls to connect nodes, and select wires to disconnect them. Manifest and layout drafts follow pane/window transfers, with separate undo histories and save-conflict review.
 - Preserve huddle tabs through layouts and native window content. Application protocol 28 and desktop recovery format 4 require supporting clients; existing agent/terminal runtime contracts remain unchanged.
@@ -38,12 +39,12 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
-- Retain bounded session lifecycle/status observations atomically with their source writes (database schema 47), with scoped private pages and explicit cursor gaps. Huddle subscription delivery and exact native-turn triggers remain pending.
+- Retain bounded session lifecycle/status observations atomically with their source writes (database schema 47), with scoped private pages and explicit cursor gaps. Deliver lifecycle/status pages to supporting huddle owners with durable cursors, reconnect catch-up, fresh Start/Resume/Apply baselines and visible gap failures; exact native-turn triggers remain pending.
 
 - Observe Git refs and worktree HEAD in independent huddle owners with durable net-change batches, common-directory deduplication and optional `git: 1` support. Retain old/new OIDs and symbolic targets through force updates and branch switches.
 - Observe Filetree changes in independent huddle owners, using bounded metadata reconciliation and durable batches with optional `filetree: 1` support. Controller loss leaves observation running; interruption and failure fence scans before admission.
 - Run calendar and one-off date triggers in independent huddle owners with durable consumption and optional `calendar: 1` support. Calendar schedules skip nonexistent local times, fire once during repeated times and bound missed-event recovery; completed dates stay consumed through Resume.
-- Run huddle interval triggers in their independent owner through controller disconnection, with durable occurrence tracking, coalesce/skip/bounded catch-up and explicit `timers: 1` runtime support. Interrupt/Stop disarm timers; resource failures remain visible. Session subscriptions and reboot recovery remain pending.
+- Run huddle interval triggers in their independent owner through controller disconnection, with durable occurrence tracking, coalesce/skip/bounded catch-up and explicit `timers: 1` runtime support. Interrupt/Stop disarm timers; resource failures remain visible. Reboot recovery remains pending.
 
 - Support guarded creation of absent worktree files through `expected_mtime_ms: -1` (application 28.4). Concurrent creations and existing symlinks return a conflict without replacement.
 - Dispatch huddle attach/ask scripts to explicitly bound live agents, sharing ordinary puddlang busy admission and preserving accepted turns through daemon handoff. Surface unsent refusals, retain uncertain sends, and persist exact cancellation attempts (database schema 46); agent graphs require huddle operation capability 2.

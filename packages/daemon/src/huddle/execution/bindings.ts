@@ -1,6 +1,7 @@
 import { realpathSync } from 'node:fs';
 import { isAbsolute } from 'node:path';
 import {
+  sessionHuddleTrigger,
   resolveHuddleParameters,
   resolveHuddleVariables,
   type HuddleStart,
@@ -15,6 +16,7 @@ export function huddleExecutionBindings(
   variables: HuddleStart['variables'],
   worktrees: string[],
   agent?: (reference: string, worktree: string) => string,
+  observeSession?: (reference: string, worktree: string) => string,
 ) {
   resolveHuddleVariables(snapshot.definition, variables);
   const bindings: HuddleRevisionActivation['bindings'] = {};
@@ -25,9 +27,11 @@ export function huddleExecutionBindings(
     unsupported('This runtime supports queued trigger inputs only');
   for (const node of snapshot.definition.nodes) {
     const component = snapshot.components[node.id]!;
+    const observing = node.source.kind === 'builtin' && component.id === sessionHuddleTrigger.id;
+    const resolveSession = observing ? observeSession : agent;
     if (node.source.kind === 'local' && component.category !== 'script')
       unsupported('Custom trigger and readout adapters are not available yet');
-    if (component.capabilities.includes('sessions') && !agent)
+    if (component.capabilities.includes('sessions') && !observing && !agent)
       unsupported('The huddle agent-operation bridge is not available yet');
     const values = resolveHuddleParameters(snapshot.definition, node, component, variables);
     const resolved: Record<string, string> = {};
@@ -52,11 +56,11 @@ export function huddleExecutionBindings(
     }
     for (const [name, parameter] of Object.entries(component.parameters)) {
       if (parameter.editor !== 'session' || values[name] === undefined) continue;
-      if (!agent || !component.capabilities.includes('sessions') || !resolved.worktree)
-        unsupported('Session bindings require the agent bridge and an explicit worktree');
+      if (!resolveSession || !component.capabilities.includes('sessions') || !resolved.worktree)
+        unsupported('Session bindings require a supported resolver and an explicit worktree');
       if (typeof values[name] !== 'string')
-        throw ApiError.badRequest('invalid_session', 'Choose an agent session id');
-      resolved[name] = agent!(values[name] as string, resolved.worktree!);
+        throw ApiError.badRequest('invalid_session', 'Choose a session id');
+      resolved[name] = resolveSession!(values[name] as string, resolved.worktree!);
     }
     if (Object.keys(resolved).length) bindings[node.id] = resolved;
   }

@@ -107,6 +107,8 @@ import { PuddlangStore } from './puddlang/store.js';
 import { HuddleService } from './huddle/control/service.js';
 import { HuddleExecutionService } from './huddle/execution/service.js';
 import { resolveHuddleAgent } from './huddle/execution/agents.js';
+import { HuddleSessionFeed } from './huddle/triggers/sessions/feed.js';
+import { HuddleSessionDispatcher } from './huddle/triggers/sessions/dispatcher.js';
 import { HuddleAgentDispatcher } from './huddle/operations/dispatch/service.js';
 import { HuddleAgentTurns } from './huddle/operations/turns/service.js';
 import { HuddleTurnStore } from './huddle/operations/turns/store.js';
@@ -256,7 +258,12 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     };
     runtimeReconciler.on('session-switched', captureBootSwitch);
     await runtimeConnections.connect();
-    const runtimeControls = new RuntimeControls(runtimes, runtimeConnections, runtimeReconciler);
+    const runtimeControls = new RuntimeControls(
+      runtimes,
+      runtimeConnections,
+      runtimeReconciler,
+      () => new HuddleSessionFeed(db).checkpoint(),
+    );
     failedStartup.push(() => runtimeControls.close());
     const runtimeLauncher =
       opts.runtime !== false
@@ -457,6 +464,15 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       turns: new HuddleAgentTurns(runtimeProgrammeTurns, new HuddleTurnStore(db)),
     });
     failedStartup.push(() => huddleDispatcher.close());
+    const huddleSessionDispatcher = new HuddleSessionDispatcher({
+      home: paths.home,
+      feed: new HuddleSessionFeed(db),
+      runtimes,
+      connections: runtimeConnections,
+      sessions,
+      projects,
+    });
+    failedStartup.push(() => huddleSessionDispatcher.close());
     const huddleExecution = new HuddleExecutionService({
       home: paths.home,
       profiles,
@@ -723,6 +739,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       retention,
       programmes: puddlang,
       huddles: huddleDispatcher,
+      huddleSessions: huddleSessionDispatcher,
       compilation,
       catalogue,
       markers: onboarding,
@@ -803,6 +820,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     });
     failedStartup.push(() => releaseCollection!.close());
     huddleDispatcher.start();
+    huddleSessionDispatcher.start();
 
     let stopping: Promise<void> | null = null;
     let shutdownUpdate: string | undefined;
@@ -848,7 +866,10 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
         // after cleanup has taken its inventory of daemon-owned terminals.
         ptys.beginShutdown();
         service.beginShutdown();
-        const huddlesClosed = huddleDispatcher.close();
+        const huddlesClosed = Promise.all([
+          huddleDispatcher.close(),
+          huddleSessionDispatcher.close(),
+        ]);
         stopping = (async () => {
           await huddlesClosed;
           await collectionClosed;

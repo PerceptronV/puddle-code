@@ -156,9 +156,7 @@ function Parameter({
           className="rounded-md bg-surface p-1 text-sm"
           onChange={(event) => setText(event.target.value)}
         >
-          <option value="">
-            Choose {parameter.editor === 'session' ? 'agent session' : 'worktree'}
-          </option>
+          <option value="">Choose {parameter.editor === 'session' ? 'session' : 'worktree'}</option>
           {text && !choices.some((choice) => choice.value === text) && (
             <option value={text}>{text} · unavailable</option>
           )}

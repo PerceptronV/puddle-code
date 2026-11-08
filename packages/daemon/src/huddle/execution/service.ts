@@ -1,3 +1,4 @@
+import { realpathSync } from 'node:fs';
 import { requireHuddleFeatures } from '../../runtime/huddle/triggers/definitions.js';
 import { randomUUID } from 'node:crypto';
 import {
@@ -172,6 +173,19 @@ export class HuddleExecutionService {
             'huddle_source_changed',
             'Saved huddle source changed; inspect it before starting or applying',
           );
+        const observeSession = (reference: string, worktree: string) => {
+          const selected = this.deps.sessions.get(reference);
+          if (
+            selected.project_id !== session.project_id ||
+            selected.kind === 'huddle' ||
+            realpathSync(selected.worktree_path) !== worktree
+          )
+            throw ApiError.conflict(
+              'huddle_session_unavailable',
+              'Choose an agent or terminal in the declared project/worktree',
+            );
+          return selected.id;
+        };
         let prepared: ReturnType<typeof prepareHuddleActivation>;
         try {
           const bindings = huddleExecutionBindings(
@@ -181,6 +195,7 @@ export class HuddleExecutionService {
             this.deps.agentBinding &&
               ((reference, worktree) =>
                 this.deps.agentBinding!(profile, session.project_id, reference, worktree)),
+            observeSession,
           );
           prepared = prepareHuddleActivation(
             snapshot,
@@ -203,6 +218,7 @@ export class HuddleExecutionService {
             this.deps.agentBinding &&
               ((reference, worktree) =>
                 this.deps.agentBinding!(profile, session.project_id, reference, worktree)),
+            observeSession,
           );
           if (canonicalHuddleJson(current) !== canonicalHuddleJson(prepared.activation.bindings))
             throw ApiError.conflict(
@@ -283,8 +299,9 @@ export class HuddleExecutionService {
         const state = await this.deps.controls.inspect(id, valid);
         requireHuddleControl(state, input.target);
         if (
-          Object.values(snapshot.components).some((component) =>
-            component.capabilities.includes('sessions'),
+          Object.values(snapshot.components).some(
+            (component) =>
+              component.category === 'script' && component.capabilities.includes('sessions'),
           ) &&
           state.capabilities.operations !== 2
         )

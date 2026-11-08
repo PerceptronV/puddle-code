@@ -62,8 +62,8 @@ export async function launchHuddleOwner(
   };
   requireAuthority();
   if (
-    Object.values(options.snapshot.components).some((component) =>
-      component.capabilities.includes('sessions'),
+    Object.values(options.snapshot.components).some(
+      (component) => component.category === 'script' && component.capabilities.includes('sessions'),
     ) &&
     selected.huddle.operations !== 2
   )

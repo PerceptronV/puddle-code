@@ -1,4 +1,9 @@
 import { z } from 'zod';
+import {
+  huddleSessionFeedCursorSchema,
+  huddleSessionFeedPageSchema,
+} from './triggers/session-feed.js';
+import { huddleSessionSourceSchema, HUDDLE_SESSION_SOURCE_LIMIT } from './triggers/sessions.js';
 import { runtimeIdentitySchema } from '../protocol.js';
 import { huddleJsonSchema, huddleKeySchema } from '../../api/huddle/values.js';
 import { huddleLedgerIdentitySchema } from './state.js';
@@ -91,6 +96,19 @@ export const huddleOwnerRequestSchema = z.discriminatedUnion('t', [
     controllerEpoch: sequence,
   }),
   z.strictObject({ t: z.literal('inspect'), ...request }),
+  z.strictObject({ t: z.literal('session-sources'), ...request }),
+  z.strictObject({
+    t: z.literal('session-events'),
+    ...request,
+    source: huddleSessionSourceSchema,
+    page: huddleSessionFeedPageSchema,
+  }),
+  z.strictObject({
+    t: z.literal('session-unavailable'),
+    ...request,
+    source: huddleSessionSourceSchema,
+    error: z.string().min(1).max(4096),
+  }),
   z.strictObject({ t: z.literal('operation-page'), ...request, after: sequence }),
   z.strictObject({ t: z.literal('operation-claim'), ...request, operationId: z.uuid() }),
   z.strictObject({
@@ -109,12 +127,14 @@ export const huddleOwnerRequestSchema = z.discriminatedUnion('t', [
   z.strictObject({
     t: z.literal('apply'),
     ...request,
+    feedBaseline: huddleSessionFeedCursorSchema.optional(),
     activation: huddleActivationInputSchema,
     expectedGeneration: sequence,
   }),
   z.strictObject({
     t: z.literal('arm'),
     ...request,
+    feedBaseline: huddleSessionFeedCursorSchema.optional(),
     expectedGeneration: sequence,
     autoStart: z.boolean(),
   }),
@@ -140,6 +160,11 @@ export const huddleOwnerResponseSchema = z.discriminatedUnion('t', [
   z.strictObject({ t: z.literal('changed'), observation: sequence }),
   z.strictObject({ t: z.literal('state'), id: z.uuid(), state: huddleOwnerStateSchema }),
   z.strictObject({ t: z.literal('accepted'), id: z.uuid() }),
+  z.strictObject({
+    t: z.literal('session-sources'),
+    id: z.uuid(),
+    sources: z.array(huddleSessionSourceSchema).max(HUDDLE_SESSION_SOURCE_LIMIT),
+  }),
   z.strictObject({ t: z.literal('operation-page'), id: z.uuid(), page: huddleOperationPageSchema }),
   z.strictObject({
     t: z.literal('operation-claim'),

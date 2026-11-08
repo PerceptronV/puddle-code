@@ -4,9 +4,9 @@ Huddles are project orchestration graphs powered by puddlang. This guide describ
 the implemented local/SSH workflow. The [roadmap](roadmap/huddle.md) covers the full
 design; [acceptance](acceptance/huddle.md) records verified behaviour and remaining
 work. Interval, calendar and one-off date triggers are available on supporting
-runtimes. Filetree and Git observation are also available. Session subscriptions, agent
-spawn/resume nodes and authoring CLI/skills
-remain unfinished. Native provider, supervisor and reboot acceptance is pending.
+runtimes. Filetree, Git and session lifecycle/status observation are also available.
+Exact native turn-completion subscriptions, agent spawn/resume nodes and authoring
+CLI/skills remain unfinished. Native provider, supervisor and reboot acceptance is pending.
 
 ## Create and edit
 
@@ -203,6 +203,37 @@ errors, timeouts and exhausted budgets stop automatic admission with a visible
 failure; restore resources and explicitly Stop/Start for a new baseline. This
 requires runtime `git: 1`. Packaged SSH/supervisor, reftable and full crash/reboot
 acceptance remain pending.
+
+## React to session lifecycle changes
+
+Add **Session lifecycle**, choose an explicit **Worktree**, and optionally select a
+**Session** in that project/worktree. An unset session observes all matching agents
+or terminals there. Stopped and archived sessions are valid observation targets.
+Use **Clear setting** to remove a selected session. **Session kinds** defaults to
+`["agent"]`; choose `["terminal"]` or both to include terminals.
+
+**Events** defaults to `["resumed", "exited", "archived"]`. Other choices are
+`created`, `interrupted`, `killed`, `unarchived`, `spawn_failed` and `status`.
+**Status transitions to** filters only `status` observations and defaults to all
+statuses. An audit event and a status change can describe the same lifecycle action;
+select the event family you need to avoid intentionally receiving both.
+
+The event output includes `sequence`, `profileId`, `projectId`, `sessionId`,
+`worktree`, `sessionKind`, `event`, `source`, `previousStatus`, `status` and
+`observedAt`. Creation does not prove successful launch, and `waiting_input` does
+not prove a completed agent turn. Use Prompt agent/Review agent outputs for the
+implemented exact ask/reply workflow. Huddle sessions are excluded from this trigger.
+
+Saving stays inactive. Start, Resume and armed Apply establish a fresh host cursor,
+excluding prior or paused observations. A disconnected controller catches up from
+the owner's retained cursor when it reconnects, within bounded host history; it does
+not replay an already admitted page after a lost reply. Only recorded host transitions
+are available: transitions that never reached the daemon are not reconstructed.
+There are at most eight session nodes and 4,096 retained host sequence positions.
+Unrelated activity can expire a cursor too. Retention loss, missing resources and
+admission failure surface as an owner failure; inspect the cause and explicitly
+Stop/Start to establish a new baseline. Richer source health remains unfinished.
+This node requires runtime capability `sessionEvents: 1`.
 
 ## Prompt existing agents
 

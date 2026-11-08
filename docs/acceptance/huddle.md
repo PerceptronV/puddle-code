@@ -20,14 +20,14 @@ and production daemon dispatch now supports declared attach/ask scripts. Migrati
 interval events without a controller. Optional `calendar: 1` adds timezone calendar
 and one-off date triggers. Optional `filetree: 1` adds regular-file observation.
 Optional `git: 1` adds worktree HEAD and repository ref observation.
-Migration 47 now retains a bounded host session-observation feed; runtime
-subscription delivery and the session-trigger UI are still pending.
+Migration 47 retains bounded host session observations. Optional `sessionEvents: 1`
+now delivers them to independent owners through durable subscriptions; Session
+lifecycle nodes and stopped/archived session selectors are available in the IDE.
 No user CLI command is enabled yet.
 
 ## Implemented: durable host session observations
 
-This is the persistence foundation for Puddle lifecycle/status triggers, not an
-enabled trigger node. Database migration **47** adds `huddle_session_feed` and its
+Database migration **47** adds `huddle_session_feed` and its
 singleton epoch/head/loss-floor checkpoint. SQL triggers capture placement
 creation, actual status changes and the existing audit events `resumed`,
 `interrupted`, `exited`, `killed`, `archived`, `unarchived` and `spawn_failed`.
@@ -65,9 +65,8 @@ byte-limited pages retain the last delivered sequence so later matches are not s
 A null cursor explicitly establishes a fresh baseline at the current head.
 Otherwise epoch mismatch, retention loss and a cursor ahead of the host checkpoint
 return a typed gap, never a silent rebase. The loss floor is host-wide: unrelated
-activity can conservatively expire an idle filtered cursor. Fresh Start/Resume
-baseline policy and reconnect catch-up still need to be wired into the independent
-owner. Reading a page is not event admission or acknowledgement.
+activity can conservatively expire an idle filtered cursor. Reading a page is not
+event admission or acknowledgement; owner admission is described below.
 
 Evidence: actual SQLite fixtures cover atomic status/audit rollback, duplicate
 status suppression, audit recordOnce semantics, scoped filtering, byte/count
@@ -88,12 +87,59 @@ node node_modules/vitest/vitest.mjs run packages/shared/test/huddle/session-feed
 node node_modules/typescript/bin/tsc -b packages/shared packages/daemon packages/cli
 ```
 
-Pending: component/inspector settings, stopped/archived session selectors, exact
-owner subscription requests and durable source cursors, daemon delivery with
-maintenance/reconnect fencing, visible source health, retained native turn events,
-echo suppression and packaged/provider acceptance. No session-trigger capability,
-public route, or application/ordinary-runtime protocol version changes in this
-foundation increment. Existing database compatibility gates now see schema 47.
+`puddle.trigger.session@1` is now available with explicit registered worktree,
+optional selected session, agent/terminal kind filters, lifecycle/status events and
+status targets. Selected stopped/archived terminals and agents are accepted without
+requiring the agent-operation bridge. Huddles are excluded to prevent lifecycle
+self-observation. Session settings use the shared inspector and existing worktree/
+session queries; Clear setting preserves an unset optional session. Save stays inactive.
+
+Optional `sessionEvents: 1` gates selected-runtime launch, Apply and owner handling.
+Older owners remain supported; older candidates cannot adopt owners requiring it.
+Private `session-sources` returns at most eight current subscriptions;
+`session-events` and `session-unavailable` bind the exact source, including its
+revision, activation, generation, scope and cursor. Eight reusable `session-sources`
+ledger slots retain progress. Each page and all admitted root executions commit in
+one transaction; status filtering still advances the cursor. Queue/storage refusal
+rolls back the page and produces a visible owner failure. Genuine retention/epoch/
+ahead gaps stop triggers. Stale source requests after Apply/Interrupt reject without
+failing a newer activation.
+
+Host controls capture `feedBaseline` after queued target/authority review immediately
+before Arm/Apply. A session graph cannot arm without it. Start/Resume/armed Apply
+establish fresh source cursors; a reconnected dispatcher reads existing cursors.
+`huddle/triggers/sessions/dispatcher.ts` checks exact authenticated owner and retained
+node, current profile/project/session/worktree resources and source scope before each
+page. One shared one-second checkpoint poll drives up to four concurrent owner scans,
+each bounded to four passes. Lost replies cause source/cursor re-observation before
+further delivery. Maintenance pauses admission and drains accepted calls; shutdown
+removes observers. Owners reserve bounded subscription memory. No public route or
+application/ordinary-runtime protocol change is introduced.
+
+New isolated fixtures verify whole-page rollback, cursor persistence across reopen,
+status filtering, foreign scope and stale generations, selected capability gating,
+archived terminal observation, real independent-owner script completion, dispatcher
+replacement, lost acknowledgement, maintenance pause/release, Resume/Apply baselines,
+missing-baseline refusal and visible retained-gap failure. The headless session editor
+fixture verifies an explicit worktree, archived terminal selection, clearing the
+optional selector, filter persistence and inactive saves.
+
+Verification of session delivery (2026-11-08, Node 22.21.1): **1,037 tests passed in
+165 files**, with four pre-existing skips in two files, across huddle, database,
+sessions, runtime controller, updates, shared huddle/installation and web huddle
+suites. The headless browser check below passed against the UI-only preview.
+Shared/daemon/CLI builds, web typechecking, repository ESLint/Prettier and
+`git diff --check` passed.
+
+```sh
+node node_modules/vitest/vitest.mjs run packages/daemon/test/huddle packages/daemon/test/db packages/daemon/test/sessions packages/daemon/test/runtime/controller packages/daemon/test/updates packages/shared/test/huddle packages/shared/test/installation packages/web/test/huddle
+PREVIEW_URL=http://127.0.0.1:5194 node packages/web/test/huddle/sessions.browser.mjs
+```
+
+Pending: richer per-source health/backlog, retained native turn events, exact
+completion echo suppression and packaged/provider acceptance. Catch-up covers recorded
+host observations only, not native transitions the daemon never received. Reboot and
+owner-crash recovery remain separate unfinished work.
 
 ## Implemented: Git ref and worktree HEAD observation
 

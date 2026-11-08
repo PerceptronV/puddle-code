@@ -14,6 +14,13 @@ import type { Db } from '../../../db/db.js';
 export class HuddleSessionFeed {
   constructor(private readonly db: Db) {}
 
+  checkpoint(): HuddleSessionFeedCursor {
+    const row = this.db
+      .prepare('SELECT epoch, head AS sequence FROM huddle_session_feed_state WHERE singleton = 1')
+      .get();
+    return huddleSessionFeedCursorSchema.parse(row);
+  }
+
   read(
     scope: HuddleSessionFeedScope,
     after: HuddleSessionFeedCursor | null,

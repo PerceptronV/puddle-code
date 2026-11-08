@@ -17,6 +17,18 @@ import { profile, project, sessions } from '../../src/dev/preview/data';
 import { huddleRuntimeFixture } from './runtime';
 
 const fixture = mountWorkspaceFixture();
+if (new URLSearchParams(location.search).has('session-triggers')) {
+  fixture.addSession(
+    sessionSchema.parse({
+      ...sessions[0],
+      id: '00000000-0000-4000-8000-000000000009',
+      title: 'Archived terminal',
+      kind: 'terminal',
+      agent_type: null,
+      status: 'archived',
+    }),
+  );
+}
 if (new URLSearchParams(location.search).has('agent-templates')) {
   for (const [index, title] of ['Coder', 'Reviewer'].entries())
     fixture.addSession(

@@ -8,6 +8,7 @@ import {
   type HuddleOwnerRequest,
   type HuddleOwnerResponse,
   type HuddleOwnerState,
+  type HuddleSessionFeedCursor,
 } from '@puddle/shared';
 import { atomicPrivateJson, syncPrivateDirectory } from '@puddle/shared/node';
 import { prepareRuntimeLifetime } from '../lifecycle/lifetime.js';
@@ -20,6 +21,8 @@ import { HuddleScheduler } from './execution/scheduler.js';
 import { HuddleOwnerServer } from './transport/server.js';
 import { requireHuddleDefinitionLocation } from '../../huddle/definitions/location.js';
 import { HuddleTimerController } from './triggers/controller.js';
+import { HuddleSessionController } from './triggers/sessions/controller.js';
+import { requireSessionBaseline } from './triggers/sessions/definitions.js';
 import { HuddleGitController } from './triggers/git/controller.js';
 import { HuddleFiletreeController } from './triggers/filetree/controller.js';
 import { requireHuddleFeatures } from './triggers/definitions.js';
@@ -36,6 +39,7 @@ export class HuddleOwner {
   private readonly timers: HuddleTimerController;
   private readonly filetrees: HuddleFiletreeController;
   private readonly git: HuddleGitController;
+  private readonly sessions: HuddleSessionController;
   private status: HuddleOwnerState['state'] = 'running';
   private failure: string | null = null;
   private observation = 0;
@@ -110,6 +114,17 @@ export class HuddleOwner {
         launch.capabilities,
         () => this.drive(),
         (error) => this.triggerFailure(error),
+        () =>
+          requireHuddleDefinitionLocation(
+            launch.identity.canonical_worktree_path,
+            launch.scope.huddleId,
+          ),
+        memory.allowance,
+      );
+      this.sessions = new HuddleSessionController(
+        this.ledger,
+        this.store,
+        launch.capabilities,
         () =>
           requireHuddleDefinitionLocation(
             launch.identity.canonical_worktree_path,
@@ -258,6 +273,29 @@ export class HuddleOwner {
         result: this.operations.settle(request.scope, request.result),
       };
     }
+    if (
+      request.t === 'session-sources' ||
+      request.t === 'session-events' ||
+      request.t === 'session-unavailable'
+    ) {
+      if (this.memory.launch.capabilities.sessionEvents !== 1)
+        throw new Error('Owner has no session subscription capability');
+      if (request.t === 'session-sources')
+        return { t: 'session-sources', id: request.id, sources: this.sessions.list() };
+      if (this.stopping || this.interrupting || this.failure)
+        throw new Error('Session admission is unavailable');
+      // A stale delivery can race Apply/Interrupt; reject it without failing the new activation.
+      this.sessions.requireCurrent(request.source);
+      try {
+        if (request.t === 'session-unavailable')
+          throw new Error(`Session ${request.source.node}: observation gap: ${request.error}`);
+        if (this.sessions.accept(request.source, request.page)) this.drive();
+      } catch (error) {
+        this.triggerFailure(error);
+        throw error;
+      }
+      return { t: 'accepted', id: request.id };
+    }
     if (request.t === 'records') {
       return {
         t: 'records',
@@ -305,13 +343,21 @@ export class HuddleOwner {
         throw new Error('Huddle definition worktree cannot change within an owner');
       const snapshot = this.store.read(request.activation.revision);
       requireHuddleFeatures(snapshot, this.memory.launch.capabilities);
+      if (this.ledger.activations.current().state === 'armed')
+        requireSessionBaseline(snapshot, request.feedBaseline);
       this.revisions.apply(snapshot, request.activation, request.expectedGeneration);
-      await this.refreshTriggers();
+      await this.refreshTriggers(request.feedBaseline);
       return state();
     }
     if (request.t === 'arm') {
+      const control = this.ledger.activations.current();
+      if (control.activationId)
+        requireSessionBaseline(
+          this.store.read(this.ledger.activations.get(control.activationId).revision),
+          request.feedBaseline,
+        );
       this.ledger.activations.setIntent(request.expectedGeneration, 'armed', request.autoStart);
-      await this.refreshTriggers();
+      await this.refreshTriggers(request.feedBaseline);
       this.drive();
       return state();
     }
@@ -335,6 +381,7 @@ export class HuddleOwner {
     this.timers.stop();
     this.filetrees.stop();
     this.git.stop();
+    this.sessions.stop();
   }
   private triggerFailure(error: unknown) {
     this.stopTriggers();
@@ -345,7 +392,7 @@ export class HuddleOwner {
       this.failure = 'Huddle trigger state persistence failed';
     }
   }
-  private async refreshTriggers() {
+  private async refreshTriggers(baseline?: HuddleSessionFeedCursor) {
     try {
       this.stopTriggers();
       await Promise.all([this.filetrees.settled(), this.git.settled()]);
@@ -354,6 +401,7 @@ export class HuddleOwner {
       if (this.failure) throw new Error(this.failure);
       await this.git.refresh();
       if (this.failure) throw new Error(this.failure);
+      this.sessions.refresh(baseline);
       this.timers.refresh();
     } catch (error) {
       this.stopTriggers();

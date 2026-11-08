@@ -683,8 +683,14 @@ SQL triggers commit them with session/audit writes; retain epoch/head/loss floor
 when history is removed. Never backfill old statuses as new events, silently rebase
 an expired cursor, copy arbitrary audit payloads or equate waiting_input with an
 exact turn completion. Bound rows/pages and keep resource scoping in the private
-reader. Owner subscription delivery and native-turn retention remain unfinished;
-this foundation does not advertise a new runtime capability or public endpoint.
+reader. Optional `sessionEvents: 1` enables Session lifecycle nodes. Keep delivery
+under `huddle/triggers/sessions/`, source cursors in owner `state/sessions.ts`, and
+source lifecycle in `triggers/sessions/`. Capture a fresh host baseline immediately
+before reviewed Arm/Apply; reconnect resumes retained cursors. Commit each page and
+its admitted roots together, re-observe after lost replies, and fail visibly on gaps.
+Stale generation/cursor requests must not fail a newer activation. Participate in
+maintenance drain and recheck exact owner/project/worktree scope before delivery.
+Native-turn retention and richer source health remain unfinished; no new public route.
 Optional `git: 1` adds owner-local ref/HEAD observation under `triggers/git/`.
 Group refs and metadata watches by canonical common directory; retain distinct
 worktree HEAD targets and OIDs. `state/git.ts` uses bounded `git-sources` slots

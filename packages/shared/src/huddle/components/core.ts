@@ -1,6 +1,7 @@
 import { intervalHuddleTrigger } from './interval.js';
 import { calendarHuddleTrigger, dateHuddleTrigger } from './calendar.js';
 import { filetreeHuddleTrigger } from './filetree.js';
+import { sessionHuddleTrigger } from './session.js';
 import { gitHuddleTrigger } from './git.js';
 import { huddleComponentSchema } from '../../api/huddle/components.js';
 
@@ -30,5 +31,6 @@ export const coreHuddleComponents = new Map(
     dateHuddleTrigger,
     filetreeHuddleTrigger,
     gitHuddleTrigger,
+    sessionHuddleTrigger,
   ].map((component) => [`${component.id}@${component.version}`, component]),
 );

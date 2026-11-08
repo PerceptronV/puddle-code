@@ -1,11 +1,12 @@
 # The puddle communication protocol
 
-Database **47** adds bounded host session observations for forthcoming Puddle
-triggers. Shared private cursor/page/record schemas live in
-`runtime/huddle/triggers/session-feed.ts`; no request, runtime capability or public
-endpoint exposes them yet. Application 28.4, ordinary runtime 1.1 and huddle ledger
-format 1 remain unchanged. Existing host compatibility inspection admits only
-candidates that support the current application database.
+Database **47** retains bounded host session observations. Optional private huddle
+capability **`sessionEvents: 1`** enables `puddle.trigger.session@1`. Existing owners
+without it remain supported; older candidates cannot adopt owners requiring it.
+Shared cursor/page/record schemas live in `runtime/huddle/triggers/session-feed.ts`,
+source/settings schemas in `triggers/sessions.ts`. Application 28.4, ordinary runtime
+1.1 and huddle ledger format 1 remain unchanged; no new public route is added.
+Existing host compatibility inspection also requires database-47 support.
 
 The stream retains a random epoch, monotonic head and conservative loss floor.
 Placement/status/audit observations commit with their source writes, retain exact
@@ -13,8 +14,20 @@ observed scope and omit arbitrary audit payloads. Explicit baseline reads do not
 replay history; epoch mismatch, expired retention and ahead cursors report gaps.
 Rows are bounded to 8 KiB and 4,096 sequence positions; pages to 64 rows and 128 KiB.
 Readers must supply previously authorised profile/project/worktree scope. Status
-observations are not exact native turn completions. Owner delivery and native turn
-retention remain pending.
+observations are not exact native turn completions. Native turn retention remains pending.
+
+Private `session-sources`, `session-events` and `session-unavailable` messages are
+gated on the capability. Up to eight `session-sources` ledger slots retain exact
+node/revision/activation/generation, scope, status filters and cursor. Every page
+and all its admitted executions commit together. Page requests bind the entire
+retained source, including its cursor; stale deliveries reject without failing a
+new activation. Genuine feed gaps fail the owner rather than silently resetting.
+Arm and Apply accept an optional private `feedBaseline`, captured by host controls
+after queued review. Session graphs require it before arming; older owners receive
+no added field. Resume and armed Apply start fresh, while controller reconnect
+continues retained progress. Delivery checks owner/profile/project/worktree scope,
+excludes huddle observations and drains with host maintenance. A lost acknowledgement
+requires re-reading owner cursors before subsequent delivery.
 
 Optional private huddle capability **`git: 1`** enables `puddle.trigger.git@1`.
 Launch/Apply and independent-owner validation require it; old owners remain

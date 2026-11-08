@@ -1417,9 +1417,19 @@ Migration 47 supplies a bounded host session-observation feed under
 changed statuses and selected lifecycle audits, with exact observed worktree scope.
 A persistent epoch/head/loss floor distinguishes baseline reads from expired cursors;
 count/byte-bounded private pages never claim missing history was caught up. Status
-observations do not establish native turn completion. Owner delivery, native turn
-retention, full per-trigger health/backlog inspection and custom adapters remain
-unfinished.
+observations do not establish native turn completion. Optional `sessionEvents: 1`
+adds `puddle.trigger.session@1` with explicit worktree, optional selected agent or
+terminal (including stopped/archived placements), event/kind/status filters and eight
+retained owner source slots. Private source/page delivery rechecks authenticated
+owner/project/worktree scope, participates in maintenance drain and resumes from
+retained cursors after controller replacement. A page and all admitted roots commit
+atomically. Start/Resume/armed Apply take a host baseline after queued control review;
+paused observations are excluded. Lost acknowledgements cause cursor observation,
+not blind redelivery. Stale activation/generation/cursor requests cannot poison a new
+subscription; genuine gaps/resource failures stop automatic admission visibly. Host
+observations can catch up only within retained feed history; this does not manufacture
+transitions the daemon never recorded. Native turn retention, full per-trigger
+health/backlog inspection and custom adapters remain unfinished.
 The runtime entry point selects a separate huddle owner from a strict private launch
 record. It reuses runtime/memory claims, host grants and lifetime checks; consumes
 launch intent once; and provides bounded authenticated controller commands.

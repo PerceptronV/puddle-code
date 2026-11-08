@@ -11,6 +11,7 @@ import { HuddleLedger } from '../state/ledger.js';
 import { intervalDefinitions } from '../triggers/definitions.js';
 import { scheduleDefinitions } from '../triggers/calendar/definitions.js';
 import { filetreeDefinitions } from '../triggers/filetree/definitions.js';
+import { sessionDefinitions } from '../triggers/sessions/definitions.js';
 import { gitDefinitions } from '../triggers/git/definitions.js';
 import { HuddleRevisionStore } from '../state/revisions.js';
 
@@ -72,6 +73,7 @@ export function prepareHuddleActivation(
   scheduleDefinitions(restored, activation);
   filetreeDefinitions(restored, activation);
   gitDefinitions(restored, activation);
+  sessionDefinitions(restored, activation);
   return { snapshot: restored, activation };
 }
 

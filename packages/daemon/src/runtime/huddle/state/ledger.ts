@@ -15,6 +15,7 @@ import { HuddleOperations } from './operations.js';
 import { HuddleGraphRouting } from '../execution/graph.js';
 import { HuddleIntervals } from './intervals.js';
 import { HuddleSchedules } from './schedules.js';
+import { HuddleSessionSources } from './sessions.js';
 import { HuddleGitSources } from './git.js';
 import { HuddleFiletrees } from './filetrees.js';
 import { HuddleActivations } from './activation.js';
@@ -29,6 +30,7 @@ export class HuddleLedger {
   readonly schedules: HuddleSchedules;
   readonly filetrees: HuddleFiletrees;
   readonly git: HuddleGitSources;
+  readonly sessions: HuddleSessionSources;
   private readonly database: HuddleStateDatabase;
 
   constructor(
@@ -43,6 +45,7 @@ export class HuddleLedger {
     this.activations = new HuddleActivations(this.database);
     this.intervals = new HuddleIntervals(this.database, this.executions, this.activations);
     this.schedules = new HuddleSchedules(this.database, this.executions, this.activations);
+    this.sessions = new HuddleSessionSources(this.database, this.executions, this.activations);
     this.git = new HuddleGitSources(this.database, this.executions, this.activations);
     this.filetrees = new HuddleFiletrees(this.database, this.executions, this.activations);
   }

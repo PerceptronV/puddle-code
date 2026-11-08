@@ -18,6 +18,7 @@ import { runtimeDatabase } from '../runtime-database.js';
 import { runtimeRelease } from '../runtime-release.js';
 import { bundleDir, children, environment } from '../runtime-fixture.js';
 import { schedulerSnapshot } from './scheduler.js';
+import { HuddleSessionFeed } from '../../../src/huddle/triggers/sessions/feed.js';
 
 const source = `import {HuddleNode} from 'puddlang/huddle'; import fs from 'node:fs';
 export default HuddleNode({contract:'./node.json', async run({inputs}) {
@@ -94,7 +95,9 @@ export async function huddleLaunchFixture(loseDispatchReply = false) {
     },
     { installed: true, kind: 'launchd', run },
   );
-  const controls = new RuntimeControls(f.runtimes, connections, f.reconciler);
+  const controls = new RuntimeControls(f.runtimes, connections, f.reconciler, () =>
+    new HuddleSessionFeed(f.db).checkpoint(),
+  );
   const options = {
     snapshot: schedulerSnapshot(huddleId, source),
     hostId: 'fixture',

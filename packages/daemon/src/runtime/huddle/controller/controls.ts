@@ -3,6 +3,7 @@ import {
   type HuddleOwnerState,
   type HuddleActivationInput,
   type HuddleJson,
+  type HuddleSessionFeedCursor,
 } from '@puddle/shared';
 import type { RuntimeStore } from '../../../db/stores/runtimes.js';
 import { ApiError } from '../../../http/errors.js';
@@ -44,6 +45,7 @@ export class HuddleRuntimeControls {
     private readonly runtimes: RuntimeStore,
     private readonly connections: RuntimeConnections,
     private readonly reconciler: RuntimeReconciler,
+    private readonly feedBaseline?: () => HuddleSessionFeedCursor,
   ) {}
 
   private check(target: Target, authorised: Authorised) {
@@ -193,7 +195,17 @@ export class HuddleRuntimeControls {
       async (target) => {
         await this.review(target, reviewed, authorised);
         this.requireDispatch(target, authorised);
-        const response = await target.client.request(request);
+        const feedBaseline =
+          (request.t === 'arm' || request.t === 'apply') &&
+          target.client.state?.capabilities.sessionEvents === 1 &&
+          this.feedBaseline
+            ? this.feedBaseline()
+            : undefined;
+        // Capture after queued review, immediately before the one exact lifecycle send.
+        const response = await target.client.request({
+          ...request,
+          ...(feedBaseline ? { feedBaseline } : {}),
+        });
         if (response.t !== 'state') throw unavailable();
         await this.observe(target, response.state, authorised);
         return response.state;
