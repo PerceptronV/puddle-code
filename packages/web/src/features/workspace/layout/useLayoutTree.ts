@@ -3,6 +3,7 @@ import { sessionTabRef } from '@puddle/shared';
 import type { CompilationMode, LayoutLeaf, LayoutNode, TabRef } from '@puddle/shared';
 import { tabKind, type EditorTab, type EditorView } from '../../editor/tabs/editor-tabs';
 import type { UiStateHandle } from '../use-ui-state';
+import { transferHuddleDropView } from '../../huddle/view/transfer';
 import {
   addTabToLeaf,
   addBackgroundTabToLeaf,
@@ -339,7 +340,9 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
       drop: (spec) => {
         setFocusedLeafId(spec.toLeafId);
         rememberLinkable(spec.toLeafId, spec.ref);
-        persist(retargetFollowingTabs(dropTab(tree, spec), spec.ref));
+        const next = retargetFollowingTabs(dropTab(tree, spec), spec.ref);
+        transferHuddleDropView(tree, next, spec, scopeKey);
+        persist(next);
       },
       dropPane: (spec) => {
         const next = dropPane(tree, spec);
@@ -348,6 +351,6 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
         persist(next);
       },
     }),
-    [tree, focusedLeaf, activeEditorTab, persist],
+    [tree, focusedLeaf, activeEditorTab, persist, scopeKey],
   );
 }

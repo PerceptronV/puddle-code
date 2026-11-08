@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Restore huddle pan/zoom, node and connection selection, and graph/list mode across tab reopening, browser reload and pane/window transfers. Keep duplicate views independent and navigation out of tracked source files.
+
 - Read a packaged huddle authoring kit through CLI/MCP: structural JSON Schemas, generated wrapper types, editable script/trigger/readout examples and fake fixtures, without connecting to a host or changing project files.
 
 - Inspect retained huddle source and bindings and compare saved files/contracts before Apply, through the IDE and CLI/MCP (application 28.10); preserve reviewed targets/digests, support missing project source and keep all review operations read-only.

@@ -34,6 +34,51 @@ delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## Implemented: private graph view persistence
+
+Huddle panes now receive the existing tab view context. `web/features/huddle/view/`
+retains format-1 logical camera coordinates/zoom, node and edge selection, and
+graph/list mode in a named view store. Keys include transport, profile, layout,
+pane, tab and immutable placement identity; the placement binds its worktree, so
+long filesystem paths need not enter bounded IPC keys. Missing selected graph
+objects are not shown; invalid/obsolete retained payloads use defaults. Transient
+drag/wire gestures, commands and execution-inspector selections are not restored.
+
+Same-window tab moves/copies remap only the selected view before layout changes;
+opening into an existing duplicate preserves that pane's navigation. Whole-pane
+moves retain pane identity. Desktop views use existing opaque snapshots and
+transfer/docking/recovery remapping, with adopted content authoritative over stale
+renderer caches. The shared view store can copy selected keys without capturing
+or reading editor buffers. No application, desktop, runtime or database version
+change is required.
+
+Browser huddle views opt into per-window sessionStorage, with a 500-entry LRU and
+1 MiB serialized bound, 250 ms throttling and pagehide flush. Corrupt, disabled or
+full storage falls back to in-memory navigation. Other editor view stores retain
+their existing persistence policy. Camera restoration uses graph-space coordinates,
+so source-origin changes preserve position. Resize/hidden-view clamping never
+replaces the desired camera; teardown captures a last scroll and removes observers.
+Scope checks prevent late callbacks writing into a different host/profile.
+Navigation creates no source edits or huddle runtime commands.
+
+Verification: **137/137 tests in 15 files passed**, with one Vitest worker,
+covering huddle view/navigation, desktop content/view stores, transfer/docking
+content and layout-tree behavior. New cases check invalid state, scoped remapping,
+independent duplicates, read-only view copying, bounded browser recovery, pagehide
+flush, storage failure, origin changes, resize/hidden clamping and teardown capture.
+Headless browser checks pass for node/edge selection and graph/list mode through
+tab switching, close/reopen, reload, resize and a real tab move; two panes keep
+independent zoom, including dark/reduced-motion checks. Requests confirm no source
+writes or runtime commands. Existing canvas and wire browser suites pass, including
+touch/keyboard movement, cancellation, stale gestures, undo/redo and conflicts.
+Web TypeScript, changed-source ESLint/formatting and production web/CLI builds pass.
+No production daemon or interactive native window was started.
+Native interactive window/reboot acceptance remains pending; headless/unit evidence
+does not substitute for it. Remaining overall: offline history/recovery, agent
+restart/native feedback, full digest-save integration and large-graph culling,
+managed integration secrets, and provider/platform/packaged acceptance. Earlier
+camera/selection remaining-work notes below are superseded by this increment.
+
 ## Implemented: packaged authoring schemas, types and extension fixtures
 
 `pudl huddle authoring [asset-path]` now lists or reads a client-bundled kit before

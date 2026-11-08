@@ -30,7 +30,7 @@ import { useLayoutBridge, type LayoutBridge } from '../../src/features/layouts/l
 import '../../src/styles/app.css';
 
 /** Real Workspace with synthetic hosts only. No request can reach a daemon. */
-export function mountWorkspaceFixture() {
+export function mountWorkspaceFixture(options: { restore?: boolean } = {}) {
   if (import.meta.env.MODE !== 'ui-preview') throw new Error('Use the daemon-free preview');
   initTheme();
   initClientSettings();
@@ -145,17 +145,18 @@ export function mountWorkspaceFixture() {
     file,
   ]);
   tree.activeKey = tabRefKey(file);
-  sessionStorage.setItem(
-    workingSetKey(profile.id),
-    JSON.stringify(
-      uiStateSnapshotSchema.parse({
-        layout_mode: 'profile',
-        layout_tree: tree,
-        sidebar_collapsed: false,
-        session_order: allSessions.map((s) => s.id),
-      }),
-    ),
-  );
+  if (!options.restore || !sessionStorage.getItem(workingSetKey(profile.id)))
+    sessionStorage.setItem(
+      workingSetKey(profile.id),
+      JSON.stringify(
+        uiStateSnapshotSchema.parse({
+          layout_mode: 'profile',
+          layout_tree: tree,
+          sidebar_collapsed: false,
+          session_order: allSessions.map((s) => s.id),
+        }),
+      ),
+    );
   const client = new QueryClient({ defaultOptions: { queries: { retry: false } } });
   let navigate!: ReturnType<typeof useNavigate>;
   let bridge: LayoutBridge | null = null;

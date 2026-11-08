@@ -7,6 +7,8 @@ import { useWireGesture } from './connections/use-wire-gesture';
 import type { Endpoint } from '../documents/graph-connections';
 import { defaultPosition, type Position } from './geometry';
 import { useNodeDrag } from './use-node-drag';
+import { bindHuddleCamera, type HuddleCameraBinding } from '../view/camera';
+import type { HuddleCamera } from '../view/state';
 
 /** Interactive node islands; persisted positions live in the shared layout source buffer. */
 export function GraphOverview({
@@ -25,7 +27,15 @@ export function GraphOverview({
   graphVersion,
   graphLocked,
   disconnect,
+  camera,
+  rememberCamera,
+  selectedEdge,
+  setSelectedEdge,
 }: {
+  camera: HuddleCamera | null;
+  rememberCamera(camera: HuddleCamera): void;
+  selectedEdge: string | null;
+  setSelectedEdge(id: string | null): void;
   document: HuddleDocument;
   selected: string | null;
   onSelect(id: string): void;
@@ -42,8 +52,9 @@ export function GraphOverview({
   graphLocked: boolean;
   disconnect(id: string): void;
 }) {
-  const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
-  const [zoom, setZoom] = useState(1);
+  const [initialCamera] = useState(camera);
+  const [zoom, setZoom] = useState(camera?.zoom ?? 1);
+  const cameraBinding = useRef<HuddleCameraBinding | null>(null);
   const canvas = useRef<HTMLDivElement>(null);
   const wire = useWireGesture({
     graph: document,
@@ -69,16 +80,6 @@ export function GraphOverview({
   });
   const left = Math.min(0, ...nodes.map(({ position }) => position.x)) - 32;
   const top = Math.min(0, ...nodes.map(({ position }) => position.y)) - 32;
-  const previousOrigin = useRef({ left, top, zoom });
-  useLayoutEffect(() => {
-    const previous = previousOrigin.current;
-    const view = viewport.current;
-    if (view && zoom === previous.zoom) {
-      view.scrollLeft += (previous.left - left) * zoom;
-      view.scrollTop += (previous.top - top) * zoom;
-    }
-    previousOrigin.current = { left, top, zoom };
-  }, [left, top, zoom]);
   const width = Math.max(640, ...nodes.map(({ position }) => position.x - left + 272));
   const height = Math.max(
     400,
@@ -87,6 +88,24 @@ export function GraphOverview({
         position.y - top + 90 + Math.max(inputs.length, outputs.length) * 24,
     ),
   );
+  const [initialGeometry] = useState({ left, top, width, height });
+  useLayoutEffect(() => {
+    const binding = bindHuddleCamera(
+      viewport.current!,
+      initialGeometry,
+      initialCamera,
+      rememberCamera,
+      setZoom,
+    );
+    cameraBinding.current = binding;
+    return () => {
+      binding.dispose();
+      cameraBinding.current = null;
+    };
+  }, [initialCamera, initialGeometry, rememberCamera]);
+  useLayoutEffect(() => {
+    cameraBinding.current?.geometry({ left, top, width, height });
+  }, [left, top, width, height, zoom]);
   const byId = new Map(nodes.map((node) => [node.node.id, node]));
   const displayPosition = (id: string, position: Position) =>
     drag.preview?.id === id ? drag.preview.position : position;
@@ -102,18 +121,7 @@ export function GraphOverview({
         (item) => item.position.y + 90 + 24 * Math.max(item.inputs.length, item.outputs.length),
       ),
     );
-    const next = Math.min(
-      2,
-      Math.max(
-        0.001,
-        Math.min((view.clientWidth - 64) / (right - x), (view.clientHeight - 64) / (bottom - y)),
-      ),
-    );
-    setZoom(next);
-    requestAnimationFrame(() => {
-      view.scrollLeft = (x - left) * next - (view.clientWidth - (right - x) * next) / 2;
-      view.scrollTop = (y - top) * next - (view.clientHeight - (bottom - y) * next) / 2;
-    });
+    cameraBinding.current?.fit({ x, y, right, bottom });
   };
   return (
     <div
@@ -122,7 +130,10 @@ export function GraphOverview({
         if (event.key === 'Escape') wire.cancel();
       }}
     >
-      <CanvasControls {...{ locked, canUndo, canRedo, undo, redo, selected, fit, zoom, setZoom }} />
+      <CanvasControls
+        {...{ locked, canUndo, canRedo, undo, redo, selected, fit, zoom }}
+        setZoom={(value) => cameraBinding.current?.zoom(value)}
+      />
       <div className="flex min-h-5 items-center gap-2 px-3 text-xs text-fg-muted">
         {document.definition.edges.some((edge) => edge.id === selectedEdge) && (
           <button

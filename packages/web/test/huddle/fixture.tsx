@@ -16,7 +16,9 @@ import {
 import { profile, project, sessions } from '../../src/dev/preview/data';
 import { huddleRuntimeFixture } from './runtime';
 
-const fixture = mountWorkspaceFixture();
+const fixture = mountWorkspaceFixture({
+  restore: new URLSearchParams(location.search).has('view-state'),
+});
 if (new URLSearchParams(location.search).has('session-triggers')) {
   fixture.addSession(
     sessionSchema.parse({
@@ -152,6 +154,10 @@ const changedRevision = () => {
   document.digest = (++revision).toString(16).padStart(64, '0');
 };
 let opened = false;
+if (new URLSearchParams(location.search).has('view-state')) {
+  fixture.addSession(saved);
+  opened = true;
+}
 let failLayoutRead = false;
 let removedAuthoringAccount: number | undefined;
 let authoringFailure = false;

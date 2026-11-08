@@ -361,7 +361,11 @@ export function PaneLeaf({
             (() => {
               const session = sessions.find((item) => item.id === activeRef.session);
               return session ? (
-                <LazyHuddlePane key={session.id} session={session} focused={focused} />
+                <TabViewStateContext.Provider
+                  value={JSON.stringify([scrollChannel, leaf.id, tabRefKey(activeRef)])}
+                >
+                  <LazyHuddlePane key={session.id} session={session} focused={focused} />
+                </TabViewStateContext.Provider>
               ) : (
                 <p className="p-4 text-sm text-fg-muted">
                   Huddle unavailable — this tab is retained for reconnection.

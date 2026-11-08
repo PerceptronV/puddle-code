@@ -115,6 +115,10 @@ export class DesktopContentState implements WindowContentSource {
     this.changed();
   }
 
+  viewSnapshot(): Record<string, unknown> {
+    return { ...this.views };
+  }
+
   capture(snapshot?: UiStateSnapshot): Pick<DesktopWorkspaceContent, 'buffers' | 'views'> {
     const referenced = snapshot ? referencedTabs(snapshot) : null;
     const buffers = new Map(this.buffers);

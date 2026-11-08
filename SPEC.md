@@ -1665,8 +1665,18 @@ documents; archive retains both source tabs. Canvas sockets support pointer/touc
 dragging and click/keyboard connection creation; selectable wires expose disconnect.
 These edits share manifest undo, reject duplicate/incompatible routes and cancel on
 concurrent source edits. Cycles remain editable drafts with normal bounded-feedback
-validation before execution. Complete settings, camera/selection persistence and
-large-graph culling remain unfinished.
+validation before execution. `huddle/view/` retains logical camera coordinates,
+zoom, node/edge selection and graph/list mode by transport/profile/layout/pane/tab
+and immutable placement identity. Huddles receive the same tab view context as
+editors. Same-window moves copy the source view to new pane keys; existing duplicate
+views remain independent. Named view state joins desktop capture, detach/dock and
+recovery, with no native contract changes. Browser huddle views opt into bounded
+sessionStorage (500 entries/1 MiB), throttled writes and pagehide flush; storage
+failure retains in-memory navigation. Restore validates the private format and
+ignores invalid/obsolete state. Resize/hidden-pane clamping does not overwrite the
+desired camera; callbacks are disposed before remount and cannot write into a
+different host/profile. Navigation never changes graph/layout source or runtime
+state. Complete settings and large-graph culling remain unfinished.
 Application 28.3 adds editable Prompt agent and Review agent templates under
 `shared/huddle/templates/`, published by `daemon/huddle/templates/` as local
 `nodes/<component>/{node.json,run.ts,prompt.ts}` source. Template creation checks

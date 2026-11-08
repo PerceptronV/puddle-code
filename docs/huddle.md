@@ -71,8 +71,13 @@ Cmd/Ctrl-Z while a node is focused operate on that layout history; the main
 the normal editor. Save or Cmd/Ctrl-S from the huddle saves both files, with separate
 conflict checks; this is not a single atomic write. A missing layout is created
 only on save, and a file created by someone else in the meantime causes a conflict.
-Both drafts follow pane/window transfers and last-view close review. Camera and
-selection persistence remain unfinished.
+Both drafts follow pane/window transfers and last-view close review. Camera,
+node/connection selection and graph/list mode are private to each view. They survive
+tab switching, close/reopen in the same pane, browser reload and pane/window handoff.
+Two open views can navigate independently. Resizing or hiding a pane preserves
+its desired canvas position; an invalid or obsolete saved view uses defaults.
+Navigation never changes tracked source or starts a runtime. Browser state uses
+bounded per-window storage; desktop views join the normal recovery snapshot.
 
 Connect nodes by dragging an output socket onto an input, or click/focus the output
 then click/press Enter on the input. Escape cancels. Compatible destinations are

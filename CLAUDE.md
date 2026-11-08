@@ -767,8 +767,17 @@ selector edits share `documents/graph-connections.ts`, manifest undo and normal
 source conflict handling. Reject stale gestures, duplicate routes and definitely
 incompatible ports; retain validation for cycles so users can configure bounded
 feedback. UI wiring must never execute a node. Full resource settings beyond
-worktree/session selection, external component observation, large-graph culling
-and retained graph camera/selection remain unfinished.
+worktree/session selection, external component observation and large-graph culling
+remain unfinished. Huddle private view state lives under `huddle/view/`, with the
+ordinary TabViewStateContext and named ViewStateStore. Keep camera coordinates in
+graph space; resize/clamping/hidden views must not erase the desired position.
+Scope selection/mode/camera by host/profile/layout/pane/tab and immutable placement,
+not source revision. Same-window moves copy only matching view keys; existing
+duplicates keep independent navigation. Desktop snapshots remain authoritative
+over stale renderer caches. Browser persistence is opt-in, bounded to 500 entries/
+1 MiB, throttled and flushed on pagehide; it never joins host source/runtime state.
+Ignore malformed/obsolete payloads, and prevent delayed callbacks crossing hosts
+or profiles. Do not persist transient drag/wire gestures or pending commands.
 Optional huddle `timers: 1` supports fixed-duration interval triggers. Keep owner
 scheduling under `runtime/huddle/triggers/`, durable progress in `state/intervals.ts`
 and shared contracts under `runtime/huddle/triggers/`. Event admission and schedule

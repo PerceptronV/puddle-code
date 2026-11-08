@@ -18,26 +18,48 @@ import { NodePosition } from './inspector/NodePosition';
 import { connectGraph } from './documents/graph-connections';
 import { defaultPosition } from './canvas/geometry';
 import { AuthoringAction } from './authoring/AuthoringAction';
+import { useViewStateKey } from '../editor/tabs/view-state-context';
+import { useHuddleView } from './view/use-huddle-view';
 
 export function HuddlePane({ session, focused = true }: { session: Session; focused?: boolean }) {
   const supported = useHuddleSupported();
+  const profile = useCurrentProfileId();
+  const viewKey = useViewStateKey('huddle', [
+    profile,
+    // Placement identity already binds its immutable project/worktree; keep long paths out of IPC keys.
+    session.id,
+    session.project_id,
+    session.huddle_id,
+  ]);
   if (!supported || !session.huddle_id)
     return (
       <p className="p-4 text-sm text-fg-muted">
         Use a current desktop or browser over a local or SSH connection to open this huddle.
       </p>
     );
-  return <HuddleEditor session={session} focused={focused} />;
+  return <HuddleEditor key={viewKey} viewKey={viewKey} session={session} focused={focused} />;
 }
 
-function HuddleEditor({ session, focused }: { session: Session; focused: boolean }) {
+function HuddleEditor({
+  session,
+  focused,
+  viewKey,
+}: {
+  session: Session;
+  focused: boolean;
+  viewKey: string;
+}) {
   const profile = useCurrentProfileId() ?? undefined;
   const document = useHuddleDocument(profile, session);
   const draft = useGraphBuffer(session, document.data, focused);
   const layout = useLayoutBuffer(session, focused, draft.graph?.definition);
   const { buffer, graph, edit } = draft;
-  const [selected, setSelected] = useState<string | null>(null);
-  const [list, setList] = useState(false);
+  const navigation = useHuddleView(viewKey);
+  const selected = graph?.definition.nodes.some((node) => node.id === navigation.view.selectedNode)
+    ? navigation.view.selectedNode
+    : null;
+  const setSelected = (selectedNode: string) => navigation.save({ selectedNode });
+  const list = navigation.view.mode === 'list';
   const [adding, setAdding] = useState(false);
   const [connecting, setConnecting] = useState(false);
   const { openFile } = useEditor();
@@ -125,7 +147,7 @@ function HuddleEditor({ session, focused }: { session: Session; focused: boolean
             type="button"
             className={actionClass}
             aria-pressed={list}
-            onClick={() => setList(!list)}
+            onClick={() => navigation.save({ mode: list ? 'graph' : 'list' })}
           >
             {list ? 'Graph' : 'Node list'}
           </button>
@@ -278,6 +300,14 @@ function HuddleEditor({ session, focused }: { session: Session; focused: boolean
                 </div>
               ) : (
                 <GraphOverview
+                  camera={navigation.camera}
+                  rememberCamera={navigation.rememberCamera}
+                  selectedEdge={
+                    graph.definition.edges.some((edge) => edge.id === navigation.view.selectedEdge)
+                      ? navigation.view.selectedEdge
+                      : null
+                  }
+                  setSelectedEdge={(selectedEdge) => navigation.save({ selectedEdge })}
                   document={{ ...graph, layout: layout.layout ?? graph.layout }}
                   selected={selected}
                   onSelect={setSelected}

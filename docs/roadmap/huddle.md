@@ -13,8 +13,10 @@ application protocol 28.10. Local/SSH inactive creation, discovery, inspection a
 placement opening now have sidebar creation and a graph pane with manifest
 editing, shared source/layout drafts, settings, undo and file-conflict review.
 Pointer/touch and keyboard node movement, position settings, pan and fit controls
-and direct socket connections are implemented. Graph camera/selection persistence
-and large-graph culling remain unfinished. The IDE now exposes saved-source
+and direct socket connections are implemented. Graph camera, node/edge selection
+and graph/list mode now use scoped private view persistence through browser reload,
+same-window tab moves and desktop recovery/transfer snapshots. Large-graph culling
+remains unfinished. The IDE now exposes saved-source
 Start/Apply, manual Run, Interrupt/Resume/Stop and live execution history. Daemon
 adoption/projection now observes independent huddle owners alongside ordinary
 runtimes, including across isolated daemon replacement. Pinned production launch
@@ -28,7 +30,7 @@ checkpoints and fresh adoption/recovery now preserve huddle contracts alongside
 ordinary owners.
 Revision-checked single-file source saves now reject detected concurrent edits;
 the graph UI currently shares ordinary editor conditional file saves. Full-capture
-digest save integration and retained graph view state remain unfinished.
+digest save integration remains unfinished; retained graph view state is implemented.
 Internal queued Apply/Arm/Run/Interrupt now require the inspected owner and
 activation, preventing stale views from dispatching against a replacement.
 Bounded live-owner history reads validate execution/node/operation records;
