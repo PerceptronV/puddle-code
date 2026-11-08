@@ -1,3 +1,4 @@
+import { sessionTabRef } from '@puddle/shared';
 import type { Account, Session } from '@puddle/shared';
 import { Archive, ChevronRight } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
@@ -71,7 +72,8 @@ export function SessionListBody({
   // archived yet, so there is always somewhere to drop.
   const archiveDrop = useArchiveDrop('list', onArchiveDrop);
   const activeDragRef = useActiveDragRef();
-  const sessionDragActive = dragging !== null || activeDragRef?.type === 'terminal';
+  const sessionDragActive =
+    dragging !== null || (activeDragRef !== null && activeDragRef.type !== 'editor');
   const patchProject = usePatchProject();
   const paletteKey = useHotkeyLabel('palette.toggle');
   const accountLabel = new Map(accounts.map((a) => [a.id, a.label]));
@@ -262,10 +264,9 @@ export function SessionListBody({
                         // for the archive target.
                         e.dataTransfer.setData(
                           TAB_MIME,
-                          encodeTabTransfer(
-                            { type: 'terminal', session: session.id },
-                            { projectId: session.project_id },
-                          ),
+                          encodeTabTransfer(sessionTabRef(session), {
+                            projectId: session.project_id,
+                          }),
                         );
                         e.dataTransfer.setData(SESSION_DRAG_MIME, encodeSessionDrag(sessionIds));
                         e.dataTransfer.effectAllowed = 'copyMove';

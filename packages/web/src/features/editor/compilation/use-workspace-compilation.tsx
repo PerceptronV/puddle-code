@@ -36,7 +36,7 @@ import { CompilationSettingsDialog } from './CompilationSettingsDialog';
 
 type CompilationLayout = Pick<
   LayoutController,
-  'tree' | 'openEditorInLeaf' | 'setCompileMode' | 'ensureTerminal'
+  'tree' | 'openEditorInLeaf' | 'setCompileMode' | 'ensureSession'
 >;
 
 /** Own compilation commands, progress, settings and result presentation for the current workspace. */
@@ -241,7 +241,7 @@ export function useWorkspaceCompilation({
           await qc.invalidateQueries({ queryKey: ['sessions'] });
           if (!active()) return;
           void qc.invalidateQueries({ queryKey: ['project', result.terminal.project_id] });
-          layoutRef.current.ensureTerminal(result.terminal.id);
+          layoutRef.current.ensureSession(result.terminal);
           void navigate(`/project/${result.terminal.project_id}/session/${result.terminal.id}`);
           return;
         }

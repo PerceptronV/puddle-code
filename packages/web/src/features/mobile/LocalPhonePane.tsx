@@ -1,3 +1,4 @@
+import { LazyHuddlePane } from '../huddle/lazy-huddle';
 import { Button } from '../../components/ui/button';
 import { fieldSurface } from '../../components/ui/recipes';
 import { useEffect, useState } from 'react';
@@ -18,9 +19,10 @@ export function LocalPhonePane({
   selected: string | null;
   select(id: string): void;
 }) {
+  const huddle = sessions.find((session) => session.id === selected && session.kind === 'huddle');
   const [review, setReview] = useState(false);
   const [connected, setConnected] = useState(wsManager.isConnected());
-  const slot = useKeepAliveSlot(selected && !review ? `term:${selected}` : null);
+  const slot = useKeepAliveSlot(selected && !review && !huddle ? `term:${selected}` : null);
   useEffect(() => wsManager.onConnectionChange(setConnected), []);
   return (
     <div className="phone-workspace">
@@ -39,19 +41,26 @@ export function LocalPhonePane({
             </option>
           ))}
         </select>
-        <Button variant="secondary" aria-pressed={review} onClick={() => setReview(!review)}>
+        <Button
+          disabled={!!huddle}
+          variant="secondary"
+          aria-pressed={review}
+          onClick={() => setReview(!review)}
+        >
           {review ? 'Terminal' : 'Review'}
         </Button>
       </nav>
       {!connected && <p role="status">Reconnecting… Your draft will stay here.</p>}
       <div className="phone-view">
-        {review && selected ? (
+        {huddle ? (
+          <LazyHuddlePane key={huddle.id} session={huddle} />
+        ) : review && selected ? (
           <PhoneReview key={selected} session={selected} />
         ) : (
           <div ref={slot} className="size-full" />
         )}
       </div>
-      {selected && !review && (
+      {selected && !review && !huddle && (
         <Composer key={selected} session={selected} term="agent" connected={connected} />
       )}
     </div>

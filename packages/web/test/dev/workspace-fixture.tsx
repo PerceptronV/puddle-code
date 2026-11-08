@@ -4,7 +4,12 @@ import { requestUntitledSave } from '../../src/features/editor/buffers/untitled-
 import { createRoot } from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { MemoryRouter, Route, Routes, useNavigate } from 'react-router';
-import { savedLayoutSchema, uiStateSnapshotSchema, type SavedLayout } from '@puddle/shared';
+import {
+  savedLayoutSchema,
+  uiStateSnapshotSchema,
+  type SavedLayout,
+  type Session,
+} from '@puddle/shared';
 import { Workspace } from '../../src/features/workspace/Workspace';
 import { HotkeysHost } from '../../src/features/shell/HotkeysHost';
 import { NewSessionProvider } from '../../src/features/shell/new-session-context';
@@ -179,6 +184,9 @@ export function mountWorkspaceFixture() {
   );
   return {
     profile: profile.id,
+    addSession: (session: Session) => {
+      allSessions.push(session);
+    },
     requests,
     action: (name: string) => {
       const handler = getHotkeyHandler(name);

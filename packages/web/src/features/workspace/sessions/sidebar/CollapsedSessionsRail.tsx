@@ -1,3 +1,5 @@
+import { PuddleGlyph } from '../../../../components/puddle-glyph';
+import { sessionTabRef } from '@puddle/shared';
 import type { Account, Session } from '@puddle/shared';
 import { Archive, Bot, PanelRightOpen, Search, SquareTerminal } from 'lucide-react';
 import { useMemo, useState } from 'react';
@@ -213,6 +215,7 @@ export function CollapsedSessionsRail({
   onSearch,
   onNewTerminal,
   onNewSession,
+  onNewHuddle,
   onArchived,
   onArchiveDrop,
   selection,
@@ -228,6 +231,7 @@ export function CollapsedSessionsRail({
   onSearch: () => void;
   onNewTerminal: () => void;
   onNewSession: () => void;
+  onNewHuddle?: () => void;
   onArchived: (id: string) => void;
   /** A session dropped on the rail's archive icon: archive it (SPEC §12). */
   onArchiveDrop: (sessions: readonly string[]) => void;
@@ -278,6 +282,14 @@ export function CollapsedSessionsRail({
           />
           <div aria-hidden="true" className="mx-1 h-px self-stretch bg-border" />
           <IconButton icon={Bot} label="New agent" onClick={onNewSession} tooltipSide="left" />
+          {onNewHuddle && (
+            <IconButton
+              icon={PuddleGlyph}
+              label="New huddle"
+              onClick={onNewHuddle}
+              tooltipSide="left"
+            />
+          )}
           <IconButton
             icon={SquareTerminal}
             label="New terminal"
@@ -380,10 +392,9 @@ export function CollapsedSessionsRail({
                         // target act on the whole selection.
                         e.dataTransfer.setData(
                           TAB_MIME,
-                          encodeTabTransfer(
-                            { type: 'terminal', session: session.id },
-                            { projectId: session.project_id },
-                          ),
+                          encodeTabTransfer(sessionTabRef(session), {
+                            projectId: session.project_id,
+                          }),
                         );
                         e.dataTransfer.setData(SESSION_DRAG_MIME, encodeSessionDrag(sessionIds));
                         e.dataTransfer.effectAllowed = 'copyMove';

@@ -1,0 +1,177 @@
+import { applyTheme } from '../../src/lib/appearance/theme';
+import { profileStore } from '../../src/features/profile/profile-store';
+import { mountWorkspaceFixture } from '../dev/workspace-fixture';
+import {
+  browserTransport,
+  installBrowserTransport,
+} from '../../src/lib/transport/browser-transport';
+import {
+  huddleDefinitionSchema,
+  huddleDocumentSchema,
+  huddleComponentSchema,
+  sessionSchema,
+} from '@puddle/shared';
+import { profile, project, sessions } from '../../src/dev/preview/data';
+
+const fixture = mountWorkspaceFixture();
+const transport = browserTransport()!;
+installBrowserTransport(null);
+profileStore.set(profile.id);
+const messages: unknown[] = [];
+const requests: Array<{ method: string; path: string }> = [];
+// Local transport shape with in-memory HTTP and WS; never contacts a daemon.
+window.WebSocket = class extends EventTarget {
+  static OPEN = 1;
+  readyState = 1;
+  constructor() {
+    super();
+    queueMicrotask(() => {
+      this.dispatchEvent(new Event('open'));
+      this.dispatchEvent(
+        new MessageEvent('message', { data: JSON.stringify({ t: 'authenticated' }) }),
+      );
+    });
+  }
+  send(value: string) {
+    messages.push(JSON.parse(value));
+  }
+  close() {}
+} as unknown as typeof WebSocket;
+const savedId = 'a'.repeat(32);
+const createdId = 'b'.repeat(32);
+const document = huddleDocumentSchema.parse({
+  digest: 'c'.repeat(64),
+  definition: huddleDefinitionSchema.parse({
+    format: 1,
+    id: savedId,
+    name: 'Review graph',
+    nodes: [
+      { id: 'run', source: { kind: 'builtin', component: 'puddle.trigger.manual', version: 1 } },
+      { id: 'result', source: { kind: 'builtin', component: 'puddle.readout.result', version: 1 } },
+    ],
+    edges: [
+      {
+        id: 'result-edge',
+        from: { node: 'run', port: 'event' },
+        to: { node: 'result', port: 'value' },
+      },
+    ],
+  }),
+  components: {
+    run: huddleComponentSchema.parse({
+      format: 1,
+      id: 'puddle.trigger.manual',
+      version: 1,
+      category: 'trigger',
+      title: 'Run',
+      outputs: { event: { schema: {}, emission: 'event' } },
+    }),
+    result: huddleComponentSchema.parse({
+      format: 1,
+      id: 'puddle.readout.result',
+      version: 1,
+      category: 'readout',
+      title: 'Result',
+      inputs: { value: { schema: {} } },
+    }),
+  },
+  diagnostics: [],
+});
+const saved = sessionSchema.parse({
+  ...sessions[0],
+  id: '00000000-0000-4000-8000-000000000003',
+  kind: 'huddle',
+  huddle_id: savedId,
+  status: 'exited',
+  title: 'Review graph',
+  account_id: null,
+  agent_type: null,
+});
+let created: typeof saved | undefined;
+let blank: typeof document | undefined;
+let available = true;
+let opened = false;
+const nativeFetch = window.fetch.bind(window);
+window.fetch = async (input, init) => {
+  const url = new URL(input instanceof Request ? input.url : String(input), location.href);
+  if (!url.pathname.startsWith('/api/') && !url.pathname.startsWith('/frontend/'))
+    return nativeFetch(input, init);
+  const method = init?.method ?? 'GET';
+  const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+  const path = url.pathname;
+  requests.push({ method, path });
+  const prefix = `/api/huddle/${profile.id}`;
+  if (path === `${prefix}/availability`)
+    return Response.json(
+      available
+        ? { available: true, build: 'fixture', lifetime: 'service' }
+        : { available: false, reason: 'Install a runtime with huddle support' },
+    );
+  if (path === `${prefix}/definitions` && method === 'GET')
+    return Response.json(
+      [document, ...(blank ? [blank] : [])].map((item) => ({
+        id: item.definition.id,
+        name: item.definition.name,
+        digest: item.digest,
+        diagnostics: [],
+      })),
+    );
+  if (path === `${prefix}/definitions/${savedId}`) return Response.json(document);
+  if (path === `${prefix}/definitions/${createdId}`) return Response.json(blank);
+  if (path === `${prefix}/definitions` && method === 'POST') {
+    if (!available)
+      return Response.json(
+        { error: { code: 'unsupported', message: 'No supporting runtime' } },
+        { status: 409 },
+      );
+    created = sessionSchema.parse({
+      ...saved,
+      id: '00000000-0000-4000-8000-000000000004',
+      huddle_id: createdId,
+      title: body.name,
+    });
+    blank = huddleDocumentSchema.parse({
+      ...document,
+      definition: huddleDefinitionSchema.parse({
+        format: 1,
+        id: createdId,
+        name: body.name,
+        nodes: [],
+        edges: [],
+      }),
+      components: {},
+    });
+    fixture.addSession(created);
+    return Response.json({ created: true, session: created, document: blank }, { status: 201 });
+  }
+  if (path === `${prefix}/open`) {
+    if (body.huddle_id === createdId)
+      return Response.json({ created: false, session: created, document: blank });
+    if (!opened) {
+      fixture.addSession(saved);
+      opened = true;
+    }
+    return Response.json({ created: false, session: saved, document });
+  }
+  if (path.endsWith('/file') && url.searchParams.get('path')?.startsWith('.puddle/huddle/'))
+    return Response.json({
+      path: url.searchParams.get('path'),
+      content: JSON.stringify(document.definition, null, 2),
+      binary: false,
+      mtime_ms: 1,
+    });
+  return transport.request(method, url.pathname + url.search, body);
+};
+Object.assign(window, {
+  huddleFixture: {
+    ...fixture,
+    theme: applyTheme,
+    requests,
+    messages,
+    saved: saved.id,
+    project: project.id,
+    available: (value: boolean) => {
+      available = value;
+    },
+  },
+});

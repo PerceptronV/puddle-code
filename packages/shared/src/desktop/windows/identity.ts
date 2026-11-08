@@ -45,7 +45,7 @@ export interface DesktopWindowContext {
 
 /** Window lookup includes a following preview's actual target, not just its slot name. */
 export function desktopTabKey(ref: TabRef): string {
-  if (ref.type === 'terminal') return JSON.stringify(['terminal', ref.session]);
+  if (ref.type !== 'editor') return JSON.stringify([ref.type, ref.session]);
   const tab = ref.tab;
   return JSON.stringify([
     'editor',

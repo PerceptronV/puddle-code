@@ -9,12 +9,13 @@ captured-source script workers, retained revisions/activation and a manual sched
 in an independent owner process with private authenticated control, explicit
 runtime-role metadata and pinned capability checks. Phase 2 has the third session
 kind, immutable application placement and common runtime inventory role, with
-application protocol 27.1. Local/SSH inactive creation, discovery, inspection and
-placement opening are available; the IDE remains unfinished. Daemon
+application protocol 28.0. Local/SSH inactive creation, discovery, inspection and
+placement opening now have sidebar creation and an initial graph-inspection pane.
+Visual editing and execution controls remain unfinished. Daemon
 adoption/projection now observes independent huddle owners alongside ordinary
 runtimes, including across isolated daemon replacement. Pinned production launch
 and exact-owner controls now integrate with session kill/archive. Authorised public
-Start/Run, native supervision, provider dispatch and UI integration remain
+Start/Run, native supervision, provider dispatch and full IDE integration remain
 unfinished. Selected-daemon startup checks retained huddle contracts read-only
 before service mutations, while allowing compatible controllers to inspect
 interrupted owners. Offline host removal, purge fencing and release
@@ -574,10 +575,9 @@ when the default runtime changes; unsupported defaults block new launches only.
 Adding `huddle` to the current closed session-kind enum and tab union is a breaking
 **application** change unless an explicitly negotiated representation prevents
 old readers/writers from seeing it. The session-kind change now allocates
-application **27.0**, requiring a coordinated frontend/daemon update. Tab support
-is still pending. Desktop persistence and
-saved layouts also need versioned migration/rejection; old writers must not erase
-huddle content. Allocate their versions during implementation after reading
+application **27.0**, requiring a coordinated frontend/daemon update. Application **28.0** adds the huddle tab variant. Desktop persistence **4**
+migrates versions 2/3 and the preload advertises huddle support; older writers
+must not erase huddle content. Maintain these boundaries after reading
 [PROTOCOL.md](../../packages/shared/PROTOCOL.md).
 
 The private runtime protocol has a separate compatibility boundary. Prefer an
@@ -691,7 +691,8 @@ ledger plus durable
 graph routing, isolated script workers, retained revisions/activation and a manual
 scheduler and independent owner process/private control. Production launch/adoption
 and maintenance integration are implemented; the provider bridge and native continuity acceptance remain unfinished. Phase 2 has
-inactive creation/opening APIs but no canvas or sidebar integration yet. Each phase
+inactive creation/opening, sidebar integration and a first graph-inspection pane;
+visual editing and public execution controls remain pending. Each phase
 must update
 `docs/acceptance/huddle.md` with implemented details and evidence, rather than
 leaving the only accurate description in code or marking future phases complete.

@@ -1,3 +1,5 @@
+import { NewHuddleDialog } from '../huddle/documents/NewHuddleDialog';
+import { useHuddleSupported } from '../huddle/documents/queries';
 import { ContentMotion } from '../../components/ui/content-motion';
 import { TrayMotionProvider } from '../../components/ui/tray-motion';
 import { animateSidebar } from './layout/animate-sidebar';
@@ -332,6 +334,8 @@ function WorkspaceInner() {
     [orderedProjects, openCreate],
   );
   const { setHandler } = useNewSession();
+  const huddleSupported = useHuddleSupported();
+  const [huddleTarget, setHuddleTarget] = useState<{ project: string; repo: number } | null>(null);
 
   // A frontend transition schedules one coalesced native-store refresh. The
   // project renders from its normal cache while discovery runs in the daemon;
@@ -422,7 +426,7 @@ function WorkspaceInner() {
   const focusedRef =
     layout.focusedLeaf.tabs.find((t) => tabRefKey(t) === layout.focusedLeaf.activeKey) ?? null;
   const titleSession =
-    focusedRef?.type === 'terminal'
+    focusedRef && focusedRef.type !== 'editor'
       ? tabSessions.find((session) => session.id === focusedRef.session)
       : undefined;
   useDocumentTitle(
@@ -436,7 +440,7 @@ function WorkspaceInner() {
   const rawFocusedSession =
     focusedRef === null
       ? null
-      : focusedRef.type === 'terminal'
+      : focusedRef.type !== 'editor'
         ? focusedRef.session
         : focusedRef.tab.session;
   // An untitled tab binds to nothing (nil-uuid session) — fall through to the
@@ -768,7 +772,12 @@ function WorkspaceInner() {
       onOpenSearchFile={openSearchFile}
     />
   );
+  const openHuddle = (id: string) => {
+    const target = profileProjects.data?.find((item) => item.id === id);
+    if (target && huddleSupported) setHuddleTarget({ project: id, repo: target.repo_id });
+  };
   const projectActions = {
+    onNewHuddleIn: huddleSupported ? openHuddle : undefined,
     onNewSessionIn: (pid: string) => openCreateIn('agent', pid),
     onNewTerminalIn: (pid: string) => openCreateIn('terminal', pid),
     onMoveProject: moveProject,
@@ -781,9 +790,13 @@ function WorkspaceInner() {
       accounts={accounts}
       activeSessionId={activeSessionId}
       onReorder={persistReorder}
-      onPromote={(id) => layout.ensureTerminal(id)}
+      onPromote={(id) => {
+        const session = tabSessions.find((s) => s.id === id);
+        if (session) layout.ensureSession(session);
+      }}
       archived={archivedSessions}
       onNewSession={() => openCreate('agent')}
+      onNewHuddle={huddleSupported ? () => openHuddle(projectId) : undefined}
       onNewTerminal={() => openCreate('terminal')}
       onCollapse={onCollapse}
       onArchived={closeTab}
@@ -858,7 +871,9 @@ function WorkspaceInner() {
   const workspace = (
     <KeepAliveHost
       tree={layout.tree}
-      parked={[...parkedSessions, ...phoneVisited, ...(phoneSession ? [phoneSession] : [])]}
+      parked={[...parkedSessions, ...phoneVisited, ...(phoneSession ? [phoneSession] : [])].filter(
+        (id) => tabSessions.some((session) => session.id === id && session.kind !== 'huddle'),
+      )}
       onOpenFile={openFromTerminal}
     >
       <TilingDnd
@@ -867,9 +882,9 @@ function WorkspaceInner() {
         onArchive={(id) => sidebarSessionSelection.onArchive([id])}
         renderOverlay={(ref) => {
           const s =
-            ref.type === 'terminal' ? tabSessions.find((x) => x.id === ref.session) : undefined;
+            ref.type !== 'editor' ? tabSessions.find((x) => x.id === ref.session) : undefined;
           const label =
-            ref.type === 'terminal'
+            ref.type !== 'editor'
               ? s
                 ? renderTitle(s)
                 : ref.session.slice(0, 8)
@@ -903,7 +918,10 @@ function WorkspaceInner() {
                 accounts={accounts}
                 activeSessionId={activeSessionId}
                 onReorder={persistReorder}
-                onPromote={(id) => layout.ensureTerminal(id)}
+                onPromote={(id) => {
+                  const session = tabSessions.find((s) => s.id === id);
+                  if (session) layout.ensureSession(session);
+                }}
                 onExpand={() => animateSidebar(() => setNarrowSessions(true))}
                 onSearch={() => {
                   setSearchingSessions(true);
@@ -911,6 +929,7 @@ function WorkspaceInner() {
                 }}
                 onNewTerminal={() => openCreate('terminal')}
                 onNewSession={() => openCreate('agent')}
+                onNewHuddle={huddleSupported ? () => openHuddle(projectId) : undefined}
                 onArchived={closeTab}
                 onArchiveDrop={sidebarSessionSelection.onArchive}
                 selection={sidebarSessionSelection}
@@ -1023,7 +1042,10 @@ function WorkspaceInner() {
                     accounts={accounts}
                     activeSessionId={activeSessionId}
                     onReorder={persistReorder}
-                    onPromote={(id) => layout.ensureTerminal(id)}
+                    onPromote={(id) => {
+                      const session = tabSessions.find((s) => s.id === id);
+                      if (session) layout.ensureSession(session);
+                    }}
                     onExpand={() =>
                       animateSidebar(() => uiState.update({ sessions_collapsed: false }))
                     }
@@ -1033,6 +1055,7 @@ function WorkspaceInner() {
                     }}
                     onNewTerminal={() => openCreate('terminal')}
                     onNewSession={() => openCreate('agent')}
+                    onNewHuddle={huddleSupported ? () => openHuddle(projectId) : undefined}
                     onArchived={closeTab}
                     onArchiveDrop={sidebarSessionSelection.onArchive}
                     selection={sidebarSessionSelection}
@@ -1041,6 +1064,17 @@ function WorkspaceInner() {
                 </div>
               )}
             </>
+          )}
+          {huddleTarget && profileId && (
+            <NewHuddleDialog
+              profile={profileId}
+              project={huddleTarget.project}
+              repo={huddleTarget.repo}
+              onClose={() => setHuddleTarget(null)}
+              onOpened={(session) => {
+                void navigate(`/project/${session.project_id}/session/${session.id}`);
+              }}
+            />
           )}
           <NewSessionDialog
             projectId={createTarget?.projectId ?? projectId}

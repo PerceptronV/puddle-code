@@ -1,3 +1,4 @@
+import { sessionTabRef } from '@puddle/shared';
 import { type ReactNode, useState } from 'react';
 import { useNavigate } from 'react-router';
 import {
@@ -157,10 +158,10 @@ export function useSessionMenu(
   const createSession = useCreateSession();
   const navigate = useNavigate();
   const profileId = useCurrentProfileId();
-  const openWindow = useOpenTabWindow(
-    { type: 'terminal', session: session.id },
-    { projectId: session.project_id, paneId },
-  );
+  const openWindow = useOpenTabWindow(sessionTabRef(session), {
+    projectId: session.project_id,
+    paneId,
+  });
   const accounts = useAccounts(profileId ?? undefined);
   const settings = useProfileSettings(profileId ?? undefined);
   const [confirm, setConfirm] = useState<'clear-env' | null>(null);
@@ -170,13 +171,15 @@ export function useSessionMenu(
   const [handoffTo, setHandoffTo] = useState<Account | null>(null);
   const [runtimeOpen, setRuntimeOpen] = useState(false);
   const protocol = useDaemonVersion().data?.protocol;
-  const runtimeInspection = !browserTransport() && runtimeInspectionSupported(protocol);
+  const runtimeInspection =
+    session.kind !== 'huddle' && !browserTransport() && runtimeInspectionSupported(protocol);
 
   // Migration targets: accounts of the same agent on this profile (SPEC §5).
   // The current account is shown but disabled; a session with no other same-
   // agent account has no target, so the whole submenu is hidden.
   const sameAgent = (accounts.data ?? []).filter((a) => a.agent_type === session.agent_type);
   const canMigrate =
+    session.kind === 'agent' &&
     !session.worktree_missing &&
     session.status !== 'archived' &&
     sameAgent.some((a) => a.id !== session.account_id);
@@ -210,7 +213,9 @@ export function useSessionMenu(
     canMigrate,
     sameAgent,
     handoffTargets:
-      !session.worktree_missing && session.status !== 'archived' ? handoffTargets : [],
+      session.kind === 'agent' && !session.worktree_missing && session.status !== 'archived'
+        ? handoffTargets
+        : [],
     setHandoffTo,
     resume: () =>
       resume.mutate(session.id, {
@@ -493,7 +498,7 @@ function SessionMenuItems({ kit, menu }: { kit: MenuKit; menu: SessionMenu }) {
           <Info /> Runtime
         </Item>
       )}
-      {!menu.archived && (
+      {!menu.archived && session.kind !== 'huddle' && (
         <Item onSelect={menu.openClearEnv}>
           <Eraser /> Clear captured env
         </Item>

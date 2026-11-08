@@ -1,10 +1,11 @@
+import { huddleShellSupported } from '../../huddle/documents/queries';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import type { Session, TabRef } from '@puddle/shared';
 import { tabKind } from '../../editor/tabs/editor-tabs';
 import { wsManager } from '../../../lib/transport/ws';
 import { rememberClosedTab, takeClosedTab } from './closed-tabs';
-import { findLeaf, tabRefKey, type DropEdge } from '../layout/layout-tree';
+import { allLeaves, findLeaf, tabRefKey, type DropEdge } from '../layout/layout-tree';
 import type { LayoutController } from '../layout/useLayoutTree';
 import type { UiStateHandle } from '../use-ui-state';
 import { desktopWindowContext } from '../../windows/window-context';
@@ -58,6 +59,7 @@ export function useWorkspaceTabs({
   const allSessionsRef = useRef(allSessions);
   allSessionsRef.current = allSessions;
   const tabSessions = allSessions ?? sessions;
+  const activeSessionKind = tabSessions.find((session) => session.id === activeSessionId)?.kind;
   const isNarrowRef = useRef(isNarrow);
   isNarrowRef.current = isNarrow;
   const onNavigateRef = useRef(onNavigate);
@@ -103,10 +105,13 @@ export function useWorkspaceTabs({
         const creation = event.cause !== 'resume';
         pendingOpen.current = { session: event.target_session, pin: creation };
         if (event.target_project === projectId) {
-          layoutRef.current.ensureTerminal(event.target_session, {
-            preview: !creation,
-            ...(creation ? { keepSession: event.source_session } : {}),
-          });
+          layoutRef.current.ensureSession(
+            { id: event.target_session, kind: 'agent' },
+            {
+              preview: !creation,
+              ...(creation ? { keepSession: event.source_session } : {}),
+            },
+          );
         }
         void navigate(`/project/${event.target_project}/session/${event.target_session}`);
       }),
@@ -179,7 +184,9 @@ export function useWorkspaceTabs({
     pendingOpen.current = null;
     // Single-click navigation opens the session as an ephemeral preview tab
     // (VSCode-style); double-clicking its tab promotes it to permanent.
-    layoutRef.current.ensureTerminal(activeSessionId, {
+    const selected = tabSessions.find((session) => session.id === activeSessionId);
+    if (!selected || (selected.kind === 'huddle' && !huddleShellSupported())) return;
+    layoutRef.current.ensureSession(selected, {
       preview: intent?.session === activeSessionId ? !intent.pin : true,
     });
     const ui = uiStateRef.current;
@@ -188,7 +195,7 @@ export function useWorkspaceTabs({
     }
     if (notificationKey && desktopWindowContext())
       consumeNativeSessionActivation(activeSessionId, notificationKey);
-  }, [restored, activeSessionId, notificationKey]);
+  }, [restored, activeSessionId, activeSessionKind, notificationKey, projectReady]);
 
   // Closing a session from the sidebar / its lifecycle menu removes its terminal
   // from the tree; if it was the URL-bound one, drop the binding.
@@ -200,7 +207,7 @@ export function useWorkspaceTabs({
         route.current.projectId === projectId &&
         route.current.activeSessionId === id;
       if (wasActive && stillBound) justClosedActive.current = id;
-      layout.removeTerminal(id);
+      layout.removeSession(id);
       if (wasActive) {
         if (uiState.current().active_session === id) uiState.update({ active_session: null });
         if (stillBound) void navigate(`/project/${projectId}`);
@@ -217,7 +224,7 @@ export function useWorkspaceTabs({
     (leafId: string, ref: TabRef) => {
       claimScrollDriver(leafId);
       layout.activate(leafId, ref);
-      if (ref.type === 'terminal' && ref.session !== activeSessionId) {
+      if (ref.type !== 'editor' && ref.session !== activeSessionId) {
         // Navigate only when the owner is KNOWN: guessing the current project
         // while the all-sessions list is still loading would bind another
         // project's session under the wrong URL (empty header + file tree).
@@ -244,7 +251,14 @@ export function useWorkspaceTabs({
       const index = from?.tabs.findIndex((t) => tabRefKey(t) === tabRefKey(ref)) ?? -1;
       rememberClosedTab(scopeKey, { leafId, index: Math.max(0, index), ref });
       layout.close(leafId, ref);
-      if (ref.type === 'terminal' && ref.session === activeSessionId) {
+      const otherView =
+        ref.type === 'huddle' &&
+        allLeaves(layout.tree).some(
+          (leaf) =>
+            leaf.id !== leafId &&
+            leaf.tabs.some((tab) => tab.type === 'huddle' && tab.session === ref.session),
+        );
+      if (ref.type !== 'editor' && ref.session === activeSessionId && !otherView) {
         justClosedActive.current = ref.session;
         uiState.update({ active_session: null });
         void navigate(`/project/${projectId}`);
@@ -264,7 +278,7 @@ export function useWorkspaceTabs({
       : null;
     const entry = takeClosedTab(scopeKey, (ref) => {
       if (alive === null) return true;
-      const sid = ref.type === 'terminal' ? ref.session : ref.tab.session;
+      const sid = ref.type !== 'editor' ? ref.session : ref.tab.session;
       return alive.has(sid);
     });
     if (!entry) return;
@@ -277,7 +291,7 @@ export function useWorkspaceTabs({
     const index = home ? entry.index : undefined;
     layout.drop({ ref, fromLeafId: leafId, toLeafId: leafId, edge: 'center', index });
     // A reopened terminal claims the URL, exactly as activating its tab does.
-    if (ref.type === 'terminal' && ref.session !== activeSessionId) {
+    if (ref.type !== 'editor' && ref.session !== activeSessionId) {
       const owner = tabSessions.find((s) => s.id === ref.session)?.project_id;
       if (owner) void navigate(`/project/${owner}/session/${ref.session}`);
     }
@@ -307,7 +321,7 @@ export function useWorkspaceTabs({
         return;
       }
       const owner =
-        ref.type === 'terminal'
+        ref.type !== 'editor'
           ? tabSessions.find((s) => s.id === ref.session)?.project_id
           : undefined;
       // Under project-based layouts, a session from another project belongs in
@@ -316,7 +330,7 @@ export function useWorkspaceTabs({
       // with the layout it was filed in. Switch projects and open it there
       // instead, permanent as a drop implies. The dropped POSITION cannot
       // follow: it names a pane in a tree that is not the destination's.
-      if (projectScoped && owner !== undefined && owner !== projectId && ref.type === 'terminal') {
+      if (projectScoped && owner !== undefined && owner !== projectId && ref.type !== 'editor') {
         pendingOpen.current = { session: ref.session, pin: true };
         void navigate(`/project/${owner}/session/${ref.session}`);
         return;
@@ -329,7 +343,7 @@ export function useWorkspaceTabs({
         copy: true,
         index: move?.index,
       });
-      if (ref.type === 'terminal' && ref.session !== activeSessionId && owner !== undefined) {
+      if (ref.type !== 'editor' && ref.session !== activeSessionId && owner !== undefined) {
         void navigate(`/project/${owner}/session/${ref.session}`);
       }
     },

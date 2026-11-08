@@ -1,5 +1,15 @@
 # The puddle communication protocol
 
+Application **28.0** adds `huddle` to the closed workspace tab union. Frontend and
+daemon must upgrade together; existing session kinds and ordinary runtime 1.1
+remain unchanged. Huddle tabs bind a placement UUID, have their own layout/native
+identity and never attach a PTY. Sidebar creation uses the existing 27.1 inactive
+authoring API. Desktop recovery format **4** migrates versions 2 and 3; old readers
+reject it. The optional private `windows.huddles` capability gates opening and
+working-set writes, including seeds with parked huddle tabs. Named layout envelopes
+remain unchanged, with their tab content governed by application 28. No runtime
+execution or remote-operation contract changes in this increment.
+
 Application **27.1** adds local/SSH inactive huddle authoring under
 `/api/huddle/:profile`: GET availability, GET definitions and individual captured
 documents, POST definitions and POST open. Creation requires an explicit registered

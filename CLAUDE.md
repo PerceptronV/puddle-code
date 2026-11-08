@@ -575,7 +575,14 @@ paths delegate to these controls and refuse unresolved owner cleanup. Keep huddl
 controls in the common maintenance pause/drain. Automatic service cleanup excludes
 interrupted huddles until descendant recovery is proven. A never-consumed attempt
 can retire under all owner/launch claims and a durable fence; missing consumed-owner
-state cannot. Public Start/Run routes and the IDE remain unfinished.
+state cannot. Application 28.0 adds huddle tabs and the initial sidebar/create/inspect UI under
+`web/features/huddle/{documents,canvas}/`. Huddle refs use placement ids but never
+enter terminal keep-alive, stdin, ordinary Resume or provider controls. Keep kind
+selection in `sessionTabRef`, and preserve duplicate huddle views when closing one.
+Desktop persistence is format 4 (migrate 2/3); require `windows.huddles` before
+opening or saving huddle-containing working sets, including parked project slices.
+Keep source links on the existing editor path. Public Start/Run, visual graph
+editing, live source coordination and retained huddle view state remain unfinished.
 `runtime/huddle/ownership/` owns shared exact-binding and clean-retirement evidence;
 import it directly from adoption, maintenance and collection. Offline removal adopts
 both roles; `host/removal/runtimes/` separates their interruption reviews. Recheck

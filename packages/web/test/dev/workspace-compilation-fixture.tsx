@@ -107,7 +107,7 @@ export function mountCompilation() {
           events.push({ open: id, tab });
           return id;
         },
-        ensureTerminal: (id) => events.push({ terminal: id }),
+        ensureSession: (session) => events.push({ terminal: session.id }),
         setCompileMode: (_tab, value) => {
           events.push({ mode: value });
           setCompileMode(value);

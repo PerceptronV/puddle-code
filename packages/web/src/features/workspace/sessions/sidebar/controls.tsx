@@ -1,5 +1,4 @@
-import { type LucideIcon } from 'lucide-react';
-import { type ReactNode } from 'react';
+import { type ReactNode, type ComponentType } from 'react';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../../../components/ui/tooltip';
 import { cn } from '../../../../lib/utils';
 
@@ -46,7 +45,7 @@ export function IconButton({
   // lights (the left navigator's icon row does the same).
   tooltipSide = 'bottom',
 }: {
-  icon: LucideIcon;
+  icon: ComponentType<{ className?: string }>;
   label: string;
   onClick: () => void;
   active?: boolean;

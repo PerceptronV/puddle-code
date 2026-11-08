@@ -96,7 +96,7 @@ export class DesktopWindowState {
 
   constructor(private readonly file: string) {
     this.state = {
-      version: 3,
+      version: 4,
       entries: {},
       pending: {},
       outcomes: {},
@@ -111,8 +111,10 @@ export class DesktopWindowState {
     if (typeof value === 'object' && value !== null && 'version' in value) {
       const parsed = desktopWindowStateSchema.parse(
         value.version === 2
-          ? { ...value, version: 3, arrangements: {}, arrangementOutcomes: {} }
-          : value,
+          ? { ...value, version: 4, arrangements: {}, arrangementOutcomes: {} }
+          : value.version === 3
+            ? { ...value, version: 4 }
+            : value,
       );
       const entries: WindowState['entries'] = {};
       for (const [id, entry] of Object.entries(parsed.entries)) {

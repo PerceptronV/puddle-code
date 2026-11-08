@@ -163,7 +163,7 @@ export function TilingDnd({
     // Released over an archive target: archive the session instead of moving
     // the tab (editor tabs have no session to archive — ignored).
     if (overId !== null && overId.startsWith(ARCHIVE_DROP_PREFIX)) {
-      if (ref?.type === 'terminal') onArchive?.(ref.session);
+      if (ref && ref.type !== 'editor') onArchive?.(ref.session);
       return;
     }
     if (ind && ref && fromLeafId) {

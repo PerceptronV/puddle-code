@@ -1163,3 +1163,15 @@ from a synthetic bridge or headless browser.
 
 Record platform/build, exact procedure, observed result, and anything untested for
 each native run. Mocks and unit tests do not establish native drag or OS recovery.
+
+
+## Huddle content increment
+
+Application 28.0 adds huddle tab identities and desktop recovery format 4, migrating
+format-2/3 working sets. The preload advertises `windows.huddles`; older shells
+refuse huddle-containing seeds before restoring or writing them. Huddle tabs carry
+placement identity through project partition, pane/tab transfers and active-session
+restoration, without terminal keep-alive or PTY attachment. Initial evidence and
+remaining huddle view-state/IDE work are in [huddle acceptance](huddle.md). Historical
+format-3 evidence above describes those earlier increments; native OS acceptance
+has not been rerun for huddles.

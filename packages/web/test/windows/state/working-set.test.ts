@@ -22,6 +22,35 @@ function bridge() {
 afterEach(() => vi.useRealTimers());
 
 describe('desktop working-set writer', () => {
+  it('refuses huddle-containing seeds on older shells before restoring or writing them', async () => {
+    const io = bridge();
+    const source = content();
+    const model = new DesktopWorkingSet('1234567890', io, source, vi.fn());
+    const snapshot = uiStateSnapshotSchema.parse({
+      project_layouts: {
+        '1234567890': {
+          layout_tree: {
+            kind: 'leaf',
+            id: 'huddle-pane',
+            activeKey: null,
+            tabs: [{ type: 'huddle', session: '00000000-0000-4000-8000-000000000001' }],
+          },
+        },
+      },
+    });
+    await expect(model.load(async () => snapshot)).rejects.toThrow('Update the desktop');
+    expect(io.write).not.toHaveBeenCalled();
+    expect(source.restore).not.toHaveBeenCalled();
+    const supported = new DesktopWorkingSet(
+      '1234567890',
+      { ...io, huddles: true },
+      source,
+      vi.fn(),
+    );
+    await supported.load(async () => snapshot);
+    expect(supported.get()).toEqual(snapshot);
+    expect(io.write).toHaveBeenCalledOnce();
+  });
   it('uses the durable window state ahead of the profile seed', async () => {
     vi.useFakeTimers();
     const io = bridge();

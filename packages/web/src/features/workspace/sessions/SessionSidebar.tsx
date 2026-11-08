@@ -1,3 +1,4 @@
+import { PuddleGlyph } from '../../../components/puddle-glyph';
 import type { Account, Session } from '@puddle/shared';
 import { Bot, PanelRightClose, Search, SquareTerminal, X } from 'lucide-react';
 import { useEffect, useRef, useState } from 'react';
@@ -25,6 +26,7 @@ export function SessionSidebar({
   onPromote,
   archived,
   onNewSession,
+  onNewHuddle,
   onNewTerminal,
   onCollapse,
   onArchived,
@@ -44,6 +46,7 @@ export function SessionSidebar({
   /** Current project's archived sessions. */
   archived: Session[];
   onNewSession: () => void;
+  onNewHuddle?: () => void;
   onNewTerminal: () => void;
   onCollapse: () => void;
   onArchived: (id: string) => void;
@@ -107,6 +110,9 @@ export function SessionSidebar({
         ) : (
           <>
             <IconButton icon={Bot} label="New agent" onClick={onNewSession} />
+            {onNewHuddle && (
+              <IconButton icon={PuddleGlyph} label="New huddle" onClick={onNewHuddle} />
+            )}
             <IconButton icon={SquareTerminal} label="New terminal" onClick={onNewTerminal} />
             <IconButton icon={Search} label="Search sessions" onClick={() => setSearching(true)} />
           </>

@@ -29,6 +29,7 @@ function newId(): string {
 
 /** Stable key for a tab, unique across editors and terminals (registry + React keys + dedupe). */
 export function tabRefKey(ref: TabRef): string {
+  if (ref.type === 'huddle') return `huddle:${ref.session}`;
   return ref.type === 'terminal' ? `term:${ref.session}` : `editor:${tabKey(ref.tab as EditorTab)}`;
 }
 
@@ -517,7 +518,7 @@ export function openPreview(tree: LayoutNode, leafId: string, ref: TabRef): Layo
     const replaceInPlace =
       leaf.tabs.length > 1 &&
       outgoing !== undefined &&
-      !isTerminal(outgoing) &&
+      outgoing.type === 'editor' &&
       !isFollowing(outgoing);
     // `view` is not part of tab identity, so the key is the incoming ref's
     // either way — only the tab object it names changes.
@@ -787,7 +788,7 @@ export function resizeSplit(tree: LayoutNode, splitId: string, sizes: number[]):
  * as a missing session and prune the tab away.
  */
 export function tabSessionId(ref: TabRef): string | null {
-  const sid = ref.type === 'terminal' ? ref.session : ref.tab.session;
+  const sid = ref.type !== 'editor' ? ref.session : ref.tab.session;
   return sid === UNTITLED_SESSION ? null : sid;
 }
 

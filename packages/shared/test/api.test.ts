@@ -32,8 +32,8 @@ import {
 } from '../src/index.js';
 
 describe('shared API schemas', () => {
-  it('declares protocol 27.1 for huddle authoring on the third session kind', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 27, minor: 1 });
+  it('declares protocol 28.0 for huddle workspace tabs', () => {
+    expect(PROTOCOL_VERSION).toEqual({ major: 28, minor: 0 });
   });
 
   it('accepts headless mode and rejects the previous scripted name', () => {

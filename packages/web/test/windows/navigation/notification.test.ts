@@ -17,7 +17,7 @@ const target = { project: '1111111111', session: '00000000-0000-4000-8000-000000
 beforeEach(() => {
   vi.clearAllMocks();
   mocks.desktop.mockReturnValue({ windows: { projects: { route: mocks.route } } });
-  mocks.fetch.mockResolvedValue({ project: { profile_id: 'aaaaaaaaaa' } });
+  mocks.fetch.mockResolvedValue({ project: { profile_id: 'aaaaaaaaaa' }, sessions: [] });
 });
 
 it('routes a notification using the target project profile, not the receiving pane profile', async () => {

@@ -4,11 +4,17 @@ import { allLeaves, tabRefKey } from '../../workspace/layout/layout-tree';
 /** The last session binding is not permission to replace a saved active editor on reload. */
 export function hasInactiveSavedSession(snapshot: UiStateSnapshot, session: string): boolean {
   if (!snapshot.layout_tree || snapshot.active_session !== session) return false;
-  const key = tabRefKey({ type: 'terminal', session });
   const leaves = allLeaves(snapshot.layout_tree);
   return (
-    leaves.some((leaf) => leaf.tabs.some((tab) => tabRefKey(tab) === key)) &&
-    !leaves.some((leaf) => leaf.activeKey === key)
+    leaves.some((leaf) =>
+      leaf.tabs.some((tab) => tab.type !== 'editor' && tab.session === session),
+    ) &&
+    !leaves.some((leaf) =>
+      leaf.tabs.some(
+        (tab) =>
+          tab.type !== 'editor' && tab.session === session && leaf.activeKey === tabRefKey(tab),
+      ),
+    )
   );
 }
 

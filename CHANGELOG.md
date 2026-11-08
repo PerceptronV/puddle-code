@@ -11,6 +11,11 @@ Past releases: see docs/changelogs/.
 
 ### Frontend
 
+#### Added
+
+- Add New huddle to the session tray, collapsed rail and project menus, with explicit worktree selection and saved-huddle opening. Huddles open as separate pane content with graph inspection, node-list navigation and source links; creating/opening stays inactive. Visual editing and public execution controls remain pending.
+- Preserve huddle tabs through layouts and native window content. Application protocol 28 and desktop recovery format 4 require supporting clients; existing agent/terminal runtime contracts remain unchanged.
+
 #### Changed
 
 - Enabling Ripple starts its handle at the bottom with output and input covered; disabling it starts at the top for full CLI. Manual placement remains available on desktop and mobile.

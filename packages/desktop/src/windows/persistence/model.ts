@@ -7,7 +7,7 @@ import type {
 import type { ReopenWindow } from '../../reopen.js';
 
 export interface WindowState {
-  version: 3;
+  version: 4;
   entries: Record<
     string,
     {

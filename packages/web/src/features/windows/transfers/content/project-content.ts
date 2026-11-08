@@ -30,7 +30,7 @@ export function detachProjectContent(
   const scoped = base.layout_mode === 'project' ? scopedSnapshot(base, projectId) : base;
   const tree = scoped.layout_tree ?? buildInitialTree(scoped);
   const belongs = (ref: TabRef) => {
-    const session = ref.type === 'terminal' ? ref.session : ref.tab.session;
+    const session = ref.type !== 'editor' ? ref.session : ref.tab.session;
     return session === UNTITLED_SESSION
       ? projectId === untitledHome
       : sessionProjects.get(session) === projectId;
@@ -47,7 +47,9 @@ export function detachProjectContent(
           : null,
         active_session:
           slice.active_session &&
-          moved.has(desktopTabKey({ type: 'terminal', session: slice.active_session }))
+          flattenTabs(selected).some(
+            (ref) => ref.type !== 'editor' && ref.session === slice.active_session,
+          )
             ? null
             : slice.active_session,
       },
@@ -57,7 +59,7 @@ export function detachProjectContent(
     base.layout_mode === 'project' ? makeLeaf() : pruneTabs(tree, (ref) => !belongs(ref));
   const hasSession = (node: LayoutNode, session: string | null) =>
     session !== null &&
-    flattenTabs(node).some((ref) => ref.type === 'terminal' && ref.session === session);
+    flattenTabs(node).some((ref) => ref.type !== 'editor' && ref.session === session);
   const source: UiStateSnapshot =
     base.layout_mode === 'project'
       ? {

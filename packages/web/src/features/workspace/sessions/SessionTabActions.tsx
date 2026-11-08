@@ -25,30 +25,32 @@ export function SessionTabActions({
 
   return (
     <>
-      <button
-        type="button"
-        disabled={pending || (!live && !resumable)}
-        onPointerDown={(event) => event.stopPropagation()}
-        onDoubleClick={(event) => event.stopPropagation()}
-        onClick={async (event) => {
-          event.stopPropagation();
-          try {
-            await action.mutateAsync(session.id);
-          } catch (error) {
-            const target = !live && liveConversationTarget(error);
-            if (target) {
-              void navigate(`/project/${target.projectId}/session/${target.sessionId}`);
-            } else {
-              toastError(error);
+      {(session.kind !== 'huddle' || live) && (
+        <button
+          type="button"
+          disabled={pending || (!live && !resumable)}
+          onPointerDown={(event) => event.stopPropagation()}
+          onDoubleClick={(event) => event.stopPropagation()}
+          onClick={async (event) => {
+            event.stopPropagation();
+            try {
+              await action.mutateAsync(session.id);
+            } catch (error) {
+              const target = !live && liveConversationTarget(error);
+              if (target) {
+                void navigate(`/project/${target.projectId}/session/${target.sessionId}`);
+              } else {
+                toastError(error);
+              }
             }
-          }
-        }}
-        className={BUTTON_CLASS}
-        aria-label={live ? 'Stop session' : 'Resume session'}
-        title={live ? 'Stop session' : (resumeUnavailable ?? 'Resume session')}
-      >
-        {live ? <Square className="size-3" /> : <Play className="size-3" />}
-      </button>
+          }}
+          className={BUTTON_CLASS}
+          aria-label={live ? 'Stop session' : 'Resume session'}
+          title={live ? 'Stop session' : (resumeUnavailable ?? 'Resume session')}
+        >
+          {live ? <Square className="size-3" /> : <Play className="size-3" />}
+        </button>
+      )}
       {!live && (
         <button
           type="button"

@@ -1,3 +1,4 @@
+import { sessionTabRef } from '@puddle/shared';
 import type { NotificationTarget, ProjectDetail } from '@puddle/shared';
 import { desktopBridge } from '../../../lib/desktop';
 import { queryClient } from '../../../lib/queries/client';
@@ -21,7 +22,12 @@ export async function openNativeNotification(target: NotificationTarget): Promis
   if (
     await windows?.transfers?.focusPane?.({
       profileId: request.profileId,
-      ref: { type: 'terminal', session: target.session },
+      ref: sessionTabRef(
+        detail.sessions.find((session) => session.id === target.session) ?? {
+          id: target.session,
+          kind: 'agent',
+        },
+      ),
     })
   )
     return true;

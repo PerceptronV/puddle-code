@@ -28,7 +28,7 @@ const EMPTY_PROJECT_LAYOUT: ProjectLayout = {
 
 /** The session a tab binds to (a terminal its own, an editor tab its worktree's). */
 function tabSession(ref: TabRef): string {
-  return ref.type === 'terminal' ? ref.session : ref.tab.session;
+  return ref.type !== 'editor' ? ref.session : ref.tab.session;
 }
 
 /**

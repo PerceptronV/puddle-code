@@ -1,3 +1,4 @@
+import { PuddleGlyph } from '../../../../components/puddle-glyph';
 import type { Project } from '@puddle/shared';
 import { Bot, Palette, Pencil, SquareTerminal } from 'lucide-react';
 import { useState } from 'react';
@@ -76,6 +77,12 @@ export function ProjectMenuBody({
           <SquareTerminal />
           New terminal
         </ContextMenuItem>
+        {actions.onNewHuddleIn && (
+          <ContextMenuItem onSelect={() => actions.onNewHuddleIn?.(projectId)}>
+            <PuddleGlyph className="size-4" />
+            New huddle
+          </ContextMenuItem>
+        )}
         <ContextMenuSeparator />
         <ContextMenuItem onSelect={editLabel.onSelect}>
           <Pencil />

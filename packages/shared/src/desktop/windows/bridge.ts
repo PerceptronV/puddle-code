@@ -13,6 +13,8 @@ import type { DesktopWindowEffectsBridge } from './effects.js';
 /** Capability-detected private bridge, independent of daemon feature availability. */
 export interface DesktopWindowsBridge {
   version: 1;
+  /** Huddle tab identity and version-4 recovery persistence. */
+  huddles?: true;
   context(): Promise<DesktopWindowContext>;
   /** Checkpoint this window before a renderer-requested reload. */
   reload?(): Promise<void>;

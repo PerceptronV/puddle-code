@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { sessionTabRef } from '@puddle/shared';
 import type { CompilationMode, LayoutLeaf, LayoutNode, TabRef } from '@puddle/shared';
 import { tabKind, type EditorTab, type EditorView } from '../../editor/tabs/editor-tabs';
 import type { UiStateHandle } from '../use-ui-state';
@@ -59,7 +60,10 @@ export interface LayoutController {
   ): string;
   /** Persist one provider-backed source's mode across every duplicate tab. */
   setCompileMode(tab: EditorTab, mode: CompilationMode): void;
-  ensureTerminal(session: string, opts?: { preview?: boolean; keepSession?: string }): void;
+  ensureSession(
+    session: { id: string; kind: string },
+    opts?: { preview?: boolean; keepSession?: string },
+  ): void;
   /** Promote a preview tab to permanent (double-click), wherever it lives. */
   promote(ref: TabRef): void;
   /**
@@ -72,7 +76,7 @@ export interface LayoutController {
   revealSource(followerLeafId: string, target: EditorTab): string;
   /** Retarget every live view of a file after its on-disk path changes. */
   renameFile(source: EditorTab, nextPath: string): void;
-  removeTerminal(session: string): void;
+  removeSession(session: string): void;
   pruneSessions(alive: ReadonlySet<string>): void;
   resize(splitId: string, sizes: number[]): void;
   drop(spec: DropSpec): void;
@@ -240,9 +244,10 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
         const next = setCompileMode(tree, tab, mode);
         if (next !== tree) persist(next);
       },
-      ensureTerminal: (session, opts) => {
+      ensureSession: (session, opts) => {
         const base = opts?.keepSession ? promoteTab(tree, `term:${opts.keepSession}`) : tree;
-        const key = `term:${session}`;
+        const ref = sessionTabRef(session);
+        const key = tabRefKey(ref);
         const existing = leafContainingKey(base, key);
         if (existing) {
           setFocusedLeafId(existing.id);
@@ -259,7 +264,6 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
         } else {
           const target = focusedLeaf.id;
           setFocusedLeafId(target);
-          const ref: TabRef = { type: 'terminal', session };
           persist(opts?.preview ? openPreview(base, target, ref) : addTabToLeaf(base, target, ref));
         }
       },
@@ -314,13 +318,12 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
         const next = renameBufferTabs(tree, source, nextPath);
         if (next !== tree) persist(next);
       },
-      removeTerminal: (session) => {
+      removeSession: (session) => {
         // Archive completion can arrive after other tabs were closed or opened.
         // Read through the handle so overlapping replies (even in one tick)
         // cannot restore the layout captured when their requests began.
         const current = uiState.current().layout_tree ?? tree;
-        const leaf = leafContainingKey(current, `term:${session}`);
-        if (leaf) persist(closeTab(current, leaf.id, `term:${session}`));
+        persist(pruneTabs(current, (ref) => ref.type === 'editor' || ref.session !== session));
       },
       // Session-less tabs (untitled drafts, directory targets) survive: the nil
       // uuid names no session, so no session of theirs can have died.

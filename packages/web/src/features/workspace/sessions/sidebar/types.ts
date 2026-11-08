@@ -24,6 +24,7 @@ export interface ProjectHeaderActions {
   onNewSessionIn: (projectId: string) => void;
   /** Open the new-terminal dialogue targeting this project. */
   onNewTerminalIn: (projectId: string) => void;
+  onNewHuddleIn?: (projectId: string) => void;
   /** A project-header drag: move `dragId` before `beforeId` in `projectOrder`. */
   onMoveProject: (dragId: string, beforeId: string) => void;
 }

@@ -10,7 +10,7 @@ import {
 
 /** Native geometry is parsed by the shell using its existing placement migration. */
 export const desktopWindowStateSchema = z.object({
-  version: z.literal(3),
+  version: z.literal(4),
   entries: z.record(
     desktopWindowIdSchema,
     z.object({

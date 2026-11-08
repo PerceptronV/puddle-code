@@ -13,6 +13,7 @@ import { contextBridge, ipcRenderer } from 'electron';
 contextBridge.exposeInMainWorld('puddleDesktop', {
   windows: {
     version: 1,
+    huddles: true,
     effects: {
       status: () => ipcRenderer.invoke('puddle:window-effects-status'),
       claimNotification: (request: unknown) =>

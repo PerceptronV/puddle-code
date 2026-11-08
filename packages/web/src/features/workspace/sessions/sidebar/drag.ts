@@ -36,7 +36,7 @@ export function useArchiveDrop(id: string, onArchiveDrop: (sessions: readonly st
   return {
     setNodeRef,
     /** Arm the highlight for either payload path. */
-    armed: nativeOver || (isOver && activeRef?.type === 'terminal'),
+    armed: nativeOver || (isOver && activeRef !== null && activeRef.type !== 'editor'),
     props: {
       onDragOver: (e: DragEvent) => {
         if (!hasSessionDrag(e.dataTransfer.types) && !hasTabTransfer(e.dataTransfer.types)) return;
@@ -53,7 +53,7 @@ export function useArchiveDrop(id: string, onArchiveDrop: (sessions: readonly st
           return;
         }
         const ref = decodeTabTransfer(e.dataTransfer.getData(TAB_MIME));
-        if (ref?.type !== 'terminal') return;
+        if (!ref || ref.type === 'editor') return;
         e.preventDefault();
         onArchiveDrop([ref.session]);
       },

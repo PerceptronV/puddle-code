@@ -23,6 +23,7 @@ export function useOpenTabWindow(
   const projectId = options.projectId ?? currentProject;
   const bridge = desktopBridge()?.windows?.transfers;
   if (!bridge?.focusPane || !ref || !projectId || !profileId) return undefined;
+  if (ref.type === 'huddle' && !desktopBridge()?.windows?.huddles) return undefined;
   const sourceRoute = currentProject ? `/project/${currentProject}` : '/';
   return () => {
     void (async () => {

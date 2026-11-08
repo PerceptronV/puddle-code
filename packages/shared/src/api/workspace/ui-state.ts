@@ -59,8 +59,30 @@ export type EditorTabRef = z.infer<typeof editorTabRefSchema>;
 export const tabRefSchema = z.discriminatedUnion('type', [
   z.object({ type: z.literal('editor'), tab: editorTabRefSchema }),
   z.object({ type: z.literal('terminal'), session: sessionId }),
+  z.object({ type: z.literal('huddle'), session: sessionId }),
 ]);
 export type TabRef = z.infer<typeof tabRefSchema>;
+
+/** Session content identity is separate from whether that session owns a PTY. */
+export function sessionTabRef(session: {
+  id: string;
+  kind: string;
+}): Extract<TabRef, { session: string }> {
+  return { type: session.kind === 'huddle' ? 'huddle' : 'terminal', session: session.id };
+}
+
+/** Includes parked project slices: an older writer must never erase hidden huddle tabs. */
+export function hasHuddleTabs(snapshot: UiStateSnapshot): boolean {
+  const contains = (node: LayoutNode | null): boolean =>
+    node !== null &&
+    (node.kind === 'leaf'
+      ? node.tabs.some((tab) => tab.type === 'huddle')
+      : node.children.some(contains));
+  return (
+    contains(snapshot.layout_tree) ||
+    Object.values(snapshot.project_layouts).some((slice) => contains(slice.layout_tree))
+  );
+}
 
 /** A leaf pane: an ordered list of tabs and the key of the active one. */
 export interface LayoutLeaf {

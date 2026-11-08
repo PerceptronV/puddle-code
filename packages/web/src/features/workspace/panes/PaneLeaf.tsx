@@ -36,6 +36,7 @@ import { tabRefKey, type DropEdge } from '../layout/layout-tree';
 import { decodeTabTransferDetails, hasTabTransfer, TAB_MIME } from '../tabs/tab-transfer';
 import { useTilingDragging, useDropIndicator } from '../layout/TilingDnd';
 import { paneInteractionIntent } from './pane-interaction';
+import { LazyHuddlePane } from '../../huddle/lazy-huddle';
 
 const contentKey = (ref: TabRef) =>
   `${tabRefKey(ref)}:${ref.type === 'editor' ? (ref.tab.view ?? 'source') : 'source'}`;
@@ -356,6 +357,17 @@ export function PaneLeaf({
             ref={slotRef}
             className={cn('absolute inset-0 py-1 pl-4 pr-2', !terminalKey && 'hidden')}
           />
+          {activeRef?.type === 'huddle' &&
+            (() => {
+              const session = sessions.find((item) => item.id === activeRef.session);
+              return session ? (
+                <LazyHuddlePane key={session.id} session={session} />
+              ) : (
+                <p className="p-4 text-sm text-fg-muted">
+                  Huddle unavailable — this tab is retained for reconnection.
+                </p>
+              );
+            })()}
           {terminalKey && !shownSession && (
             <div className="absolute inset-0 flex items-center justify-center text-sm text-fg-muted">
               Session unavailable — this tab is retained for reconnection.

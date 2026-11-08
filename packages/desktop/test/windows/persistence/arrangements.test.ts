@@ -205,7 +205,33 @@ it('upgrades version-2 recovery records and does not invent an arrangement trans
   expect(restored.openWindows()).toEqual(state.openWindows());
   expect(restored.read('pane', profile)).toEqual(state.read('pane', profile));
   restored.syncOpenWindows(restored.openWindows());
-  expect(JSON.parse(readFileSync(file, 'utf8')).version).toBe(3);
+  expect(JSON.parse(readFileSync(file, 'utf8')).version).toBe(4);
+});
+
+it('migrates version-3 recovery and persists huddle tabs only in version 4', () => {
+  const { file, state } = setup();
+  const old = JSON.parse(readFileSync(file, 'utf8'));
+  old.version = 3;
+  writeFileSync(file, JSON.stringify(old));
+  const restored = new DesktopWindowState(file);
+  expect(restored.read('pane', profile)).toEqual(state.read('pane', profile));
+  const huddle = content();
+  huddle.snapshot = uiStateSnapshotSchema.parse({
+    layout_tree: {
+      kind: 'leaf',
+      id: 'huddle',
+      tabs: [{ type: 'huddle', session: '00000000-0000-4000-8000-000000000001' }],
+      activeKey: 'huddle:00000000-0000-4000-8000-000000000001',
+    },
+  });
+  restored.write('pane', profile, 1, huddle);
+  expect(JSON.parse(readFileSync(file, 'utf8')).version).toBe(4);
+  expect(new DesktopWindowState(file).read('pane', profile)?.content).toEqual(huddle);
+  const future = JSON.parse(readFileSync(file, 'utf8'));
+  future.version = 5;
+  writeFileSync(file, JSON.stringify(future));
+  expect(() => new DesktopWindowState(file)).toThrow();
+  expect(JSON.parse(readFileSync(file, 'utf8')).version).toBe(5);
 });
 
 it('allows a staged project replacement while retaining the original owner until commit', () => {

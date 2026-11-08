@@ -2,12 +2,78 @@
 
 Status: foundation in progress, 2026-11-08. The full objective remains the
 [huddle roadmap](../roadmap/huddle.md). Application 27.1 exposes inactive definition
-creation/opening through local/SSH HTTP; public execution controls and the IDE
+creation/opening through local/SSH HTTP. Application 28.0 adds the sidebar entry
+and a first graph-inspection pane; visual editing and public execution controls
 remain unfinished. Runtime archives declare their internal huddle-role contracts;
 application 27.0 now includes huddle session identity and migration 43 records
 placements/owner roles. The daemon launcher and lifecycle controls now integrate
 with session kill/archive; migration 44 retains Stop intent. No user CLI command
-or IDE is enabled yet.
+is enabled yet.
+
+## Implemented: sidebar creation and huddle views
+
+Application **28.0** extends the closed `TabRef` union with
+`{ type: 'huddle', session: <placement UUID> }`. This requires a coordinated
+frontend/daemon update; ordinary runtime 1.1 and the huddle owner contract are
+unchanged. Huddles use `huddle:<session>` keys in pane trees and their own native
+lookup identity. They never enter xterm keep-alive, terminal attachment, prompt
+paste, captured-environment controls, ordinary Resume or runtime restart.
+
+The right sidebar creation tray, collapsed rail and project context menus offer
+**New huddle**, using the existing Puddle glyph. The local/SSH dialog names the
+project worktree explicitly, creates a blank inactive graph, and lists discovered
+huddles for opening. Runtime support is checked before enabling Create. An
+unsupported runtime still permits inspecting/opening an already installed huddle.
+Create mutations have no automatic retry; a failed/uncertain create refreshes
+saved definitions for inspection. The worktree picker ignores empty internal
+Select events so loading its primary-root default does not clear that selection.
+
+Huddle tabs use ordinary preview/pin, close/reopen, split, drag, project layout,
+archive and window-transfer paths. Multiple panes may view one placement; closing
+a view does not stop its owner. Opening source leaves its huddle tab available.
+The graph pane displays saved node positions (or a simple initial arrangement),
+labelled input/output ports and connections, node selection, zoom and scrolling.
+A node-list view exposes connections without precise pointer positioning. The
+inspector shows parameter bindings and opens local contracts/scripts through the
+existing editor. Open definition opens `huddle.json`; Refresh captures its latest
+saved contents. Missing definitions report errors without discarding the tab.
+The local narrow layout displays huddle content without a terminal composer or
+PTY attachment. Remote authoring remains disabled.
+
+Desktop recovery **format 4** migrates versions 2 and 3 without changing their
+existing content. The preload advertises `windows.huddles`; older shells cannot
+create/open huddle content or accept a huddle-containing working-set seed, including
+parked project slices. They receive an update-required error before restore/write.
+Named layouts continue using their existing envelope with the application-28 tab
+union. Native persistence, project partition, tab/pane transfer and active-session
+restoration preserve the huddle identity independently from agent/terminal tabs.
+
+Code is grouped under web `features/huddle/{documents,canvas}/`, with pane
+composition at its root and navigation integrations beside existing workspace and
+window code. Graph code loads lazily. UI primitives, glyphs, icon catalogue and
+appearance colours reuse the existing Puddle components and semantic tokens.
+
+Verification: **491 tests passed in 63 files** across shared contracts, workspace,
+window transfers/state, huddle navigation and desktop persistence. Shared, daemon,
+web and desktop TypeScript builds passed. Token checks passed both themes and all
+70 contrast pairs per theme. The isolated browser check
+`PREVIEW_URL=http://127.0.0.1:5194/ node packages/web/test/huddle/authoring.browser.mjs`
+passed creation, saved-graph opening, inspection/list/zoom, source navigation,
+collapsed-rail creation, unavailable-runtime gating and the narrow view. It asserts
+one create request and no huddle terminal attachment or Start/Run/Resume request.
+This uses in-memory HTTP/WS fixtures, not a real daemon or provider.
+All 13 existing headless window cases also passed across the initial run and a
+targeted rerun. The initial `browser-workspace` case observed three unexpected
+tab-entry animations; it passed unchanged in isolation, followed by
+`browser-components`. This intermittent animation result remains recorded here;
+no assertion was weakened. Light and dark huddle screenshots were inspected.
+
+Still pending: visual add/connect/move/delete and undo, generated editable settings,
+source/graph conflict coordination and automatic source-change observation,
+retained graph camera/selection across transfers, templates, public execution
+controls/history and authoring assistance. This is an initial inspectable pane,
+not acceptance of the complete IDE. Native OS focus/drag and packaged continuity
+remain separate pending checks.
 
 ## Implemented: inactive authoring API
 
@@ -68,8 +134,9 @@ could not bind private Unix sockets (`EPERM`). The same suite passed with the
 required socket permission using isolated fixture homes. Shared/daemon/web
 TypeScript builds, scoped lint, formatting and whitespace checks passed.
 
-Still pending: source/graph conflict-aware editing, templates, public Start/Run,
-sidebar creation and opening, the IDE and normal huddle tab/window integration.
+Still pending for the authoring API: source/graph conflict-aware editing,
+templates and public Start/Run. Sidebar opening and initial tab integration are
+recorded above.
 
 ## Implemented: application placements and runtime inventory
 

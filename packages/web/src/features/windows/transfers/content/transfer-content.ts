@@ -43,7 +43,7 @@ export function detachPaneContent(
   const remainingSession =
     scoped.active_session &&
     flattenTabs(remaining).some(
-      (ref) => ref.type === 'terminal' && ref.session === scoped.active_session,
+      (ref) => ref.type !== 'editor' && ref.session === scoped.active_session,
     )
       ? scoped.active_session
       : null;
@@ -70,7 +70,7 @@ export function detachPaneContent(
     session_tabs: [],
     editor_tabs: [],
     active_editor_tab: null,
-    active_session: active?.type === 'terminal' ? active.session : null,
+    active_session: active && active.type !== 'editor' ? active.session : null,
     layout_ref: null,
   };
   return partitionWindowContent(content, source, destination, projectId);
@@ -115,7 +115,7 @@ export function detachTabContent(
     const active = match.scope.snapshot.active_session;
     const active_session =
       active &&
-      flattenTabs(remaining).some((tab) => tab.type === 'terminal' && tab.session === active)
+      flattenTabs(remaining).some((tab) => tab.type !== 'editor' && tab.session === active)
         ? active
         : null;
     source =
@@ -143,7 +143,7 @@ export function detachTabContent(
     editor_tabs: [],
     active_editor_tab: null,
     layout_ref: null,
-    active_session: actual.type === 'terminal' ? actual.session : null,
+    active_session: actual.type !== 'editor' ? actual.session : null,
   };
   return partitionWindowContent(content, source, destination, match?.scope.id ?? projectId);
 }

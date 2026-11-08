@@ -225,7 +225,7 @@ export function PaneTabStrip({
       }}
     >
       {leaf.tabs.map((ref, index) => {
-        const session = sessionsById.get(ref.type === 'terminal' ? ref.session : ref.tab.session);
+        const session = sessionsById.get(ref.type !== 'editor' ? ref.session : ref.tab.session);
         return (
           <Fragment key={tabRefKey(ref) === leaf.previewKey ? 'preview-slot' : tabRefKey(ref)}>
             {caretAt === index && <InsertionCaret />}
@@ -238,7 +238,7 @@ export function PaneTabStrip({
               index={index}
               active={tabRefKey(ref) === leaf.activeKey}
               preview={tabRefKey(ref) === leaf.previewKey}
-              session={ref.type === 'terminal' ? session : undefined}
+              session={ref.type !== 'editor' ? session : undefined}
               // The worktree a FILE tab belongs to, for its hover tooltip. A tab
               // carrying a `root` is rooted outside the worktree (a browse-tree
               // `external` file) and an untitled draft's session is the nil uuid,
@@ -601,7 +601,7 @@ function PaneTab({
           : undefined
       }
     >
-      {tab.type === 'terminal' ? (
+      {tab.type !== 'editor' ? (
         <>
           {/* One glyph for both facts: which agent, in the status colour. */}
           {session && (
@@ -732,7 +732,7 @@ function PaneTab({
     >
       <TabTooltipBody
         name={
-          tab.type === 'terminal'
+          tab.type !== 'editor'
             ? session
               ? renderTitle(session)
               : tab.session
@@ -740,7 +740,7 @@ function PaneTab({
               ? panePathLabel(tab.tab, fileDirectory, filetreeRoot)
               : label
         }
-        session={tab.type === 'terminal' ? session : fileSession}
+        session={tab.type !== 'editor' ? session : fileSession}
       />
     </TooltipContent>
   );
@@ -748,7 +748,7 @@ function PaneTab({
   // Both triggers stack on the chip itself (as the collapsed rail's dots do):
   // `asChild` needs a DOM element, so the tooltip trigger goes INSIDE the
   // context-menu trigger rather than wrapping it.
-  if (tab.type === 'terminal' && session) {
+  if (tab.type !== 'editor' && session) {
     return (
       <Tooltip>
         <SessionContextMenu

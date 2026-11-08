@@ -1,5 +1,6 @@
 import {
   uiStateSnapshotSchema,
+  hasHuddleTabs,
   type DesktopWorkspaceContent,
   type DesktopWorkspaceVersion,
   type DesktopWindowsBridge,
@@ -34,7 +35,7 @@ export class DesktopWorkingSet {
 
   constructor(
     readonly profileId: string,
-    private readonly bridge: Pick<DesktopWindowsBridge, 'read' | 'write'>,
+    private readonly bridge: Pick<DesktopWindowsBridge, 'read' | 'write' | 'huddles'>,
     private readonly content: WindowContentSource,
     private readonly reportError: (error: unknown) => void,
     private readonly onSaved?: (result: DesktopWindowWriteResult) => void,
@@ -60,13 +61,16 @@ export class DesktopWorkingSet {
     this.loading = (async () => {
       const stored = await this.bridge.read(this.profileId);
       if (stored) {
+        this.requireSupported(stored.content.snapshot);
         this.durable = true;
         this.revision = stored.revision;
         this.snapshot = stored.content.snapshot;
         this.content.restore(stored.content);
       } else {
         if (this.staged) throw new Error('The prepared window is no longer available');
-        this.snapshot = await seed();
+        const snapshot = await seed();
+        this.requireSupported(snapshot);
+        this.snapshot = snapshot;
         this.content.restore({ snapshot: this.snapshot, buffers: [], views: {} });
       }
       this.ready = true;
@@ -88,9 +92,18 @@ export class DesktopWorkingSet {
     // destination must show exactly its capture until ownership is committed.
     if (this.staged) return;
     if (this.frozen) throw new Error('Window transfer is pending');
-    this.snapshot = { ...this.snapshot, ...patch };
+    const next = { ...this.snapshot, ...patch };
+    this.requireSupported(next);
+    this.snapshot = next;
     this.changed();
     this.notify();
+  }
+
+  private requireSupported(snapshot: UiStateSnapshot): void {
+    if (!this.bridge.huddles && hasHuddleTabs(snapshot))
+      throw new Error(
+        'Update the desktop app before opening this workspace: it contains huddle tabs',
+      );
   }
 
   /** Buffers/view state can change without changing the layout tree. */

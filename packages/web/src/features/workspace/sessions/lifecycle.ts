@@ -2,7 +2,8 @@ import type { Session } from '@puddle/shared';
 
 /** Session eligibility only; callers retain transport, pending and presentation state. */
 export function sessionLifecycle(
-  session: Pick<Session, 'status' | 'worktree_missing' | 'conversation_missing'>,
+  session: Pick<Session, 'status' | 'worktree_missing' | 'conversation_missing'> &
+    Partial<Pick<Session, 'kind'>>,
 ) {
   const live =
     session.status === 'starting' ||
@@ -18,7 +19,9 @@ export function sessionLifecycle(
     live,
     archived,
     resumable:
-      (session.status === 'exited' || session.status === 'interrupted') && !resumeUnavailable,
+      session.kind !== 'huddle' &&
+      (session.status === 'exited' || session.status === 'interrupted') &&
+      !resumeUnavailable,
     resumeUnavailable,
   };
 }
