@@ -683,7 +683,7 @@ above remain historical evidence, not a claim that this increment revalidated th
 The recovery surface screenshot at `/tmp/puddle-native-draft-recovery.png` was
 inspected; it uses shared fields/actions inside the existing pane chrome.
 
-Still outstanding: native pane-window close bypasses individual tab discard
+Gap identified at this stage: native pane-window close bypassed individual tab discard
 review, although its checkpoint retains closed-window drafts. Those closed pane
 records need an accessible recovery/close policy before completion. The keyboard
 file-tab close gap identified here is addressed by the increment below.
@@ -719,10 +719,64 @@ The native recovery fixture additionally sends Command-W while the unavailable
 file's recovered text has focus. It observes the existing discard dialogue,
 cancels it and verifies both tabs and the exact retained text remain. The focused
 native command above passed on macOS arm64, explicitly omitting native focus and
-fullscreen. Native **window** closure remains separate and still requires the
-pane-wide review/accessible recovery work described above. Untitled deletion,
+fullscreen. Native **window** closure was still separate at this stage; the next
+increment adds pane-wide review. Untitled deletion,
 duplicate-view discard and rapid dialogue reopening during exit animation have
 not been established by these checks.
+
+### Native pane close review — 2026-11-07
+
+Application 26.22 adds a private `review-close` dispatch and optional
+`closeReviewedPane` completion. The renderer acknowledges dispatch immediately,
+then reviews dirty file and untitled tabs through their existing dialogues. The
+shared asynchronous review controller coalesces repeated requests and rejects
+stale approval callbacks after cancellation or unmount. App quit/checkpoint and
+working-set locks cancel native review; they do not interpret it as discard
+consent. Main validates completion against the registered pane/main-frame/origin,
+checkpoints again and refuses to close while the authoritative working set still
+contains dirty buffers or untitled tabs. No terminal stop, file save or execution
+is performed by close review.
+
+Approved untitled deletion cancels pending draft PUTs and awaits writes already
+in flight, including writers from inactive/unmounted tabs, before DELETE. Failure
+keeps the dialogue and draft available. Cancellation while an approved host request
+is in flight retains local recovery text. Native close reviews one current tab at
+a time; if a later tab is kept, earlier explicitly approved discards stay applied.
+Dialogue clicks no longer bubble into an inactive file chip and resurrect its old
+layout. Closing the last native window now excludes destroyed windows from the
+quit snapshot, even if `window-all-closed` precedes the final `closed` handler.
+
+The focused native fixture passed on macOS arm64 with synthetic host/draft storage:
+
+- A clean file opened in its own pane closes without a dialogue, including immediate
+  completion before review dispatch acknowledgement, while siblings retain the connection.
+- Duplicate close requests show one file dialogue. App quit during that review
+  restores the same pane and its dirty text on relaunch.
+- A renderer completion request that skips review is rejected by the final dirty
+  checkpoint and returns to the existing dialogue. Keep editing preserves the pane.
+- Closing an inactive dirty file proceeds to the untitled draft's own dialogue.
+  Cancelling that dialogue retains the draft. Discard waits for a held PUT;
+  a synthetic DELETE denial keeps review open, and a subsequent approved retry
+  closes the pane.
+- The final window stays out of the reopen set, retained buffers are empty after
+  approved discard, and the shared preview connection is stopped exactly once.
+
+The fixture uses the actual main process and preloads with CLI implementation
+excluded. Its fake cockpit now implements the real `stop()` contract; last-window
+teardown is checked explicitly. The command remains
+`PUDDLE_NATIVE_RECOVERY_ONLY=1 PREVIEW_URL=http://127.0.0.1:5186/ pnpm --filter @puddle-code/desktop test:native-windows`.
+Native OS focus/fullscreen remain explicitly omitted by this mode. The ordinary
+browser close regression passed, as did 606 tests across 83 shared, desktop-window,
+web-window, workspace, editor, draft-persistence and title files. Targeted lint and
+web/desktop TypeScript checks passed.
+
+Remaining close/recovery work: orphaned buffers and unavailable project/tab
+controls keep the pane open with an explanation rather than silently dropping
+text; their recovery surface still needs an explicit discard/close route. An
+unavailable renderer similarly needs reload before review. Missing-profile draft
+deletion, duplicate-view discard, notebook/preview-specific close state, and native
+crash/transfer interruption during every review phase remain unverified. These
+limitations do not change the broader acceptance requirements below.
 
 ## Required acceptance before completion
 

@@ -349,7 +349,8 @@
 // 26.19: renderer seal, stage, verify and outcome commands for native layout arrangements.
 // 26.20: coordinated native arrangement apply, renderer planning and outcome observation.
 // 26.21: native host-effect ownership and bounded notification claims.
-export const PROTOCOL_VERSION = { major: 26, minor: 21 } as const;
+// 26.22: private pane-window tab review followed by a guarded final checkpoint.
+export const PROTOCOL_VERSION = { major: 26, minor: 22 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

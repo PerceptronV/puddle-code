@@ -10,6 +10,7 @@ import {
   type DesktopArrangementPlanCommand,
   type DesktopArrangementPlan,
 } from '@puddle/shared';
+import { cancelPaneClose, requestPaneClose } from './pane-close';
 
 interface WorkingSetCheckpoint {
   checkpoint(): Promise<void>;
@@ -43,12 +44,15 @@ export async function registerRendererLifecycle(
         let plan: DesktopArrangementPlan | undefined;
         try {
           if (command.kind === 'checkpoint') {
+            cancelPaneClose();
             fence(true);
             const results = await Promise.allSettled(
               [...workingSets()].map((workingSet) => workingSet.checkpoint()),
             );
             const failure = results.find((result) => result.status === 'rejected');
             if (failure?.status === 'rejected') throw failure.reason;
+          } else if (command.kind === 'review-close') {
+            requestPaneClose(reportError);
           } else if (command.kind === 'plan-layout') {
             if (!planArrangement) throw new Error('Window layout planning is unavailable');
             plan = await planArrangement(command);

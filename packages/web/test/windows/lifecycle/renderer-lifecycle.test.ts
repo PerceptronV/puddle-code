@@ -1,6 +1,8 @@
 import { expect, it, vi } from 'vitest';
 import type { DesktopWindowCommand, DesktopWindowLifecycleBridge } from '@puddle/shared';
 import { registerRendererLifecycle } from '../../../src/features/windows/lifecycle/renderer-lifecycle';
+import { registerPaneClose } from '../../../src/features/windows/lifecycle/pane-close';
+import { CloseReview } from '../../../src/features/workspace/tabs/close/close-review';
 
 it('fences interaction until every checkpoint finishes, then explicitly resumes on cancellation', async () => {
   let receive!: (command: DesktopWindowCommand) => void;
@@ -83,4 +85,40 @@ it('acknowledges a source-directed pane move without waiting for source retireme
   receive(command);
   await vi.waitFor(() => expect(bridge.reply).toHaveBeenCalledWith({ id: 'drop' }));
   expect(move).toHaveBeenCalledExactlyOnceWith(command);
+});
+it('acknowledges human review immediately and allows quit to cancel it before checkpoint', async () => {
+  let receive!: (command: DesktopWindowCommand) => void;
+  const bridge: DesktopWindowLifecycleBridge = {
+    onCommand: (callback) => {
+      receive = callback;
+      return vi.fn();
+    },
+    ready: vi.fn(async () => undefined),
+    reply: vi.fn(async () => undefined),
+  };
+  const review = new CloseReview<null>();
+  const accepted = vi.fn();
+  const unregister = registerPaneClose(async (signal) => {
+    if (await review.request('draft', null, signal)) accepted();
+  });
+  const checkpoint = vi.fn(async () => {
+    expect(review.get()).toBeNull();
+  });
+  try {
+    await registerRendererLifecycle(
+      bridge,
+      () => [{ checkpoint, resume: vi.fn() }],
+      vi.fn(),
+      vi.fn(),
+    );
+    receive({ id: 'review', kind: 'review-close' });
+    await vi.waitFor(() => expect(bridge.reply).toHaveBeenCalledWith({ id: 'review' }));
+    expect(review.get()).not.toBeNull();
+    receive({ id: 'quit', kind: 'checkpoint' });
+    await vi.waitFor(() => expect(bridge.reply).toHaveBeenCalledWith({ id: 'quit' }));
+    expect(checkpoint).toHaveBeenCalledOnce();
+    expect(accepted).not.toHaveBeenCalled();
+  } finally {
+    unregister();
+  }
 });

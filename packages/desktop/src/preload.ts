@@ -63,6 +63,7 @@ contextBridge.exposeInMainWorld('puddleDesktop', {
         ipcRenderer.invoke('puddle:window-prepare-tab-dock', request),
     },
     lifecycle: {
+      closeReviewedPane: () => ipcRenderer.invoke('puddle:window-close-reviewed-pane'),
       ready: () => ipcRenderer.invoke('puddle:window-ready'),
       onCommand: (callback: (command: unknown) => void) => {
         const handler = (_event: unknown, command: unknown) => callback(command);

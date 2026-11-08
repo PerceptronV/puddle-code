@@ -32,8 +32,8 @@ import {
 } from '../src/index.js';
 
 describe('shared API schemas', () => {
-  it('declares protocol 26.21 for native host-effect coordination', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 26, minor: 21 });
+  it('declares protocol 26.22 for native pane close review', () => {
+    expect(PROTOCOL_VERSION).toEqual({ major: 26, minor: 22 });
   });
 
   it('accepts headless mode and rejects the previous scripted name', () => {

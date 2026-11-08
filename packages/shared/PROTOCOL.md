@@ -1,5 +1,12 @@
 # The puddle communication protocol
 
+Application **26.22** adds private native pane-close review dispatch and optional
+`closeReviewedPane` completion. User review does not hold a command reply open.
+Only a registered same-origin pane main frame can request completion; main still
+checkpoints and rejects closure while dirty buffers or untitled tabs remain.
+App-wide quit cancels pending review and preserves the normal reopen arrangement.
+No daemon/runtime/remote message or persistence format changes.
+
 Application **26.21** adds optional private native host-effect ownership and
 notification claims. Only registered same-origin main frames can use them; main
 chooses eligible windows from their existing host connection. One window runs

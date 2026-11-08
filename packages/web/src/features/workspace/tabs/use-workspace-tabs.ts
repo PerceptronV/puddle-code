@@ -37,7 +37,7 @@ export function useWorkspaceTabs({
   isNarrow: boolean;
   onNavigate: () => void;
   claimScrollDriver: (id: string) => void;
-  requestDiscard: (leafId: string, ref: TabRef) => void;
+  requestDiscard: (leafId: string, ref: TabRef, signal?: AbortSignal) => Promise<boolean>;
 }) {
   const params = useParams();
   const projectId = params['id'] ?? '';
@@ -231,12 +231,11 @@ export function useWorkspaceTabs({
     [layout, navigate, tabSessions, activeSessionId, claimScrollDriver],
   );
   const onCloseTab = useCallback(
-    (leafId: string, ref: TabRef) => {
+    (leafId: string, ref: TabRef, signal?: AbortSignal) => {
       // Closing an untitled tab discards its profile-store draft — confirm
       // first (the dialogue below); nothing else lists orphaned drafts.
       if (ref.type === 'editor' && tabKind(ref.tab) === 'untitled') {
-        requestDiscard(leafId, ref);
-        return;
+        return requestDiscard(leafId, ref, signal);
       }
       // Remember where it sat so `tab.reopen` can put it back in the same pane
       // at the same position (SPEC §11). Untitled drafts return above: closing

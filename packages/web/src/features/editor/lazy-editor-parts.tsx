@@ -101,7 +101,7 @@ export function LazyEditorTabClose(props: {
   /** Absolute browse root of an `external` tab (SPEC §8). */
   root?: string;
   label: string;
-  onClose: () => void;
+  onClose: (signal?: AbortSignal) => void | Promise<boolean>;
   closeKey?: string;
 }) {
   // Never bypass dirty review while the editor's close policy is loading.

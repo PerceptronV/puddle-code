@@ -1,6 +1,8 @@
 // The native acceptance app bundles this in place of the entire CLI library.
 // No real launcher, installer, transport, host files or daemon enter that bundle.
 import assert from 'node:assert/strict';
+import { writeFileSync } from 'node:fs';
+import { join } from 'node:path';
 
 export class CliError extends Error {}
 export function clientHome() {
@@ -16,9 +18,10 @@ export async function startLocal() {
   return {
     origin: origin.origin,
     createInvitation: () => origin.href,
-    close: async () => {
+    stop: async () => {
       if (!closed) counts.closes++;
       closed = true;
+      writeFileSync(join(clientHome(), 'native-preview-connections.json'), JSON.stringify(counts));
     },
   };
 }

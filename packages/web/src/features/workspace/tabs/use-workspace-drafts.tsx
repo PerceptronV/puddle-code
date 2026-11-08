@@ -28,6 +28,8 @@ import {
 } from '../../../components/ui/dialog';
 import { Button } from '../../../components/ui/button';
 import { desktopContentState } from '../../windows/state/content-state';
+import { useCloseReview } from './close/use-close-review';
+import { settleUntitledWriters } from '../../editor/buffers/untitled-writers';
 
 /** Own draft creation, save destination and discard confirmation independently of the shell. */
 export function useWorkspaceDrafts({
@@ -95,30 +97,45 @@ export function useWorkspaceDrafts({
     );
     return () => setUntitledSaveHandler(null);
   }, [targetSession, targetRoot, profileId]);
-  const [discarding, setDiscarding] = useState<{ name: string; profileId: string | null } | null>(
-    null,
+  const { review, pending: discarding } = useCloseReview<{ name: string; profileId: string }>(
+    identity,
   );
+  const [deleting, setDeleting] = useState(false);
+  const deletingRef = useRef(false);
   const requestDiscard = useCallback(
-    (_leafId: string, ref: TabRef) => {
-      if (ref.type === 'editor') setDiscarding({ name: ref.tab.path, profileId });
+    (_leafId: string, ref: TabRef, signal?: AbortSignal) => {
+      if (ref.type !== 'editor' || !profileId || deletingRef.current) return Promise.resolve(false);
+      return review.request(ref.tab.path, { name: ref.tab.path, profileId }, signal);
     },
-    [profileId],
+    [profileId, review],
   );
   const discard = async () => {
     const pending = discarding;
-    if (!pending || pending.profileId === null) return;
+    if (!pending || review.get() !== pending || deletingRef.current) return;
+    deletingRef.current = true;
+    setDeleting(true);
+    const { profileId: draftProfile, name } = pending.value;
     try {
-      await deleteUntitled(pending.profileId, pending.name);
-      desktopContentState(pending.profileId).discardBuffer({
+      await settleUntitledWriters(draftProfile, name);
+      if (!mounted.current || review.get() !== pending || profileRef.current !== draftProfile)
+        return;
+      await deleteUntitled(draftProfile, name);
+      // Quit/navigation can cancel the review while the approved host deletion
+      // is in flight. Keep the local recovery text until a fresh explicit review.
+      if (!mounted.current || review.get() !== pending || profileRef.current !== draftProfile)
+        return;
+      desktopContentState(draftProfile).discardBuffer({
         session: UNTITLED_SESSION,
-        path: pending.name,
+        path: name,
       });
-      forgetUntitledContent(pending.name);
-      if (mounted.current && profileRef.current === pending.profileId)
-        updateWorkspaceTrees(baseUiState, (tree) => discardUntitled(tree, pending.name));
-      setDiscarding((current) => (current === pending ? null : current));
+      forgetUntitledContent(name);
+      review.finish(pending, true);
+      updateWorkspaceTrees(baseUiState, (tree) => discardUntitled(tree, name));
     } catch (error) {
       toastError(error);
+    } finally {
+      deletingRef.current = false;
+      setDeleting(false);
     }
   };
   const dialogs = (
@@ -142,20 +159,20 @@ export function useWorkspaceDrafts({
           updateWorkspaceTrees(baseUiState, (tree) => replaceUntitled(tree, name, tab));
         }}
       />
-      <Dialog open={discarding !== null} onOpenChange={(open) => !open && setDiscarding(null)}>
+      <Dialog open={discarding !== null} onOpenChange={(open) => !open && review.cancel()}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Discard this draft?</DialogTitle>
             <DialogDescription>
-              Closing an untitled tab deletes its draft — {saveKey} saves it into the worktree
-              instead.
+              Closing {discarding?.value.name} deletes its draft — {saveKey} saves it into the
+              worktree instead.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setDiscarding(null)}>
+            <Button variant="ghost" onClick={review.cancel} disabled={deleting}>
               Keep editing
             </Button>
-            <Button variant="danger" onClick={() => void discard()}>
+            <Button variant="danger" onClick={() => void discard()} disabled={deleting}>
               Discard
             </Button>
           </DialogFooter>

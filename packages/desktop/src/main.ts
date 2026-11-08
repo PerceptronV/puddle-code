@@ -8,6 +8,7 @@ import {
   desktopWindowRouteSchema,
   desktopPaneFocusSchema,
   desktopWindowReadSchema,
+  desktopPaneCloseReview,
   type DesktopPaneFocus,
   type DesktopProjectCommand,
   type DesktopWindowIdentity,
@@ -166,6 +167,7 @@ const windowDrags = new WindowDrags({
 const pendingPaneFocus = new Map<string, DesktopPaneFocus>();
 const pendingProjectCommands = new Map<string, DesktopProjectCommand>();
 const closingWindows = new Set<string>();
+const reviewedPaneClosures = new Map<string, () => void>();
 const checkpoints = new Map<string, Promise<void>>();
 function liveWindowRecord(id: string): ReopenWindow {
   if (quitting || quitPending || closingWindows.has(id)) throw new Error('Window is closing');
@@ -585,6 +587,14 @@ function createWindow(
 
   let closeAccepted = false;
   let closePending = false;
+  let paneReviewed = false;
+  if (identity.kind === 'pane') {
+    reviewedPaneClosures.set(identity.id, () => {
+      paneReviewed = true;
+      win.close();
+    });
+    win.once('closed', () => reviewedPaneClosures.delete(identity.id));
+  }
   win.on('close', (event) => {
     if (quitting || closeAccepted) return;
     if (windowState?.staging(identity.id)) {
@@ -596,24 +606,57 @@ function createWindow(
       event.preventDefault();
       return;
     }
-    if (!windowCommands.available(identity.id) && identity.kind !== 'project') return;
+    if (!windowCommands.available(identity.id) && identity.kind === 'host') return;
     event.preventDefault();
     if (closePending) return;
-    if (identity.kind === 'project' && windowTransfers.busy(identity.id)) {
+    if (identity.kind !== 'host' && windowTransfers.busy(identity.id)) {
       windowTransfers.disconnected(identity.id);
       return;
     }
+    if (identity.kind === 'pane' && !paneReviewed) {
+      closePending = true;
+      void windowCommands
+        .request(identity.id, 'review-close')
+        .catch((error: unknown) => {
+          if (!quitting && !quitPending && !win.isDestroyed())
+            dialog.showErrorBox('Could not review this pane', errorText(error));
+        })
+        .finally(() => {
+          closePending = false;
+          // A clean pane can complete review before dispatch acknowledgement arrives.
+          if (paneReviewed && !quitting && !quitPending && !win.isDestroyed()) win.close();
+        });
+      return;
+    }
+    paneReviewed = false;
     closePending = true;
     closingWindows.add(identity.id);
+    const generation = windowCommands.generation(identity.id);
     const checkpoint = windowNavigations.busy(target)
       ? windowNavigations.wait(target).then(() => checkpointWindow(identity.id))
       : checkpointWindow(identity.id);
     void checkpoint
-      .then(() => {
+      .then(async () => {
         closePending = false;
         if (quitPending || quitting || win.isDestroyed()) {
           closingWindows.delete(identity.id);
           return;
+        }
+        if (identity.kind === 'pane') {
+          const version = windowState?.read(identity.id, identity.profileId);
+          if (
+            generation === null ||
+            generation !== windowCommands.generation(identity.id) ||
+            !version
+          )
+            throw new Error('The pane changed while closing; reload it and try again');
+          if (desktopPaneCloseReview(version.content).required) {
+            closingWindows.delete(identity.id);
+            await resumeWindows([identity.id]);
+            if (!quitPending && !quitting && !win.isDestroyed())
+              await windowCommands.request(identity.id, 'review-close');
+            return;
+          }
         }
         if (identity.kind === 'project' && windowState) {
           const version = windowState.read(identity.id, identity.profileId);
@@ -1028,6 +1071,15 @@ ipcMain.handle('puddle:window-reply', (event, reply: unknown) => {
   windowCommands.reply(owner.identity.id, reply);
 });
 
+ipcMain.handle('puddle:window-close-reviewed-pane', (event) => {
+  const { identity } = windowContext(event);
+  if (identity.kind !== 'pane') throw new Error('Only pane windows use tab close review');
+  liveWindowRecord(identity.id);
+  const close = reviewedPaneClosures.get(identity.id);
+  if (!close) throw new Error('Pane window is unavailable');
+  close();
+});
+
 ipcMain.handle('puddle:notification-status', (event) => {
   windowContext(event);
   const delivery = notifications.get(event.sender.id);
@@ -1328,7 +1380,10 @@ if (!app.requestSingleInstanceLock()) {
     if (windowStateLoaded) {
       for (const shell of shells.values()) {
         for (const window of shell.windows.values()) {
-          rememberedWindows.set(window.identity.id, reopenWindow(shell.target, window));
+          // window-all-closed can run before the final window's closed handler
+          // removes it from the host registry. Never reopen that explicit close.
+          if (window.win.isDestroyed()) rememberedWindows.delete(window.identity.id);
+          else rememberedWindows.set(window.identity.id, reopenWindow(shell.target, window));
         }
       }
       persistWindows();

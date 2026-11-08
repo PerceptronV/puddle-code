@@ -24,6 +24,7 @@ Past releases: see docs/changelogs/.
 
 #### Changed
 
+- Review dirty files and untitled drafts when closing a native pane window, preserving cancellation and app-quit recovery and checking retained drafts again before closure (application protocol 26.22).
 - Show only the project name in workspace window titles and the active file or session name in detached pane titles.
 - Coordinate native notification sounds/delivery and update offers across windows, retain notifications when their original window closes, and route clicks to the correct profile or detached session (application protocol 26.21).
 - Save, duplicate and load native window arrangements through the host Layouts popover, including project saves from the dashboard; preserve mounted editors when saving and observe uncertain loads without redispatch.
@@ -42,6 +43,7 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
+- Wait for pending untitled-draft saves before approved deletion, prevent discard dialogues from reactivating closed tabs, and keep the last explicitly closed native window out of restart recovery.
 - Use the file tab's discard dialogue for keyboard closure too, retaining unsaved text on cancellation and preventing closure before the lazy dirty-file check loads.
 - Cancel pending local draft writes after an approved discard so closing the editor cannot restore the discarded text on reopen.
 - Keep unavailable native tabs and expose retained draft text for copying or downloading when a file, session or project disappears; preserve discard confirmation and restore editing after retry.

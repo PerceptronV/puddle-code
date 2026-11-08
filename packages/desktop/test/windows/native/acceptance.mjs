@@ -8,6 +8,7 @@ import { buildNativePreview } from './build.mjs';
 import { measureNativeWindows } from './resources.mjs';
 import { checkNativeTitle, changeFullScreen } from './presentation.mjs';
 import { checkMissingResources } from './recovery.mjs';
+import { checkCleanPaneClose, prepareUntitledClose, finishUntitledClose } from './close.mjs';
 
 const require = createRequire(import.meta.url);
 const { _electron: electron, expect } = createRequire(
@@ -126,6 +127,7 @@ try {
   await expect.poll(async () => (await identity(project)).identity.kind).toBe('project');
   await expect.poll(async () => Object.keys((await state()).pending).length).toBe(0);
   await checkNativeTitle(application, project, expect, 'puddle');
+  await checkCleanPaneClose(application, project, expect, state);
   assert.deepEqual(await application.evaluate(() => globalThis.nativePreviewConnections), {
     starts: 1,
     closes: 0,
@@ -158,6 +160,11 @@ try {
     );
   } else
     console.log('Independent host closure passed; focus/fullscreen omitted in recovery-only mode.');
+  await pane.evaluate(() => window.puddleDesktop.closeWindow());
+  await expect(pane.getByRole('dialog')).toContainText('Discard changes to README.md?');
+  await pane.evaluate(() => window.puddleDesktop.closeWindow());
+  await expect(pane.getByRole('dialog')).toHaveCount(1);
+  // App quit must checkpoint the dirty draft rather than treating review as consent.
   await quit();
   const retained = (await state()).windows.map((record) => record.window.id).sort();
   assert.deepEqual(retained, [paneIdentity.identity.id, projectIdentity.identity.id].sort());
@@ -251,7 +258,30 @@ try {
   console.log(
     'Native forced interruption recovered both windows; explicit project close returned its workspace without a host.',
   );
-  await quit();
+  // Even a renderer that skips review cannot bypass main's final dirty-state guard.
+  await lastPane.evaluate(() => window.puddleDesktop.windows.lifecycle.closeReviewedPane());
+  await expect(lastPane.getByRole('dialog')).toContainText('Discard changes to README.md?');
+  await lastPane.getByRole('button', { name: 'Keep editing', exact: true }).click();
+  await expect(lastPane.getByRole('dialog')).toHaveCount(0);
+  await dirtyEditor(lastPane);
+  await prepareUntitledClose(lastPane, expect);
+  await lastPane.evaluate(() => window.puddleDesktop.closeWindow());
+  await expect(lastPane.getByRole('dialog')).toContainText('Discard changes to README.md?');
+  const lastClosed = application.waitForEvent('close');
+  await lastPane.getByRole('button', { name: 'Discard', exact: true }).click();
+  await finishUntitledClose(lastPane, expect);
+  await lastClosed;
+  application = undefined;
+  const closedPane = (await state()).entries[paneIdentity.identity.id];
+  assert.equal(closedPane.open, false);
+  assert.deepEqual(closedPane.workspaces[paneIdentity.identity.profileId].content.buffers, []);
+  assert.deepEqual(
+    JSON.parse(await readFile(join(directory, 'home/native-preview-connections.json'))),
+    { starts: 1, closes: 1 },
+  );
+  console.log(
+    'Native pane close reviews dirty files, retains cancellation, rejects bypass and preserves drafts when quitting during review.',
+  );
   assert.deepEqual(errors, []);
   console.log(
     JSON.stringify({

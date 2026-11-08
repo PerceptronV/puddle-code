@@ -101,7 +101,7 @@ export function PaneTabStrip({
   filetreeRoot: string | null;
   sessions: Session[];
   onActivate: (ref: TabRef) => void;
-  onClose: (ref: TabRef) => void;
+  onClose: (ref: TabRef, signal?: AbortSignal) => void | Promise<boolean>;
   onPromote: (ref: TabRef) => void;
   onDropTab: (ref: TabRef, move?: { fromLeafId?: string; index?: number }) => void;
   onArchived: (session: string) => void;
@@ -254,7 +254,7 @@ export function PaneTabStrip({
               }
               label={ref.type === 'editor' ? labelFor(ref.tab) : ''}
               onActivate={() => onActivate(ref)}
-              onClose={() => onClose(ref)}
+              onClose={(signal) => onClose(ref, signal)}
               onPromote={() => onPromote(ref)}
               onArchived={onArchived}
               onSetView={(view) => onSetView(ref, view)}
@@ -513,7 +513,7 @@ function PaneTab({
   fileDirectory: string | undefined;
   label: string;
   onActivate: () => void;
-  onClose: () => void;
+  onClose: (signal?: AbortSignal) => void | Promise<boolean>;
   onPromote: () => void;
   onArchived: (session: string) => void;
   onSetView: (view: EditorView) => void;

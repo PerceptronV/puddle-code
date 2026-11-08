@@ -56,6 +56,7 @@ export const desktopWindowCommandSchema = z.union([
   z.discriminatedUnion('kind', [
     z.object({ id: desktopWindowIdSchema, kind: z.literal('checkpoint') }),
     z.object({ id: desktopWindowIdSchema, kind: z.literal('resume') }),
+    z.object({ id: desktopWindowIdSchema, kind: z.literal('review-close') }),
     z.object({
       id: desktopWindowIdSchema,
       kind: z.literal('activate-tab'),
@@ -74,6 +75,8 @@ export const desktopWindowCommandReplySchema = z.object({
 export type DesktopWindowCommandReply = z.infer<typeof desktopWindowCommandReplySchema>;
 
 export interface DesktopWindowLifecycleBridge {
+  /** Request a final checkpoint after pane tab review; main rechecks retained drafts. */
+  closeReviewedPane?(): Promise<void>;
   ready(): Promise<void>;
   onCommand(callback: (command: DesktopWindowCommand) => void): () => void;
   reply(reply: DesktopWindowCommandReply): Promise<void>;

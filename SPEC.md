@@ -2346,6 +2346,20 @@ project's actual profile, focuses an existing detached session pane when present
 and otherwise uses the shared project-window router. IPC uses the existing exact
 origin/main-frame boundary. Browser/older-shell notification behaviour is unchanged.
 
+Application 26.22 makes explicit native pane closure review dirty files and
+untitled drafts through their existing tab dialogues. Review dispatch acknowledges
+immediately; user decisions do not hold the bounded command queue open. Main
+accepts completion only from the registered pane main frame, checkpoints its
+current renderer generation and refuses closure while dirty buffers or untitled
+tabs remain. Repeated requests coalesce. App quit/checkpoint cancels pending review
+and preserves the normal reopen set; approved individual discards remain applied
+if a later tab's review is cancelled. Untitled deletion waits for local draft PUTs
+before DELETE so cleanup cannot recreate the discarded draft. No close review
+stops terminal sessions or writes worktree files. Unavailable controls/orphaned
+drafts retain the window for recovery; that explicit recovery-discard route remains
+unfinished. The last explicitly closed window is excluded from quit recovery even
+when Electron emits `window-all-closed` before its registry cleanup.
+
 Document titles have one composition owner under `shell/title/`: the mounted
 workspace shows only its project name. An isolated pane shows its active file's
 basename or session label, following tab switches. App/host prefixes, suffixes and

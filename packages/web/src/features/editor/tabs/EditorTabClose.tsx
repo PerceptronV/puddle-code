@@ -1,4 +1,4 @@
-import { useCallback, useState, useSyncExternalStore } from 'react';
+import { useCallback, useSyncExternalStore } from 'react';
 import { Circle, X } from 'lucide-react';
 import {
   Dialog,
@@ -18,6 +18,7 @@ import { desktopContentState } from '../../windows/state/content-state';
 import { desktopWindowContext } from '../../windows/window-context';
 import { useEditorCloseRequest } from '../../workspace/tabs/close/TabCloseRequests';
 import { cancelDiscardedDraftWrites } from '../buffers/draft-discard';
+import { useCloseReview } from '../../workspace/tabs/close/use-close-review';
 
 /** Reactive dirty flag for one (session, path[, root]) buffer. */
 function useDirty(session: string, path: string, root?: string): boolean {
@@ -92,22 +93,28 @@ export function EditorTabClose({
   /** Absolute browse root of an `external` tab (SPEC §8). */
   root?: string;
   label: string;
-  onClose: () => void;
+  onClose: (signal?: AbortSignal) => void | Promise<boolean>;
   closeKey?: string;
 }) {
   const profileId = useCurrentProfileId();
   // Untitled drafts have their own workspace-owned deletion dialogue.
   const dirty = useDirty(session, path, root) && kind !== 'commit' && kind !== 'untitled';
-  const [confirm, setConfirm] = useState(false);
+  const { review, pending } = useCloseReview<null>(closeKey ?? bufferKey(session, path, root));
 
-  const requestClose = () => (dirty ? setConfirm(true) : onClose());
+  const requestClose = (signal?: AbortSignal): Promise<boolean> => {
+    if (signal?.aborted) return Promise.resolve(false);
+    return dirty
+      ? review.request('discard', null, signal)
+      : Promise.resolve(onClose(signal)).then((accepted) => accepted !== false);
+  };
   useEditorCloseRequest(closeKey, requestClose);
   const discard = () => {
+    if (!pending || review.get() !== pending) return;
     cancelDiscardedDraftWrites(session, path, root);
     if (profileId) desktopContentState(profileId).discardBuffer({ session, path, root });
     void deleteDraft(session, path, root);
     announceDraftDiscarded(session, path, root);
-    setConfirm(false);
+    review.finish(pending, true);
     onClose();
   };
 
@@ -116,7 +123,7 @@ export function EditorTabClose({
       <button
         onClick={(e) => {
           e.stopPropagation();
-          requestClose();
+          void requestClose();
         }}
         // Reveal for pointer hover, keyboard focus within the tab, and touch.
         // The floating tray reserves no label width.
@@ -125,8 +132,14 @@ export function EditorTabClose({
       >
         <X className="size-3" />
       </button>
-      <Dialog open={confirm} onOpenChange={(open) => !open && setConfirm(false)}>
-        <DialogContent>
+      <Dialog open={pending !== null} onOpenChange={(open) => !open && review.cancel()}>
+        <DialogContent
+          // Portals still bubble through React's tab chip. Activating an inactive
+          // tab after its discard can persist the old tree and resurrect it.
+          onClick={(event) => event.stopPropagation()}
+          onPointerDown={(event) => event.stopPropagation()}
+          onDoubleClick={(event) => event.stopPropagation()}
+        >
           <DialogHeader>
             <DialogTitle>Discard changes to {label}?</DialogTitle>
             <DialogDescription>
@@ -134,7 +147,7 @@ export function EditorTabClose({
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>
-            <Button variant="ghost" onClick={() => setConfirm(false)}>
+            <Button variant="ghost" onClick={review.cancel}>
               Keep editing
             </Button>
             <Button variant="danger" onClick={discard}>

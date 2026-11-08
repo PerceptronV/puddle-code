@@ -20,6 +20,7 @@ import { useCodeViewState } from '../monaco/monaco-view-state';
 import { UNTITLED_SESSION } from '@puddle/shared';
 import { desktopWindowContext } from '../../windows/window-context';
 import { desktopContentState } from '../../windows/state/content-state';
+import { registerUntitledWriter } from '../buffers/untitled-writers';
 
 /** How long after the last keystroke the draft persists to the profile store. */
 const PERSIST_DEBOUNCE_MS = 800;
@@ -51,14 +52,23 @@ export function UntitledTabBody({ name }: { name: string }) {
 
   useEffect(() => {
     if (profileId === null) return;
+    const pending = new Set<Promise<unknown>>();
     const writer = debounce((content: string) => {
-      putUntitled(profileId, name, content).catch((e: unknown) =>
-        toast.error(e instanceof Error ? e.message : 'Draft not saved'),
-      );
+      const write = putUntitled(profileId, name, content);
+      pending.add(write);
+      void write
+        .catch((e: unknown) => toast.error(e instanceof Error ? e.message : 'Draft not saved'))
+        .finally(() => pending.delete(write));
     }, PERSIST_DEBOUNCE_MS);
+    const unregister = registerUntitledWriter(profileId, name, async () => {
+      writer.cancel();
+      await Promise.all([...pending]);
+    });
     writerRef.current = writer;
     return () => {
       writer.flush();
+      // Inactive tabs still own outstanding writes; keep them visible to discard.
+      void Promise.allSettled([...pending]).then(unregister);
       writerRef.current = null;
     };
   }, [profileId, name]);

@@ -12,6 +12,7 @@ import { UNTITLED_SESSION, type Session, type SessionKind, type TabRef } from '@
 import { useWorkspaceEditor } from '../editor/tabs/use-workspace-editor';
 import { requestActiveTabSave } from '../editor/buffers/active-tab-save';
 import { useWorkspaceDrafts } from './tabs/use-workspace-drafts';
+import { usePaneClose } from '../windows/lifecycle/use-pane-close';
 import {
   TabCloseRequests,
   tabCloseKey,
@@ -167,6 +168,7 @@ function WorkspaceInner() {
         ? (selectedProfileId ?? undefined)
         : detail.data?.project.profile_id);
   const profileProjects = useProjects(profileId);
+  usePaneClose(profileId ?? null);
   const profileSettings = useProfileSettings(profileId);
   const patchProfileSettings = usePatchProfileSettings(profileId ?? '');
   // THIS project's row: from its own detail once that lands, else from the

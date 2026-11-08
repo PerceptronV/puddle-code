@@ -23,7 +23,7 @@ export interface TileHandlers {
   sessions: Session[];
   reveal: RevealTarget | null;
   onActivateTab: (leafId: string, ref: TabRef) => void;
-  onCloseTab: (leafId: string, ref: TabRef) => void;
+  onCloseTab: (leafId: string, ref: TabRef, signal?: AbortSignal) => void | Promise<boolean>;
   onPromoteTab: (ref: TabRef) => void;
   onArchived: (session: string) => void;
   onFocusLeaf: (leafId: string) => void;

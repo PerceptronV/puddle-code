@@ -79,7 +79,7 @@ export function PaneLeaf({
   sessions: Session[];
   reveal: RevealTarget | null;
   onActivateTab: (leafId: string, ref: TabRef) => void;
-  onCloseTab: (leafId: string, ref: TabRef) => void;
+  onCloseTab: (leafId: string, ref: TabRef, signal?: AbortSignal) => void | Promise<boolean>;
   onPromoteTab: (ref: TabRef) => void;
   onArchived: (session: string) => void;
   onFocusLeaf: (leafId: string) => void;
@@ -280,7 +280,7 @@ export function PaneLeaf({
           filetreeRoot={filetreeRoot}
           sessions={sessions}
           onActivate={(ref) => onActivateTab(leaf.id, ref)}
-          onClose={(ref) => onCloseTab(leaf.id, ref)}
+          onClose={(ref, signal) => onCloseTab(leaf.id, ref, signal)}
           onPromote={onPromoteTab}
           onDropTab={(ref, move) => onDropTab(leaf.id, ref, 'center', move)}
           onArchived={onArchived}

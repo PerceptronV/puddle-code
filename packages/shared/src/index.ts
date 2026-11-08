@@ -68,6 +68,7 @@ export * from './desktop/windows/transfers.js';
 export * from './desktop/windows/drag.js';
 export * from './desktop/windows/projects.js';
 export * from './desktop/windows/commands.js';
+export * from './desktop/windows/close.js';
 export * from './desktop/windows/bridge.js';
 export * from './desktop/windows/effects.js';
 export * from './installation/recovery.js';
