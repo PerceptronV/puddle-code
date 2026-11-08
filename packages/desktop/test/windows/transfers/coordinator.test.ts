@@ -454,6 +454,35 @@ it('restores an existing destination after a staging failure without destroying 
   });
 });
 
+it('releases destination presentation work when its renderer crashes during docking', async () => {
+  const f = docking();
+  const prepared = f.transfers.prepareDock('source', f.request);
+  await vi.waitFor(() => expect(f.state.outcome('move')).toBe('prepared'));
+  f.command.mockRejectedValue(new Error('Window renderer is unavailable'));
+  f.transfers.disconnected('destination');
+  await expect(prepared).rejects.toThrow('disconnected');
+  expect(f.state.outcome('move')).toBe('cancelled');
+  expect(f.state.read('source', profileId)?.content).toEqual(request.destination);
+  expect(f.state.read('destination', profileId)?.content).toEqual(request.source);
+  expect(f.transfers.busy('destination')).toBe(false);
+  expect(f.transfers.presentationPending('destination')).toBe(false);
+});
+
+it('keeps a surviving destination busy until its rollback finishes after a source crash', async () => {
+  const f = docking();
+  const restored = Promise.withResolvers<undefined>();
+  const prepared = f.transfers.prepareDock('source', f.request);
+  await vi.waitFor(() => expect(f.state.outcome('move')).toBe('prepared'));
+  f.command.mockImplementation(() => restored.promise);
+  f.transfers.disconnected('source');
+  await expect(prepared).rejects.toThrow('disconnected');
+  expect(f.transfers.busy('source')).toBe(false);
+  expect(f.transfers.busy('destination')).toBe(true);
+  expect(f.transfers.presentationPending('destination')).toBe(true);
+  restored.resolve(undefined);
+  await vi.waitFor(() => expect(f.transfers.busy('destination')).toBe(false));
+});
+
 it('positions a drop in the visible destination project without changing the source anchor', async () => {
   const f = docking();
   const destinationProjectId = '0000000001';

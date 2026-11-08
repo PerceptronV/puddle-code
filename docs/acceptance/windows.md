@@ -951,6 +951,42 @@ a pane window; they do not cover every handoff boundary, existing-destination
 docking, project returns, arrangement transactions, real Command-Q delivery or OS
 drag. Those remain part of the acceptance requirements below.
 
+### Existing-destination crash recovery — 2026-11-08
+
+The native transfer runner now also exercises docking into an existing host
+window. Before the fix, a destination renderer crash durably cancelled the move
+and preserved the source draft, but left the destination marked as restoring.
+Reloading that renderer could not make it eligible for another dock. The focused
+coordinator regression failed on the stale busy flag, and the native retry left
+the source pane open instead of completing the dock.
+
+`WindowTransfers.disconnected` now clears the disconnected renderer's restoration
+flag after cancelling its transfers. The replacement reads the durable rollback.
+When only the source crashes, the still-running destination remains busy until
+its rollback command finishes; a separate regression verifies that fence.
+
+`PREVIEW_URL=http://127.0.0.1:5188/ pnpm --filter @puddle-code/desktop
+test:native-window-transfers` passed on macOS arm64 after the fix, including all
+three previously recorded cases and these additional observations:
+
+- After destination acceptance, crash the docking source before commit. The
+  host removes the staged README tab and restores its prior layout. The source's
+  persisted dirty text remains intact, and reloading its renderer recovers it.
+- Crash the host destination before acceptance. The move is cancelled, the pane
+  keeps its exact dirty text, and the reloaded host has its original layout.
+- Invoke the pane's return menu again in the same app process. The dock commits,
+  the host displays one README tab with the exact dirty text, the source window
+  retires, and no transfer remains pending.
+
+The runner uses DOM context-menu actions through Electron's surviving window
+handles after crashes because Playwright retains a crashed flag on its old Page.
+Reload and crash use the real Electron webContents lifecycle. These are not OS
+drag or keyboard-delivery tests. All five native cases passed without renderer
+page errors; 57 focused desktop transfer/lifecycle tests, desktop typechecking,
+targeted lint and formatting checks passed. Existing-window
+project returns, arrangement interruptions and the other native gates below
+remain unverified by this increment.
+
 ## Required acceptance before completion
 
 1. Open files, sessions, full panes, and projects using their context menus.

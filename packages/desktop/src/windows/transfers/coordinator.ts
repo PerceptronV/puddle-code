@@ -439,7 +439,6 @@ export class WindowTransfers {
   }
 
   disconnected(windowId: string): void {
-    this.restoring.delete(windowId);
     for (const plan of this.planning.values()) {
       if (plan.sourceId === windowId || plan.destinationId === windowId) plan.cancelled = true;
     }
@@ -447,6 +446,10 @@ export class WindowTransfers {
       if (transfer.sourceId === windowId || transfer.destinationId === windowId)
         this.fail(id, new Error('Window disconnected during the transfer'));
     }
+    // Cancellation may register destination restoration above. A disconnected
+    // renderer cannot acknowledge it; its replacement reads the durable rollback.
+    // Keep surviving destinations fenced until their own restoration completes.
+    this.restoring.delete(windowId);
   }
 
   retire(windowId: string, request: DesktopTransferRetire): void {

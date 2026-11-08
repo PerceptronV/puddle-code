@@ -2464,7 +2464,11 @@ The destination must share the host and selected profile. It freezes its current
 revision, plans the merge, releases mounted views and remounts the shared workspace
 with the staged content before acknowledgement. Dirty conflicts reject the move;
 clean duplicate editors adopt incoming text. Cancellation restores the original
-state and route; staged routes do not become durable until commit. Imported view
+state and route; staged routes do not become durable until commit.
+When the destination renderer disconnects, durable cancellation clears its pending
+presentation work after rollback; a replacement renderer reads that saved state
+and can accept another transfer. A surviving destination remains fenced until its
+rollback acknowledgement arrives when only the source disconnects. Imported view
 positions take precedence over old renderer caches. After commit the source
 releases its models and checkpoints once more; only an empty source with no dirty
 buffers retires. Remaining tabs or late drafts stay visible. Retirement failure

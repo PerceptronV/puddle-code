@@ -5,6 +5,7 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { createRequire } from 'node:module';
 import { buildNativePreview } from '../build.mjs';
+import { checkDocking } from './docking.mjs';
 
 const require = createRequire(import.meta.url);
 const { _electron: electron, expect } = createRequire(
@@ -154,13 +155,30 @@ try {
   console.log(
     'Lost commit reply observes one durable outcome without repeating preparation or commit.',
   );
+  await checkDocking({
+    application,
+    host: source,
+    pane: committed,
+    state,
+    draft,
+    text,
+    arm,
+    reached,
+    expect,
+  });
   assert.deepEqual(errors, []);
   console.log(
     JSON.stringify({
       platform: process.platform,
       arch: process.arch,
       result: 'passed',
-      cases: ['destination-before-accept', 'source-before-commit', 'lost-commit-reply'],
+      cases: [
+        'destination-before-accept',
+        'source-before-commit',
+        'lost-commit-reply',
+        'dock-source-before-commit',
+        'dock-destination-before-accept',
+      ],
     }),
   );
 } finally {
