@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { decodeLocalDrag, encodeLocalDrag } from '../../windows/drag-scope';
 
 /** Companion payload for a native sidebar drag that carries several sessions. */
 export const SESSION_DRAG_MIME = 'application/x-puddle-sessions';
@@ -74,13 +75,13 @@ export function sessionsForDrag(
 }
 
 export function encodeSessionDrag(ids: readonly string[]): string {
-  return JSON.stringify(ids);
+  return encodeLocalDrag(ids);
 }
 
 /** Parse and validate an internal multi-session drag, deduplicating stale input. */
 export function decodeSessionDrag(raw: string): string[] {
   try {
-    return [...new Set(sessionDragSchema.parse(JSON.parse(raw)))];
+    return [...new Set(sessionDragSchema.parse(decodeLocalDrag(raw)))];
   } catch {
     return [];
   }

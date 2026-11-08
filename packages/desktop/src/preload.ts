@@ -31,6 +31,11 @@ contextBridge.exposeInMainWorld('puddleDesktop', {
       beginPaneDrag: (request: unknown) =>
         ipcRenderer.invoke('puddle:window-begin-pane-drag', request),
       dropPane: (request: unknown) => ipcRenderer.invoke('puddle:window-drop-pane', request),
+      beginTabDrag: (request: unknown) =>
+        ipcRenderer.invoke('puddle:window-begin-tab-drag', request),
+      dropTab: (request: unknown) => ipcRenderer.invoke('puddle:window-drop-tab', request),
+      prepareTabDock: (request: unknown) =>
+        ipcRenderer.invoke('puddle:window-prepare-tab-dock', request),
     },
     lifecycle: {
       ready: () => ipcRenderer.invoke('puddle:window-ready'),

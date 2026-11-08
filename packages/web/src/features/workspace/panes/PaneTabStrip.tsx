@@ -42,6 +42,15 @@ import { useDropIndicator } from '../layout/TilingDnd';
 import { PaneWindowContextMenu } from '../../windows/PaneWindowContextMenu';
 import { TabWindowContextMenu } from '../../windows/TabWindowContextMenu';
 import { beginPaneWindowDrag, canDragPaneWindow } from '../../windows/pane-drag';
+import { useParams } from 'react-router';
+import { dropTabWindow } from '../../windows/tab-drag';
+import {
+  TAB_MIME,
+  hasTabTransfer,
+  decodeTabTransferDetails,
+  encodeTabTransfer,
+  hasNativeTabTransfer,
+} from '../tabs/tab-transfer';
 
 // The 7.2rem floor leaves a clickable title beside the three hover controls a stopped
 // session can show (resume, archive and close). Controls overlay the right edge
@@ -74,6 +83,7 @@ export function PaneTabStrip({
   onActivate,
   onClose,
   onPromote,
+  onDropTab,
   onArchived,
   onSetView,
   compilableExtensions,
@@ -92,6 +102,7 @@ export function PaneTabStrip({
   onActivate: (ref: TabRef) => void;
   onClose: (ref: TabRef) => void;
   onPromote: (ref: TabRef) => void;
+  onDropTab: (ref: TabRef, move?: { fromLeafId?: string; index?: number }) => void;
   onArchived: (session: string) => void;
   /** Set a previewable editor tab's source/preview/following view (SPEC §8). */
   onSetView: (ref: TabRef, view: EditorView) => void;
@@ -109,9 +120,13 @@ export function PaneTabStrip({
   /** Rename a path-backed editor tab on disk; true when the edit may close. */
   onRenameFile: (tab: EditorTab, newName: string) => Promise<boolean>;
 }) {
+  const { id: projectId } = useParams();
   const single = leaf.tabs.length === 1;
   const nativePaneDrag = canDragPaneWindow();
   const nativeDragStart = useRef(false);
+  const [nativeIndex, setNativeIndex] = useState<number | null>(null);
+  const nativeTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  useEffect(() => () => clearTimeout(nativeTimer.current), []);
   const sessionsById = new Map(sessions.map((session) => [session.id, session]));
   const branches = new Map(sessions.map((s) => [s.id, s.branch]));
   const directories = new Map(sessions.map((s) => [s.id, s.worktree_path]));
@@ -122,7 +137,15 @@ export function PaneTabStrip({
     data: { paneId: leaf.id, tabCount: leaf.tabs.length },
   });
   const caretAt =
-    indicator?.leafId === leaf.id && indicator.index !== undefined ? indicator.index : null;
+    nativeIndex ??
+    (indicator?.leafId === leaf.id && indicator.index !== undefined ? indicator.index : null);
+  const nativeInsertion = (target: EventTarget, clientX: number): number => {
+    const chip = target instanceof Element ? target.closest<HTMLElement>('[data-pane-tab]') : null;
+    const index = chip ? leaf.tabs.findIndex((ref) => tabRefKey(ref) === chip.dataset.paneTab) : -1;
+    if (index < 0 || !chip) return leaf.tabs.length;
+    const rect = chip.getBoundingClientRect();
+    return index + (clientX >= rect.x + rect.width / 2 ? 1 : 0);
+  };
   // The strip itself (its tail, past the last chip) drops as "append".
   const { setNodeRef: setStripRef } = useDroppable({
     id: `strip:${leaf.id}`,
@@ -143,6 +166,31 @@ export function PaneTabStrip({
         paneDrag.setNodeRef(node);
       }}
       data-pane-drag-handle={leaf.id}
+      onDragOver={(event) => {
+        if (!hasTabTransfer(event.dataTransfer.types)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        event.dataTransfer.dropEffect = 'move';
+        setNativeIndex(nativeInsertion(event.target, event.clientX));
+        clearTimeout(nativeTimer.current);
+        nativeTimer.current = setTimeout(() => setNativeIndex(null), 750);
+      }}
+      onDragLeave={(event) => {
+        if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setNativeIndex(null);
+      }}
+      onDrop={(event) => {
+        if (!hasTabTransfer(event.dataTransfer.types)) return;
+        event.preventDefault();
+        event.stopPropagation();
+        setNativeIndex(null);
+        clearTimeout(nativeTimer.current);
+        const raw = event.dataTransfer.getData(TAB_MIME);
+        const index = nativeInsertion(event.target, event.clientX);
+        if (projectId && dropTabWindow(raw, projectId, { paneId: leaf.id, edge: 'center', index }))
+          return;
+        const local = decodeTabTransferDetails(raw);
+        if (local) onDropTab(local.ref, { fromLeafId: local.paneId, index });
+      }}
       draggable={nativePaneDrag || undefined}
       onPointerDownCapture={(event) => {
         nativeDragStart.current =
@@ -479,6 +527,9 @@ function PaneTab({
 }) {
   const [renaming, setRenaming] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const nativeTabDrag = !nativePaneDrag && hasNativeTabTransfer();
+  const nativeTabStart = useRef(false);
+  const { id: currentProjectId } = useParams();
   const renderTitle = useSessionTitleRenderer();
   const key = tabRefKey(tab);
   const { attributes, listeners, setNodeRef, isDragging } = useDraggable({
@@ -511,7 +562,30 @@ function PaneTab({
     <div
       ref={setRefs}
       {...(renaming ? {} : attributes)}
-      {...(renaming || nativePaneDrag ? {} : listeners)}
+      {...(renaming || nativePaneDrag || nativeTabDrag ? {} : listeners)}
+      onKeyDown={renaming ? undefined : (event) => listeners?.onKeyDown?.(event)}
+      draggable={(nativeTabDrag && !renaming) || undefined}
+      onPointerDownCapture={(event) => {
+        nativeTabStart.current =
+          event.target instanceof Element &&
+          !event.target.closest('button, input, [contenteditable], [role="menuitem"]');
+      }}
+      onDragStart={(event) => {
+        if (!nativeTabDrag) return;
+        event.stopPropagation();
+        if (!nativeTabStart.current) {
+          event.preventDefault();
+          return;
+        }
+        event.dataTransfer.effectAllowed = 'move';
+        event.dataTransfer.setData(
+          TAB_MIME,
+          encodeTabTransfer(tab, {
+            paneId: leafId,
+            projectId: session?.project_id ?? fileSession?.project_id ?? currentProjectId,
+          }),
+        );
+      }}
       onClick={onActivate}
       onDoubleClick={onPromote}
       className={cn(cls, renaming && 'pane-tab-renaming cursor-text select-text')}

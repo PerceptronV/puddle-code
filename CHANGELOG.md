@@ -17,6 +17,7 @@ Past releases: see docs/changelogs/.
 - Open an entire pane in its own native window from its tab-strip context menu, preserving dirty text through an acknowledged handoff (application protocol 26.8).
 - Return detached panes to existing host/project windows through their context menu, preserving dirty text and view positions and retaining the source when late drafts remain (application protocol 26.11).
 - Connect detached pane dragging to the acknowledged return handoff, validate host/profile identity and place the pane in the destination's visible project (application protocol 26.12; native OS acceptance and project detachment remain in progress).
+- Drag files, sessions and native tabs into existing pane windows through the same draft-preserving handoff, and keep filesystem/archive drag actions local to their source window (application protocol 26.13).
 - Highlight TeX and LaTeX commands, comments, environments, mathematics and verbatim text, with automatic file detection and a per-file language choice.
 
 #### Changed

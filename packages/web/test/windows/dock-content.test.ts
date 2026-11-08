@@ -8,7 +8,7 @@ import {
   tabRefKey,
 } from '../../src/features/workspace/layout/layout-tree';
 import { detachPaneContent, detachTabContent } from '../../src/features/windows/transfer-content';
-import { dockPaneContent } from '../../src/features/windows/dock-content';
+import { dockPaneContent, dockTabContent } from '../../src/features/windows/dock-content';
 import { transferPaneViews } from '../../src/features/windows/transfer-views';
 
 const project = '1234567890';
@@ -34,6 +34,98 @@ function viewKey(pane: string, scope = 'profile', namespace = 'code') {
     [session, null, 'move.ts'],
   ])}`;
 }
+
+it('merges a dropped tab into the existing strip, retaining its dirty tabs and importing only the moved view', () => {
+  const destination = content([editor('stay.ts'), editor('move.ts')], 'target');
+  destination.buffers = [draft('stay.ts', 'destination draft')];
+  destination.views = {
+    [viewKey('target')]: { line: 3 },
+    [viewKey('target').replaceAll('move.ts', 'stay.ts')]: { line: 8 },
+  };
+  const incoming = content([editor('move.ts')], 'source');
+  incoming.buffers = [draft('move.ts', 'incoming draft')];
+  incoming.views = {
+    [viewKey('source')]: { line: 24 },
+    [viewKey('source').replaceAll('move.ts', 'stay.ts')]: { line: 999 },
+  };
+  const merged = dockTabContent(destination, incoming, project, {
+    paneId: 'target',
+    edge: 'center',
+    index: 0,
+  });
+  const [leaf] = allLeaves(merged.snapshot.layout_tree!);
+  expect(allLeaves(merged.snapshot.layout_tree!)).toHaveLength(1);
+  expect(leaf!.tabs).toEqual([editor('move.ts'), editor('stay.ts')]);
+  expect(leaf!.activeKey).toBe(tabRefKey(editor('move.ts')));
+  expect(leaf!.previewKey).toBeNull();
+  expect(merged.buffers).toEqual([...destination.buffers, ...incoming.buffers]);
+  expect(merged.views).toEqual({
+    [viewKey('target')]: { line: 24 },
+    [viewKey('target').replaceAll('move.ts', 'stay.ts')]: { line: 8 },
+  });
+});
+
+it('moves an existing terminal to the dropped tab position once across project slices', () => {
+  const destination = content([editor('stay.ts')], 'target');
+  destination.snapshot = {
+    ...destination.snapshot,
+    layout_mode: 'project',
+    project_layouts: {
+      [project]: {
+        layout_tree: destination.snapshot.layout_tree,
+        active_session: null,
+        layout_ref: null,
+      },
+      [otherProject]: {
+        layout_tree: makeLeaf([terminal, editor('other.ts')]),
+        active_session: session,
+        layout_ref: null,
+      },
+    },
+  };
+  const incoming = content([terminal], 'source');
+  incoming.snapshot.active_session = session;
+  const merged = dockTabContent(destination, incoming, project, {
+    paneId: 'target',
+    edge: 'center',
+  });
+  expect(flattenTabs(merged.snapshot.project_layouts[project]!.layout_tree!)).toEqual([
+    editor('stay.ts'),
+    terminal,
+  ]);
+  expect(flattenTabs(merged.snapshot.project_layouts[otherProject]!.layout_tree!)).toEqual([
+    editor('other.ts'),
+  ]);
+  expect(merged.snapshot.project_layouts[project]!.active_session).toBe(session);
+  expect(merged.snapshot.project_layouts[otherProject]!.active_session).toBeNull();
+});
+
+it('refuses conflicting dirty tab copies and rejects a multi-tab payload before changing the target', () => {
+  const destination = content([editor('move.ts')], 'target');
+  destination.buffers = [draft('move.ts', 'local')];
+  const incoming = content([editor('move.ts')]);
+  incoming.buffers = [draft('move.ts', 'different')];
+  const original = structuredClone(destination);
+  const placement = { paneId: 'target', edge: 'center' as const };
+  expect(() => dockTabContent(destination, incoming, project, placement)).toThrow(
+    'different unsaved edits',
+  );
+  expect(() =>
+    dockTabContent(destination, content([editor('a'), editor('b')]), project, placement),
+  ).toThrow('exactly one');
+  expect(destination).toEqual(original);
+});
+
+it('does not transfer a following preview that has changed targets since its drag began', () => {
+  const before: TabRef = { type: 'editor', tab: { session, path: 'before.md', view: 'linked' } };
+  const after: TabRef = { type: 'editor', tab: { session, path: 'after.md', view: 'linked' } };
+  expect(tabRefKey(before)).toBe(tabRefKey(after));
+  const source = content([after], 'source');
+  expect(() => detachTabContent(source, project, before, 'source')).toThrow('tab has changed');
+  expect(
+    detachTabContent(source, project, after, 'source').destination.snapshot.layout_tree,
+  ).toMatchObject({ tabs: [after] });
+});
 
 it('docks beside an existing pane, retaining duplicate editor views and rekeying their positions', () => {
   const destination = content([editor('move.ts'), editor('stay.ts')]);

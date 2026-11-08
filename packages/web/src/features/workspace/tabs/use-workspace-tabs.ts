@@ -269,7 +269,22 @@ export function useWorkspaceTabs({
   // (dropTab keeps terminals unique — those still move). A dropped session
   // also claims the URL, like activating its tab would.
   const onDropTab = useCallback(
-    (leafId: string, ref: TabRef, edge: DropEdge) => {
+    (
+      leafId: string,
+      ref: TabRef,
+      edge: DropEdge,
+      move?: { fromLeafId?: string; index?: number },
+    ) => {
+      if (move?.fromLeafId) {
+        layout.drop({
+          ref,
+          fromLeafId: move.fromLeafId,
+          toLeafId: leafId,
+          edge,
+          index: move.index,
+        });
+        return;
+      }
       const owner =
         ref.type === 'terminal'
           ? tabSessions.find((s) => s.id === ref.session)?.project_id
@@ -285,7 +300,14 @@ export function useWorkspaceTabs({
         void navigate(`/project/${owner}/session/${ref.session}`);
         return;
       }
-      layout.drop({ ref, fromLeafId: leafId, toLeafId: leafId, edge, copy: true });
+      layout.drop({
+        ref,
+        fromLeafId: leafId,
+        toLeafId: leafId,
+        edge,
+        copy: true,
+        index: move?.index,
+      });
       if (ref.type === 'terminal' && ref.session !== activeSessionId && owner !== undefined) {
         void navigate(`/project/${owner}/session/${ref.session}`);
       }

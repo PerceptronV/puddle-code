@@ -107,17 +107,21 @@ it('times out missing destination readiness and never redispatches the move', as
   expect(state.read('source', profileId)?.revision).toBe(1);
 });
 
-function docking() {
+function docking(tab = false) {
   const home = mkdtempSync(join(tmpdir(), 'puddle-docking-'));
   homes.push(home);
   const state = new DesktopWindowState(join(home, 'state.json'));
   const source: ReopenWindow = {
     target: 'local',
-    window: { kind: 'pane', id: 'source', profileId, projectId: request.projectId },
+    window: tab
+      ? { kind: 'host', id: 'source' }
+      : { kind: 'pane', id: 'source', profileId, projectId: request.projectId },
   };
   const destination: ReopenWindow = {
     target: 'local',
-    window: { kind: 'host', id: 'destination' },
+    window: tab
+      ? { kind: 'pane', id: 'destination', profileId, projectId: '0000000001' }
+      : { kind: 'host', id: 'destination' },
     route: '/project/0000000001',
   };
   state.syncOpenWindows([source, destination]);
@@ -172,6 +176,37 @@ it('docks into an existing revision and retires only an empty acknowledged sourc
   expect(f.dismiss).toHaveBeenCalledWith('source');
   expect(f.state.openWindows().map((record) => record.window?.id)).toEqual(['destination']);
   expect(f.open).not.toHaveBeenCalled();
+});
+
+it('stages a host tab in a pane window using its fixed anchor and preserves the source route', async () => {
+  const f = docking(true);
+  f.command.mockImplementation(async (_id, command) =>
+    command.kind === 'plan-tab' ? { revision: 1, content: request.destination } : undefined,
+  );
+  const prepared = f.transfers.prepareTabDock('source', {
+    ...f.request,
+    sourceRoute: '/project/abcdef1234',
+    destinationProjectId: '0000000002',
+    placement: { paneId: 'target', edge: 'center' },
+  });
+  await vi.waitFor(() => expect(f.state.outcome('move')).toBe('prepared'));
+  expect(f.command).toHaveBeenCalledWith(
+    'destination',
+    expect.objectContaining({
+      kind: 'plan-tab',
+      projectId: '0000000001',
+      placement: { paneId: 'target', edge: 'center' },
+    }),
+  );
+  const accepted = f.transfers.accept('destination', request);
+  await prepared;
+  f.transfers.commit('source', request);
+  await accepted;
+  expect(f.state.openWindows().find((record) => record.window?.id === 'source')?.route).toBe(
+    '/project/abcdef1234',
+  );
+  expect(f.state.openWindows()).toHaveLength(2);
+  expect(f.dismiss).not.toHaveBeenCalled();
 });
 
 it('restores an existing destination after a staging failure without destroying either window', async () => {

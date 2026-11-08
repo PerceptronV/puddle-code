@@ -30,7 +30,12 @@ export interface TileHandlers {
   onScrollDrive: (leafId: string) => void;
   onResize: (splitId: string, sizes: number[]) => void;
   /** A sidebar drag (file row / session) dropped on a pane — open + position. */
-  onDropTab: (leafId: string, ref: TabRef, edge: DropEdge) => void;
+  onDropTab: (
+    leafId: string,
+    ref: TabRef,
+    edge: DropEdge,
+    move?: { fromLeafId?: string; index?: number },
+  ) => void;
   /**
    * Set a previewable editor tab's source/preview/following view (SPEC §8) in
    * THAT pane only, so one file can be open as source and preview at once.

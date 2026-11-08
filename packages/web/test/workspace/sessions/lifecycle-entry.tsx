@@ -64,6 +64,7 @@ Object.assign(window, {
         <MemoryRouter>
           <TooltipProvider delayDuration={0}>
             <PaneTabStrip
+              onDropTab={() => undefined}
               key={kind + missing}
               leaf={{
                 type: 'leaf',

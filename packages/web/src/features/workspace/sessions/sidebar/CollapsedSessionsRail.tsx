@@ -371,7 +371,10 @@ export function CollapsedSessionsRail({
                         // target act on the whole selection.
                         e.dataTransfer.setData(
                           TAB_MIME,
-                          encodeTabTransfer({ type: 'terminal', session: session.id }),
+                          encodeTabTransfer(
+                            { type: 'terminal', session: session.id },
+                            { projectId: session.project_id },
+                          ),
                         );
                         e.dataTransfer.setData(SESSION_DRAG_MIME, encodeSessionDrag(sessionIds));
                         e.dataTransfer.effectAllowed = 'copyMove';

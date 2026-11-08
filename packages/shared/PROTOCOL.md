@@ -1,5 +1,14 @@
 # The puddle communication protocol
 
+Application **26.13** adds optional native file/session drag registration, source
+commands and tab merge planning through the existing window handoff. A destination
+may be a pane, project or host window on the same host/profile. Tab placements add
+centre insertion with an optional index. Window-scoped companion drag payloads
+keep filesystem moves, archive batches and sidebar reorder actions local; only
+the registered tab offer can cross windows. No document text travels in drag data,
+and no daemon, runtime or remote operation changes. Older shells omit tab transfer
+capabilities and retain local drag behaviour.
+
 Application **26.12** adds optional private native pane-drag registration and drop
 capabilities. A short-lived, single-use offer binds the registered source, pane
 and profile. Only a live destination on the same host/profile may request its

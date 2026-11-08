@@ -3,10 +3,12 @@ import type { IpcMain, IpcMainInvokeEvent } from 'electron';
 import {
   desktopPaneDetachSchema,
   desktopPaneDockSchema,
+  desktopTabDockSchema,
   desktopTransferReferenceSchema,
   desktopTransferRetireSchema,
   type DesktopPaneDetach,
   type DesktopPaneDock,
+  type DesktopTabDock,
   type DesktopTransferObservation,
   type DesktopTransferReference,
   type DesktopWindowContext,
@@ -115,18 +117,30 @@ export class WindowTransfers {
   }
 
   prepareDock(sourceId: string, request: DesktopPaneDock): Promise<void> {
+    return this.prepareExisting(sourceId, { kind: 'pane', request });
+  }
+
+  prepareTabDock(sourceId: string, request: DesktopTabDock): Promise<void> {
+    return this.prepareExisting(sourceId, { kind: 'tab', request });
+  }
+
+  private prepareExisting(
+    sourceId: string,
+    move: { kind: 'pane'; request: DesktopPaneDock } | { kind: 'tab'; request: DesktopTabDock },
+  ): Promise<void> {
+    const { request } = move;
     const source = this.dependencies.record(sourceId);
     const destination = this.dependencies.record(request.destinationId);
     if (
-      source.window?.kind !== 'pane' ||
-      destination.window?.kind === 'pane' ||
+      (move.kind === 'pane' &&
+        (source.window?.kind !== 'pane' || destination.window?.kind === 'pane')) ||
       sourceId === request.destinationId
     )
       throw new Error('Return a detached pane to a host or project window');
     if (source.target !== destination.target) throw new Error('Cannot transfer between hosts');
     if (
-      source.window.profileId !== request.profileId ||
-      (destination.window?.kind === 'project' && destination.window.profileId !== request.profileId)
+      (source.window?.kind !== 'host' && source.window?.profileId !== request.profileId) ||
+      (destination.window?.kind !== 'host' && destination.window?.profileId !== request.profileId)
     )
       throw new Error('Cannot transfer between profiles');
     const state = this.dependencies.state();
@@ -151,27 +165,32 @@ export class WindowTransfers {
       finished: deferred<void>(),
     };
     this.planning.set(request.id, plan);
-    return this.planDock(request, destination, plan);
+    return this.planDock(move, destination, plan);
   }
 
   private async planDock(
-    request: DesktopPaneDock,
+    move: { kind: 'pane'; request: DesktopPaneDock } | { kind: 'tab'; request: DesktopTabDock },
     destination: ReopenWindow,
     plan: Planning,
   ): Promise<void> {
+    const { request } = move;
     const projectId =
-      destination.window?.kind === 'project'
+      destination.window && destination.window.kind !== 'host'
         ? destination.window.projectId
         : (request.destinationProjectId ?? request.projectId);
     try {
-      const planned = await this.dependencies.command!(plan.destinationId, {
-        kind: 'plan-pane',
+      const common = {
         transferId: request.id,
         profileId: request.profileId,
         projectId,
         content: request.destination,
-        placement: request.placement,
-      });
+      };
+      const planned = await this.dependencies.command!(
+        plan.destinationId,
+        move.kind === 'pane'
+          ? { ...common, kind: 'plan-pane', placement: move.request.placement }
+          : { ...common, kind: 'plan-tab', placement: move.request.placement },
+      );
       if (plan.cancelled || !planned) throw new Error('The destination plan was cancelled');
       // Recheck both live registrations after the asynchronous destination capture.
       this.dependencies.record(plan.sourceId);
@@ -186,6 +205,7 @@ export class WindowTransfers {
         sourceContent: request.source,
         destinationContent: planned.content,
         closeSource: false,
+        sourceRoute: request.sourceRoute,
         destinationRoute: `/project/${projectId}`,
       });
       const pending = this.start(transfer, true);
@@ -387,6 +407,12 @@ export function registerWindowTransferIpc(
     if (Buffer.byteLength(JSON.stringify(value)) > 16 * 1024 * 1024)
       throw new Error('Transfer is too large');
     return transfers.prepareDock(owner.identity.id, desktopPaneDockSchema.parse(value));
+  });
+  ipc.handle('puddle:window-prepare-tab-dock', (event, value: unknown) => {
+    const owner = context(event);
+    if (Buffer.byteLength(JSON.stringify(value)) > 16 * 1024 * 1024)
+      throw new Error('Transfer is too large');
+    return transfers.prepareTabDock(owner.identity.id, desktopTabDockSchema.parse(value));
   });
   ipc.handle('puddle:window-transfer-retire', (event, value: unknown) => {
     const owner = context(event);

@@ -5,6 +5,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { useParams } from 'react-router';
 import { dropPaneWindow, PANE_WINDOW_MIME } from '../../windows/pane-drag';
+import { dropTabWindow } from '../../windows/tab-drag';
 import { toastError } from '../../../lib/transport/errors';
 import type {
   CompilationMode,
@@ -32,7 +33,7 @@ import { zoneForPointer } from '../layout/layout-dnd';
 import { PaneSessionOverlay } from './PaneSessionOverlay';
 import { PaneTabStrip } from './PaneTabStrip';
 import { tabRefKey, type DropEdge } from '../layout/layout-tree';
-import { decodeTabTransfer, hasTabTransfer, TAB_MIME } from '../tabs/tab-transfer';
+import { decodeTabTransferDetails, hasTabTransfer, TAB_MIME } from '../tabs/tab-transfer';
 import { useTilingDragging, useDropIndicator } from '../layout/TilingDnd';
 import { paneInteractionIntent } from './pane-interaction';
 
@@ -85,7 +86,12 @@ export function PaneLeaf({
   /** Make this pane the scroll-following driver without changing pane focus. */
   onScrollDrive: (leafId: string) => void;
   /** A sidebar drag (file row / session) dropped on this pane — open + position. */
-  onDropTab: (leafId: string, ref: TabRef, edge: DropEdge) => void;
+  onDropTab: (
+    leafId: string,
+    ref: TabRef,
+    edge: DropEdge,
+    move?: { fromLeafId?: string; index?: number },
+  ) => void;
   /** Set THIS pane's previewable editor tab's rendered/following mode (SPEC §8). */
   onSetTabView: (leafId: string, ref: TabRef, view: EditorView) => void;
   compilableExtensions: ReadonlySet<string>;
@@ -225,10 +231,17 @@ export function PaneLeaf({
           ).catch(toastError);
         return;
       }
-      const ref = decodeTabTransfer(e.dataTransfer?.getData(TAB_MIME) ?? '');
-      if (ref) {
+      const raw = e.dataTransfer?.getData(TAB_MIME) ?? '';
+      if (projectId && dropTabWindow(raw, projectId, { paneId: leaf.id, edge: zoneOf(e) })) return;
+      const local = decodeTabTransferDetails(raw);
+      if (local) {
+        const { ref } = local;
         const zone = zoneOf(e);
-        animateTabPlacement(() => dropTabRef.current(leaf.id, ref, zone), ref, leaf.id);
+        animateTabPlacement(
+          () => dropTabRef.current(leaf.id, ref, zone, { fromLeafId: local.paneId }),
+          ref,
+          leaf.id,
+        );
       }
     };
     // Whatever ends the drag clears the highlight: released over another pane,
@@ -269,6 +282,7 @@ export function PaneLeaf({
           onActivate={(ref) => onActivateTab(leaf.id, ref)}
           onClose={(ref) => onCloseTab(leaf.id, ref)}
           onPromote={onPromoteTab}
+          onDropTab={(ref, move) => onDropTab(leaf.id, ref, 'center', move)}
           onArchived={onArchived}
           onSetView={(ref, view) => onSetTabView(leaf.id, ref, view)}
           compilableExtensions={compilableExtensions}

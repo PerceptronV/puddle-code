@@ -2348,9 +2348,25 @@ project; centre drops place the pane to its right. Invalidated or consumed offer
 never redispatch after a lost acknowledgement. Ordinary browser pane dragging
 continues through dnd-kit; native OS drag acceptance remains pending.
 
+Application 26.13 extends the same registered handoff to file/session sidebar and
+native tab-strip drags, including drops into an existing pane window. A strip or
+centre drop inserts and activates a permanent tab; edge drops split the target.
+The destination preserves its other tabs/drafts, rejects conflicting dirty copies,
+and imports only the moved tab's view positions. Existing source views move;
+unopened rows create views, while other duplicate source views retain their text.
+Stale following-preview targets cannot substitute another file for a dragged tab.
+Fixed destination identities retain their project anchor; host destinations use
+the visible project. The source keeps its project route without a moved session's
+URL suffix. Empty detached sources retire through the existing final checkpoint.
+Within a native window, tab drops reuse layout moves and preserve sidebar-copy
+semantics; keyboard dragging retains dnd-kit. A detached single-tab edge continues
+to offer its whole pane. Companion filesystem/archive/reorder payloads are local
+to their native window/host/profile; foreign or unscoped references cannot mutate
+local resources. Ordinary browser payloads and dragging retain their existing path.
+
 The shared workspace can render full host, headerless project, and pane-only
 presentations; detached windows use native title bars. Project detachment,
-cross-window file/session transfers, project redirects, and
+project redirects, and
 named window arrangements remain in progress. See
 `docs/roadmap/windows.md` for the full contract and `docs/acceptance/windows.md`
 for implemented behaviour and verified scope. These foundations do not yet

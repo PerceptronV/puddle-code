@@ -144,6 +144,15 @@ export const desktopPaneDockSchema = desktopPaneDetachSchema.extend({
   placement: desktopPanePlacementSchema.optional(),
 });
 export type DesktopPaneDock = z.infer<typeof desktopPaneDockSchema>;
+export const desktopTabPlacementSchema = z.object({
+  paneId: z.string().min(1).max(512),
+  edge: z.enum(['center', 'left', 'right', 'top', 'bottom']),
+  index: z.number().int().nonnegative().max(4096).optional(),
+});
+export const desktopTabDockSchema = desktopPaneDockSchema.extend({
+  placement: desktopTabPlacementSchema,
+});
+export type DesktopTabDock = z.infer<typeof desktopTabDockSchema>;
 /** Native drag data contains a single-use registration, never document content. */
 export const desktopPaneDragSchema = z.object({
   token: desktopWindowIdSchema,
@@ -152,12 +161,23 @@ export const desktopPaneDragSchema = z.object({
   paneId: z.string().min(1).max(512),
 });
 export type DesktopPaneDrag = z.infer<typeof desktopPaneDragSchema>;
+export const desktopTabDragSchema = desktopPaneDragSchema.omit({ paneId: true }).extend({
+  ref: tabRefSchema,
+  paneId: z.string().min(1).max(512).optional(),
+});
+export type DesktopTabDrag = z.infer<typeof desktopTabDragSchema>;
 export const desktopPaneDragPayloadSchema = z.object({
   token: desktopWindowIdSchema,
   sourceId: desktopWindowIdSchema,
   hostId: desktopWindowIdSchema,
   profileId,
 });
+export const desktopTabDragPayloadSchema = desktopPaneDragPayloadSchema.extend({
+  ref: tabRefSchema,
+  paneId: z.string().min(1).max(512).optional(),
+});
+export const desktopDragScopeSchema = desktopPaneDragPayloadSchema.omit({ token: true });
+export type DesktopTabDragPayload = z.infer<typeof desktopTabDragPayloadSchema>;
 export const desktopPaneDropSchema = z.object({
   token: desktopWindowIdSchema,
   sourceId: desktopWindowIdSchema,
@@ -166,6 +186,10 @@ export const desktopPaneDropSchema = z.object({
   placement: desktopPanePlacementSchema,
 });
 export type DesktopPaneDrop = z.infer<typeof desktopPaneDropSchema>;
+export const desktopTabDropSchema = desktopPaneDropSchema.extend({
+  placement: desktopTabPlacementSchema,
+});
+export type DesktopTabDrop = z.infer<typeof desktopTabDropSchema>;
 export const desktopPaneMoveCommandSchema = z.object({
   kind: z.literal('move-pane'),
   profileId,
@@ -176,6 +200,14 @@ export const desktopPaneMoveCommandSchema = z.object({
   placement: desktopPanePlacementSchema,
 });
 export type DesktopPaneMoveCommand = z.infer<typeof desktopPaneMoveCommandSchema>;
+export const desktopTabMoveCommandSchema = desktopPaneMoveCommandSchema.extend({
+  kind: z.literal('move-tab'),
+  ref: tabRefSchema,
+  paneId: z.string().min(1).max(512).optional(),
+  placement: desktopTabPlacementSchema,
+});
+export type DesktopTabMoveCommand = z.infer<typeof desktopTabMoveCommandSchema>;
+export type DesktopContentMoveCommand = DesktopPaneMoveCommand | DesktopTabMoveCommand;
 export const desktopTransferReferenceSchema = z.object({ id: desktopWindowIdSchema, profileId });
 export type DesktopTransferReference = z.infer<typeof desktopTransferReferenceSchema>;
 export const desktopTransferRetireSchema = desktopTransferReferenceSchema.extend({
@@ -205,6 +237,9 @@ export interface DesktopWindowTransfersBridge {
   retire?(request: DesktopTransferRetire): Promise<void>;
   beginPaneDrag?(request: DesktopPaneDrag): Promise<void>;
   dropPane?(request: DesktopPaneDrop): Promise<void>;
+  prepareTabDock?(request: DesktopTabDock): Promise<void>;
+  beginTabDrag?(request: DesktopTabDrag): Promise<void>;
+  dropTab?(request: DesktopTabDrop): Promise<void>;
 }
 
 export const desktopPaneFocusSchema = z.object({ profileId, ref: tabRefSchema });
@@ -228,6 +263,14 @@ export function desktopTabKey(ref: TabRef): string {
 
 export const desktopWindowTransferCommandSchema = z.discriminatedUnion('kind', [
   z.object({
+    kind: z.literal('plan-tab'),
+    transferId: desktopWindowIdSchema,
+    profileId,
+    projectId,
+    content: desktopWorkspaceContentSchema,
+    placement: desktopTabPlacementSchema,
+  }),
+  z.object({
     kind: z.literal('plan-pane'),
     transferId: desktopWindowIdSchema,
     profileId,
@@ -242,6 +285,7 @@ export type DesktopWindowTransferCommand = z.infer<typeof desktopWindowTransferC
 export const desktopWindowCommandSchema = z.union([
   desktopWindowTransferCommandSchema.and(z.object({ id: desktopWindowIdSchema })),
   desktopPaneMoveCommandSchema.and(z.object({ id: desktopWindowIdSchema })),
+  desktopTabMoveCommandSchema.and(z.object({ id: desktopWindowIdSchema })),
   z.discriminatedUnion('kind', [
     z.object({ id: desktopWindowIdSchema, kind: z.literal('checkpoint') }),
     z.object({ id: desktopWindowIdSchema, kind: z.literal('resume') }),

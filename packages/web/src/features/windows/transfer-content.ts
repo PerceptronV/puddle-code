@@ -1,4 +1,5 @@
 import type { DesktopWorkspaceContent, LayoutNode, UiStateSnapshot, TabRef } from '@puddle/shared';
+import { desktopTabKey } from '@puddle/shared';
 import {
   findLeaf,
   flattenTabs,
@@ -84,6 +85,7 @@ export function detachTabContent(
 ): { source: DesktopWorkspaceContent; destination: DesktopWorkspaceContent } {
   const base = content.snapshot;
   const key = tabRefKey(ref);
+  const identity = desktopTabKey(ref);
   const scopes =
     base.layout_mode === 'project'
       ? [projectId, ...Object.keys(base.project_layouts).filter((id) => id !== projectId)].map(
@@ -95,13 +97,14 @@ export function detachTabContent(
       (scope.snapshot.layout_tree ? allLeaves(scope.snapshot.layout_tree) : [])
         .filter(
           (leaf) =>
-            (!paneId || paneId === leaf.id) && leaf.tabs.some((tab) => tabRefKey(tab) === key),
+            (!paneId || paneId === leaf.id) &&
+            leaf.tabs.some((tab) => desktopTabKey(tab) === identity),
         )
         .map((leaf) => ({ scope, leaf })),
     )
     .at(0);
   if (paneId && !match) throw new Error('The tab has changed; try opening it again');
-  const actual = match?.leaf.tabs.find((tab) => tabRefKey(tab) === key) ?? ref;
+  const actual = match?.leaf.tabs.find((tab) => desktopTabKey(tab) === identity) ?? ref;
   const pane = makeLeaf([actual]);
   // View-state keys are pane-local. The two renderers may temporarily share a
   // pane id; docking reassigns colliding ids when joining their trees.

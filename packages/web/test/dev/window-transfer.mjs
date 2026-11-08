@@ -14,7 +14,7 @@ const directory = await mkdtemp(join(tmpdir(), 'puddle-live-window-'));
 const implementation = join(directory, 'implementation.mjs');
 await build({
   stdin: {
-    contents: `export { DesktopWindowState } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/state.ts'))};\nexport { WindowTransfers } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers.ts'))};\nexport { WindowCommands } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/commands.ts'))};\nexport { PaneDrags } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/drags.ts'))};`,
+    contents: `export { DesktopWindowState } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/state.ts'))};\nexport { WindowTransfers } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers.ts'))};\nexport { WindowCommands } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/commands.ts'))};\nexport { WindowDrags } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/drags.ts'))};`,
     resolveDir: root,
   },
   bundle: true,
@@ -23,13 +23,14 @@ await build({
   outfile: implementation,
   alias: { '@puddle/shared': resolve(root, 'packages/shared/src/index.ts') },
 });
-const { DesktopWindowState, WindowTransfers, WindowCommands, PaneDrags } = await import(
+const { DesktopWindowState, WindowTransfers, WindowCommands, WindowDrags } = await import(
   pathToFileURL(implementation).href
 );
 const commands = new WindowCommands();
 const mode = process.env.WINDOW_TRANSFER_KIND ?? 'pane';
 const dragBack = process.env.WINDOW_DOCK_BACK === 'drag';
 const dockBack = process.env.WINDOW_DOCK_BACK === '1' || dragBack;
+const addTab = process.env.WINDOW_ADD_TAB;
 assert.ok(['pane', 'file', 'session'].includes(mode));
 let focused = 0;
 const state = new DesktopWindowState(join(directory, 'windows.json'));
@@ -39,13 +40,13 @@ const records = new Map();
 const pages = new Map();
 const errors = [];
 const trace = [];
-const drags = new PaneDrags({
+const drags = new WindowDrags({
   context: (id) => {
     const record = records.get(id);
     if (!record) throw new Error('Window unavailable');
     return { identity: record.window, hostId: 'host', stagingTransfer: state.staging(id)?.id };
   },
-  move: (id, command) => commands.movePane(id, command),
+  move: (id, command) => commands.moveContent(id, command),
 });
 const preview = process.env.PREVIEW_URL ?? 'http://127.0.0.1:5186/';
 const coordinator = new WindowTransfers({
@@ -82,8 +83,10 @@ async function openPage(record) {
       if (request.error) trace.push([id, request.error]);
       return commands.reply(id, request);
     }
-    if (method === 'beginPaneDrag') return drags.begin(id, request);
-    if (method === 'dropPane') return drags.drop(id, request);
+    if (method === 'beginPaneDrag') return drags.beginPane(id, request);
+    if (method === 'dropPane') return drags.dropPane(id, request);
+    if (method === 'beginTabDrag') return drags.beginTab(id, request);
+    if (method === 'dropTab') return drags.dropTab(id, request);
     if (method === 'reload') {
       await commands.request(id, 'checkpoint');
       await page.reload();
@@ -166,6 +169,9 @@ async function openPage(record) {
             'dockTargets',
             'beginPaneDrag',
             'dropPane',
+            'beginTabDrag',
+            'dropTab',
+            'prepareTabDock',
             'accept',
             'commit',
             'observe',
@@ -273,7 +279,100 @@ try {
     await expect.poll(() => focused).toBe(1);
     assert.equal(records.size, 2);
   }
-  if (dockBack) {
+  if (addTab) {
+    assert.equal(mode, 'pane');
+    assert.ok(['file', 'tab', 'session'].includes(addTab));
+    const secondText = 'Another dirty document brought into the pane';
+    if (addTab !== 'session') {
+      await source.locator('[data-path="package.json"]').first().dblclick();
+      await source.locator('[data-editor-surface] .monaco-editor').waitFor();
+      await source.evaluate(async (text) => {
+        const { monaco } = await import('/src/features/editor/monaco/monaco-setup.ts');
+        const editor = monaco.editor
+          .getEditors()
+          .find((editor) => editor.getModel()?.uri.path.endsWith('/package.json'));
+        editor.getModel().setValue(text);
+        editor.setSelection({
+          startLineNumber: 1,
+          startColumn: 3,
+          endLineNumber: 1,
+          endColumn: 10,
+        });
+      }, secondText);
+    }
+    const payload = await source.evaluate(async (addTab) => {
+      const data = new window.DataTransfer();
+      const row =
+        addTab === 'tab'
+          ? window.document.querySelector('[data-pane-tab]')
+          : addTab === 'file'
+            ? window.document.querySelector('[data-path="package.json"]')
+            : window.document.querySelector('[data-session-project] li[draggable="true"]');
+      row.dispatchEvent(new window.PointerEvent('pointerdown', { bubbles: true }));
+      row.dispatchEvent(new window.DragEvent('dragstart', { bubbles: true, dataTransfer: data }));
+      return data.getData('application/x-puddle-tab');
+    }, addTab);
+    assert.ok(payload, 'sidebar drag carries a registered tab reference');
+    assert.ok(!payload.includes(secondText));
+    await target
+      .locator('[data-pane-drag-handle]')
+      .first()
+      .evaluate((strip, payload) => {
+        const data = new window.DataTransfer();
+        data.setData('application/x-puddle-tab', payload);
+        strip.dispatchEvent(
+          new window.DragEvent('drop', { bubbles: true, cancelable: true, dataTransfer: data }),
+        );
+      }, payload);
+    await expect(target.locator('[data-pane-tab]')).toHaveCount(2);
+    await expect.poll(() => state.openWindows().length).toBe(2);
+    const transferred = state.read(destination.window.id, profile).content;
+    assert.equal(transferred.snapshot.layout_tree.kind, 'leaf');
+    assert.equal(transferred.snapshot.layout_tree.tabs.length, 2);
+    assert.equal(
+      transferred.buffers.find((buffer) => buffer.path === 'README.md').content,
+      'Unsaved text moved through the real coordinator',
+    );
+    if (addTab !== 'session') {
+      await checkText(target, secondText, 3, 10);
+      assert.equal(
+        transferred.buffers.find((buffer) => buffer.path === 'package.json').content,
+        secondText,
+      );
+      assert.ok(
+        !JSON.stringify(state.read('host', profile).content.snapshot).includes('package.json'),
+      );
+    } else {
+      assert.equal(
+        transferred.snapshot.layout_tree.tabs.find((tab) => tab.type === 'terminal').session,
+        JSON.parse(payload).ref.session,
+      );
+      await target.locator('.xterm').first().waitFor();
+    }
+    await target.reload();
+    await expect(target.locator('[data-pane-tab]')).toHaveCount(2);
+    if (addTab !== 'session') await checkText(target, secondText, 3, 10);
+    else await target.locator('.xterm').first().waitFor();
+    if (addTab === 'tab') {
+      // Real Chromium native mouse dragging within one renderer must MOVE the
+      // exact tab, preserving the other file instead of copying or flattening.
+      const body = target.locator('[data-pane-drop-target]').first();
+      const box = await body.boundingBox();
+      await target
+        .locator('[data-pane-tab]')
+        .last()
+        .dragTo(body, {
+          sourcePosition: { x: 20, y: 12 },
+          targetPosition: { x: box.width - 10, y: box.height / 2 },
+        });
+      await expect(target.locator('[data-pane-drop-target]')).toHaveCount(2);
+      await expect(target.locator('[data-pane-tab]')).toHaveCount(2);
+      await checkText(target, secondText, 3, 10);
+    }
+    await target.screenshot({ path: `/tmp/puddle-live-window-add-${addTab}.png` });
+    assert.deepEqual(errors, []);
+    console.log(`Live ${addTab} drop into an existing pane strip preserves both tabs and reloads.`);
+  } else if (dockBack) {
     if (mode !== 'session') {
       // Keep a clean view of the same file mounted in the destination. Docking
       // must rebuild that shared model with the incoming dirty text as well.

@@ -4,7 +4,7 @@ import {
   type DesktopWorkspaceVersion,
 } from '@puddle/shared';
 import type { DesktopWorkingSet } from './working-set';
-import { dockPaneContent } from './dock-content';
+import { dockPaneContent, dockTabContent } from './dock-content';
 
 interface Pending {
   id: string;
@@ -37,7 +37,7 @@ export class DestinationTransfer {
   async command(
     command: DesktopWindowTransferCommand,
   ): Promise<DesktopWorkspaceVersion | undefined> {
-    if (command.kind === 'plan-pane') return this.plan(command);
+    if (command.kind === 'plan-pane' || command.kind === 'plan-tab') return this.plan(command);
     const pending = this.pending;
     if (!pending) {
       if (command.kind === 'cancel-window') return;
@@ -83,7 +83,9 @@ export class DestinationTransfer {
     this.environment.suspend(false);
   }
 
-  private async plan(command: Extract<DesktopWindowTransferCommand, { kind: 'plan-pane' }>) {
+  private async plan(
+    command: Extract<DesktopWindowTransferCommand, { kind: 'plan-pane' | 'plan-tab' }>,
+  ) {
     if (this.pending) throw new Error('This window is already receiving a transfer');
     if (this.environment.activeProfile() !== command.profileId)
       throw new Error('Select the same profile in the destination window before docking');
@@ -96,12 +98,20 @@ export class DestinationTransfer {
       original = await owner.freeze();
       const planned = desktopWorkspaceVersionSchema.parse({
         revision: original.revision,
-        content: dockPaneContent(
-          original.content,
-          command.content,
-          command.projectId,
-          command.placement,
-        ),
+        content:
+          command.kind === 'plan-pane'
+            ? dockPaneContent(
+                original.content,
+                command.content,
+                command.projectId,
+                command.placement,
+              )
+            : dockTabContent(
+                original.content,
+                command.content,
+                command.projectId,
+                command.placement,
+              ),
       });
       this.pending = {
         id: command.transferId,

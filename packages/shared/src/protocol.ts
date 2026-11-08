@@ -340,7 +340,8 @@
 // 26.10: optional private desktop reload with a durable window checkpoint.
 // 26.11: private desktop docking plans, staged destination commands and empty-source retirement.
 // 26.12: single-use native pane drag offers and source-directed docking commands.
-export const PROTOCOL_VERSION = { major: 26, minor: 12 } as const;
+// 26.13: private native tab drag offers, positioned tab handoff and scoped companion drags.
+export const PROTOCOL_VERSION = { major: 26, minor: 13 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

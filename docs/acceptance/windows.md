@@ -95,9 +95,26 @@ verification; pending items are not support claims.
   Source commands start the same acknowledged handoff as menu return. A lost
   command acknowledgement cannot dispatch the offer again. Destination highlights
   expire when drag events cease, including cancellation in another window.
+- Native file-tree and session-sidebar drags, and individual native tab-strip
+  drags, now transfer into existing host/project/pane windows (application 26.13).
+  Strip and centre drops merge into the chosen pane, pin and activate the item;
+  edge drops split it. Existing destination tabs, drafts and their view positions
+  survive staging. Different dirty copies reject the transfer. A matching source
+  view moves; an unopened row creates a view, and other duplicate source views
+  keep their dirty text. A following preview whose target changed after drag
+  registration rejects the stale tab move. Fixed destination windows retain their
+  project anchor; host destinations use the visible project. The source retains
+  its project route, removing a moved session's URL suffix so it cannot reopen it.
+- Native tab moves within one window use the existing layout operations and
+  preserve move versus sidebar-copy behaviour. Strip drops include an insertion
+  position; keyboard dragging retains dnd-kit. A detached single-tab window's thin
+  top edge still offers its whole pane. Ordinary browser dragging is unchanged.
+  File-move, multi-session archive and sidebar-reorder companion payloads now carry
+  native window/host/profile scope; another window cannot treat those references
+  as local operations. Cross-window tab offers alone enter the transfer coordinator.
 
-Project detachment and redirects, native file/session transfers into pane windows,
-and named window arrangements are still pending. Return to a project presentation is supported by
+Project detachment and redirects, named window arrangements, and native OS
+acceptance are still pending. Return to a project presentation is supported by
 the coordinator, but the project-window creation action is not yet implemented.
 Pane detachment and menu return do not deliver the whole roadmap. Undo-stack transfer
 is not implemented; restored editors use
@@ -205,6 +222,21 @@ browser `web/test/dev/pane-drag.mjs` check passed tab splits, whole-pane swaps,
 edge placement, all-tab preservation and Escape cancellation. Native single-tab
 edge usability, cross-window Escape, iframe drop surfaces and OS focus remain
 acceptance items.
+
+The tab-transfer increment passed 334 tests across 40 desktop/window, web
+window/layout/tab/session/explorer and shared-contract files, after correcting a
+test fixture that attempted to mutate a durable window identity. Type checks,
+targeted ESLint and the production web build passed. The later stale-preview
+selection adjustment passed all 48 focused window tests across 11 files.
+`WINDOW_ADD_TAB=file`, `session` and `tab` passed in the integrated Chromium
+script: start with a dirty detached file, drop another file/session into its strip,
+retain both tabs and drafts, and reload. The file cases check imported selection;
+the session case checks the unchanged session reference. The `tab` case also
+uses real Chromium mouse dragging within the receiving renderer to split the
+second tab, verifying that it moves instead of leaving an extra copy. Whole-pane
+drag return and the ordinary browser drag regression both passed again. Cross-window
+payload forwarding still uses the synthetic native bridge; OS and live runtime
+acceptance have not been inferred from these checks.
 
 Native acceptance has not run. Use an isolated UI preview for desktop interaction;
 start any real daemon from a plain shell, never from a coding-agent session.

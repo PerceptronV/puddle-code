@@ -5,6 +5,7 @@ import type {
   TabRef,
   DesktopTransferReference,
   DesktopPaneDock,
+  DesktopTabDock,
 } from '@puddle/shared';
 import type { DesktopWorkingSet } from './working-set';
 import { detachPaneContent, detachTabContent } from './transfer-content';
@@ -71,6 +72,44 @@ export async function transferDock(
     (content) => detachPaneContent(content, projectId, paneId),
     fence,
   );
+  await retireTransferredSource(owner, bridge, reference, projectId, fence, suspend);
+}
+
+/** An individual tab uses the same transaction but merges into a chosen existing pane. */
+export async function transferTabIntoWindow(
+  owner: DesktopWorkingSet,
+  bridge: DesktopWindowTransfersBridge,
+  projectId: string,
+  ref: TabRef,
+  destination: Pick<DesktopTabDock, 'destinationId' | 'destinationProjectId' | 'placement'>,
+  fence: (active: boolean) => void,
+  suspend: (active: boolean) => void,
+  retireSource: boolean,
+  paneId?: string,
+  sourceRoute?: string,
+): Promise<void> {
+  if (!bridge.prepareTabDock) throw new Error('Tab window transfers are unavailable');
+  const reference = await transferContent(
+    owner,
+    { ...bridge, preparePane: (request) => bridge.prepareTabDock!({ ...request, ...destination }) },
+    projectId,
+    (content) => detachTabContent(content, projectId, ref, paneId),
+    fence,
+    sourceRoute,
+  );
+  if (retireSource)
+    await retireTransferredSource(owner, bridge, reference, projectId, fence, suspend);
+}
+
+async function retireTransferredSource(
+  owner: DesktopWorkingSet,
+  bridge: DesktopWindowTransfersBridge,
+  reference: DesktopTransferReference,
+  projectId: string,
+  fence: (active: boolean) => void,
+  suspend: (active: boolean) => void,
+): Promise<void> {
+  if (!bridge.retire) return;
   fence(true);
   let recovery: DesktopWorkspaceVersion | undefined;
   try {

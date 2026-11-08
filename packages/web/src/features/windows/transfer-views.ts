@@ -8,6 +8,7 @@ export function transferPaneViews(
   panes: ReadonlyMap<string, string>,
   fromScope: string,
   toScope: string,
+  tabKeys?: ReadonlySet<string>,
 ): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   for (const [key, value] of Object.entries(views)) {
@@ -23,6 +24,7 @@ export function transferPaneViews(
         typeof tab[0] !== 'string' ||
         typeof tab[1] !== 'string' ||
         typeof tab[2] !== 'string' ||
+        (tabKeys !== undefined && !tabKeys.has(tab[2])) ||
         !tab[0].endsWith(`:${fromScope}`)
       )
         continue;

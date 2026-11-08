@@ -14,7 +14,7 @@ import { fenceWindowInteraction } from './interaction-fence';
 import { allLeaves, focusTab, tabRefKey } from '../workspace/layout/layout-tree';
 import { currentProfileId } from '../profile/profile-store';
 import { DestinationTransfer } from './destination-transfer';
-import { transferDock } from './pane-transfer';
+import { transferDock, transferTabIntoWindow } from './pane-transfer';
 
 const workingSets = new Map<string, DesktopWorkingSet>();
 const empty = uiStateSnapshotSchema.parse({});
@@ -75,26 +75,54 @@ export async function registerDesktopWindowLifecycle(): Promise<void> {
       const owner = desktopWorkingSet(command.profileId);
       const transfers = desktopBridge()?.windows?.transfers;
       if (
-        context?.identity.kind !== 'pane' ||
-        context.identity.profileId !== command.profileId ||
-        context.identity.projectId !== command.projectId ||
+        !context ||
+        (command.kind === 'move-pane' &&
+          (context.identity.kind !== 'pane' || context.identity.projectId !== command.projectId)) ||
+        (context.identity.kind !== 'host' && context.identity.profileId !== command.profileId) ||
         currentProfileId() !== command.profileId ||
         !owner?.loaded() ||
         owner.locked() ||
         !transfers
       )
         throw new Error('The dragged pane is no longer available');
-      void transferDock(
-        owner,
-        transfers,
-        command.projectId,
-        command.paneId,
-        command.destinationId,
-        fenceWindowInteraction,
-        suspendDesktopContent,
-        command.placement,
-        command.destinationProjectId,
-      ).catch(toastError);
+      const sourceRoute = window.location.pathname.split('/session/')[0]!;
+      const operation =
+        command.kind === 'move-tab'
+          ? transferTabIntoWindow(
+              owner,
+              transfers,
+              command.projectId,
+              command.ref,
+              {
+                destinationId: command.destinationId,
+                destinationProjectId: command.destinationProjectId,
+                placement: command.placement,
+              },
+              fenceWindowInteraction,
+              suspendDesktopContent,
+              context.identity.kind === 'pane',
+              command.paneId,
+              sourceRoute,
+            )
+          : transferDock(
+              owner,
+              transfers,
+              command.projectId,
+              command.paneId,
+              command.destinationId,
+              fenceWindowInteraction,
+              suspendDesktopContent,
+              command.placement,
+              command.destinationProjectId,
+            );
+      void operation
+        .then(() => {
+          if (command.kind === 'move-tab' && window.location.pathname !== sourceRoute) {
+            window.history.replaceState(null, '', sourceRoute);
+            window.dispatchEvent(new PopStateEvent('popstate'));
+          }
+        })
+        .catch(toastError);
     },
   );
 }

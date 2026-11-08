@@ -1,4 +1,5 @@
 import type { TreeResponse } from '@puddle/shared';
+import { decodeLocalDrag, encodeLocalDrag } from '../windows/drag-scope';
 
 /**
  * Pure, DOM-free helpers for the file explorer (SPEC §8): worktree-relative
@@ -112,13 +113,13 @@ export function pruneNested(paths: readonly string[]): string[] {
 export const EXPLORER_DRAG_MIME = 'application/x-puddle-paths';
 
 export function encodeDragPaths(paths: readonly string[]): string {
-  return JSON.stringify(paths);
+  return encodeLocalDrag(paths);
 }
 
 /** Decode a drag payload; [] when the data is absent or not ours. */
 export function decodeDragPaths(data: string): string[] {
   try {
-    const parsed: unknown = JSON.parse(data);
+    const parsed = decodeLocalDrag(data);
     return Array.isArray(parsed) ? parsed.filter((p): p is string => typeof p === 'string') : [];
   } catch {
     return [];
