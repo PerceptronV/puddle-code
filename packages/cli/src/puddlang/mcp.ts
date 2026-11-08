@@ -10,9 +10,11 @@ import {
   puddlangMcpOutcomesSchema,
   puddlangMcpOutcomeSchema,
   huddleMcpTools,
+  huddleExecutionMcpTools,
 } from '@puddle/shared';
 import type { PuddlangClient } from './client.js';
 import { callHuddleTool } from '../huddle/mcp.js';
+import { callHuddleExecutionTool, executionTools } from '../huddle/execution/mcp.js';
 
 /** MCP 2025-06-18 stdio: bounded newline-delimited JSON-RPC, no stdout logging. */
 export async function serveMcp(
@@ -56,7 +58,7 @@ export async function serveMcp(
         capabilities: { tools: {} },
         serverInfo: { name: 'puddlang', version: '0.1.0' },
         instructions:
-          'Runs execute on the selected Puddle host/profile with its OS authority. Account labels belong to this profile. Runs survive MCP disconnect; cancellation is explicit. Inspect context for supported agents. Huddle source tools require explicit project/worktree scope and never execute or activate graphs; successful source validation is not live execution admission.',
+          'Runs execute on the selected Puddle host/profile with its OS authority. Account labels belong to this profile. Runs survive MCP disconnect; cancellation is explicit. Inspect context for supported agents. Huddle source tools never activate graphs. Runtime tools can execute trusted code: require explicit execution intent and supply reviewed digests/owner targets. Never refresh a target or retry a mutation automatically after a failed reply; inspect runtime/history. Successful source validation is not live execution admission.',
       });
       return;
     }
@@ -69,7 +71,13 @@ export async function serveMcp(
       return;
     }
     if (method === 'tools/list') {
-      reply({ tools: [...puddlangMcpTools, ...(client.huddles?.supported ? huddleMcpTools : [])] });
+      reply({
+        tools: [
+          ...puddlangMcpTools,
+          ...(client.huddles?.supported ? huddleMcpTools : []),
+          ...executionTools(client.huddles?.execution),
+        ],
+      });
       return;
     }
     if (method !== 'tools/call') {
@@ -86,6 +94,8 @@ export async function serveMcp(
       let result: unknown;
       if (huddleMcpTools.some((tool) => tool.name === call.data.name)) {
         result = await callHuddleTool(client.huddles, call.data.name, args);
+      } else if (huddleExecutionMcpTools.some((tool) => tool.name === call.data.name)) {
+        result = await callHuddleExecutionTool(client.huddles?.execution, call.data.name, args);
       } else
         switch (call.data.name) {
           case 'puddlang_context':

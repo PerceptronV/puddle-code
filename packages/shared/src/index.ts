@@ -22,7 +22,8 @@ export * from './api/huddle/components.js';
 export * from './api/huddle/definitions.js';
 export * from './api/huddle/events.js';
 export * from './api/huddle/authoring.js';
-export * from './api/huddle/tools.js';
+export * from './api/huddle/tools/source.js';
+export * from './api/huddle/tools/execution.js';
 export * from './api/huddle/templates.js';
 export * from './huddle/templates/agents.js';
 export {

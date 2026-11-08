@@ -9,8 +9,9 @@ observation are also available. [Custom readouts](huddle/readouts.md) can delive
 graph outputs to external services on supporting runtimes. [Custom triggers](huddle/triggers.md)
 can subscribe to external sources with durable cursors and visible source health.
 Spawn agent creates an agent and sends its initial prompt. Resume/restart nodes,
-explicit native feedback and lifecycle CLI/MCP remain unfinished. Source discovery,
-inspection and validation are available through `pudl huddle` and MCP. **Edit with agent**
+explicit native feedback and archive/unarchive CLI/MCP remain unfinished. Source
+inspection, inactive creation/opening and core runtime controls are available
+through `pudl huddle` and MCP. **Edit with agent**
 supplies a bundled huddle skill to a selected authoring account. Native provider,
 supervisor and reboot acceptance is pending.
 

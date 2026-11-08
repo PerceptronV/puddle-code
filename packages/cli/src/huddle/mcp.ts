@@ -1,4 +1,8 @@
-import { huddleToolDefinitionSchema, huddleToolLocationSchema } from '@puddle/shared';
+import {
+  huddleToolCreateSchema,
+  huddleToolDefinitionSchema,
+  huddleToolLocationSchema,
+} from '@puddle/shared';
 import type { HuddleClient } from './client.js';
 
 export async function callHuddleTool(
@@ -14,6 +18,10 @@ export async function callHuddleTool(
       return client.inspect(huddleToolDefinitionSchema.parse(args));
     case 'huddle_validate':
       return client.validate(huddleToolDefinitionSchema.parse(args));
+    case 'huddle_create':
+      return client.create(huddleToolCreateSchema.parse(args));
+    case 'huddle_open':
+      return client.open(huddleToolDefinitionSchema.parse(args));
     default:
       throw new Error('Unknown huddle tool');
   }

@@ -1,9 +1,21 @@
 # The puddle communication protocol
 
+CLI/MCP now also expose inactive huddle create/open and the existing runtime,
+Start/Apply/Run/Interrupt/Resume/Stop/history/readout-observation controls. Shared
+tool contracts live under `api/huddle/tools/{source,execution}.ts`; MCP execution
+arguments contain explicit `session_id` and `request`, matching the current HTTP
+body. Runtime inspection takes only the session id. Source/placement tools use
+the 27.1 feature floor; core execution requires 28.2, readout observation requires
+28.6, and custom-trigger inspection opts in only on 28.7+. Resume maps to `rearm`.
+Tool metadata describes JSON values while actual dispatch retains the existing
+bounded JSON custom validator. No HTTP/WS schemas, application/runtime/remote
+versions, database or ledger formats change. Tools never infer a newer target,
+generate a replacement event id or retry an uncertain mutation.
+
 The CLI now exposes huddle source discovery/inspection/validation through
 `pudl huddle list|inspect|validate` and additive stdio MCP tools
 `huddle_list`, `huddle_inspect`, `huddle_validate`. Their shared strict arguments
-live in `api/huddle/tools.ts`: explicit project id, absolute host worktree and
+live in `api/huddle/tools/`: explicit project id, absolute host worktree and
 huddle id for inspect/validate. Validation projects the existing document's
 digest/diagnostics to `{valid, digest, diagnostics}`; it is not runtime admission.
 The selected local/SSH authority/profile and existing inactive GET routes are

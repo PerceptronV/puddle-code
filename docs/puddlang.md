@@ -68,8 +68,12 @@ For saved huddle graphs, `pudl huddle list`, `inspect` and `validate` use explic
 reuse the same authority/profile connection without evaluating scripts or starting
 an owner. `pudl mcp` also exposes `huddle_list`, `huddle_inspect`, `huddle_validate`.
 See [huddle authoring](huddle/authoring.md#inspect-and-validate-from-the-cli-or-mcp)
-for syntax, validation limits and JSON/exit behaviour. They do not enable huddle
-activation/lifecycle commands or automatic MCP binding to agents.
+for syntax, validation limits and JSON/exit behaviour. Separate `create`/`open`
+commands establish inactive placements. Runtime/start/apply/run/interrupt/resume/
+stop/history and readout observation tools use explicit session ids and reviewed
+JSON requests; they can execute trusted code and never retry mutations automatically.
+See [runtime controls](huddle/authoring.md#create-open-and-control-a-huddle).
+These commands do not install MCP automatically in agent accounts.
 
 ## Programme API
 

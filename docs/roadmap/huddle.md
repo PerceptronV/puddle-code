@@ -763,7 +763,11 @@ Source discovery/inspection/validation now share the inactive host API through
 `pudl huddle list|inspect|validate` and `huddle_list|inspect|validate` MCP tools.
 They require explicit project/worktree scope on the selected host and never
 evaluate modules or create a runtime. Validation reports source diagnostics and
-a digest; it is not live execution admission. Standalone schema/type assets,
+a digest; it is not live execution admission. Inactive create/open and core
+runtime/start/apply/run/interrupt/resume/stop/history/readout-observation tools
+now reuse the same host services, exact reviewed source digests and owner targets.
+Failed mutations are observation-only until the user decides a next action; no
+tool implicitly refreshes targets or retries. Standalone schema/type assets,
 richer integration templates and the remaining CLI/MCP parity
 remain to be shipped; this UI action does not complete the authoring phase.
 
@@ -783,8 +787,9 @@ users' skills or assume every provider supports identical discovery.
 Expose discovery, validate, inspect/diff, activate and lifecycle operations through
 shared host services, then CLI/MCP entry points. The implemented source syntax is
 `pudl huddle validate <id> --project <id> --worktree <absolute-host-root>`;
-this replaces the proposed directory-only form. Diff/activation/lifecycle tools
-are still pending.
+this replaces the proposed directory-only form. Core runtime controls are exposed
+with `--request JSON` (MCP: `{session_id, request}`); source/active-revision diff
+and archive/unarchive tool parity remain pending.
 Validation returns stable node/port/path diagnostics and supports fixture-based
 contract checks without arming live triggers or contacting providers. Source
 inspection must not evaluate custom modules. Executing component tests is a

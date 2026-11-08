@@ -110,7 +110,7 @@ it.each([
   [['validate', target.huddle_id], { project: location.project_id, worktree: '.' }],
   [['validate', '../escape'], { project: location.project_id, worktree: '/host' }],
   [['list', 'extra'], { project: location.project_id, worktree: '/host' }],
-  [['start', target.huddle_id], { project: location.project_id, worktree: '/host' }],
+  [['destroy', target.huddle_id], { project: location.project_id, worktree: '/host' }],
 ])('rejects incomplete/implicit scope and unsupported commands (%j)', (args, options) => {
   expect(() => parseHuddleCommand(args, options)).toThrow();
 });
@@ -129,7 +129,7 @@ it('rejects unsupported peers and unexpected target fields before HTTP', async (
   expect(fetch).not.toHaveBeenCalled();
 });
 
-it('advertises strict read-only MCP tools and keeps graph diagnostics distinct from malformed calls', async () => {
+it('advertises strict source MCP tools with effect annotations and rejects malformed calls', async () => {
   const fetch = vi.fn(async () => Response.json(document));
   vi.stubGlobal('fetch', fetch);
   const input = new PassThrough();
@@ -163,7 +163,9 @@ it('advertises strict read-only MCP tools and keeps graph diagnostics distinct f
     expect.arrayContaining(huddleMcpTools),
   );
   for (const tool of huddleMcpTools) {
-    expect(tool.annotations.readOnlyHint).toBe(true);
+    expect(tool.annotations.readOnlyHint).toBe(
+      !['huddle_create', 'huddle_open'].includes(tool.name),
+    );
     expect(tool.inputSchema.additionalProperties).toBe(false);
   }
   expect(JSON.parse(replies.find((r) => r.id === 3)!.result.content![0]!.text)).toEqual({

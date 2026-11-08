@@ -697,12 +697,16 @@ Embed its canonical `skill/puddle-huddle/SKILL.md` in the initial prompt; do not
 overwrite personal skills or require graph scripted-turn capability for authoring.
 Share source-dirty observation with execution controls. One creation attempt per
 dialog, no automatic retry after a lost reply, and no activation on save/completion.
-`cli/src/huddle/` owns list/inspect/validate and matching stdio MCP source tools.
+`cli/src/huddle/` owns list/inspect/validate, inactive create/open and matching MCP tools.
 Reuse the selected puddlang connection authority; require project/id/absolute host
 worktree instead of inferring the client cwd. Source validation never executes
 modules or opens placements, and is not execution admission. Shared tool schemas
-live in `shared/api/huddle/tools.ts`. See `docs/huddle/authoring.md`; standalone
-schema/types and diff/activation/lifecycle CLI/MCP remain unfinished.
+live in `shared/api/huddle/tools/`, split into source and execution contracts.
+`cli/huddle/execution/` owns runtime/lifecycle/history/readout-observation tools.
+Preserve exact reviewed digests/targets/event ids in JSON requests; never refresh,
+retry or fall back after failed mutations. Resume maps to rearm. Keep source scope
+explicit and runtime scope bound to the immutable placement. See
+`docs/huddle/authoring.md`; standalone schema/types and diff/archive tools remain unfinished.
 Migration 44 persists Stop consumption before sending
 shutdown; repeat observation cannot send another Stop. The existing kill/archive
 paths delegate to these controls and refuse unresolved owner cleanup. Keep huddle

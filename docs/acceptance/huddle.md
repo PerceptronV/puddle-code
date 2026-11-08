@@ -32,7 +32,52 @@ Runtime protocol 1.2 now retains an independent native-turn source for hook-base
 interactive, structured Codex and command-correlated headless controls. Automatic
 delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
-Read-only source CLI/MCP tools are available; execution commands remain in the IDE.
+Source, inactive placement and core runtime CLI/MCP tools are available.
+
+## Implemented: CLI/MCP placement and runtime controls
+
+`pudl huddle create --name NAME` and `open <huddle-id>` use explicit project/worktree
+scope and return inactive placements. Existing open does not resume/unarchive or
+start a runtime. `runtime`, `start`, `apply`, `run`, `interrupt`, `resume`, `stop`,
+`history` and `observe-readout` use the immutable session id and, except runtime,
+an explicit `--request JSON` body. No variables, event ids or targets are inferred.
+Source validation does not authorise execution. Core controls require application
+28.2; readout observation/optional history flags require 28.6. Runtime inspection
+opts into readout support/custom-trigger health only at 28.6/28.7 respectively.
+
+Shared MCP contracts live under `shared/api/huddle/tools/`; CLI execution dispatch
+and catalogue gating live in `cli/src/huddle/execution/`. Matching MCP tools take
+strict `{session_id, request}` (runtime takes `{session_id}`). Source create/open
+retain flat scope arguments. Read-only annotations apply only to observations;
+execution tools do not promise idempotent replay. JSON Schema presents JSON types
+and their bounds while actual calls retain the existing bounded custom validator.
+No existing public HTTP/WS, runtime, remote, database or ledger contracts change.
+
+All calls use the selected local/SSH authority/profile. Mutations send once with
+the supplied source digest/complete owner target; no preflight silently substitutes
+newer values. Failed or malformed mutation replies explain that acceptance may be
+uncertain and direct callers to observation. They never retry or fall back. Resume
+uses existing rearm semantics, Run acceptance is separate from completion, history
+returns one bounded page, and readout observation never redelivers. The tools share
+the host services' stale-source, target, authority, capability and cleanup checks.
+
+Verification: **89/89 tests in 8 files passed**, covering source/placement/control
+clients, MCP dispatch/annotations, capability gates, bounded JSON, missing review
+fields, exact request values and lost/malformed mutation responses, plus existing
+host authoring/execution and puddlang regressions. The new CLI integration runs
+against real temporary host routes and an isolated owner: create/open remain
+inactive; Start/Apply use saved revisions; stale digests and targets fail; a lost
+accepted Run is observed through one completed execution without replay; Interrupt,
+Resume and Stop preserve the expected lifecycle. No production daemon or native
+provider/desktop is used. Shared/daemon/CLI and web TypeScript, changed-source
+lint/formatting and skill validation pass. The 30 execution-tool tests passed again
+after bounding failure details so MCP truncation cannot hide observation guidance.
+CLI/frontend production builds and packaged help pass; the copied frontend contains
+the updated authoring skill. The installed-launch fixture also resolves compiled
+shared output, so rebuild that package before running it after contract edits.
+Remaining tool work: source/active-revision diff, archive/unarchive, offline history,
+standalone schema/types and component fixtures. Runtime recovery, agent restart
+nodes, native feedback and platform/provider acceptance remain open elsewhere.
 
 ## Implemented: source CLI and MCP tools
 
@@ -46,7 +91,7 @@ and exits 1 for error diagnostics. Warnings alone pass. Root capture, authority,
 malformed response and transport failures remain errors, never successful reports.
 Validation does not type-check/evaluate TypeScript or prove runtime/resource admission.
 
-Shared strict tool contracts live in `shared/api/huddle/tools.ts`; command parsing,
+Shared strict tool contracts live in `shared/api/huddle/tools/`; command parsing,
 client projection and MCP dispatch live under `cli/src/huddle/`. `pudl mcp` exposes
 `huddle_list`, `huddle_inspect`, `huddle_validate` only on a supporting connection.
 They have read-only annotations, explicit source scope and no host/profile override
@@ -71,7 +116,7 @@ changed-source lint/formatting and the skill validator pass. The production CLI
 build and packaged help commands pass without contacting a daemon. The production
 web build passes, and the CLI's copied frontend includes the revised authoring
 skill with the actual huddle command syntax.
-Remaining: source/active-revision diff, activation/lifecycle parity, standalone
+Remaining: source/active-revision diff, archive/unarchive tools, standalone
 schema/types and component fixtures, automatic account MCP binding if designed,
 managed integration secrets and real-provider/platform acceptance.
 
@@ -118,7 +163,7 @@ semantic colour checks and diff checks pass. The production web build passes and
 contains the canonical skill in the lazy huddle asset. No production daemon,
 native desktop or real provider was launched.
 Remaining authoring work: standalone schemas/types and complete extension examples,
-CLI/MCP diff/activation/lifecycle parity, managed
+CLI/MCP diff/archive parity, managed
 integration secrets, and real-provider authoring evidence. No protocol, runtime
 metadata, ledger or database format changes are introduced by this UI action.
 

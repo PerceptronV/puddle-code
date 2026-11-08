@@ -1709,9 +1709,20 @@ for inspect/validate), use inactive source routes, and never evaluate modules,
 open placements or require a capable runtime. Validation reports the captured
 digest and graph diagnostics, exiting 1 for errors; it does not type-check scripts
 or check live execution admission. Root capture/authority failures remain command
-errors. Shared tool contracts live in `shared/api/huddle/tools.ts`. No HTTP/WS or
-runtime protocol change is required. Schema/type bundles, graph diff and remaining
-activation/lifecycle CLI/MCP parity remain pending.
+errors. Shared tool contracts live in `shared/api/huddle/tools/`. No HTTP/WS or
+runtime protocol change is required. Inactive CLI/MCP create/open return the exact
+placement without starting an owner. `cli/huddle/execution/` composes the existing
+28.2 runtime and lifecycle/history routes plus gated 28.6 readout observation.
+CLI commands take `SESSION_ID --request JSON`; MCP arguments are strict
+`{session_id, request}` (runtime observation takes only the session id). They
+preserve reviewed digests, variables, complete owner targets and caller event ids;
+they never refresh a target, infer a worktree, retry or fall back after a failed
+mutation. Source commands require explicit project/worktree; runtime commands use
+the immutable placement's declared scope. Resume maps to existing `rearm`, retaining
+the activation rather than replaying interrupted scripts. History reads one bounded
+page. Runtime inspection opts into supported readout/custom-trigger fields; older
+hosts retain basic inspection. Tool annotations distinguish observation from effects.
+Schema/type bundles, graph diff and archive/unarchive CLI/MCP parity remain pending.
 Huddle views can move through panes, project layouts and native
 transfers without creating PTYs or owners. Closing a view is independent of Stop.
 Desktop recovery format 4 migrates versions 2/3; `windows.huddles` gates native

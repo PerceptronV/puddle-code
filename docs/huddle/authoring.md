@@ -86,5 +86,77 @@ tool errors. This does not automatically configure MCP for authoring accounts.
 
 For custom extensions, see [triggers](triggers.md) and [readouts](readouts.md).
 Standalone JSON Schema/type bundles, component fixtures, graph diff and
-activation/lifecycle CLI/MCP operations remain pending. The originally proposed
+archive/unarchive CLI/MCP operations remain pending. The originally proposed
 directory-only validation command is superseded by the explicit scope above.
+
+## Create, open and control a huddle
+
+`pudl huddle create --name NAME --project ID --worktree ABSOLUTE_ROOT` creates
+a blank graph and inactive session. `pudl huddle open HUDDLE_ID --project ID
+--worktree ABSOLUTE_ROOT` opens saved source or returns its existing placement.
+Both return JSON including `session.id`. Creation requires an installed supporting
+runtime; neither command launches one. Open does not resume or unarchive a huddle.
+After a lost create reply, use `list` before creating again.
+
+The directory's 32-character **huddle id** and the placement's UUID **session id**
+are distinct. Runtime controls take the session id; its immutable placement binds
+the project and worktree. They reject `--project`/`--worktree` flags rather than
+silently ignoring a conflicting scope.
+
+```text
+pudl huddle runtime SESSION_ID
+pudl huddle start SESSION_ID --request JSON
+pudl huddle apply SESSION_ID --request JSON
+pudl huddle run SESSION_ID --request JSON
+pudl huddle interrupt SESSION_ID --request JSON
+pudl huddle resume SESSION_ID --request JSON
+pudl huddle stop SESSION_ID --request JSON
+pudl huddle history SESSION_ID --request JSON
+pudl huddle observe-readout SESSION_ID --request JSON
+```
+
+Every command accepts the same `--host`/`--profile` connection selection. Runtime
+controls require application 28.2; readout observation requires 28.6 and a capable
+owner. Runtime inspection opts into readout support and custom-trigger health
+only when the connected host supports those fields (28.6/28.7).
+
+`--request` is the JSON request body, with these required fields:
+
+| Command | Required request fields |
+| --- | --- |
+| `start` | `expected_digest` from source inspection; explicit `variables` object |
+| `apply` | `expected_digest`, `variables`, and exact `target` |
+| `run` | `target`, manual-trigger `node`, caller-chosen UUID `event_id`, explicit JSON `data` |
+| `interrupt`, `resume`, `stop` | `target` |
+| `history` | `owner`, `collection`, nonnegative `after`; execution `parent` for invocations, invocation `parent` for operations |
+| `observe-readout` | `target`, `operation_id` |
+
+Use `owner.target` from a connected runtime inspection **verbatim** as `target`:
+it contains `runtimeId`, `incarnation`, `generation` and `activationId`. History's
+`owner` contains only `runtimeId` and `incarnation`. History returns one bounded
+page and its `next` cursor; it currently needs a connected owner. Optional history
+`include_readout_observation: true` requires 28.6. Do not replace a failed target
+with a newer one automatically.
+
+Start and Apply consume the explicitly reviewed saved digest and variables; they
+do not save drafts. Start and Resume arm triggers, and Apply can reset armed
+triggers. These actions can execute trusted code immediately. Resume rearms the
+existing activation; it does not restart agent sessions or continue interrupted
+scripts. Run's reply acknowledges input and gives an execution id, not a completed
+result. Interrupt/Stop follow the execution's captured agent cleanup policy.
+Readout observation may contact an integration but does not redeliver its action.
+
+After a failed mutation reply, inspect runtime/history before deciding what to do
+next. A request may have been accepted even when its response was lost or malformed.
+The tools never retry, generate substitute event ids, refresh a target or fall
+back to another action. A source validation result or authoring agent's completion
+does not itself authorise execution.
+
+MCP adds `huddle_create`, `huddle_open`, `huddle_runtime`, `huddle_start`,
+`huddle_apply`, `huddle_run`, `huddle_interrupt`, `huddle_resume`, `huddle_stop`,
+`huddle_history`, and `huddle_observe_readout`. Create/open use the source scope
+fields above, with `name` for create. Runtime takes `{session_id}`; other runtime
+tools take `{session_id, request}` with the same body as the CLI. Capability gates
+filter the advertised tools; mutation annotations identify their effects and do
+not promise safe replay. There is no automatic MCP installation or execution
+approval on behalf of authoring agents.

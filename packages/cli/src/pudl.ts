@@ -26,6 +26,7 @@ const help = `pudl — Puddle's Ultimate Domain Language (puddlang)
   pudl mcp
 
   pudl huddle list|inspect|validate [huddle-id] --project ID --worktree ABSOLUTE_ROOT
+  pudl huddle runtime|start|apply|run|interrupt|resume|stop|history <session-id> [--request JSON]
   pudl huddle --help
 
 Connection: --host user@host --profile name-or-id
@@ -50,6 +51,8 @@ async function main(): Promise<void> {
       profile: { type: 'string' },
       project: { type: 'string' },
       worktree: { type: 'string' },
+      name: { type: 'string' },
+      request: { type: 'string' },
       input: { type: 'string' },
       detach: { type: 'boolean' },
       id: { type: 'string' },
@@ -88,12 +91,17 @@ async function main(): Promise<void> {
     positionals.length !== (command === 'outcome' ? 3 : needsArgument ? 2 : 1)
   )
     throw new Error(help);
-  if (command !== 'huddle' && (values.project !== undefined || values.worktree !== undefined))
-    throw new Error('--project and --worktree belong to huddle source commands');
+  if (
+    command !== 'huddle' &&
+    [values.project, values.worktree, values.name, values.request].some(
+      (value) => value !== undefined,
+    )
+  )
+    throw new Error('--project, --worktree, --name and --request belong to huddle commands');
   if (
     command === 'huddle' &&
     Object.keys(values).some(
-      (key) => !['host', 'profile', 'project', 'worktree', 'help'].includes(key),
+      (key) => !['host', 'profile', 'project', 'worktree', 'name', 'request', 'help'].includes(key),
     )
   )
     throw new Error(huddleHelp);

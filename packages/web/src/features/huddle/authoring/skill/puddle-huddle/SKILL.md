@@ -113,6 +113,23 @@ are unavailable, the IDE's refreshed graph shows diagnostics. Review saved sourc
 and its diff before explicit activation. External changes use normal editor
 conflict handling; do not overwrite someone else's intervening edits.
 
+If execution is explicitly requested and the installed tools support it, use
+`pudl huddle open HUDDLE_ID --project PROJECT_ID --worktree ABSOLUTE_WORKTREE`
+to obtain the placement's `session.id`; this is distinct from the directory id.
+`create --name NAME` with the same scope creates a blank inactive graph/placement.
+`runtime SESSION_ID` inspects its exact owner. Start/Apply/Run/Interrupt/Resume/Stop,
+history and observe-readout take `SESSION_ID --request JSON`, using the existing
+HTTP request body. Include the reviewed `expected_digest` and explicit `variables`
+for Start/Apply, and the inspected `owner.target` verbatim for Apply and later
+mutations. Run additionally requires `node`, a stable caller-chosen UUID `event_id`
+and `data`. History takes `owner: {runtimeId, incarnation}`, `collection`, `after`
+and the required parent for invocations/operations. MCP equivalents take
+`{session_id, request}`. Never invent missing targets, silently fetch replacements,
+or repeat a mutation after a lost reply; inspect runtime/history first. Start,
+Apply and Resume can arm triggers immediately. Resume rearms the graph, not an
+agent session or interrupted script. Tool availability does not grant execution
+authority beyond the user's task.
+
 Report the files changed, checks actually performed and any remaining diagnostics.
 Keep authoring within the requested task. This invocation does not grant additional
 accounts, cross-profile access, nested delegation or automatic execution authority.

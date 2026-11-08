@@ -25,7 +25,7 @@ export class PuddlangClient {
     readonly profile: string,
     private readonly protocol?: { major: number; minor: number },
   ) {
-    this.huddles = new HuddleClient((path) => this.request(path, undefined, 'huddle'), protocol);
+    this.huddles = new HuddleClient((path, body) => this.request(path, body, 'huddle'), protocol);
   }
 
   private async request(
