@@ -1,5 +1,20 @@
 # The puddle communication protocol
 
+Application **28.17** adds read-only local/SSH `POST
+/api/huddle/:profile/sessions/:sid/triggers` with `{target}`. Optional owner
+**`triggerInspection: 1`** accepts private `trigger-inspect` with exact generation
+and activation and returns `trigger-report`. Public runtime inspection exposes
+`trigger_inspection: true` only when requested with
+`include_trigger_inspection=true` and supported by the owner. Older clients and
+owners keep their existing shapes. CLI/MCP gate on 28.17.
+
+Reports project installed source health, retained accepted-work counts and timer
+progress without private cursors/event payloads, external polling, subscription
+refresh or new persistent state. Per-source counts cover the inspected activation;
+global backlog includes older activations. Inspection tolerates a failed owner or
+missing project source but rejects a changed target. No database, ledger or agent
+runtime protocol change.
+
 Application **28.16** adds local/SSH `POST
 /api/huddle/:profile/sessions/:sid/auto-start` with `{target, expected, enabled}`.
 `expected` is the inspected setting. Opt-in `include_auto_start=true` adds

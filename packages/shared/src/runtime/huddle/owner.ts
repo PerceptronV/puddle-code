@@ -4,6 +4,7 @@ import {
   huddleLifecyclePageSchema,
 } from './operations/lifecycle.js';
 import { z } from 'zod';
+import { huddleTriggerReportSchema } from '../../api/huddle/triggers.js';
 import {
   huddleSessionFeedCursorSchema,
   huddleSessionFeedPageSchema,
@@ -137,6 +138,12 @@ export const huddleOwnerRequestSchema = z.discriminatedUnion('t', [
     controllerEpoch: sequence,
   }),
   z.strictObject({ t: z.literal('inspect'), ...request }),
+  z.strictObject({
+    t: z.literal('trigger-inspect'),
+    ...request,
+    expectedGeneration: sequence,
+    activationId: z.uuid().nullable(),
+  }),
   z.strictObject({
     t: z.literal('readout-observe'),
     ...request,
@@ -275,6 +282,11 @@ export const huddleOwnerRequestSchema = z.discriminatedUnion('t', [
 ]);
 export type HuddleOwnerRequest = z.infer<typeof huddleOwnerRequestSchema>;
 export const huddleOwnerResponseSchema = z.discriminatedUnion('t', [
+  z.strictObject({
+    t: z.literal('trigger-report'),
+    id: z.uuid(),
+    report: huddleTriggerReportSchema,
+  }),
   z.strictObject({ t: z.literal('lifecycle-page'), id: z.uuid(), page: huddleLifecyclePageSchema }),
   z.strictObject({
     t: z.literal('lifecycle-claim'),

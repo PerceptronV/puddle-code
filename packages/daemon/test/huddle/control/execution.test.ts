@@ -4,6 +4,7 @@ import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import {
   huddleRuntimeInspectionSchema,
+  huddleTriggerReportSchema,
   huddleHistoryPageSchema,
   dateHuddleTrigger,
   filetreeHuddleTrigger,
@@ -36,6 +37,16 @@ it('starts saved source without running it, runs exact input, applies a revision
       executing: false,
     });
     expect(existsSync(join(f.home, 'entered'))).toBe(false);
+    expect(started.body.owner).not.toHaveProperty('trigger_inspection');
+    expect(
+      (await f.request('runtime?include_trigger_inspection=true')).body.owner.trigger_inspection,
+    ).toBe(true);
+    const emptyReport = huddleTriggerReportSchema.parse(
+      (await f.request('triggers', { target: initial })).body,
+    );
+    expect(emptyReport.sources).toMatchObject([
+      { node: 'run', health: 'ready', admitted: 0, queued: 0, running: 0 },
+    ]);
     expect(
       (await f.request('start', { expected_digest: document.digest, variables: {} })).body.error
         .code,
@@ -48,6 +59,12 @@ it('starts saved source without running it, runs exact input, applies a revision
     expect(accepted.status, JSON.stringify(accepted.body)).toBe(200);
     expect((await f.request('run', request)).body).toEqual({ ...accepted.body, duplicate: true });
     await until(() => existsSync(join(f.home, 'entered')));
+    const runningReport = huddleTriggerReportSchema.parse(
+      (await f.request('triggers', { target: initial })).body,
+    );
+    expect(runningReport.backlog).toEqual({ queued: 0, running: 1, uncertain_operations: 0 });
+    expect(runningReport.sources[0]).toMatchObject({ admitted: 1, running: 1 });
+    expect(JSON.stringify(runningReport)).not.toContain(f.home);
     writeFileSync(join(f.home, 'release'), 'go');
     const history = {
       owner: { runtimeId: initial.runtimeId, incarnation: initial.incarnation },
@@ -93,6 +110,8 @@ it('starts saved source without running it, runs exact input, applies a revision
     expect(applied.status, JSON.stringify(applied.body)).toBe(200);
     const next = applied.body.owner.target;
     expect(next.activationId).not.toBe(initial.activationId);
+    expect((await f.request('triggers', { target: initial })).status).toBe(409);
+    expect((await f.request('triggers', { target: next })).body.sources[0].admitted).toBe(0);
     expect((await f.request('run', { ...request, event_id: randomUUID() })).body.error.code).toBe(
       'huddle_control_changed',
     );
@@ -119,6 +138,9 @@ it('starts saved source without running it, runs exact input, applies a revision
     const interrupted = await f.request('interrupt', { target: next });
     expect(interrupted.status).toBe(200);
     expect(interrupted.body.owner.lifecycle).toBe('interrupted');
+    expect(
+      (await f.request('triggers', { target: interrupted.body.owner.target })).body.sources[0],
+    ).toMatchObject({ health: 'inactive', admitted: 1 });
     const resumed = await f.request('rearm', { target: interrupted.body.owner.target });
     expect(resumed.status).toBe(200);
     expect(resumed.body.owner.target.activationId).toBe(next.activationId);
@@ -154,7 +176,16 @@ it('rejects remote, wrong-profile, stale-source and unsupported-runtime admissio
     expect((await f.request('start', body)).body.error.code).toBe('huddle_runtime_unavailable');
     f.installed.select();
     f.remote();
-    for (const action of ['start', 'apply', 'rearm', 'run', 'interrupt', 'stop', 'history'])
+    for (const action of [
+      'start',
+      'apply',
+      'rearm',
+      'run',
+      'interrupt',
+      'stop',
+      'history',
+      'triggers',
+    ])
       expect((await f.request(action, body)).status).toBe(403);
     expect((await f.request('runtime')).status).toBe(403);
     expect(f.run).not.toHaveBeenCalled();

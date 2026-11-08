@@ -47,6 +47,7 @@ export {
 } from './huddle/templates/agents/owned.js';
 export * from './api/huddle/execution.js';
 export * from './api/huddle/history.js';
+export * from './api/huddle/triggers.js';
 export * from './runtime/huddle/triggers/custom.js';
 export * from './huddle/validation/values.js';
 export * from './huddle/validation/graph.js';

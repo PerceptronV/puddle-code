@@ -140,6 +140,7 @@ export class HuddleExecutionService {
     includeCustomTriggers = false,
     includeRecovery = false,
     includeAutoStart = false,
+    includeTriggerInspection = false,
   ): Promise<HuddleRuntimeInspection> {
     const scope = this.scope(profile, id, authority);
     const recovery = () => {
@@ -175,6 +176,9 @@ export class HuddleExecutionService {
           build: state.build,
           lifetime: state.lifetime,
           lifecycle: state.control.state,
+          ...(includeTriggerInspection && state.capabilities.triggerInspection === 1
+            ? { trigger_inspection: true as const }
+            : {}),
           ...(includeAutoStart && state.capabilities.autoStart === 1
             ? { auto_start: state.control.autoStart }
             : {}),
@@ -442,6 +446,14 @@ export class HuddleExecutionService {
         return this.inspect(profile, id, authority);
       },
     );
+  }
+
+  async triggers(profile: string, id: string, raw: HuddleLifecycleCommand, authority: Authority) {
+    const input = huddleLifecycleCommandSchema.parse(raw);
+    const scope = this.scope(profile, id, authority);
+    const report = await this.deps.controls.triggers(id, input.target, scope.valid);
+    scope.check();
+    return report;
   }
 
   async autoStart(profile: string, id: string, raw: HuddleAutoStart, authority: Authority) {

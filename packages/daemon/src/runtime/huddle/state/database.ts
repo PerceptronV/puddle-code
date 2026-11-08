@@ -1,6 +1,7 @@
 import { closeSync, constants, openSync } from 'node:fs';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
+import { triggerActivity } from './inspection.js';
 import {
   canonicalHuddleJson,
   huddleLedgerIdentitySchema,
@@ -267,6 +268,10 @@ export class HuddleStateDatabase {
           filter.subject ?? null,
         ) as { count: number }
     ).count;
+  }
+
+  triggerActivity(activationId: string | null) {
+    return triggerActivity(this.db, activationId);
   }
 
   close(): void {

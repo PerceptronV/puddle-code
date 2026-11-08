@@ -2029,6 +2029,14 @@ start for interrupted owners' inspection; this does not certify recovery. Native
 supervision and reboot acceptance remain unfinished. Contracts, bounds, verification and unfinished
 work are recorded in [huddle acceptance](docs/acceptance/huddle.md); the complete
 design is in the [roadmap](docs/roadmap/huddle.md).
+Application 28.17 and optional owner triggerInspection-1 add a read-only trigger
+report through IDE/CLI/MCP. It observes existing subscriptions and ledger progress,
+including accepted backlog and timer coalescing/skipping, without adding lifecycle
+or status detection. Per-source counts cover the exact inspected activation;
+global backlog includes older activations. Ready means installed, not external
+reachability. Missing source or owner failure does not prevent inspection, and
+stale targets cannot follow replacements. Public capability projection is opt-in;
+no ledger/database migration or agent runtime protocol change is needed.
 
 ### Puddlang runs
 

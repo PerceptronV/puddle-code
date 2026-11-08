@@ -122,6 +122,10 @@ export class HuddleOwnerClient extends EventEmitter {
   }
   request(value: Command): Promise<HuddleOwnerResponse> {
     if (this.closed) return Promise.reject(new RuntimeConnectionLost());
+    if (value.t === 'trigger-inspect' && this.state?.capabilities.triggerInspection !== 1)
+      return Promise.reject(
+        new HuddleOwnerRejected('rejected', 'Owner has no trigger inspection capability'),
+      );
     if (value.t === 'auto-start' && this.state?.capabilities.autoStart !== 1)
       return Promise.reject(
         new HuddleOwnerRejected('rejected', 'Owner has no auto-start setting capability'),

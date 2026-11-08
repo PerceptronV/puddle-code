@@ -1,5 +1,6 @@
 import {
   RUNTIME_LIMITS,
+  parseHuddleTriggerReport,
   type HuddleOwnerState,
   type HuddleActivationInput,
   type HuddleJson,
@@ -155,6 +156,24 @@ export class HuddleRuntimeControls {
   }
   inspect(sessionId: string, authorised: Authorised) {
     return this.run(sessionId, authorised, (target) => this.inspectTarget(target, authorised));
+  }
+  triggers(sessionId: string, expected: HuddleControlTarget, authorised: Authorised) {
+    return this.run(
+      sessionId,
+      authorised,
+      async (target) => {
+        await this.review(target, expected, authorised);
+        const response = await target.client.request({
+          t: 'trigger-inspect',
+          expectedGeneration: expected.generation,
+          activationId: expected.activationId,
+        });
+        this.check(target, authorised);
+        if (response.t !== 'trigger-report') throw unavailable();
+        return parseHuddleTriggerReport(expected, response.report);
+      },
+      expected,
+    );
   }
   records(
     sessionId: string,

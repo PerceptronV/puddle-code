@@ -24,6 +24,7 @@ export const huddleHelp = `  pudl huddle list --project ID --worktree /absolute/
   pudl huddle open <huddle-id> --project ID --worktree /absolute/host/worktree
   pudl huddle source <huddle-id> --project ID --worktree /absolute/host/worktree
   pudl huddle save-source <huddle-id> --project ID --worktree /absolute/host/worktree --request JSON
+  pudl huddle triggers <session-id> --request JSON
   pudl huddle history-owners <session-id> --request JSON
   pudl huddle retained-history <session-id> --request JSON
   pudl huddle retained-revision <session-id> --request JSON
@@ -44,6 +45,8 @@ Runtime commands use that placement's declared worktree. Start/Apply require an
 explicit expected_digest and variables; Apply and later mutations require the
 exact target from runtime inspection. Run also requires node, event_id and data.
 History requires owner, collection, after and parent for invocations/operations.
+Triggers requires {target} (host 28.17+): reads installed subscriptions and accepted
+backlog without observing new external events or resetting cursors.
 Auto-start requires {target, expected, enabled} (host 28.16+). Use the inspected
 auto_start boolean as expected. This changes only the current run's reboot policy,
 not its schedules/cursors. Only armed runs recover automatically; fresh Start defaults off.

@@ -1,5 +1,6 @@
 import {
   huddleToolExecutionCommandSchema,
+  parseHuddleTriggerReport,
   huddleRuntimeInspectionSchema,
   huddleRunAcceptedSchema,
   huddleStoppedSchema,
@@ -23,10 +24,12 @@ export class HuddleExecutionClient {
   readonly retainedRevision: boolean;
   readonly recovery: boolean;
   readonly autoStart: boolean;
+  readonly triggerInspection: boolean;
   constructor(
     private readonly request: (path: string, body?: unknown) => Promise<unknown>,
     protocol?: { major: number; minor: number },
   ) {
+    this.triggerInspection = supportsApplicationFeature(protocol, { major: 28, minor: 17 });
     this.autoStart = supportsApplicationFeature(protocol, { major: 28, minor: 16 });
     this.recovery = supportsApplicationFeature(protocol, { major: 28, minor: 15 });
     this.supported = supportsApplicationFeature(protocol, { major: 28, minor: 2 });
@@ -69,12 +72,21 @@ export class HuddleExecutionClient {
         await this.request(`${path}/${command.action}`, command.request),
       );
     }
+    if (command.action === 'triggers') {
+      if (!this.triggerInspection)
+        throw new Error('Trigger inspection requires daemon protocol 28.17 or newer');
+      return parseHuddleTriggerReport(
+        command.request.target,
+        await this.request(`${path}/triggers`, command.request),
+      );
+    }
     if (command.action === 'runtime') {
       const query = new URLSearchParams();
       if (this.readoutObservation) query.set('include_readout_observation', 'true');
       if (this.customTriggers) query.set('include_custom_triggers', 'true');
       if (this.recovery) query.set('include_recovery', 'true');
       if (this.autoStart) query.set('include_auto_start', 'true');
+      if (this.triggerInspection) query.set('include_trigger_inspection', 'true');
       return huddleRuntimeInspectionSchema.parse(
         await this.request(`${path}/runtime${query.size ? '?' + query.toString() : ''}`),
       );

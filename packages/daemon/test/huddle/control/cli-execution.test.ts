@@ -109,6 +109,10 @@ it('uses the CLI client through real authoring/control routes and preserves a lo
       );
     });
     expect(history.records).toHaveLength(1);
+    expect(await execute('triggers', { target })).toMatchObject({
+      target,
+      sources: [{ node: 'run', admitted: 1, queued: 0, running: 0 }],
+    });
     if (history.collection !== 'executions') throw new Error('Expected execution history');
     expect(history.records[0]!.record.revision).toBe(saved.digest);
     expect(readFileSync(join(f.home, 'entered'), 'utf8')).toBe('x');

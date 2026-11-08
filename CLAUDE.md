@@ -977,6 +977,12 @@ unresolved owners in `runtime/huddle/recovery/startup.ts`, skips same-boot/stopp
 interrupted/archived/Stop-requested runs, and rechecks the opted-in armed intent under
 recovery claims. It reuses the recovery launcher and never retries accepted dispatch.
 Apply and Interrupt/Resume preserve the setting; fresh Start defaults off.
+Application 28.17 and optional triggerInspection-1 expose installed source health
+and retained accepted backlog through owner `inspection/`, the existing exact
+control queue and web `execution/triggers/`. Reuse existing lifecycle/status feeds;
+do not add detectors or refresh subscriptions during inspection. Project no private
+cursors/payloads. Per-source totals are activation-scoped; global backlog includes
+older activations. Opt-in `include_trigger_inspection=true` preserves old replies.
 Application 28.7 and `customTriggers: 1` gate local HuddleTrigger subscriptions.
 Keep adapters under `puddlang/huddle/`, source orchestration under
 `runtime/huddle/triggers/custom/`, and durable cursor/event admission in

@@ -1,4 +1,5 @@
 import { randomUUID } from 'node:crypto';
+import { inspectHuddleTriggers } from '../../../src/runtime/huddle/inspection/triggers.js';
 import { afterEach, expect, it, vi } from 'vitest';
 import { HUDDLE_RUNTIME_CAPABILITIES } from '@puddle/shared';
 import { huddleLedgerFixture } from '../../helpers/huddle/ledger.js';
@@ -52,6 +53,29 @@ it('retains occurrence progress across reopen and does not consume events on adm
     occurrences: 3,
     skipped: 0,
   });
+  const control = reopened.activations.current();
+  const report = inspectHuddleTriggers(
+    reopened,
+    f.store,
+    {
+      runtimeId: f.identity.runtimeId,
+      incarnation: randomUUID(),
+      generation: control.generation,
+      activationId: control.activationId,
+    },
+    true,
+    null,
+  );
+  expect(report.sources[0]).toMatchObject({
+    admitted: 2,
+    queued: 2,
+    running: 0,
+    coalesced: 2,
+    skipped: 0,
+    missed: 'coalesce',
+    next_at: '1970-01-01T00:00:15.000Z',
+  });
+  expect(reopened.intervals.current()!.schedules[0]!.last).toBe(4);
 });
 it('starts a fresh interval after interrupt/rearm and ignores old callbacks', () => {
   const f = fixture();
@@ -152,6 +176,11 @@ it('commits only the bounded recent catch-up set, with older skips recorded once
     '1970-01-01T00:00:20.000Z',
   ]);
   expect(events.map((event) => event.data.skipped)).toEqual([7, 0, 0]);
+  expect(f.ledger.triggerActivity(f.activation.id).sources[0]).toMatchObject({
+    admitted: 3,
+    coalesced: 0,
+    skipped: 7,
+  });
   expect(new Set(events.map((event) => event.id)).size).toBe(3);
 });
 

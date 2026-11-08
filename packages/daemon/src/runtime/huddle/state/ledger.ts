@@ -76,6 +76,17 @@ export class HuddleLedger {
     return this.database.list(collection, filter);
   }
 
+  triggerActivity(activationId: string | null) {
+    return {
+      sources: this.database.triggerActivity(activationId),
+      backlog: {
+        queued: this.database.count('executions', { state: 'pending' }),
+        running: this.database.count('executions', { state: 'running' }),
+        uncertain_operations: this.database.count('operations', { state: 'unknown' }),
+      },
+    };
+  }
+
   usage() {
     return this.database.usage();
   }

@@ -1,3 +1,4 @@
+import { TriggerDialog } from './triggers/TriggerDialog';
 import { AutoStartControl } from './AutoStartControl';
 import { useRetainedHistorySupported } from './history/api';
 import { RecordedHistoryDialog } from './history/RecordedHistoryDialog';
@@ -49,6 +50,7 @@ export function ExecutionControls({
   const supported = useHuddleExecutionSupported();
   const retainedSupported = useRetainedHistorySupported();
   const [recordedHistory, setRecordedHistory] = useState(false);
+  const [triggerTarget, setTriggerTarget] = useState<HuddleCommandTarget | null>(null);
   const reviewSupported = useHuddleReviewSupported();
   const runtime = useHuddleRuntime(profile, session.id, focused);
   const source = useHuddleDocument(profile, session);
@@ -288,6 +290,15 @@ export function ExecutionControls({
           >
             {commands.status.review ? 'Inspect outcome' : 'Inspect runtime'}
           </button>
+          {current?.trigger_inspection && (
+            <button
+              type="button"
+              className={graphActionClass}
+              onClick={() => setTriggerTarget(current.target)}
+            >
+              Triggers
+            </button>
+          )}
           {(current || retainedSupported) && (
             <button
               type="button"
@@ -326,7 +337,19 @@ export function ExecutionControls({
           </span>
         )}
       </div>
-      {current?.custom_triggers && <TriggerHealth sources={current.custom_triggers} />}
+      {current?.custom_triggers && !current.trigger_inspection && (
+        <TriggerHealth sources={current.custom_triggers} />
+      )}
+      {triggerTarget && (
+        <TriggerDialog
+          profile={profile}
+          session={session.id}
+          target={triggerTarget}
+          focused={focused}
+          stale={unavailable || !current || !sameTarget(current.target, triggerTarget)}
+          onClose={() => setTriggerTarget(null)}
+        />
+      )}
       {(runtime.error || commands.status.error || current?.failure) && (
         <p role="alert" className="shrink-0 px-4 pb-2 text-xs text-fg-muted">
           {runtime.error?.message ?? commands.status.error ?? current?.failure}

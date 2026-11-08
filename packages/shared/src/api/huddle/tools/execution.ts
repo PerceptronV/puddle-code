@@ -25,6 +25,7 @@ const session = { session_id: sessionId };
 /** All mutations carry reviewed values. Tools must never resolve a newer target implicitly. */
 export const huddleExecutionToolSchemas = {
   runtime: z.strictObject(session),
+  triggers: z.strictObject({ ...session, request: huddleLifecycleCommandSchema }),
   'auto-start': z.strictObject({ ...session, request: huddleAutoStartSchema }),
   recover: z.strictObject({ ...session, request: huddleRecoverSchema }),
   'retained-revision': z.strictObject({ ...session, request: huddleRetainedRevisionRequestSchema }),
@@ -43,6 +44,7 @@ export const huddleExecutionToolSchemas = {
 };
 export const huddleToolExecutionCommandSchema = z.discriminatedUnion('action', [
   huddleExecutionToolSchemas.runtime.extend({ action: z.literal('runtime') }),
+  huddleExecutionToolSchemas.triggers.extend({ action: z.literal('triggers') }),
   huddleExecutionToolSchemas['auto-start'].extend({ action: z.literal('auto-start') }),
   huddleExecutionToolSchemas.recover.extend({ action: z.literal('recover') }),
   huddleExecutionToolSchemas['retained-revision'].extend({
@@ -64,6 +66,11 @@ export const huddleToolExecutionCommandSchema = z.discriminatedUnion('action', [
 export type HuddleToolExecutionCommand = z.infer<typeof huddleToolExecutionCommandSchema>;
 
 const definitions = [
+  [
+    'triggers',
+    'Inspect installed trigger health, timer progress and retained accepted work for the exact target (host 28.17+ and a supporting owner). Supply request {target}. Per-source totals cover the active activation; global backlog also includes older activations. Does not observe new external events, reset cursors or reopen subscriptions. No execution or retry.',
+    true,
+  ],
   [
     'auto-start',
     'Set whether the current huddle run recovers automatically when the host starts after a verified reboot (host 28.16+). Supply request {target, expected, enabled}; expected is the inspected auto_start value. Does not arm a stopped graph, reset schedules/cursors or restart any process. Stop, Interrupt and Archive suppress startup even when enabled. This preference belongs to the current run; a fresh Start defaults off. Inspect after a failed reply; never retry automatically.',

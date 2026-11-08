@@ -39,6 +39,7 @@ export const huddleRuntimeInspectionSchema = z.strictObject({
         lifetime: z.enum(['service', 'host_session']),
         lifecycle: z.enum(['stopped', 'armed', 'interrupted']),
         auto_start: z.boolean().optional(),
+        trigger_inspection: z.literal(true).optional(),
         executing: z.boolean(),
         stopping: z.boolean(),
         failure: z.string().max(4096).nullable(),

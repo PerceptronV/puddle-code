@@ -46,6 +46,7 @@ export async function inspectHuddle(
   includeCustomTriggers = false,
   includeRecovery = false,
   includeAutoStart = false,
+  includeTriggerInspection = false,
 ) {
   local();
   const query = new URLSearchParams();
@@ -53,6 +54,7 @@ export async function inspectHuddle(
   if (includeCustomTriggers) query.set('include_custom_triggers', 'true');
   if (includeRecovery) query.set('include_recovery', 'true');
   if (includeAutoStart) query.set('include_auto_start', 'true');
+  if (includeTriggerInspection) query.set('include_trigger_inspection', 'true');
   return huddleRuntimeInspectionSchema.parse(
     await api(
       'GET',

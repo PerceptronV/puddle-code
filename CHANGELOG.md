@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Inspect huddle trigger health and accepted backlog from the IDE or CLI/MCP, including timer coalescing/skipping and one-off date disposition; reuse existing subscriptions and lifecycle feeds (application 28.17).
+
 - Add an opt-in Auto-start after reboot setting for huddle runs, restoring only armed runs through existing recovery while preserving schedules/cursors; expose the same setting in CLI/MCP (application 28.16).
 
 - Recover a huddle after a verified host reboot from the IDE or CLI/MCP, preserving its active graph, queued events and trigger cursors; interrupt in-flight scripts without replaying uncertain agent operations (application 28.15).

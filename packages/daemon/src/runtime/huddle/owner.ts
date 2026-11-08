@@ -1,3 +1,4 @@
+import { inspectHuddleTriggers } from './inspection/triggers.js';
 import { verifyHuddleRecoverySeed } from './recovery/verify.js';
 import { HuddleLifecycleMailbox } from './operations/lifecycle/mailbox.js';
 import { closeSync, fsyncSync, openSync, realpathSync, writeFileSync } from 'node:fs';
@@ -62,6 +63,7 @@ export class HuddleOwner {
   private driving: Promise<void> | null = null;
   private releaseLifetime: (() => void) | null = null;
   private triggerEpoch = 0;
+  private triggersReady = false;
 
   private constructor(
     home: string,
@@ -545,6 +547,26 @@ export class HuddleOwner {
       }
       return { t: 'accepted', id: request.id };
     }
+    if (request.t === 'trigger-inspect') {
+      if (this.memory.launch.capabilities.triggerInspection !== 1)
+        throw new Error('Owner has no trigger inspection capability');
+      return {
+        t: 'trigger-report',
+        id: request.id,
+        report: inspectHuddleTriggers(
+          this.ledger,
+          this.store,
+          {
+            runtimeId: this.memory.launch.identity.runtime_id,
+            incarnation: this.memory.launch.identity.incarnation,
+            generation: request.expectedGeneration,
+            activationId: request.activationId,
+          },
+          this.triggersReady,
+          this.failure,
+        ),
+      };
+    }
     if (request.t === 'records') {
       return {
         t: 'records',
@@ -675,6 +697,7 @@ export class HuddleOwner {
   }
 
   private stopTriggers() {
+    this.triggersReady = false;
     this.triggerEpoch++;
     this.timers.stop();
     this.filetrees.stop();
@@ -715,6 +738,7 @@ export class HuddleOwner {
       await this.custom.refresh();
       if (!current()) return;
       this.timers.refresh();
+      this.triggersReady = true;
     } catch (error) {
       if (!current()) return;
       this.stopTriggers();

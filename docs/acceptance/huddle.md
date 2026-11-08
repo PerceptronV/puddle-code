@@ -34,6 +34,48 @@ delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## Implemented: trigger health and accepted backlog
+
+Application **28.17** and optional owner **`triggerInspection: 1`** add **Triggers**
+to the IDE execution tray. The read-only local/SSH API is
+`POST /api/huddle/:profile/sessions/:sid/triggers` with `{target}`; CLI
+`pudl huddle triggers SESSION_ID --request JSON` and MCP `huddle_triggers` use the
+same exact runtime/incarnation/generation/activation target. Runtime inspection
+exposes `trigger_inspection: true` only with `include_trigger_inspection=true`
+and supporting owner metadata. Older owners retain the existing custom-health view.
+
+The owner observes its installed subscriptions, immutable active definition and
+existing ledger records. It creates no detector, watcher, feed, cursor baseline or
+new persistence format. Session lifecycle and completion subscriptions continue
+using Puddle's existing status/lifecycle and native-turn machinery. Owner-wide
+failures block sources; custom adapters retain their source-local gap/degraded/
+closed states. Stopped/interrupted sources are inactive. Ready means installed,
+not proof of external service reachability. Inspection remains available with a
+failed owner or missing project source; it does not run adapters or repair them.
+
+The global backlog counts queued/running roots across all retained activations and
+unknown operations. Per-source admitted/queued/running totals and last event time
+cover only the inspected activation. Built-in interval/calendar records supply
+combined/skipped occurrence totals and next scheduled deadlines; one-off dates
+show pending/admitted/skipped disposition, including skipped dates without an event.
+These are retained accepted-work totals, not the external source's unobserved queue.
+Private cursors and event payloads are excluded. A bounded aggregate over the
+existing ledger avoids sending event bodies to clients. No database migration.
+
+The shared dialog polls every five seconds only while open and focused, stops on
+errors/stale targets, and supports explicit Refresh. It never retargets after Apply
+or lifecycle changes; reopen to inspect the new target. Implementation is grouped
+under owner `inspection/`, ledger `state/inspection.ts`, and web
+`execution/triggers/`, with the existing control/service/transport boundaries.
+
+Verification for this increment extends the existing API/CLI and interval checks:
+installed/inactive health, deduplicated admission and running backlog, activation
+isolation and stale-target rejection, remote exclusion, timer coalescing/skipping
+and unchanged retained progress. Native UI/provider/platform acceptance remains
+separate; these checks use isolated fixtures. All **18 checks across three existing
+files passed**, along with shared/daemon/CLI type builds, web type checking,
+scoped lint and generated authoring SDK drift verification.
+
 ## Implemented: opt-in startup after reboot
 
 Application **28.16** and owner **`autoStart: 1`** expose an **Auto-start after

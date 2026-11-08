@@ -107,8 +107,9 @@ after queued review. Explicit same-execution native feedback remains unfinished.
 Project-local HuddleTrigger adapters now run in bounded independent subscription
 workers with atomic event/cursor admission, explicit resume policy and source-local
 health. Their subscriptions survive frontend/controller disconnection, and the IDE
-shows custom-source gaps. Broader recurrence rules and a unified trigger health/backlog
-inspector remain unfinished. Local readouts now execute
+shows custom-source gaps. Application 28.17 adds a unified read-only trigger health
+and accepted-backlog inspector in the IDE and CLI/MCP, including retained timer
+coalescing/skipping and date disposition. Broader recurrence rules remain unfinished. Local readouts now execute
 captured HuddleReadout adapters with durable intent, bounded receipts and explicit
 unknown outcomes. Explicit owner/API observation and the history panel's Check
 delivery action now reconcile uncertain deliveries through their captured adapters,
@@ -877,8 +878,8 @@ Keep mine; missing old metadata requires review. Explicit invalid-source repair
 retains its narrower file guard. Application 28.12 adds recorded owner discovery and stopped-owner execution/result
 history through the IDE and CLI/MCP, without restarting owners. Execution limits,
 owned-agent cleanup and node concurrency now have IDE controls sharing draft,
-undo and explicit Save/Apply. Unified trigger health/backlog and
-native/provider/platform acceptance remain pending. Application 28.13 adds recorded
+undo and explicit Save/Apply. Application 28.17 adds unified trigger health and
+accepted-backlog inspection; native/provider/platform acceptance remains pending. Application 28.13 adds recorded
 activation/historical source inspection and exact saved comparisons through CLI/MCP.
 The IDE now has reviewed lifecycle controls, manual input and live result inspection,
 plus initial editable prompt/review templates and connection feedback settings;

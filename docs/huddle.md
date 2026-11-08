@@ -211,8 +211,8 @@ new baseline. Do not interpret that new baseline as replay of unobserved edits.
 
 Filetree requires runtime capability `filetree: 1`. Native watcher behaviour
 varies across filesystems; bounded rescans recover net changes from silent missed
-notifications. Packaged supervisor/SSH/reboot recovery and a richer per-trigger
-health/backlog inspector remain unfinished.
+notifications. Packaged supervisor/SSH/reboot acceptance remains unfinished.
+Use **Triggers** to inspect installed source health and accepted backlog.
 
 ## React to Git changes
 
@@ -272,7 +272,7 @@ are available: transitions that never reached the daemon are not reconstructed.
 There are at most eight session nodes and 4,096 retained host sequence positions.
 Unrelated activity can expire a cursor too. Retention loss, missing resources and
 admission failure surface as an owner failure; inspect the cause and explicitly
-Stop/Start to establish a new baseline. Richer source health remains unfinished.
+Stop/Start to establish a new baseline. Use **Triggers** for installed source health and accepted backlog.
 This node requires runtime capability `sessionEvents: 1`.
 
 ## React to an agent completing a turn
@@ -498,3 +498,22 @@ For CLI/MCP, inspect runtime with a supporting client, then send
 `{target, expected: false, enabled: true}` to `pudl huddle auto-start SESSION_ID --request JSON`
 or `huddle_auto_start`. Use the actual inspected `auto_start` value for `expected`.
 After a lost reply, inspect the setting before another explicit action.
+
+## Inspect trigger health and backlog
+
+On application 28.17 and a supporting owner, open **Triggers** from the execution
+tray. It lists every active-definition trigger, its installed health, accepted
+queued/running work and last event time. Interval and calendar sources show their
+next deadline, missed-event policy and retained combined/skipped occurrences;
+one-off dates show whether they are pending, admitted or skipped.
+
+The top backlog includes older activations still in flight. Individual source
+counts cover the inspected activation. An empty queue does not prove an external
+source is healthy, and Ready means installed rather than a live service probe.
+Inspect a reported gap before explicitly restoring/restarting its subscription.
+The panel refreshes only while open and focused; after Apply or a lifecycle change,
+close and reopen it for the current activation.
+
+Agents can read the same report with `pudl huddle triggers SESSION_ID --request JSON`
+or `huddle_triggers`, supplying `{target}` from runtime inspection. These reads
+never start work, reset cursors or reopen a subscription.
