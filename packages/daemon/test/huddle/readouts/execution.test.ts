@@ -1,7 +1,9 @@
+import { PROTOCOL_VERSION } from '@puddle/shared';
+import { HuddleExecutionClient } from '../../../../cli/src/huddle/execution/client.js';
 import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { readFileSync, writeFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import { huddleExecutionFixture } from '../../helpers/huddle/execution.js';
@@ -10,12 +12,13 @@ import { until } from '../../helpers/huddle/controller.js';
 import { RuntimeConnectionLost } from '../../../src/runtime/transport/client.js';
 
 it.each([
-  [false, false],
-  [true, false],
-  [true, true],
+  [false, false, false],
+  [true, false, false],
+  [true, true, false],
+  [true, false, true],
 ])(
-  'runs a project-local network readout and observes without retry (delivery reply lost=%s, observation reply lost=%s)',
-  async (lost, lostObservationReply) => {
+  'runs a project-local network readout and observes without retry (delivery reply lost=%s, observation reply lost=%s, retained=%s)',
+  async (lost, lostObservationReply, retained) => {
     const received: Array<{ key: string; body: string }> = [];
     const observed: string[] = [];
     const server = createServer(async (request, response) => {
@@ -113,7 +116,55 @@ it.each([
       });
       const operation = outcomes.body.records[0].record;
       const observation = { target, operation_id: operation.id };
-      if (lost) {
+      if (retained) {
+        const request = { owner: history.owner, operation_id: operation.id };
+        expect((await f.request('readouts/observe-retained', request)).status).toBe(409);
+        expect(observed).toEqual([]);
+        expect((await f.request('stop', { target })).status).toBe(200);
+        rmSync(f.root, { recursive: true });
+        const query = {
+          ...history,
+          collection: 'operations',
+          parent: execution.id,
+          include_readout_observation: true,
+        };
+        expect(
+          (await f.request('history/retained', query)).body.history.records[0].record
+            .readout_observation,
+        ).toBe(true);
+        const held = f.offlineReadouts.pause();
+        expect((await f.request('readouts/observe-retained', request)).status).toBe(503);
+        held.release();
+        const cli = new HuddleExecutionClient(async (path, body) => {
+          const response = await f.request(path.slice(`/sessions/${f.session.id}/`.length), body);
+          if (response.status !== 200) throw new Error(JSON.stringify(response.body));
+          return response.body;
+        }, PROTOCOL_VERSION);
+        const accepted = await cli.execute({
+          action: 'observe-retained-readout',
+          session_id: f.session.id,
+          request,
+        });
+        expect(accepted).toEqual({ accepted: true, operation_id: operation.id });
+        await until(
+          async () =>
+            (await f.request('history/retained', query)).body.history?.records[0]?.record.state ===
+            'completed',
+        );
+        const result = (await f.request('history/retained', query)).body.history.records[0].record;
+        expect(result.result).toMatchObject({
+          status: 'delivered',
+          receipt: { id: 'destination-receipt' },
+        });
+        expect(result.readout_observation).toBeUndefined();
+        expect(
+          (await f.request('history/retained', history)).body.history.records[0].record.state,
+        ).toBe('failed');
+        expect((await f.request('runtime')).body.owner).toBeNull();
+        expect(f.run).toHaveBeenCalledTimes(1);
+        expect((await f.request('readouts/observe-retained', request)).status).toBe(409);
+        expect(observed).toEqual([received[0]!.key]);
+      } else if (lost) {
         expect(operation.readout_observation).toBeUndefined();
         const eligible = await f.request('history', {
           ...history,

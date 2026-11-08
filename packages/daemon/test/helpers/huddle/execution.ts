@@ -1,3 +1,5 @@
+import { join } from 'node:path';
+import { HuddleOfflineReadouts } from '../../../src/huddle/execution/readouts/offline.js';
 import { execFileSync } from 'node:child_process';
 import { Hono } from 'hono';
 import { vi } from 'vitest';
@@ -35,7 +37,12 @@ export async function huddleExecutionFixture(native?: 'interactive') {
     launcher: f.launcher,
     changed: () => {},
   });
+  const offlineReadouts = new HuddleOfflineReadouts(
+    f.home,
+    join(f.installed.release, 'daemon/huddle/runner.js'),
+  );
   const execution = new HuddleExecutionService({
+    offlineReadouts,
     ...f,
     definitions,
     projects,
@@ -76,6 +83,11 @@ export async function huddleExecutionFixture(native?: 'interactive') {
     );
   return {
     ...f,
+    offlineReadouts,
+    async close() {
+      await offlineReadouts.close();
+      await f.close();
+    },
     app,
     projects,
     definitions,

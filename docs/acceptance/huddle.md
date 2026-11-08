@@ -34,6 +34,48 @@ delivery and the Turn completed node's editor settings are implemented. Applicat
 28.20 adds explicit native-confirmed asks within bounded feedback executions.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## Implemented: delivery checks after clean owner shutdown
+
+Application **28.21** adds explicit local/SSH `POST
+/api/huddle/:profile/sessions/:sid/readouts/observe-retained` with
+`{owner: {runtimeId, incarnation}, operation_id}`. It uses the original captured
+readout adapter and the existing observation worker/receipt path. It never starts
+an owner, scheduler, trigger subscription or agent operation and never redelivers.
+The optional `include_readout_observation: true` on retained-history requests
+exposes eligible operation offers; reads themselves remain passive. Old requests
+and responses retain their prior shapes. IDE and CLI/MCP gate the action on 28.21.
+
+Admission requires exact retained placement/launch identity, an exited binding,
+recorded clean shutdown with drained workers, launch consumption, and all runtime
+retirement, revision and ledger writer claims. Disconnection or stale process data
+is insufficient. Interrupted owners must first use the existing recovery path.
+The daemon runs at most one 30-second observation worker, with bounded memory and
+transport; it drains before maintenance and cancels/drains on shutdown. Claims and
+memory remain held through positively observed worker exit. The original private
+ledger records intent and known receipts; uncertain results remain unknown. Lost
+HTTP replies require retained-history inspection, never automatic retry. Editable
+source may be missing; the captured contract, envelope and execution must agree.
+No database migration, owner capability or agent/runtime protocol change is needed.
+
+Focused existing suites passed **7 cases**, covering network readout delivery and
+observation, retained history, and CLI controls. The added stopped-owner scenario
+uses an isolated local receiver: one POST loses its reply, the huddle stops, editable
+source is removed, and observation issues one GET with the original idempotency key.
+The receipt is retained in the old ledger; the execution stays failed and no owner
+relaunch occurs. Live-owner and maintenance admission reject without contacting the
+destination, and a known completed receipt cannot be observed again. The stopped
+scenario also exercises the new CLI action through the real HTTP route; that case
+passed again after CLI wiring. Shared/daemon/CLI and web type checks and scoped lint
+passed. No native desktop or provider process was exercised.
+
+Manual acceptance: after a readout with observation support reports an unknown
+outcome, Stop its huddle, select its recorded owner in History, open Operations and
+choose Check delivery. Refresh delivery to inspect the retained result. Confirm
+that an owner/graph is not restarted and the external destination receives no
+second delivery. Try loss of the HTTP response after acceptance, maintenance,
+shutdown and an archived placement. An interrupted owner must explain the need for
+recovery. Real-provider, packaged and native UI acceptance remain open.
+
 ## Implemented: native-confirmed feedback
 
 Application **28.20** adds explicit same-execution native feedback behind optional

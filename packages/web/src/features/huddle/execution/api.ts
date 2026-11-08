@@ -5,6 +5,8 @@ import {
   huddleRecoverSchema,
   type HuddleRecover,
   huddleReadoutObserveSchema,
+  huddleRetainedReadoutObserveSchema,
+  type HuddleRetainedReadoutObserve,
   huddleReadoutObserveAcceptedSchema,
   type HuddleReadoutObserve,
   huddleLifecycleCommandSchema,
@@ -26,6 +28,7 @@ import { browserTransport } from '../../../lib/transport/browser-transport';
 import { huddleShellSupported } from '../documents/queries';
 
 export type HuddleCommand =
+  | { action: 'readouts/observe-retained'; input: HuddleRetainedReadoutObserve }
   | { action: 'auto-start'; input: HuddleAutoStart }
   | { action: 'recover'; input: HuddleRecover }
   | { action: 'readouts/observe'; input: HuddleReadoutObserve }
@@ -88,6 +91,7 @@ export async function sendHuddleCommand(profile: string, session: string, comman
     'auto-start': huddleAutoStartSchema,
     recover: huddleRecoverSchema,
     'readouts/observe': huddleReadoutObserveSchema,
+    'readouts/observe-retained': huddleRetainedReadoutObserveSchema,
     start: huddleStartSchema,
     apply: huddleApplySchema,
     run: huddleRunSchema,
@@ -97,7 +101,7 @@ export async function sendHuddleCommand(profile: string, session: string, comman
   };
   const input = schemas[command.action].parse(command.input);
   const reply = await api('POST', `${path(profile, session)}/${command.action}`, input);
-  if (command.action === 'readouts/observe')
+  if (command.action === 'readouts/observe' || command.action === 'readouts/observe-retained')
     return { action: 'observing' as const, value: huddleReadoutObserveAcceptedSchema.parse(reply) };
   if (command.action === 'run')
     return { action: 'run' as const, value: huddleRunAcceptedSchema.parse(reply) };

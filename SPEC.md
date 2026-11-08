@@ -1433,8 +1433,14 @@ even after source edits or Apply. Only consumed unknown readouts in ended execut
 are eligible. Observation shares worker/memory limits and cancellation with a
 30-second deadline, rejects agent operations/events, and retains known receipts
 without resending or continuing the graph. Acceptance is separate from completion;
-lost replies and history refresh never trigger another worker. Offline reconciliation,
-and automatic owner-crash recovery remain pending.
+lost replies and history refresh never trigger another worker. Application 28.21 adds explicit retained readout observation after confirmed clean
+owner shutdown. The daemon reuses the captured observation worker and original
+ledger under runtime retirement/revision/writer claims, with one bounded worker
+and maintenance/shutdown draining. No graph or owner is restarted. Retained-history
+reads may opt into delivery-check offers; the separate observe-retained endpoint
+requires exact owner/operation identity. Missing editable source is supported.
+Interrupted owners require existing recovery before observation. Automatic Linux
+owner-crash recovery is described below; other-platform fencing remains pending.
 Application 28.7 and optional runtime `customTriggers: 1` add project-local
 HuddleTrigger subscriptions under `runtime/huddle/triggers/custom/`. Captured
 manifest policy declares `continue|fresh` resume. Up to eight independent bounded

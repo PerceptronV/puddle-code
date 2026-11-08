@@ -899,6 +899,14 @@ runtime observation closes. Completion nodes are in the public catalogue; host
 launch/Apply requires both event and plan capabilities. Resolve targets as observed
 live agents with explicit worktrees, without requiring an automated ask bridge.
 Oversized JSON envelopes fail without truncating replies.
+Application 28.21 adds explicit retained readout observation under
+`huddle/execution/readouts/`. Require exact launch/placement, clean stopped-owner
+state, consumed launch and runtime retirement/revision/ledger claims. Reuse the
+captured observation contract and worker; never start an owner or scheduler, admit
+agent operations, or redeliver. Keep one bounded worker and hold claims/memory until
+positive exit. Participate in maintenance/shutdown draining. Retain receipts in the
+original ledger; lost replies are inspection-only. Interrupted owners need recovery
+first; connection failure is never shutdown evidence.
 Application 28.20 and optional `nativeFeedback: 1` add native-confirmed asks,
 requiring operations-2 and both completion capabilities. A script's `nativeCompletion`
 metadata names a string parameter selecting its completion source. Reuse the ordinary

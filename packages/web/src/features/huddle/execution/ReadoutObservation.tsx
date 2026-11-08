@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { HuddleCommandTarget } from '@puddle/shared';
+import type { HuddleCommandTarget, HuddleHistoryRequest } from '@puddle/shared';
 import { graphActionClass } from '../inspector/GraphEditing';
 import type { HuddleCommand } from './api';
 import { ControlTray } from '../../../components/ui/control-tray';
@@ -7,12 +7,14 @@ import { ControlTray } from '../../../components/ui/control-tray';
 export function ReadoutObservation({
   operation,
   target,
+  owner,
   disabled,
   send,
   inspect,
 }: {
   operation: string;
-  target: HuddleCommandTarget;
+  target?: HuddleCommandTarget;
+  owner?: HuddleHistoryRequest['owner'];
   disabled: boolean;
   send(command: HuddleCommand): Promise<unknown>;
   inspect(): Promise<void>;
@@ -30,10 +32,14 @@ export function ReadoutObservation({
           onClick={() => {
             setRequested(true);
             setError(null);
-            void send({
-              action: 'readouts/observe',
-              input: { target, operation_id: operation },
-            }).catch((error: unknown) => {
+            void send(
+              owner
+                ? { action: 'readouts/observe-retained', input: { owner, operation_id: operation } }
+                : {
+                    action: 'readouts/observe',
+                    input: { target: target!, operation_id: operation },
+                  },
+            ).catch((error: unknown) => {
               setError(error instanceof Error ? error.message : 'Cannot check delivery');
             });
           }}

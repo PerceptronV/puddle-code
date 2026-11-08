@@ -17,6 +17,7 @@ import { huddleMutation } from '../mutation.js';
 
 export class HuddleExecutionClient {
   readonly supported: boolean;
+  readonly retainedReadoutObservation: boolean;
   readonly readoutObservation: boolean;
   readonly customTriggers: boolean;
   readonly revisionReview: boolean;
@@ -30,6 +31,10 @@ export class HuddleExecutionClient {
     private readonly request: (path: string, body?: unknown) => Promise<unknown>,
     protocol?: { major: number; minor: number },
   ) {
+    this.retainedReadoutObservation = supportsApplicationFeature(protocol, {
+      major: 28,
+      minor: 21,
+    });
     this.triggerInspection = supportsApplicationFeature(protocol, { major: 28, minor: 17 });
     this.autoStart = supportsApplicationFeature(protocol, { major: 28, minor: 16 });
     this.crashRecovery = supportsApplicationFeature(protocol, { major: 28, minor: 18 });
@@ -54,6 +59,12 @@ export class HuddleExecutionClient {
         await this.request(`${path}/revision/retained`, command.request),
       );
     }
+    if (
+      command.action === 'retained-history' &&
+      command.request.include_readout_observation &&
+      !this.retainedReadoutObservation
+    )
+      throw new Error('Retained readout offers require daemon protocol 28.21 or newer');
     if (command.action === 'history-owners' || command.action === 'retained-history') {
       if (!this.retainedHistory)
         throw new Error('Retained huddle history requires daemon protocol 28.12 or newer');
@@ -105,21 +116,25 @@ export class HuddleExecutionClient {
       throw new Error('Explicit recovery modes require daemon protocol 28.18 or newer');
     if (command.action === 'recover' && !this.recovery)
       throw new Error('Huddle recovery requires daemon protocol 28.15 or newer');
+    if (command.action === 'observe-retained-readout' && !this.retainedReadoutObservation)
+      throw new Error('Retained readout observation requires daemon protocol 28.21 or newer');
     if (command.action === 'observe-readout' && !this.readoutObservation)
       throw new Error('Readout observation requires daemon protocol 28.6 or newer');
     const action =
-      command.action === 'resume'
-        ? 'rearm'
-        : command.action === 'observe-readout'
-          ? 'readouts/observe'
-          : command.action;
+      command.action === 'observe-retained-readout'
+        ? 'readouts/observe-retained'
+        : command.action === 'resume'
+          ? 'rearm'
+          : command.action === 'observe-readout'
+            ? 'readouts/observe'
+            : command.action;
     return huddleMutation(
       `Inspect runtime and history for session ${command.session_id} before another action.`,
       async () => {
         const response = await this.request(`${path}/${action}`, command.request);
         if (command.action === 'run') return huddleRunAcceptedSchema.parse(response);
         if (command.action === 'stop') return huddleStoppedSchema.parse(response);
-        if (command.action === 'observe-readout')
+        if (command.action === 'observe-readout' || command.action === 'observe-retained-readout')
           return huddleReadoutObserveAcceptedSchema.parse(response);
         return huddleRuntimeInspectionSchema.parse(response);
       },

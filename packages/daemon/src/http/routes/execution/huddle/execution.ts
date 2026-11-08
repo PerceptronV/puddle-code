@@ -11,6 +11,7 @@ import {
   huddleDiffReviewSchema,
   huddleReviewSchema,
   huddleReadoutObserveSchema,
+  huddleRetainedReadoutObserveSchema,
   huddleReadoutObserveAcceptedSchema,
   huddleApplySchema,
   huddleRunSchema,
@@ -233,6 +234,18 @@ export function huddleExecutionRoutes(service: HuddleExecutionService): Hono {
             hexIdParam(c, 'profile'),
             c.req.param('sid'),
             await parseBody(c, huddleHistoryRequestSchema),
+            requestAuthority(c),
+          ),
+        ),
+      ),
+    )
+    .post('/:profile/sessions/:sid/readouts/observe-retained', async (c) =>
+      c.json(
+        huddleReadoutObserveAcceptedSchema.parse(
+          await service.observeRetainedReadout(
+            hexIdParam(c, 'profile'),
+            c.req.param('sid'),
+            await parseBody(c, huddleRetainedReadoutObserveSchema),
             requestAuthority(c),
           ),
         ),

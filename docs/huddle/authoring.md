@@ -361,3 +361,9 @@ external human turns retain the normal trigger behaviour.
 Subscription replacement/stopping rejects waits; unknown or lost operations are
 observed, never automatically resent. Standalone `pudl run` does not support this
 method. Update the offline authoring kit to obtain generated askNative types.
+
+
+Retained readouts can also be reconciled after clean owner shutdown on application
+28.21+: use `observe-retained-readout` with the exact recorded owner and operation id.
+This executes only the captured adapter's observation method and never restarts the
+graph. See [readout delivery checks](readouts.md#check-a-delivery-after-stop).

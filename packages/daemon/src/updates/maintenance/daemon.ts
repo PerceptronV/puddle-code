@@ -14,6 +14,7 @@ export function daemonUpdatePause(deps: {
   huddles?: Participant;
   huddleSessions?: Participant;
   huddleCompletions?: Participant;
+  huddleReadouts?: Participant;
   huddleRecovery?: Participant;
   compilation: Participant;
   catalogue: Participant;
@@ -35,6 +36,7 @@ export function daemonUpdatePause(deps: {
       ...(deps.huddles ? [deps.huddles] : []),
       ...(deps.huddleSessions ? [deps.huddleSessions] : []),
       ...(deps.huddleCompletions ? [deps.huddleCompletions] : []),
+      ...(deps.huddleReadouts ? [deps.huddleReadouts] : []),
       ...(deps.huddleRecovery ? [deps.huddleRecovery] : []),
       deps.compilation,
       deps.catalogue,

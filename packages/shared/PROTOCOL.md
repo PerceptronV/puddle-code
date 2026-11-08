@@ -1,5 +1,26 @@
 # The puddle communication protocol
 
+Application **28.21** adds explicit local/SSH `POST
+/api/huddle/:profile/sessions/:sid/readouts/observe-retained` with
+`{owner: {runtimeId, incarnation}, operation_id}`. It uses the original captured
+readout adapter and the existing observation worker/receipt path. It never starts
+an owner, scheduler, trigger subscription or agent operation and never redelivers.
+The optional `include_readout_observation: true` on retained-history requests
+exposes eligible operation offers; reads themselves remain passive. Old requests
+and responses retain their prior shapes. IDE and CLI/MCP gate the action on 28.21.
+
+Admission requires exact retained placement/launch identity, an exited binding,
+recorded clean shutdown with drained workers, launch consumption, and all runtime
+retirement, revision and ledger writer claims. Disconnection or stale process data
+is insufficient. Interrupted owners must first use the existing recovery path.
+The daemon runs at most one 30-second observation worker, with bounded memory and
+transport; it drains before maintenance and cancels/drains on shutdown. Claims and
+memory remain held through positively observed worker exit. The original private
+ledger records intent and known receipts; uncertain results remain unknown. Lost
+HTTP replies require retained-history inspection, never automatic retry. Editable
+source may be missing; the captured contract, envelope and execution must agree.
+No database migration, owner capability or agent/runtime protocol change is needed.
+
 Application **28.20** adds explicit same-execution native feedback behind optional
 owner **`nativeFeedback: 1`**, requiring operations-2, completionEvents-1 and
 completionPlans-1. Script manifests may declare `nativeCompletion`, the name of a

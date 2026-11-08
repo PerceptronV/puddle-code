@@ -225,8 +225,10 @@ function ExecutionRecords({
   const [cursors, setCursors] = useState([0]);
   const after = cursors.at(-1)!;
   const protocol = useDaemonVersion().data?.protocol;
-  const observationSupported =
-    !retained && supportsApplicationFeature(protocol, { major: 28, minor: 6 });
+  const observationSupported = supportsApplicationFeature(protocol, {
+    major: 28,
+    minor: retained ? 21 : 6,
+  });
   const page = usePage(
     profile,
     session,
@@ -292,7 +294,7 @@ function ExecutionRecords({
           {page.error.message}
         </p>
       )}
-      {!retained && commands.status.review && (
+      {commands.status.review && (
         <button
           type="button"
           className={graphActionClass}
@@ -328,19 +330,28 @@ function ExecutionRecords({
                 {record.consumed ? 'Dispatch consumed' : 'Not dispatched'}
               </p>
             )}
-            {'readout_observation' in record && record.readout_observation && observationTarget && (
-              <ReadoutObservation
-                operation={record.id}
-                target={observationTarget}
-                disabled={commands.status.pending || commands.status.review}
-                send={commands.send}
-                inspect={async () => {
-                  const [history, state] = await Promise.all([page.refetch(), runtime.refetch()]);
-                  if (history.error) throw history.error;
-                  if (state.error) throw state.error;
-                }}
-              />
-            )}
+            {'readout_observation' in record &&
+              record.readout_observation &&
+              (observationTarget || (retained && observationSupported)) && (
+                <ReadoutObservation
+                  operation={record.id}
+                  target={observationTarget ?? undefined}
+                  owner={retained ? owner : undefined}
+                  disabled={commands.status.pending || commands.status.review}
+                  send={commands.send}
+                  inspect={async () => {
+                    if (retained) {
+                      const history = await page.refetch();
+                      if (history.error) throw history.error;
+                      commands.reviewed();
+                      return;
+                    }
+                    const [history, state] = await Promise.all([page.refetch(), runtime.refetch()]);
+                    if (history.error) throw history.error;
+                    if (state.error) throw state.error;
+                  }}
+                />
+              )}
           </details>
         ))}
       </div>

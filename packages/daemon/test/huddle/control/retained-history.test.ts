@@ -68,7 +68,7 @@ it('reads results after Stop and source removal without relaunch, adoption or pu
     expect(f.run).toHaveBeenCalledTimes(1);
     expect(
       (await f.request('history/retained', { ...query, include_readout_observation: true })).status,
-    ).toBe(400);
+    ).toBe(200);
     expect(
       (
         await f.request('history/retained', {

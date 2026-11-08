@@ -28,11 +28,11 @@ export const huddleHistoryOwnersSchema = z.strictObject({
     .max(64),
   next: huddleHistoryCursorSchema.nullable(),
 });
-/** Retained observations cannot request external readout reconciliation. */
+/** Reading retained history may offer observation, but never executes an adapter. */
 export const huddleRetainedHistoryRequestSchema = z.discriminatedUnion('collection', [
-  huddleHistoryRequestSchema.options[0].omit({ include_readout_observation: true }),
-  huddleHistoryRequestSchema.options[1].omit({ include_readout_observation: true }),
-  huddleHistoryRequestSchema.options[2].omit({ include_readout_observation: true }),
+  huddleHistoryRequestSchema.options[0],
+  huddleHistoryRequestSchema.options[1],
+  huddleHistoryRequestSchema.options[2],
 ]);
 export const huddleRetainedHistorySchema = z.strictObject({
   source: z.literal('retained-ledger'),
@@ -43,3 +43,9 @@ export type HuddleHistoryOwnersRequest = z.infer<typeof huddleHistoryOwnersReque
 export type HuddleHistoryOwners = z.infer<typeof huddleHistoryOwnersSchema>;
 export type HuddleRetainedHistoryRequest = z.infer<typeof huddleRetainedHistoryRequestSchema>;
 export type HuddleRetainedHistory = z.infer<typeof huddleRetainedHistorySchema>;
+
+export const huddleRetainedReadoutObserveSchema = z.strictObject({
+  owner: huddleRuntimeTargetSchema,
+  operation_id: z.uuid(),
+});
+export type HuddleRetainedReadoutObserve = z.infer<typeof huddleRetainedReadoutObserveSchema>;

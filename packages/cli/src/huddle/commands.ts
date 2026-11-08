@@ -31,7 +31,7 @@ export const huddleHelp = `  pudl huddle list --project ID --worktree /absolute/
   pudl huddle runtime <session-id>
   pudl huddle session|archive|unarchive <session-id>
   pudl huddle start|apply|run|interrupt|resume|stop|recover|auto-start <session-id> --request JSON
-  pudl huddle history|observe-readout <session-id> --request JSON
+  pudl huddle history|observe-readout|observe-retained-readout <session-id> --request JSON
   pudl huddle revision|diff <session-id> --request JSON
 
 Connection: --host user@host --profile name-or-id
@@ -45,6 +45,10 @@ Runtime commands use that placement's declared worktree. Start/Apply require an
 explicit expected_digest and variables; Apply and later mutations require the
 exact target from runtime inspection. Run also requires node, event_id and data.
 History requires owner, collection, after and parent for invocations/operations.
+Observe-retained-readout requires {owner, operation_id} (host 28.21+). It runs the
+captured observation adapter after confirmed clean owner shutdown, without graph
+restart or redelivery. Recover interrupted owners first. Inspect retained history
+after acceptance or a lost reply; never retry automatically.
 Triggers requires {target} (host 28.17+): reads installed subscriptions and accepted
 backlog without observing new external events or resetting cursors.
 Auto-start requires {target, expected, enabled} (host 28.16+). Use the inspected

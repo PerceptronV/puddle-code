@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import {
   huddleHistoryOwnersRequestSchema,
+  huddleRetainedReadoutObserveSchema,
   huddleRetainedHistoryRequestSchema,
 } from '../history.js';
 import { sessionId } from '../../common.js';
@@ -40,6 +41,10 @@ export const huddleExecutionToolSchemas = {
   resume: z.strictObject({ ...session, request: huddleLifecycleCommandSchema }),
   stop: z.strictObject({ ...session, request: huddleLifecycleCommandSchema }),
   history: z.strictObject({ ...session, request: huddleHistoryRequestSchema }),
+  'observe-retained-readout': z.strictObject({
+    ...session,
+    request: huddleRetainedReadoutObserveSchema,
+  }),
   'observe-readout': z.strictObject({ ...session, request: huddleReadoutObserveSchema }),
 };
 export const huddleToolExecutionCommandSchema = z.discriminatedUnion('action', [
@@ -61,11 +66,19 @@ export const huddleToolExecutionCommandSchema = z.discriminatedUnion('action', [
   huddleExecutionToolSchemas.resume.extend({ action: z.literal('resume') }),
   huddleExecutionToolSchemas.stop.extend({ action: z.literal('stop') }),
   huddleExecutionToolSchemas.history.extend({ action: z.literal('history') }),
+  huddleExecutionToolSchemas['observe-retained-readout'].extend({
+    action: z.literal('observe-retained-readout'),
+  }),
   huddleExecutionToolSchemas['observe-readout'].extend({ action: z.literal('observe-readout') }),
 ]);
 export type HuddleToolExecutionCommand = z.infer<typeof huddleToolExecutionCommandSchema>;
 
 const definitions = [
+  [
+    'observe-retained-readout',
+    'Observe one uncertain readout from its exact recorded owner and operation id (host 28.21+). Requires a confirmed cleanly stopped owner; recover interrupted owners first. Uses the captured observation adapter without redelivery or graph restart. Supply request {owner, operation_id}. Inspect retained history after acceptance or a lost reply; never retry automatically.',
+    false,
+  ],
   [
     'triggers',
     'Inspect installed trigger health, timer progress and retained accepted work for the exact target (host 28.17+ and a supporting owner). Supply request {target}. Per-source totals cover the active activation; global backlog also includes older activations. Does not observe new external events, reset cursors or reopen subscriptions. No execution or retry.',

@@ -1,3 +1,5 @@
+import type { HuddleOfflineReadouts } from './readouts/offline.js';
+import { retainedHuddleLaunch } from './retained/identity.js';
 import { hasHuddleContainment } from '../../runtime/huddle/recovery/containment.js';
 import { huddleBindingLaunch } from '../../runtime/huddle/ownership/binding.js';
 import { realpathSync } from 'node:fs';
@@ -12,6 +14,8 @@ import {
   huddleRecoverSchema,
   type HuddleRecover,
   huddleReadoutObserveSchema,
+  huddleRetainedReadoutObserveSchema,
+  type HuddleRetainedReadoutObserve,
   type HuddleReadoutObserve,
   huddleApplySchema,
   huddleRunSchema,
@@ -84,6 +88,7 @@ interface Dependencies extends HuddleResourceStores {
   controls: HuddleRuntimeControls;
   launcher?: Pick<RuntimeLauncher, 'launchHuddle' | 'checkHuddleAvailable'> &
     Partial<Pick<RuntimeLauncher, 'recoverHuddle'>>;
+  offlineReadouts?: HuddleOfflineReadouts;
   storage?: Pick<StorageMonitor, 'assertAdmission'>;
   agentBinding?: (
     profile: string,
@@ -753,6 +758,46 @@ export class HuddleExecutionService {
         return review;
       },
     );
+  }
+
+  async observeRetainedReadout(
+    profile: string,
+    id: string,
+    raw: HuddleRetainedReadoutObserve,
+    authority: Authority,
+  ) {
+    const input = huddleRetainedReadoutObserveSchema.parse(raw);
+    const scope = this.scope(profile, id, authority);
+    const check = () => {
+      scope.check();
+      const session = this.deps.sessions.get(id);
+      if (session.status === 'archived' || this.deps.projects.get(session.project_id).archived)
+        throw ApiError.conflict(
+          'huddle_archived',
+          'Unarchive the huddle and project before checking a delivery',
+        );
+      if (realpathSync(session.worktree_path) !== session.worktree_path)
+        throw ApiError.conflict('huddle_worktree_changed', 'The recorded worktree moved');
+    };
+    check();
+    if (!this.deps.offlineReadouts)
+      throw ApiError.conflict(
+        'huddle_execution_unsupported',
+        'Retained readout observation is unavailable',
+      );
+    await this.deps.storage?.assertAdmission([this.deps.home, scope.session.worktree_path]);
+    check();
+    const binding = this.deps.runtimes.get(input.owner.runtimeId);
+    const launch = retainedHuddleLaunch(this.deps.home, profile, scope.session, binding, input);
+    try {
+      return this.deps.offlineReadouts.observe(binding!, launch, input.operation_id, check);
+    } catch (error) {
+      if (error instanceof ApiError) throw error;
+      throw ApiError.conflict(
+        'huddle_readout_unavailable',
+        'Retained readout observation is unavailable; inspect the recorded operation and owner state',
+      );
+    }
   }
 
   async observeReadout(

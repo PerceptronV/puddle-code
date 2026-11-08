@@ -117,8 +117,10 @@ coalescing/skipping and date disposition. Broader recurrence rules remain unfini
 captured HuddleReadout adapters with durable intent, bounded receipts and explicit
 unknown outcomes. Explicit owner/API observation and the history panel's Check
 delivery action now reconcile uncertain deliveries through their captured adapters,
-without resending or continuing ended graphs. Offline owner reconciliation and
-same-boot recovery on macOS/detached lifetimes remain unfinished. Explicit reboot recovery
+without resending or continuing ended graphs. Application 28.21 adds readout observation from cleanly stopped retained owners,
+reusing captured adapters and the original ledger without restarting a graph.
+Interrupted owners still require recovery first. Same-boot recovery on
+macOS/detached lifetimes remains unfinished. Explicit reboot recovery
 now restores the recorded activation, queued work and trigger cursors in one
 replacement owner (application 28.15, runtime recovery-1, migration 51). Running
 scripts are interrupted and historical agent operations remain observation-only.

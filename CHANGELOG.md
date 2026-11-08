@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Check uncertain readout deliveries after a huddle stops, using recorded History or CLI/MCP. Reuse the captured observation adapter without restarting the graph or sending another delivery (application 28.21).
+
 - Add editable native-confirmed Prompt/Review agent nodes with a completion-trigger selector. Reuse existing agent lifecycle and native turn observation, continuing once within the original execution and feedback limits (application 28.20).
 
 - Automatically recover armed Linux huddles from verified owner crashes through existing lifecycle reconciliation, respecting Stop/archive/maintenance and a retained three-replacement limit (application 28.19).
@@ -77,6 +79,8 @@ Past releases: see docs/changelogs/.
 ### Daemon
 
 #### Added
+
+- Observe retained readouts only after confirmed clean owner shutdown, under existing runtime/writer claims. Bound observation to one worker and drain it for maintenance/shutdown; retain outcomes in the original ledger.
 
 - Support opt-in huddle `askNative()` confirmation through existing asks and completion feeds, retaining exact native evidence atomically with source cursors. Suppress automated roots and reject changed subscriptions without resending prompts; gate source on `nativeFeedback: 1`.
 

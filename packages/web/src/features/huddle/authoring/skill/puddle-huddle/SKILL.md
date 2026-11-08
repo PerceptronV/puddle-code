@@ -160,3 +160,11 @@ recreates a missing worktree.
 Report the files changed, checks actually performed and any remaining diagnostics.
 Keep authoring within the requested task. This invocation does not grant additional
 accounts, cross-profile access, nested delegation or automatic execution authority.
+
+
+On host 28.21+, `observe-retained-readout SESSION_ID --request JSON` checks an unknown
+readout after confirmed clean owner shutdown. Supply `{owner, operation_id}` from
+recorded history; the captured adapter must support observation. It does not restart
+the graph or redeliver. Recover interrupted owners first. Request
+`include_readout_observation: true` in retained history for eligible offers and
+inspect retained outcomes after acceptance or lost replies, without automatic retry.

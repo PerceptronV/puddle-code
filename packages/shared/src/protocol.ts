@@ -372,7 +372,8 @@
 // 28.18: explicit huddle crash recovery using retained Linux cgroup-v2 descendant proof.
 // 28.19: bounded automatic huddle recovery following authoritative owner-loss reconciliation.
 // 28.20: opt-in native confirmation of huddle asks within their original execution.
-export const PROTOCOL_VERSION = { major: 28, minor: 20 } as const;
+// 28.21: explicit readout observation from a cleanly stopped retained huddle.
+export const PROTOCOL_VERSION = { major: 28, minor: 21 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

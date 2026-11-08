@@ -1,3 +1,4 @@
+import { HuddleOfflineReadouts } from './huddle/execution/readouts/offline.js';
 import { HuddleCrashRecovery } from './runtime/huddle/recovery/automatic.js';
 import { recoverHuddlesAtStartup } from './runtime/huddle/recovery/startup.js';
 import { HuddleAgentLifecycle } from './huddle/operations/lifecycle/service.js';
@@ -511,7 +512,10 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       projects,
     });
     failedStartup.push(() => huddleCompletionDispatcher.close());
+    const huddleOfflineReadouts = new HuddleOfflineReadouts(paths.home);
+    failedStartup.push(() => huddleOfflineReadouts.close());
     const huddleExecution = new HuddleExecutionService({
+      offlineReadouts: huddleOfflineReadouts,
       home: paths.home,
       accounts,
       adapters,
@@ -817,6 +821,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       huddles: huddleDispatcher,
       huddleSessions: huddleSessionDispatcher,
       huddleCompletions: huddleCompletionDispatcher,
+      huddleReadouts: huddleOfflineReadouts,
       huddleRecovery: huddleCrashRecovery,
       compilation,
       catalogue,
@@ -949,6 +954,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
           huddleDispatcher.close(),
           huddleSessionDispatcher.close(),
           huddleCompletionDispatcher.close(),
+          huddleOfflineReadouts.close(),
           huddleCrashRecovery?.close(),
         ]);
         stopping = (async () => {

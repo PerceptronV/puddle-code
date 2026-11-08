@@ -132,3 +132,24 @@ check. For a still-unknown outcome, **Refresh delivery** enables another deliber
 check; there is no automatic polling of the destination or delivery retry. Checking
 requires the original live owner and retained source; stopped/offline owner recovery
 is not yet available.
+
+
+## Check a delivery after Stop
+
+On application 28.21+, open recorded History for the stopped huddle, select the
+execution's Operations and choose **Check delivery** on an eligible unknown readout.
+The adapter must have declared observation support. **Refresh delivery** reads the
+retained outcome; an accepted check is not yet proof of delivery.
+
+Puddle runs the original captured `observe` method with its original delivery and
+idempotency key. The editable source may have changed or been deleted. It does not
+restart the huddle, resume the ended graph or call `deliver` again. The action
+requires a confirmed clean owner shutdown and an available worktree; recover an
+interrupted owner first. Unarchive the huddle/project before requesting a check.
+
+CLI/MCP use `observe-retained-readout SESSION_ID --request JSON` /
+`huddle_observe_retained_readout` with `{owner: {runtimeId, incarnation}, operation_id}`.
+Read `history-owners` and `retained-history` to select the exact recorded owner and
+operation. Retained history accepts `include_readout_observation: true` to request
+eligible offers. After a failed or lost reply, inspect retained history before any
+new explicit action; reconnect never repeats a check automatically.

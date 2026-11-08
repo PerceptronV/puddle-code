@@ -14,12 +14,17 @@ export function readRetainedHuddleHistory(
 ) {
   try {
     const launch = retainedHuddleLaunch(home, profile, session, binding, input);
-    const { owner, ...query } = input;
+    const { owner, include_readout_observation, ...query } = input;
     const page = readPage(home, launch.scope, query);
     return {
       source: 'retained-ledger' as const,
       observed_at: new Date().toISOString(),
-      history: projectHuddleHistory({ ...page, owner }),
+      history: projectHuddleHistory(
+        { ...page, owner },
+        include_readout_observation &&
+          binding?.state === 'exited' &&
+          launch.capabilities.readoutObservation === 1,
+      ),
     };
   } catch (error) {
     if (error instanceof ApiError && error.code === 'huddle_history_changed') throw error;
