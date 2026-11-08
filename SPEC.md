@@ -2339,6 +2339,13 @@ project's actual profile, focuses an existing detached session pane when present
 and otherwise uses the shared project-window router. IPC uses the existing exact
 origin/main-frame boundary. Browser/older-shell notification behaviour is unchanged.
 
+Document titles have one composition owner under `shell/title/`: the mounted
+workspace's project/host title and waiting count take precedence over the shell's
+host-wide status title. Unrelated session status events cannot erase a project or
+pane window's identity. Leaving the workspace reveals the latest shell title;
+stale effect cleanup cannot erase a newer workspace title. Browser/mobile shells
+use the same ownership rule.
+
 The native shell now separates one host cockpit connection from its native
 window records (`desktop/src/windows/`). Its `hosts/`, `persistence/`, `lifecycle/`
 and `transfers/` directories separate connection management, durable state,

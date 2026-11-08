@@ -1,4 +1,5 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
+import { useDocumentTitle } from './title/document-title';
 import { useNavigate } from 'react-router';
 import { useQueryClient, type QueryClient } from '@tanstack/react-query';
 import {
@@ -152,18 +153,13 @@ export function useAgentNotifications(
   const host = useHostInfo();
   const baseTitle = hostLabel(host.data) ?? 'Puddle';
   const baseRef = useRef(baseTitle);
-  useEffect(() => {
-    // Adopt a late-loaded (or renamed) host label only when the title still
-    // shows the stale base — never stomp a workspace's "project — host".
-    if (document.title === baseRef.current) document.title = baseTitle;
-    baseRef.current = baseTitle;
-  }, [baseTitle]);
+  baseRef.current = baseTitle;
+  const [waitingCount, setWaitingCount] = useState(0);
+  useDocumentTitle('shell', waitingCount > 0 ? `(${waitingCount}) ${baseTitle}` : baseTitle);
 
   useEffect(() => {
     const waiting = new Set<string>();
-    const updateBadge = () => {
-      document.title = waiting.size > 0 ? `(${waiting.size}) ${baseRef.current}` : baseRef.current;
-    };
+    setWaitingCount(0);
 
     let active = true;
     const deliver = async (
@@ -250,7 +246,7 @@ export function useAgentNotifications(
       const wasWaiting = waiting.has(event.session);
       if (event.status === 'waiting_input') waiting.add(event.session);
       else waiting.delete(event.session);
-      updateBadge();
+      setWaitingCount(waiting.size);
       if (event.status !== 'waiting_input' || wasWaiting) return;
       // Older daemons have only status events; current ones explicitly report
       // notifications, including terminal agents and unrequested process exits.
@@ -278,7 +274,6 @@ export function useAgentNotifications(
       active = false;
       off();
       offNotification();
-      document.title = baseRef.current;
     };
   }, [qc]);
 }

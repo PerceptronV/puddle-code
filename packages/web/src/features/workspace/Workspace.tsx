@@ -67,6 +67,7 @@ import { TilingDnd } from './layout/TilingDnd';
 import { useWorkspaceLayout } from './layout/use-workspace-layout';
 import { useUiState } from './use-ui-state';
 import { workspaceTitle } from './workspace-title';
+import { useDocumentTitle } from '../shell/title/document-title';
 import { desktopWindowContext } from '../windows/window-context';
 
 /**
@@ -387,15 +388,14 @@ function WorkspaceInner() {
   // is the machine's label (display-name customisation first, then hostname),
   // not the app name — the window says which host and project it drives.
   const host = useHostInfo();
-  useEffect(() => {
-    const base = hostLabel(host.data) ?? 'Puddle';
-    const waiting = sessions.filter((s) => s.status === 'waiting_input').length;
-    const name = project?.name ?? 'Puddle';
-    document.title = workspaceTitle(name, base, waiting);
-    return () => {
-      document.title = base;
-    };
-  }, [sessions, project?.name, host.data]);
+  useDocumentTitle(
+    'workspace',
+    workspaceTitle(
+      project?.name ?? 'Puddle',
+      hostLabel(host.data) ?? 'Puddle',
+      sessions.filter((session) => session.status === 'waiting_input').length,
+    ),
+  );
 
   // The whole left sidebar binds to one worktree: the pinned session if any,
   // otherwise the FOCUSED pane's active tab — every tab carries the worktree

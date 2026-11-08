@@ -13,6 +13,7 @@
     "build": "node scripts/build.mjs",
     "typecheck": "tsc --noEmit",
     "test:native-key-release": "node test/keyboard/command-key-up.mjs",
+    "test:native-windows": "node test/windows/native/acceptance.mjs",
     "start": "electron .",
     "dist": "node scripts/build.mjs && electron-builder"
   },

@@ -135,6 +135,7 @@ pnpm --filter @puddle-code/desktop start   # run the Electron shell (after pnpm 
                                       # inside an agent session — see the puddled warning below)
 pnpm --filter @puddle-code/desktop dist    # package it (dmg/zip/AppImage via electron-builder)
 pnpm --filter @puddle-code/desktop test:native-key-release # macOS; requires running UI preview
+pnpm --filter @puddle-code/desktop test:native-windows # isolated Electron; requires UI preview
 ```
 
 Mac desktop builds compile `desktop/native/command-key-up.m` with Xcode command-line
@@ -142,6 +143,13 @@ tools and the build-only `node-api-headers` dependency. The universal Node-API
 module is unpacked with the app; its AppKit monitor forwards app-local Command
 key releases that NSApplication otherwise swallows. The native regression check
 uses an isolated UI-only Electron window and real AppKit key events, never a daemon.
+
+The native window check bundles the real main process/preloads with a compile-time
+preview host replacement, rejecting CLI library inputs. It uses temporary app data,
+never starts a daemon, and intentionally crashes only its own test processes.
+Set `PREVIEW_URL` (default `http://127.0.0.1:5186/`); optionally set
+`PUDDLE_NATIVE_REPORT` to write idle/editor-work process measurements. See
+`docs/acceptance/windows.md` for scope and remaining native checks.
 
 For manual testing before a release exists: `pnpm build && pnpm build:tarball`, then
 `node packages/cli/dist/index.js launch --tarball dist-release/puddled-v*.tar.gz` (or

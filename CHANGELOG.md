@@ -27,9 +27,9 @@ Past releases: see docs/changelogs/.
 - Coordinate native notification sounds/delivery and update offers across windows, retain notifications when their original window closes, and route clicks to the correct profile or detached session (application protocol 26.21).
 - Save, duplicate and load native window arrangements through the host Layouts popover, including project saves from the dashboard; preserve mounted editors when saving and observe uncertain loads without redispatch.
 - Coordinate native arrangement application with scoped window matching, draft-preserving plans, atomic ownership and cancellation recovery; retain each restored window's layout mode without changing client preferences (application protocol 26.20; native OS acceptance remains in progress).
-- Stage native layout participants through the reused workspace/dashboard, verify mounted revisions and preserve drafts on cancellation (application protocol 26.19; named-window apply coordination and menu integration remain in progress).
-- Coordinate native layout capture across window checkpoints and prepare atomic multi-window recovery transactions with draft retention (application protocol 26.18; named-window apply and menu integration remain in progress).
-- Prepare named native window layouts with portable arrangement storage, scoped capture projections and a single-tree browser fallback (application protocol 26.17; coordinated save/load UI remains in progress).
+- Stage native layout participants through the reused workspace/dashboard, verify mounted revisions and preserve drafts on cancellation (application protocol 26.19).
+- Coordinate native layout capture across window checkpoints and prepare atomic multi-window recovery transactions with draft retention (application protocol 26.18).
+- Prepare named native window layouts with portable arrangement storage, scoped capture projections and a single-tree browser fallback (application protocol 26.17).
 - Support typing through Ripple when its divider covers the live input, reusing native keyboard, paste and IME handling with anchored cells and a visible caret. Preserve the default display-only split and native composer.
 
 - Prepare project-window handoffs with durable return records and shared destination planning; subsequent controls use the same ownership flow (application protocol 26.14).
@@ -41,4 +41,5 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
+- Keep project and pane window titles identifiable when unrelated host sessions change status, and restore the current host title on leaving the workspace.
 - Preserve the active editor on native window reload when the URL retains a previous session binding.

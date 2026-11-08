@@ -172,8 +172,7 @@ verification; pending items are not support claims.
   contributes its whole selected slice. The browser fallback preserves editor
   duplicates, deduplicates terminal viewers and repairs colliding pane ids.
   Dirty text, view caches and native geometry are not named-layout data.
-  The native coordination increment below supplies scoped checkpointed snapshots;
-  the popover does not yet save/apply native arrangements.
+  Native coordination and popover save/apply use these records as described below.
 
 - Native host-only layout capture now serialises with refresh/reload and uses
   the existing checkpoint command for every live participant (application 26.18).
@@ -190,7 +189,7 @@ verification; pending items are not support claims.
   invalid plans. Other hosts/profiles and unrelated project-mode slices remain
   intact. Interrupted preparations cancel on restart; committed outcomes survive
   and repeated commit does not write again. The native apply planner/coordinator
-  is not yet wired to these storage primitives.
+  uses these storage primitives.
 - Renderer arrangement participation now uses `windows/arrangements/participant.ts`
   with separate seal, stage, verify and finish commands (application 26.19).
   Sealing checkpoints and releases models before returning the original revision.
@@ -203,7 +202,7 @@ verification; pending items are not support claims.
   stays sealed for the coordinator to close or reload. Prepared windows use
   `stagingArrangement`, not the earlier transfer acknowledgement, and cannot
   participate in native drags. The matching/apply coordinator and named-layout
-  controls are still pending.
+  controls below use this handshake.
 - Native apply/observe now drives that handshake through `desktop/windows/arrangements/`
   (application 26.20). Main reserves exact native matches, reuses compatible panes
   and project owners, creates stable missing slots, and coordinates all participants
@@ -253,10 +252,10 @@ verification; pending items are not support claims.
   original window. Click routing resolves the target project's profile, prefers
   an existing detached session pane, then uses shared project-window routing.
 
-Native OS acceptance and the remaining full-roadmap audits are still
-pending. Pane/project detachment and menu return do not deliver the whole roadmap. Undo-stack transfer
-is not implemented; restored editors use
-new Monaco models with recovered text.
+Native macOS UI-only lifecycle acceptance has now run, as recorded below. Packaged
+and Linux acceptance, native drag gestures, live host/process continuity and the
+remaining full-roadmap audits are still pending. Undo-stack transfer is not
+implemented; restored editors use new Monaco models with recovered text.
 
 ## Verification record
 
@@ -501,7 +500,8 @@ The ordinary native-pane drag/return and browser pane-drag regressions also pass
 These tests supply arrangements directly through the private capability; named-layout
 popover save/load and native OS acceptance remain pending.
 
-Native acceptance has not run. Use an isolated UI preview for desktop interaction;
+Native acceptance had not run at that increment; the later native record follows.
+Use an isolated UI preview for desktop interaction;
 start any real daemon from a plain shell, never from a coding-agent session.
 
 ### Layouts popover integration — 2026-11-07
@@ -551,6 +551,86 @@ start any real daemon from a plain shell, never from a coding-agent session.
   click delivery during an app restart, native focus/drag and live process
   continuity still require the native acceptance below. Cross-profile routing and
   host isolation currently have focused unit evidence, not native OS evidence.
+
+### Native macOS lifecycle and resource observations — 2026-11-07
+
+Passed on macOS 26.5.2 arm64, Electron 43.2.0, Node 22.21.1, against the Vite UI
+preview at `127.0.0.1:5186`. Run from the repository root:
+
+```sh
+PREVIEW_URL=http://127.0.0.1:5186/ \
+PUDDLE_NATIVE_REPORT=/tmp/puddle-native-window-resources.json \
+pnpm --filter @puddle-code/desktop test:native-windows
+```
+
+The fixture under `desktop/test/windows/native/` bundles the actual desktop main
+process, preloads and native keyboard shim. Its build replaces the CLI library
+with a preview-only host and asserts no CLI implementation enters the bundle.
+Real Electron windows, IPC, menus, persistence and renderer components run with
+temporary application data. The preview supplies synthetic projects/files/sessions;
+no daemon, SSH connection, installer, PTY or host execution is invoked.
+
+Observed results:
+
+- Migrated a target-only reopen record and opened one host connection. Opened a
+  session-backed file through the explorer, changed its Monaco buffer without
+  saving, and detached its entire pane through a real right-click/menu gesture.
+  The dirty text reached the native pane through the acknowledged transfer.
+- Opened the project from its dashboard context menu. Clicking that project again
+  focused its existing native window, retaining exactly three windows and one
+  preview host connection. Detached panes and projects had no header controls;
+  their content bounds sat below the real macOS title bar.
+- The title regression sends a synthetic status for an unrelated session through
+  the actual WS manager, then checks both document and native window titles.
+  Project/pane titles retain `puddle — UI preview`. Shared title ownership now
+  prevents host notifications from replacing that identity; focused tests also
+  cover host renaming and stale workspace cleanup.
+- Closing the host left both detached windows alive and did not close the shared
+  connection. The pane entered and left actual native fullscreen. App quit used
+  Electron's `app.quit()` and the production checkpoint/quit handlers. Relaunch
+  restored only the same project/pane identities, dirty text and one connection.
+- Forced a renderer crash, invoked the actual native **Reload** menu, and observed
+  the replacement renderer through Electron `webContents`. It recovered the same
+  pane identity and unsaved text. Playwright retains its old Page's crashed flag,
+  so that flag is not used as evidence of failed renderer recovery.
+- Sent SIGKILL only to the isolated test app, relaunched it, and recovered both
+  detached identities and dirty text from their durable snapshots. Explicitly
+  closing the restored project created its returned workspace record without
+  opening a host or closing the independent pane.
+- The final run passed with no renderer page errors. 150 focused desktop
+  lifecycle/ownership/bounds/reopen and web shell/title tests passed across 23
+  files. Web TypeScript and targeted ESLint also passed.
+  The existing `WINDOW_TRANSFER_KIND=session WINDOW_EFFECTS=1` Chromium check
+  also passed notification suppression, consumed-event handling, host-update
+  ownership handover and independent pane reload after the title change.
+
+Resource observations use Electron's process inventory and memory/CPU counters,
+following the existing preview-surfaces measurement approach. Each phase settles
+for two seconds, samples three seconds of idle time, then performs twenty Monaco
+insert/undo pairs at 100 ms intervals while retaining the original dirty text.
+The active editor moves to the pane after detachment. Other windows are mostly
+occluded; the project window starts empty. No terminal output is generated.
+
+| Window set | Renderer processes | Idle summed working set (MiB) | Editing summed working set (MiB) | Idle CPU (%) | Editing CPU (%) |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Host | 1 | 821.2 | 823.0 | 0.07 | 0.35 |
+| Host + pane | 2 | 1308.4 | 1321.0 | 0.76 | 2.54 |
+| Host + project + pane | 3 | 1639.4 | 1643.3 | 2.61 | 3.08 |
+
+These are single-run development-preview observations (including Vite/debugger
+and development React costs), not packaged-app budgets or unique physical-memory
+measurements. Working sets sum all Electron processes and can count shared pages
+more than once. CPU is the sum of Electron-reported interval percentages; the
+workloads and focus differ between phases. The run confirms that each additional
+window has its own renderer and material memory cost despite component reuse.
+The optional JSON report contains the per-process readings for reproduction.
+
+This does **not** establish physical Command-Q key delivery, actual cross-window
+OS dragging, in-flight handoff crash/quit acceptance, monitor unplugging, machine
+reboot, signed packaged-app notifications, live terminal/runtime continuity,
+SSH/daemon recovery, Linux behaviour, or sustained production resource costs.
+The complete checks below remain required; passing native lifecycle checks alone
+is not completion of this roadmap.
 
 ## Required acceptance before completion
 
