@@ -10,6 +10,7 @@ import {
 } from '../workspace/layout/layout-tree';
 import { scopedSnapshot } from '../workspace/layout/project-layout';
 import { windowBufferKey } from './content-state';
+import { transferPaneViews } from './transfer-views';
 
 function bufferKeys(tree: LayoutNode | null): Set<string> {
   return new Set(
@@ -71,7 +72,7 @@ export function detachPaneContent(
     active_session: active?.type === 'terminal' ? active.session : null,
     layout_ref: null,
   };
-  return partitionContent(content, source, destination);
+  return partitionContent(content, source, destination, projectId);
 }
 
 /** Move the clicked view when present, or open an unopened file/session in a new pane. */
@@ -141,13 +142,14 @@ export function detachTabContent(
     layout_ref: null,
     active_session: actual.type === 'terminal' ? actual.session : null,
   };
-  return partitionContent(content, source, destination);
+  return partitionContent(content, source, destination, match?.scope.id ?? projectId);
 }
 
 function partitionContent(
   content: DesktopWorkspaceContent,
   source: UiStateSnapshot,
   destination: UiStateSnapshot,
+  sourceProjectId: string,
 ) {
   const moved = bufferKeys(destination.layout_tree);
   const retained = bufferKeys(source.layout_mode === 'project' ? null : source.layout_tree);
@@ -169,7 +171,15 @@ function partitionContent(
     destination: {
       snapshot: destination,
       buffers: content.buffers.filter((buffer) => moved.has(windowBufferKey(buffer))),
-      views: content.views,
+      views: {
+        ...content.views,
+        ...transferPaneViews(
+          content.views,
+          new Map(allLeaves(destination.layout_tree!).map((pane) => [pane.id, pane.id])),
+          content.snapshot.layout_mode === 'project' ? `project:${sourceProjectId}` : 'profile',
+          'profile',
+        ),
+      },
     },
   };
 }

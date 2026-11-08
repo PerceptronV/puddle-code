@@ -149,13 +149,20 @@ try {
     .waitFor();
   const closeNotes = source.getByRole('button', { name: 'Close', exact: true });
   if (await closeNotes.isVisible().catch(() => false)) await closeNotes.click();
+  const sourceProfile = await source.evaluate(
+    async () => (await import('/src/dev/preview/data.ts')).profile.id,
+  );
+  await expect
+    .poll(() => state.read('host', sourceProfile)?.content.snapshot.layout_mode)
+    .toBe('project');
   if (mode !== 'session')
     await source.evaluate(async () => {
       const { monaco } = await import('/src/features/editor/monaco/monaco-setup.ts');
-      monaco.editor
-        .getModels()
-        .find((model) => model.uri.scheme === 'puddle')
-        .setValue('Unsaved text moved through the real coordinator');
+      const editor = monaco.editor
+        .getEditors()
+        .find((editor) => editor.getModel()?.uri.scheme === 'puddle');
+      editor.getModel().setValue('Unsaved text moved through the real coordinator');
+      editor.setSelection({ startLineNumber: 1, startColumn: 9, endLineNumber: 1, endColumn: 18 });
     });
   const trigger =
     mode === 'file'
@@ -180,8 +187,13 @@ try {
     await page.waitForFunction(async () => {
       const { monaco } = await import('/src/features/editor/monaco/monaco-setup.ts');
       return monaco.editor
-        .getModels()
-        .some((model) => model.getValue() === 'Unsaved text moved through the real coordinator');
+        .getEditors()
+        .some(
+          (editor) =>
+            editor.getModel()?.getValue() === 'Unsaved text moved through the real coordinator' &&
+            editor.getSelection()?.startColumn === 9 &&
+            editor.getSelection()?.endColumn === 18,
+        );
     });
   };
   await checkText(target);

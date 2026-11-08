@@ -59,6 +59,13 @@ verification; pending items are not support claims.
   raised and its tab activated. Session moves retain the original session id.
   Cross-project actions preserve the source route. The private lookup/activation
   capability is application protocol 26.9.
+- View-state handoff translates project-layout keys into the detached pane's
+  scope. The preparatory docking projection keeps duplicate editor views,
+  remaps colliding pane ids and their view keys, retains unrelated project slices,
+  and moves an existing terminal view instead of creating two in one renderer.
+  Different dirty text or saved baselines for the same file reject the merge.
+  This projection is not yet connected to native docking controls; destination
+  staging and reconciliation of already-mounted models remain required.
 
 Project detachment and redirects, docking, and named window arrangements are still
 pending. Pane detachment alone does not deliver the roadmap. Undo-stack transfer
@@ -123,6 +130,12 @@ and removal of the source terminal. This increment also passed 113 focused
 desktop/window/explorer tests across 19 files, the 18 shared API contract tests,
 desktop/web TypeScript checks and targeted ESLint. Untitled, diff and preview
 menu wiring is implemented; their integrated transfer acceptance remains pending.
+
+The docking-projection and view-key increment passed 106 window/layout tests
+across eight files, web TypeScript and targeted ESLint. The integrated pane and
+file checks also passed restored editor selection as well as dirty text, including
+an independent destination reload. These runs still exercise Chromium renderers,
+not native drag/dock gestures.
 
 Native acceptance has not run. Use an isolated UI preview for desktop interaction;
 start any real daemon from a plain shell, never from a coding-agent session.

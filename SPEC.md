@@ -2310,6 +2310,9 @@ renderer failure leave the uncommitted source intact. Lost replies are observed.
 Unexpected dirty edits arriving after confirmation remain open in the source for
 review and are checkpointed as additional recovery state. A whole-pane move does
 not close the source native window or stop its sessions.
+Pane-local view keys are translated from the source layout scope into the
+detached window's profile scope, so saved editor selections and view positions
+remain addressable without changing the user's project-layout setting.
 
 Application 26.9 adds file/session context-menu actions using the same pane handoff.
 An existing source view moves; an unopened item starts in a new pane. Other source

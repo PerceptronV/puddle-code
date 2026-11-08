@@ -296,11 +296,21 @@ export function dropPane(tree: LayoutNode, spec: PaneDropSpec): LayoutNode {
       previewKey: null,
     })),
   );
+  return attachPane(withoutSource, source, toLeafId, edge);
+}
+
+/** Insert an already captured pane. The caller resolves cross-window node ids first. */
+export function attachPane(
+  tree: LayoutNode,
+  pane: LayoutLeaf,
+  toLeafId: string,
+  edge: Exclude<DropEdge, 'center'>,
+): LayoutNode {
   const direction = edge === 'left' || edge === 'right' ? 'row' : 'col';
   const before = edge === 'left' || edge === 'top';
   return normalise(
-    transformLeaf(withoutSource, toLeafId, (leaf) =>
-      makeSplit(direction, before ? [source, leaf] : [leaf, source], [50, 50]),
+    transformLeaf(tree, toLeafId, (leaf) =>
+      makeSplit(direction, before ? [pane, leaf] : [leaf, pane], [50, 50]),
     ),
   );
 }
