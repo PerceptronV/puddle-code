@@ -24,7 +24,7 @@ export function ProjectWindowRouter({ children }: { children: ReactNode }) {
     identity.kind !== 'host' &&
     (location.pathname === `/project/${identity.projectId}` ||
       location.pathname.startsWith(`/project/${identity.projectId}/session/`));
-  if (context?.stagingTransfer || anchored) approved.current = key;
+  if (context?.stagingTransfer || context?.stagingArrangement || anchored) approved.current = key;
 
   const value = useMemo(() => {
     if (!bridge || !profileId) return navigation;

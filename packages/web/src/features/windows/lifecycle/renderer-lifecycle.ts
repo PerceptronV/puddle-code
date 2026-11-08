@@ -6,6 +6,7 @@ import {
   type DesktopWorkspaceVersion,
   type DesktopContentMoveCommand,
   type DesktopProjectCommand,
+  type DesktopArrangementCommand,
 } from '@puddle/shared';
 
 interface WorkingSetCheckpoint {
@@ -25,6 +26,9 @@ export async function registerRendererLifecycle(
   ) => Promise<DesktopWorkspaceVersion | undefined>,
   move?: (command: DesktopContentMoveCommand) => void,
   project?: (command: DesktopProjectCommand) => void,
+  arrangement?: (
+    command: DesktopArrangementCommand,
+  ) => Promise<DesktopWorkspaceVersion | undefined>,
 ): Promise<() => void> {
   let queue = Promise.resolve();
   const unsubscribe = bridge.onCommand((value) => {
@@ -41,6 +45,14 @@ export async function registerRendererLifecycle(
             );
             const failure = results.find((result) => result.status === 'rejected');
             if (failure?.status === 'rejected') throw failure.reason;
+          } else if (
+            command.kind === 'seal-layout' ||
+            command.kind === 'stage-layout' ||
+            command.kind === 'verify-layout' ||
+            command.kind === 'finish-layout'
+          ) {
+            if (!arrangement) throw new Error('This window cannot stage a layout arrangement');
+            version = await arrangement(command);
           } else if (command.kind === 'activate-tab') {
             if (!activate) throw new Error('This window cannot activate the requested tab');
             await activate(command);

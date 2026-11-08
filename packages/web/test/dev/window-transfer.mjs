@@ -8,6 +8,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { chromium, expect } from '@playwright/test';
+import { checkArrangementHandshake } from './windows/arrangements/handshake.mjs';
 
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
 const directory = await mkdtemp(join(tmpdir(), 'puddle-live-window-'));
@@ -43,7 +44,12 @@ const drags = new WindowDrags({
   context: (id) => {
     const record = records.get(id);
     if (!record) throw new Error('Window unavailable');
-    return { identity: record.window, hostId: 'host', stagingTransfer: state.staging(id)?.id };
+    return {
+      identity: record.window,
+      hostId: 'host',
+      stagingTransfer: state.staging(id)?.id,
+      stagingArrangement: state.stagingArrangement(id)?.transaction.id,
+    };
   },
   move: (id, command) => commands.moveContent(id, command),
 });
@@ -103,7 +109,12 @@ async function openPage(record) {
   page.on('pageerror', (error) => errors.push(error.message));
   await page.exposeBinding('windowRequest', async (_source, method, request) => {
     if (method === 'context')
-      return { identity: record.window, hostId: 'host', stagingTransfer: state.staging(id)?.id };
+      return {
+        identity: record.window,
+        hostId: 'host',
+        stagingTransfer: state.staging(id)?.id,
+        stagingArrangement: state.stagingArrangement(id)?.transaction.id,
+      };
     if (method === 'ready') {
       commands.ready(id, (command) => {
         void page.evaluate((value) => window.receiveWindowCommand(value), command);
@@ -339,6 +350,17 @@ try {
   }
   await expect(target.getByRole('group', { name: 'Workspace controls' })).toHaveCount(0);
   const profile = destination.window.profileId;
+  if (process.env.WINDOW_LAYOUT_HANDSHAKE === '1')
+    await checkArrangementHandshake({
+      state,
+      commands,
+      records,
+      pages,
+      openPage,
+      profileId: profile,
+      targetId: destination.window.id,
+      checkText,
+    });
   assert.equal(state.read('host', profile).content.buffers.length, 0);
   if (mode !== 'session')
     assert.equal(

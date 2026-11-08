@@ -189,8 +189,21 @@ verification; pending items are not support claims.
   an open destination. Scope, revision and duplicate-owner checks reject stale or
   invalid plans. Other hosts/profiles and unrelated project-mode slices remain
   intact. Interrupted preparations cancel on restart; committed outcomes survive
-  and repeated commit does not write again. These are storage primitives; the
-  renderer acceptance/apply coordinator is not yet wired to them.
+  and repeated commit does not write again. The native apply planner/coordinator
+  is not yet wired to these storage primitives.
+- Renderer arrangement participation now uses `windows/arrangements/participant.ts`
+  with separate seal, stage, verify and finish commands (application 26.19).
+  Sealing checkpoints and releases models before returning the original revision.
+  Staging requires an exact durable prepared version and the shared
+  Workspace/dashboard's mounted acknowledgement; it times out after eight seconds.
+  Verification releases the prepared models and checks the profile, route and
+  captured buffers again. Every participant remains fenced until its exact durable
+  outcome is observed. Cancellation restores original content/routes and retains
+  late drafts visibly. A new/replaced renderer has no in-memory original and
+  stays sealed for the coordinator to close or reload. Prepared windows use
+  `stagingArrangement`, not the earlier transfer acknowledgement, and cannot
+  participate in native drags. The matching/apply coordinator and named-layout
+  controls are still pending.
 
 Coordinated named window arrangements and native OS acceptance are still
 pending. Pane/project detachment and menu return do not deliver the whole roadmap. Undo-stack transfer
@@ -392,6 +405,28 @@ write failure and format-2 migration. The existing isolated Chromium project
 drag/return fixture also passed with recovery format 3, including source closure
 and host reload. No native apply handshake or named-layout UI acceptance is
 established by these tests.
+
+The renderer-participation increment passed 196 window/lifecycle/shared-contract
+tests across 28 files, shared/desktop/web TypeScript and targeted ESLint. New
+tests exercise the actual renderer command queue with the atomic native store:
+all participants vote before ownership changes, a failed mount cancels the set,
+and restart retains the chosen outcome and drafts. Focused cases cover a wrong
+profile/route/nonce, stale prepared versions, unconfirmed outcomes, bounded
+mounting, late source/destination cleanup edits, new-window cancellation, repeated
+finish observations and retiring-source verification. A source which becomes a
+destination must vote again after staging.
+
+The isolated Chromium check
+`WINDOW_TRANSFER_KIND=project WINDOW_DOCK_BACK=drag WINDOW_LAYOUT_HANDSHAKE=1 PREVIEW_URL=http://127.0.0.1:5186/ node test/dev/window-transfer.mjs`
+(from `packages/web`) exercises the real Workspace/dashboard hooks. It stages a
+new pane, verifies its dirty text and interaction fence, cancels back to both
+original windows, then stages/verifies/commits the existing pair and checks text,
+selection and resumed interaction. Project drag-back, atomic source closure and
+host reload also pass. The inspected screenshot is
+`/tmp/puddle-live-layout-handshake.png`. The fixture's arrangement sequence lives
+under `test/dev/windows/arrangements/`; it supplies the plan directly, so this is
+renderer handshake acceptance, not named-layout matching/apply UI or native OS
+window acceptance.
 
 Native acceptance has not run. Use an isolated UI preview for desktop interaction;
 start any real daemon from a plain shell, never from a coding-agent session.

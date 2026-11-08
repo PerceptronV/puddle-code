@@ -14,6 +14,7 @@ import { HomeTerminalPane, useHomeTerminal } from './HomeTerminal';
 import { ExpandingContent } from '../../components/ui/expanding-content';
 import { NewProjectDialog } from './NewProjectDialog';
 import { ProjectCard } from './ProjectCard';
+import { useArrangementReady } from '../windows/arrangements/use-arrangement-ready';
 
 /** An action tile in the projects grid: the same surface as a project card. */
 function ActionTile({
@@ -47,6 +48,7 @@ function ActionTile({
 /** The current profile's projects — creation lives in the palette, the tiles, and the empty state. */
 export function Dashboard() {
   const profileId = useCurrentProfileId();
+  useArrangementReady(profileId, true);
   const projects = useProjects(profileId ?? undefined);
   const repos = useRepos();
   const settings = useProfileSettings(profileId ?? undefined);

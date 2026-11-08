@@ -5,7 +5,7 @@ import {
   desktopWindowIdentitySchema,
   desktopWindowRouteSchema,
 } from './identity.js';
-import { desktopWorkspaceContentSchema } from './content.js';
+import { desktopWorkspaceContentSchema, desktopWorkspaceVersionSchema } from './content.js';
 import { uiStateSnapshotSchema } from '../../api/workspace/ui-state.js';
 
 export const desktopArrangementCaptureRequestSchema = z
@@ -41,6 +41,26 @@ export type DesktopArrangementCapture = z.infer<typeof desktopArrangementCapture
 export interface DesktopWindowLayoutsBridge {
   capture(request: DesktopArrangementCaptureRequest): Promise<DesktopArrangementCapture>;
 }
+
+/** Shell-directed participation; a renderer never chooses other windows or commits ownership. */
+export const desktopArrangementCommandSchema = z.discriminatedUnion('kind', [
+  z.object({ kind: z.literal('seal-layout'), arrangementId: desktopWindowIdSchema, profileId }),
+  z.object({
+    kind: z.literal('stage-layout'),
+    arrangementId: desktopWindowIdSchema,
+    profileId,
+    version: desktopWorkspaceVersionSchema,
+    route: desktopWindowRouteSchema,
+  }),
+  z.object({ kind: z.literal('verify-layout'), arrangementId: desktopWindowIdSchema, profileId }),
+  z.object({
+    kind: z.literal('finish-layout'),
+    arrangementId: desktopWindowIdSchema,
+    profileId,
+    outcome: z.enum(['committed', 'cancelled']),
+  }),
+]);
+export type DesktopArrangementCommand = z.infer<typeof desktopArrangementCommandSchema>;
 
 /** Private, shell-owned revision plan; native records are parsed by the shell. */
 export const desktopArrangementChangeSchema = z.object({

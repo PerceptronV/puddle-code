@@ -8,6 +8,7 @@ import {
   type DesktopProjectCommand,
   type DesktopWindowTransferCommand,
   type DesktopWorkspaceVersion,
+  type DesktopArrangementCommand,
 } from '@puddle/shared';
 
 interface Pending {
@@ -48,6 +49,13 @@ export class WindowCommands {
     return this.dispatch(windowId, command);
   }
 
+  arrangement(
+    windowId: string,
+    command: DesktopArrangementCommand,
+  ): Promise<DesktopWorkspaceVersion | undefined> {
+    return this.dispatch(windowId, command);
+  }
+
   moveContent(windowId: string, command: DesktopContentMoveCommand): Promise<void> {
     return this.dispatch(windowId, command).then(() => undefined);
   }
@@ -70,6 +78,8 @@ export class WindowCommands {
       }, this.timeoutMs);
       this.pending.set(id, { windowId, resolve, reject, timer });
       try {
+        if (Buffer.byteLength(JSON.stringify(command)) > 16 * 1024 * 1024)
+          throw new Error('Window command is too large');
         send(desktopWindowCommandSchema.parse({ ...(command as object), id }));
       } catch (error) {
         clearTimeout(timer);

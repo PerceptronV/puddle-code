@@ -39,6 +39,8 @@ export interface DesktopWindowContext {
   hostId: string;
   /** A newly opened destination remains read-only until its source commits. */
   stagingTransfer?: string;
+  /** An arrangement destination must remain fenced until every participant has accepted. */
+  stagingArrangement?: string;
 }
 
 /** Window lookup includes a following preview's actual target, not just its slot name. */

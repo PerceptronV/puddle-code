@@ -31,6 +31,20 @@ function setup() {
   return { drags, windows, move, advance: () => (now += 60_000) };
 }
 
+it('rejects drag offers and drops while either renderer stages an arrangement', async () => {
+  const f = setup();
+  f.windows.get('source')!.stagingArrangement = 'layout';
+  expect(() => f.drags.beginPane('source', offer)).toThrow('cannot offer');
+  delete f.windows.get('source')!.stagingArrangement;
+  f.drags.beginPane('source', offer);
+  f.windows.get('destination')!.stagingArrangement = 'layout';
+  await expect(f.drags.dropPane('destination', drop)).rejects.toThrow('available host');
+  delete f.windows.get('destination')!.stagingArrangement;
+  f.windows.get('source')!.stagingArrangement = 'layout';
+  await expect(f.drags.dropPane('destination', drop)).rejects.toThrow('available host');
+  expect(f.move).not.toHaveBeenCalled();
+});
+
 it('dispatches the source pane once with the visible destination project and placement', async () => {
   const { drags, move } = setup();
   drags.beginPane('source', offer);

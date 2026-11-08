@@ -1,5 +1,16 @@
 # The puddle communication protocol
 
+Application **26.19** adds private renderer arrangement commands to seal an
+original working set, stage an exact prepared revision, verify the mounted
+presentation and adopt its durable commit/cancellation. A separate optional
+`stagingArrangement` context keeps prepared renderers fenced without entering
+the two-window transfer acknowledgement flow. Readiness comes from the shared
+Workspace/dashboard; a missing mount acknowledgement times out. Verification
+releases models again before voting, rejecting late changes. The native apply
+planner/coordinator and Layouts popover integration remain pending; these commands
+alone cannot commit ownership or expose named window loading. No daemon,
+runtime, remote operation or recovery-format change is added.
+
 Application **26.18** adds an optional private desktop layout-capture capability
 and revisioned multi-window transaction records. Only a registered host renderer
 can capture its host/profile or project; live participants checkpoint together

@@ -130,6 +130,7 @@ const windowDrags = new WindowDrags({
         identity: window.identity,
         hostId: reopenWindowId({ target: host.target }),
         stagingTransfer: windowState?.staging(id)?.id,
+        stagingArrangement: windowState?.stagingArrangement(id)?.transaction.id,
       };
     }
     throw new Error('Window is unavailable');
@@ -835,10 +836,12 @@ function windowContext(event: IpcMainInvokeEvent) {
     if (!window) continue;
     if (new URL(event.senderFrame.url).origin !== new URL(host.cockpit.origin).origin) break;
     const staging = windowState?.staging(window.identity.id);
+    const arrangement = windowState?.stagingArrangement(window.identity.id);
     return {
       identity: window.identity,
       hostId: reopenWindowId({ target: host.target }),
       ...(staging ? { stagingTransfer: staging.id } : {}),
+      ...(arrangement ? { stagingArrangement: arrangement.transaction.id } : {}),
     };
   }
   throw new Error('Window is unavailable');

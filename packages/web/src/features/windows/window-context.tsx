@@ -43,8 +43,11 @@ function initialise(): Promise<void> {
             ...(value.stagingTransfer
               ? { stagingTransfer: desktopWindowIdSchema.parse(value.stagingTransfer) }
               : {}),
+            ...(value.stagingArrangement
+              ? { stagingArrangement: desktopWindowIdSchema.parse(value.stagingArrangement) }
+              : {}),
           };
-          if (context.stagingTransfer) fenceWindowInteraction(true);
+          if (context.stagingTransfer || context.stagingArrangement) fenceWindowInteraction(true);
           const { registerDesktopWindowLifecycle } = await import('./use-desktop-state');
           await registerDesktopWindowLifecycle();
         })

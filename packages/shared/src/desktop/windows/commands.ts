@@ -5,6 +5,7 @@ import { desktopWindowIdSchema, desktopWindowRouteSchema } from './identity.js';
 import { desktopWorkspaceContentSchema, desktopWorkspaceVersionSchema } from './content.js';
 import { desktopPanePlacementSchema, desktopTabPlacementSchema } from './transfers.js';
 import { desktopProjectCommandSchema } from './projects.js';
+import { desktopArrangementCommandSchema } from './arrangements.js';
 import {
   desktopPaneMoveCommandSchema,
   desktopTabMoveCommandSchema,
@@ -41,6 +42,7 @@ export const desktopWindowTransferCommandSchema = z.discriminatedUnion('kind', [
 ]);
 export type DesktopWindowTransferCommand = z.infer<typeof desktopWindowTransferCommandSchema>;
 export const desktopWindowCommandSchema = z.union([
+  desktopArrangementCommandSchema.and(z.object({ id: desktopWindowIdSchema })),
   desktopProjectCommandSchema.and(z.object({ id: desktopWindowIdSchema })),
   desktopWindowTransferCommandSchema.and(z.object({ id: desktopWindowIdSchema })),
   desktopPaneMoveCommandSchema.and(z.object({ id: desktopWindowIdSchema })),

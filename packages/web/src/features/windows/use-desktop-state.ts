@@ -14,6 +14,7 @@ import { fenceWindowInteraction } from './lifecycle/interaction-fence';
 import { allLeaves, focusTab, tabRefKey } from '../workspace/layout/layout-tree';
 import { currentProfileId } from '../profile/profile-store';
 import { DestinationTransfer } from './transfers/destination-transfer';
+import { ArrangementParticipant } from './arrangements/participant';
 import {
   transferDock,
   transferTabIntoWindow,
@@ -23,14 +24,32 @@ import {
 const workingSets = new Map<string, DesktopWorkingSet>();
 const empty = uiStateSnapshotSchema.parse({});
 const subscribeNothing = () => () => undefined;
+const loadOwner = async (profileId: string) => {
+  const owner = desktopWorkingSet(profileId);
+  if (!owner) throw new Error('Window working set is unavailable');
+  await owner.load(async () => (await fetchProfileState(profileId))?.ui_state ?? empty);
+  return owner;
+};
+export const arrangementParticipant = new ArrangementParticipant({
+  activeProfile: currentProfileId,
+  owner: loadOwner,
+  read: (profileId) => desktopBridge()!.windows!.read(profileId),
+  initialArrangement: () => desktopWindowContext()?.stagingArrangement,
+  fence: fenceWindowInteraction,
+  suspend: suspendDesktopContent,
+  staging: (id) => {
+    const context = desktopWindowContext();
+    if (context) {
+      if (id) context.stagingArrangement = id;
+      else delete context.stagingArrangement;
+    }
+  },
+  route: () => window.location.pathname,
+  navigate: (route) => window.history.replaceState(null, '', route),
+});
 export const destinationTransfer = new DestinationTransfer({
   activeProfile: currentProfileId,
-  owner: async (profileId) => {
-    const owner = desktopWorkingSet(profileId);
-    if (!owner) throw new Error('Window working set is unavailable');
-    await owner.load(async () => (await fetchProfileState(profileId))?.ui_state ?? empty);
-    return owner;
-  },
+  owner: loadOwner,
   read: (profileId) => desktopBridge()!.windows!.read(profileId),
   fence: fenceWindowInteraction,
   suspend: suspendDesktopContent,
@@ -147,6 +166,7 @@ export async function registerDesktopWindowLifecycle(): Promise<void> {
         .then(({ handleProjectCommand }) => handleProjectCommand(command))
         .catch(toastError);
     },
+    (command) => arrangementParticipant.command(command),
   );
 }
 
@@ -169,7 +189,8 @@ export function desktopWorkingSet(profileId: string): DesktopWorkingSet | null {
       (saved) => {
         if (saved.seed) seedWriter(saved.seed);
       },
-      desktopWindowContext()?.stagingTransfer !== undefined,
+      desktopWindowContext()?.stagingTransfer !== undefined ||
+        desktopWindowContext()?.stagingArrangement !== undefined,
     );
     const owner = workingSet;
     content.subscribe(() => owner.changed());

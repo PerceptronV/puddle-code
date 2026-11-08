@@ -63,7 +63,8 @@ export class WindowDrags {
       (offer.kind === 'project' &&
         (source.identity.kind !== 'project' || source.identity.projectId !== request.projectId)) ||
       (source.identity.kind !== 'host' && source.identity.profileId !== request.profileId) ||
-      source.stagingTransfer
+      source.stagingTransfer ||
+      source.stagingArrangement
     )
       throw new Error('This window cannot offer that pane');
     this.offers.set(sourceId, {
@@ -105,7 +106,9 @@ export class WindowDrags {
         (source.identity.kind !== 'project' || destination.identity.kind !== 'host')) ||
       source.identity.id === destinationId ||
       source.stagingTransfer ||
-      destination.stagingTransfer
+      destination.stagingTransfer ||
+      source.stagingArrangement ||
+      destination.stagingArrangement
     )
       throw new Error('Drop the pane into an available host or project window');
     if (source.hostId !== registered.hostId || source.hostId !== destination.hostId)
