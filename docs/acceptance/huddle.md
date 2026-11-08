@@ -34,6 +34,58 @@ delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## Implemented: recorded activation and historical source inspection
+
+Application **28.13** adds local/SSH read-only `POST
+/api/huddle/:profile/sessions/:sid/revision/retained`, CLI `retained-revision` and
+MCP `huddle_retained_revision`. Requests carry an exact recorded owner, optional
+revision digest, optional saved comparison digest and optional file/contract entry.
+An omitted revision reads the last recorded activation/settings through the bounded
+ledger snapshot reader. An explicit revision reads immutable source and returns
+no activation settings: the same source may have been applied more than once.
+Responses label recorded provenance/time and never mint a live command target.
+
+`huddle/execution/retained/identity.ts` shares exact placement/private-launch checks
+with retained history. `review/retained.ts` fixes the recorded snapshot before any
+optional saved-source capture; digest validation, repository locking and final
+authority/placement checks prevent substitution. Source reads no longer call the
+creating runtime-directory helper. Missing source still permits retained reads;
+missing/corrupt private state fails without recreation, migration or repair. Reads
+share the existing one-workspace/eight-request queue and source/ledger limits.
+No source module executes, owner is contacted, lifecycle is changed or readout is
+reconciled. Supporting daemon availability is required.
+
+The IDE offers **Recorded activation** and **Execution source** from History on
+supporting hosts, using the existing revision-entry and read-only Monaco viewer.
+Follow-up file/contract reads pin the returned digest, even if another activation
+later becomes current. Historical source does not display guessed settings. Recorded
+views show provenance/read time, do not poll or retry automatically, and offer no
+Apply control. Saved comparison is available through CLI/MCP; live Apply comparison
+continues to use the exact active-owner target and its existing dialogue.
+
+Verification uses real isolated owner Start/Apply/Stop and retained old/new source
+reads, exact saved comparisons, stale digest rejection, project source deletion,
+wrong owner, corrupt private source and revoked/changed placement during saved
+capture. Closed-ledger reads preserve original bytes and sidecar absence; missing
+runtime directories stay absent. Shared/CLI tests reject response substitution and
+gate older hosts. Headless browser checks inspect historical source and last
+recorded settings, return to history, and retain existing result/unknown-outcome
+behaviour. Dark/light recorded-source views were visually inspected. Existing
+active-owner revision and Apply paths retain separate coverage. No real provider,
+SSH, native supervision or complete owner crash/reboot acceptance is claimed.
+
+The final regression run passes **123/123 tests in 15 files** across retained/live
+review, history, immutable source readers, shared contracts and CLI/MCP. Shared,
+daemon, CLI and web TypeScript, scoped lint/formatting, web/CLI builds and packaged
+CLI help checks pass. Both the extended retained-history browser flow and existing
+live execution/revision flow pass against a UI-only preview.
+
+Manual follow-up: run a huddle, edit/apply its script, Stop it, then compare History's
+Execution source with Recorded activation; the older execution must retain its
+original source. Remove the project definition and repeat retained-only reads.
+Verify no owner starts and no source is recreated. Native/SSH/provider evidence
+remains part of the full roadmap acceptance matrix.
+
 ## Implemented: retained history after Stop
 
 Application **28.12** adds local/SSH read-only `POST
@@ -140,7 +192,7 @@ fixtures require private Unix IPC permission; the authorised run passes all case
 Shared/daemon/CLI and web TypeScript, scoped ESLint/formatting, web/CLI builds and
 packaged CLI help checks pass. No production daemon, native UI or provider is used.
 
-The IDE integration is described below. Stopped-owner revision review/recovery, agent restart/
+The IDE integration is described below. Owner recovery, agent restart/
 native feedback, integration secrets/settings and provider/platform/packaged
 acceptance remain open.
 
@@ -280,7 +332,7 @@ touch/keyboard movement, cancellation, stale gestures, undo/redo and conflicts.
 Web TypeScript, changed-source ESLint/formatting and production web/CLI builds pass.
 No production daemon or interactive native window was started.
 Native interactive window/reboot acceptance remains pending; headless/unit evidence
-does not substitute for it. Remaining overall: stopped-owner revision inspection/recovery, agent
+does not substitute for it. Remaining overall: owner recovery, agent
 restart/native feedback, full digest-save integration,
 managed integration secrets, and provider/platform/packaged acceptance. Earlier
 camera/selection remaining-work notes below are superseded by this increment.
@@ -329,7 +381,7 @@ rejects traversal and connection/worktree flags, and advertises the command in
 help. The copied frontend contains the updated authoring skill. No production
 daemon, native desktop, external service or real provider was used.
 Remaining: real-provider authoring and integration acceptance, managed secrets,
-stopped-owner revision inspection/recovery, agent restart/native feedback, graph save/view persistence
+owner recovery, agent restart/native feedback, graph save/view persistence
 and remaining platform/packaged lifecycle acceptance. Earlier authoring-asset
 remaining-work notes below are superseded by this increment.
 
@@ -361,8 +413,7 @@ requests; waiting requests retain only their small request values. Comparison
 uses normal registered worktree capture/repository locking. Authority and the
 complete owner target are checked after asynchronous work. A source edit or
 lifecycle change rejects review without substituting a later revision. Missing
-project source still permits retained-only review on a connected owner. Offline
-and stopped-owner source inspection remain unfinished; retained history is now
+project source still permits retained-only review on a connected owner. Recorded source inspection is now available through 28.13; retained history is
 available through 28.12 as described above.
 
 The IDE exposes **Active revision** and includes a read-only comparison in
@@ -395,7 +446,7 @@ TypeScript, changed-source ESLint/formatting, semantic token checks and bundled
 skill validation pass. Production web and CLI builds pass; packaged help lists
 revision/diff and the copied frontend contains the updated authoring skill.
 
-Remaining overall: stopped-owner revision inspection/recovery, authoring schema/type/component assets,
+Remaining overall: owner recovery, authoring schema/type/component assets,
 agent resume/restart and native feedback, full graph-save/view persistence and
 provider/platform/packaged acceptance.
 
@@ -436,7 +487,7 @@ changed-source ESLint/formatting and bundled skill validation pass. Production w
 and CLI builds pass; packaged help lists the placement commands and the copied
 frontend contains the updated skill.
 
-Remaining: stopped-owner revision inspection, standalone authoring assets,
+Remaining: owner recovery, standalone authoring assets,
 agent restart/native feedback, owner recovery and platform/provider acceptance.
 
 ## Implemented: CLI/MCP placement and runtime controls
@@ -480,7 +531,7 @@ after bounding failure details so MCP truncation cannot hide observation guidanc
 CLI/frontend production builds and packaged help pass; the copied frontend contains
 the updated authoring skill. The installed-launch fixture also resolves compiled
 shared output, so rebuild that package before running it after contract edits.
-Remaining tool work: stopped-owner revision inspection,
+Remaining tool work: owner recovery,
 standalone schema/types and component fixtures. Runtime recovery, agent restart
 nodes, native feedback and platform/provider acceptance remain open elsewhere.
 
@@ -568,7 +619,7 @@ semantic colour checks and diff checks pass. The production web build passes and
 contains the canonical skill in the lazy huddle asset. No production daemon,
 native desktop or real provider was launched.
 Remaining authoring work: standalone schemas/types and complete extension examples,
-Stopped-owner revision inspection, managed
+Owner recovery, managed
 integration secrets, and real-provider authoring evidence. No protocol, runtime
 metadata, ledger or database format changes are introduced by this UI action.
 
@@ -3488,7 +3539,7 @@ Phase 0 remains open for the full component catalogue and resource admission.
 Phase 1 has retained revisions/activation, the ledger, routing, workers and a manual
 scheduler composed in an independent owner process, now exposed through local/SSH
 lifecycle, live-history and retained-history APIs with IDE controls. Next complete
-stopped-owner revision inspection, provider lifecycle coverage, host resource accounting and
+owner recovery, provider lifecycle coverage, host resource accounting and
 lifecycle fencing. Active-revision/source review is now implemented above. Finish settings,
 additional integration adapters, provider-backed lifecycle nodes,
 managed integration secrets, real-service adapters and packaged integration.

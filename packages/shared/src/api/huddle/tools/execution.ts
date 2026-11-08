@@ -5,7 +5,11 @@ import {
 } from '../history.js';
 import { sessionId } from '../../common.js';
 import { huddleJsonSchema, HUDDLE_LIMITS } from '../values.js';
-import { huddleRevisionReviewSchema, huddleDiffReviewSchema } from '../review.js';
+import {
+  huddleRetainedRevisionRequestSchema,
+  huddleRevisionReviewSchema,
+  huddleDiffReviewSchema,
+} from '../review.js';
 import {
   huddleStartSchema,
   huddleApplySchema,
@@ -19,6 +23,7 @@ const session = { session_id: sessionId };
 /** All mutations carry reviewed values. Tools must never resolve a newer target implicitly. */
 export const huddleExecutionToolSchemas = {
   runtime: z.strictObject(session),
+  'retained-revision': z.strictObject({ ...session, request: huddleRetainedRevisionRequestSchema }),
   'history-owners': z.strictObject({ ...session, request: huddleHistoryOwnersRequestSchema }),
   'retained-history': z.strictObject({ ...session, request: huddleRetainedHistoryRequestSchema }),
   revision: z.strictObject({ ...session, request: huddleRevisionReviewSchema }),
@@ -34,6 +39,9 @@ export const huddleExecutionToolSchemas = {
 };
 export const huddleToolExecutionCommandSchema = z.discriminatedUnion('action', [
   huddleExecutionToolSchemas.runtime.extend({ action: z.literal('runtime') }),
+  huddleExecutionToolSchemas['retained-revision'].extend({
+    action: z.literal('retained-revision'),
+  }),
   huddleExecutionToolSchemas['history-owners'].extend({ action: z.literal('history-owners') }),
   huddleExecutionToolSchemas['retained-history'].extend({ action: z.literal('retained-history') }),
   huddleExecutionToolSchemas.revision.extend({ action: z.literal('revision') }),
@@ -50,6 +58,11 @@ export const huddleToolExecutionCommandSchema = z.discriminatedUnion('action', [
 export type HuddleToolExecutionCommand = z.infer<typeof huddleToolExecutionCommandSchema>;
 
 const definitions = [
+  [
+    'retained-revision',
+    'Read source and contracts from an exact recorded owner without restarting it. Supply owner; omit revision for the last recorded activation and settings, or supply an execution revision digest for its immutable source. Optional entry selects text; expected_digest compares to that exact saved source. Recorded state is not live or Apply authority. No execution, repair or retry.',
+    true,
+  ],
   [
     'history-owners',
     'List a bounded page of recorded runtime identities for this huddle placement, including stopped and older owners. Supply request {} for the first page or its after cursor. Recorded states do not prove liveness. No owner is started.',

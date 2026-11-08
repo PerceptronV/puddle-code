@@ -26,6 +26,7 @@ export const huddleHelp = `  pudl huddle list --project ID --worktree /absolute/
   pudl huddle save-source <huddle-id> --project ID --worktree /absolute/host/worktree --request JSON
   pudl huddle history-owners <session-id> --request JSON
   pudl huddle retained-history <session-id> --request JSON
+  pudl huddle retained-revision <session-id> --request JSON
   pudl huddle runtime <session-id>
   pudl huddle session|archive|unarchive <session-id>
   pudl huddle start|apply|run|interrupt|resume|stop <session-id> --request JSON
@@ -49,6 +50,9 @@ Never retry a failed mutation automatically: inspect runtime/history first.
 Archive stops the placement's current owner before hiding it; it is not bound to
 a reviewed runtime target. Unarchive leaves it stopped. Neither deletes source
 or worktrees. Use session to inspect archive status, including after lost replies.
+Retained-revision requires owner (host 28.13+); omit revision for recorded activation
+or provide an execution revision digest. Optional entry reads exact text;
+expected_digest compares with saved source. It never starts or applies a runtime.
 Revision requires target; diff also requires expected_digest from saved source.
 Both are read-only (host 28.10+). Add entry: {kind: "file"|"component", path: "..."}
 to read exact retained/before-and-after text; otherwise get the change inventory.

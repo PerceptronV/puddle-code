@@ -75,8 +75,8 @@ it('reads results after Stop and source removal without relaunch, adoption or pu
           ...query,
           owner: { ...owner, incarnation: randomUUID() },
         })
-      ).status,
-    ).toBe(409);
+      ).body.error.code,
+    ).toBe('huddle_history_changed');
     expect(
       (
         await f.request('history/retained', {

@@ -738,6 +738,18 @@ queue mutations on reconnect. Explicit runtime/history inspection clears the
 review barrier after a failure; failed observation leaves it intact. Poll only
 focused runtime/visible history pages and stop polling after errors. Do not infer
 that saved source is the active revision, or that acceptance means completion.
+Application 28.13 adds recorded revision/source inspection without a connected
+owner. Keep retained placement/launch validation in `huddle/execution/retained/`
+and captured recorded review in `huddle/execution/review/retained.ts`; share the
+existing bounded review queue and immutable bundle reader. Last-activation reads
+use `state/readers/activation.ts` with recorded ledger identity. Explicit historical
+digests return no activation settings. Never manufacture a live command target
+from recorded data, follow a later activation for entry text, or create runtime
+directories during reads. Optional saved comparison binds its digest and rechecks
+authority/placement after capture. History's Recorded activation/Execution source
+reuse `RevisionDetails`; keep recorded provenance and source distinct from Apply.
+CLI/MCP `retained-revision` gates on 28.13. No runtime/database/ledger bump.
+
 Application 28.12 adds recorded owner catalogue and retained ledger pages under
 `huddle/execution/history/`, with bounded shared snapshots under
 `runtime/huddle/state/readers/`. Verify immutable binding/launch/ledger scope and

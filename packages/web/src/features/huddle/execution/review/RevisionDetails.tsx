@@ -1,10 +1,10 @@
 import { useId, useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
-import type { HuddleReview, HuddleReviewEntry } from '@puddle/shared';
+import type { HuddleRetainedRevision, HuddleReview, HuddleReviewEntry } from '@puddle/shared';
 import { ReadOnlyDiff } from '../../../diff/ReadOnlyDiff';
 import { ReadOnlyView } from '../../../diff/FileDiffContent';
 import { graphActionClass } from '../../inspector/GraphEditing';
-import { reviewHuddleRevision } from './api';
+import { reviewRetainedHuddleRevision, reviewHuddleRevision } from './api';
 
 export function RevisionDetails({
   profile,
@@ -13,9 +13,12 @@ export function RevisionDetails({
 }: {
   profile: string;
   session: string;
-  review: HuddleReview;
+  review: HuddleReview | HuddleRetainedRevision;
 }) {
   const instance = useId();
+  const recorded = 'source' in review;
+  const revision = recorded ? review.revision : review.active.revision;
+  const activation = recorded ? review.activation : review.active;
   const [selected, select] = useState<HuddleReviewEntry | null>(
     () =>
       (
@@ -24,30 +27,43 @@ export function RevisionDetails({
       )?.entry ?? null,
   );
   const [all, showAll] = useState(!review.saved);
-  const content = useQuery({
+  const content = useQuery<HuddleReview | HuddleRetainedRevision>({
     queryKey: [
       'huddle-revision-content',
       profile,
       session,
-      review.target,
+      recorded ? ['retained', review.owner, revision] : review.target,
       review.saved?.digest,
       selected,
     ],
     queryFn: ({ signal }) =>
-      reviewHuddleRevision(
-        profile,
-        session,
-        {
-          target: review.target,
-          entry: selected!,
-          ...(review.saved ? { expected_digest: review.saved.digest } : {}),
-        },
-        signal,
-      ),
+      recorded
+        ? reviewRetainedHuddleRevision(
+            profile,
+            session,
+            {
+              owner: review.owner,
+              revision,
+              entry: selected!,
+              ...(review.saved ? { expected_digest: review.saved.digest } : {}),
+            },
+            signal,
+          )
+        : reviewHuddleRevision(
+            profile,
+            session,
+            {
+              target: review.target,
+              entry: selected!,
+              ...(review.saved ? { expected_digest: review.saved.digest } : {}),
+            },
+            signal,
+          ),
     enabled: selected !== null,
     retry: false,
     staleTime: Infinity,
     gcTime: 0,
+    refetchOnWindowFocus: false,
   });
   const changes = review.entries.filter((item) => !['unchanged', 'retained'].includes(item.change));
   const entries = all ? review.entries : changes;
@@ -56,30 +72,34 @@ export function RevisionDetails({
   return (
     <div className="min-w-0 space-y-3" aria-label="Revision review">
       <div className="space-y-1 text-xs text-fg-muted">
-        <p className="break-all">Active revision {review.active.revision}</p>
+        <p className="break-all">
+          {recorded ? 'Recorded revision' : 'Active revision'} {revision}
+        </p>
         {review.saved && <p className="break-all">Saved revision {review.saved.digest}</p>}
         <p>
           {review.saved
             ? `${changes.length} changed ${changes.length === 1 ? 'entry' : 'entries'}`
             : `${entries.length} retained entries`}
         </p>
-        <details>
-          <summary className="cursor-pointer hover:text-fg">
-            Active variables and resolved bindings
-          </summary>
-          <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words p-2">
-            {JSON.stringify(
-              {
-                worktree: review.active.worktree,
-                appliedAt: new Date(review.active.appliedAt).toLocaleString(),
-                variables: review.active.variables,
-                bindings: review.active.bindings,
-              },
-              null,
-              2,
-            )}
-          </pre>
-        </details>
+        {activation && (
+          <details>
+            <summary className="cursor-pointer hover:text-fg">
+              {recorded ? 'Recorded' : 'Active'} variables and resolved bindings
+            </summary>
+            <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words p-2">
+              {JSON.stringify(
+                {
+                  worktree: activation.worktree,
+                  appliedAt: new Date(activation.appliedAt).toLocaleString(),
+                  variables: activation.variables,
+                  bindings: activation.bindings,
+                },
+                null,
+                2,
+              )}
+            </pre>
+          </details>
+        )}
         {review.saved?.diagnostics.map((note, index) => (
           <p key={index}>
             {note.severity}: {note.message}
@@ -123,7 +143,9 @@ export function RevisionDetails({
         <>
           <p className="break-all text-xs text-fg-muted">
             {selected?.path} ·{' '}
-            {review.saved ? 'Active on the left · Saved on the right' : 'Retained active source'}
+            {review.saved
+              ? `${recorded ? 'Retained' : 'Active'} on the left · Saved on the right`
+              : 'Retained source'}
             {review.saved &&
               (text.before === null ? ' · Added' : text.after === null ? ' · Removed' : '')}
           </p>
@@ -132,7 +154,7 @@ export function RevisionDetails({
               <ReadOnlyDiff
                 key={`${selected?.kind}:${path}`}
                 session={session}
-                originalRef={`huddle:${review.active.revision}`}
+                originalRef={`huddle:${revision}`}
                 originalPath={path}
                 originalContent={text.before ?? ''}
                 modifiedRef={`huddle:${review.saved.digest}`}
@@ -143,7 +165,7 @@ export function RevisionDetails({
               <ReadOnlyView
                 key={`${selected?.kind}:${path}`}
                 session={`${session}:${instance}`}
-                refName={`huddle:${review.active.revision}`}
+                refName={`huddle:${revision}`}
                 path={path}
                 content={text.before ?? ''}
               />

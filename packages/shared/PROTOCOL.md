@@ -1,5 +1,32 @@
 # The puddle communication protocol
 
+Application **28.13** adds local/SSH read-only `POST
+/api/huddle/:profile/sessions/:sid/revision/retained`. Input is
+`{owner, revision?, expected_digest?, entry?}`. `owner` names the exact recorded
+runtime/incarnation. Without `revision`, inspect the last recorded activation;
+with an explicit digest, inspect that immutable retained source bundle. Historical
+source does not imply particular activation settings: the response's `activation`
+is null when a digest was supplied. Optional `entry` selects exact file/contract
+text; optional `expected_digest` compares with that exact saved source capture.
+
+The response is `{source: "retained-revision", observed_at, owner, revision,
+activation, saved, entries, content?}`. Activation uses the existing deliberate
+public projection. Entries/content reuse the bounded revision-review shape;
+recorded data is not a live control target or Apply authority. No owner contact,
+execution, replay, directory creation or migration occurs. Identity/launch checks
+and immutable bundle digest validation precede inspection; last-activation reads
+also verify ledger identity through the 28.12 snapshot reader. History/review share
+the existing one-workspace/eight-request limit. Saved comparison retains repository
+locking and authority/placement rechecks. Missing project source still permits
+retained-only reads. A supporting daemon remains necessary.
+
+CLI `retained-revision` and read-only MCP `huddle_retained_revision` gate on 28.13
+and verify owner/revision/saved digest/entry correspondence. History offers Recorded
+activation and Execution source, sharing the read-only source viewer. Selected
+source requests pin the returned revision instead of following a later activation.
+Recorded views do not offer Apply or retry a failed read automatically. Existing
+live revision/diff APIs and all runtime, ledger and database versions are unchanged.
+
 Application **28.12** adds local/SSH read-only POST
 `/api/huddle/:profile/sessions/:sid/history/owners` and `/history/retained`.
 The owner catalogue takes `{after?: {created_at, runtime_id}}` and returns

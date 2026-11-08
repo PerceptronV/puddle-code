@@ -279,6 +279,8 @@ window.fetch = async (input, init) => {
       });
   }
   if (new URLSearchParams(location.search).has('retained-history')) {
+    if (path === `${prefix}/sessions/${saved.id}/revision/retained`)
+      return retainedHistory.revision(body);
     const action = path.match(
       new RegExp(`^${prefix}/sessions/${saved.id}/history/(owners|retained)$`),
     );

@@ -1,3 +1,5 @@
+import { RetainedRevisionDialog } from './review/RetainedRevisionDialog';
+import { useRetainedRevisionSupported } from './review/api';
 import { useState } from 'react';
 import { useQuery } from '@tanstack/react-query';
 import {
@@ -56,6 +58,8 @@ export function HistoryDialog({
   onRecordedRuntimes?(): void;
   onClose(): void;
 }) {
+  const revisionSupported = useRetainedRevisionSupported();
+  const [revision, setRevision] = useState<{ digest?: string } | null>(null);
   const [cursors, setCursors] = useState([0]);
   const [selected, select] = useState<string | null>(initialExecution ?? null);
   const after = cursors.at(-1)!;
@@ -63,6 +67,16 @@ export function HistoryDialog({
   const data: Extract<HuddleHistoryPage, { collection: 'executions' }> | undefined =
     page.data?.collection === 'executions' ? page.data : undefined;
   const selectedRecord = data?.records.find(({ record }) => record.id === selected)?.record;
+  if (revision)
+    return (
+      <RetainedRevisionDialog
+        profile={profile}
+        session={session}
+        request={{ owner, ...(revision.digest ? { revision: revision.digest } : {}) }}
+        onBack={() => setRevision(null)}
+        onClose={onClose}
+      />
+    );
   return (
     <Dialog
       open
@@ -87,6 +101,11 @@ export function HistoryDialog({
           {onRecordedRuntimes && (
             <button type="button" className={graphActionClass} onClick={onRecordedRuntimes}>
               Recorded runtimes
+            </button>
+          )}
+          {revisionSupported && (
+            <button type="button" className={graphActionClass} onClick={() => setRevision({})}>
+              Recorded activation
             </button>
           )}
           <button
@@ -158,6 +177,15 @@ export function HistoryDialog({
                     {selectedRecord.invocations} node invocations
                   </p>
                   {selectedRecord.error && <p role="alert">{selectedRecord.error}</p>}
+                  {revisionSupported && (
+                    <button
+                      type="button"
+                      className={graphActionClass}
+                      onClick={() => setRevision({ digest: selectedRecord.revision })}
+                    >
+                      Execution source
+                    </button>
+                  )}
                 </div>
               )}
               <ExecutionRecords

@@ -9,6 +9,7 @@ import {
   syncPrivateDirectory,
 } from '@puddle/shared/node';
 import { acquireHostClaim } from '../../../security/claims.js';
+import { retainedHuddleDirectory } from './readers/database.js';
 import { runtimeDirectory } from '../../ownership/storage.js';
 import type { HuddleDefinitionSnapshot } from '../../../huddle/definitions/capture.js';
 import { restoreHuddleDefinition } from '../../../huddle/definitions/restore.js';
@@ -103,7 +104,7 @@ export function readRetainedHuddleRevision(
   recordBytes: number = HUDDLE_REVISION_LIMITS.recordBytes,
   allowance?: RuntimeByteAllowance,
 ): HuddleDefinitionSnapshot {
-  const directory = join(runtimeDirectory(home, runtimeId), 'huddle-revisions');
+  const directory = join(retainedHuddleDirectory(home, runtimeId), 'huddle-revisions');
   privatePath(directory, true);
   const path = join(directory, `${huddleRevisionSchema.parse(revision)}.json`);
   privatePath(path);

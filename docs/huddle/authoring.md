@@ -282,3 +282,31 @@ live history view, choose **Recorded runtimes** to inspect earlier owners. Choos
 an execution to see nodes, results and operation outcomes. Recorded pages show
 the read time and refresh only explicitly; they offer no readout observation
 controls and do not resolve an uncertain-command warning.
+
+### Source after an owner stops
+
+On daemon 28.13+, use an exact owner from `history-owners` with
+`pudl huddle retained-revision SESSION_ID --request JSON` or read-only MCP
+`huddle_retained_revision` (`{session_id, request}`). For example:
+
+```json
+{
+  "owner": {"runtimeId": "<recorded-runtime-uuid>", "incarnation": "<recorded-incarnation-uuid>"},
+  "entry": {"kind": "file", "path": "huddle.json"}
+}
+```
+
+Omit `revision` to inspect the last recorded activation and its variables/resolved
+bindings. Add `revision` from an execution record to inspect that exact source;
+this returns no activation settings, because a source digest can have been applied
+with different settings. Add `expected_digest` from current saved-source inspection
+to compare the retained files/contracts with that exact saved capture. A stale
+saved digest fails; inspect and review before making another request. Omit `entry`
+for an inventory, or use `kind: "component"` for a resolved node contract.
+
+The IDE exposes **Recorded activation** in History and **Execution source** on an
+execution. These reuse the read-only source viewer and work after Stop or project
+source removal while the supporting daemon is reachable. They do not restart the
+runtime, execute code or provide Apply authority. Entry reads pin the returned
+revision. Retained source can be unavailable after deletion or corruption of its
+private runtime data; inspection does not recreate or repair it.

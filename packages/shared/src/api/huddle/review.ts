@@ -1,5 +1,6 @@
 import { z } from 'zod';
-import { huddleCommandTargetSchema } from './execution.js';
+import { isoTimestamp } from '../common.js';
+import { huddleRuntimeTargetSchema, huddleCommandTargetSchema } from './execution.js';
 import { huddleRevisionSchema } from './events.js';
 import { huddleDiagnosticSchema } from './definitions.js';
 import { HUDDLE_LIMITS, huddleRelativePathSchema, huddleKeySchema } from './values.js';
@@ -68,3 +69,28 @@ export type HuddleReviewEntry = z.infer<typeof huddleReviewEntrySchema>;
 export type HuddleRevisionReview = z.infer<typeof huddleRevisionReviewSchema>;
 export type HuddleDiffReview = z.infer<typeof huddleDiffReviewSchema>;
 export type HuddleReview = z.infer<typeof huddleReviewSchema>;
+
+/** Omitting revision selects the last recorded activation, without claiming it is live. */
+export const huddleRetainedRevisionRequestSchema = z.strictObject({
+  owner: huddleRuntimeTargetSchema,
+  revision: huddleRevisionSchema.optional(),
+  expected_digest: huddleRevisionSchema.optional(),
+  entry: huddleReviewEntrySchema.optional(),
+});
+export const huddleRetainedRevisionSchema = z
+  .strictObject({
+    saved: huddleReviewSchema.shape.saved,
+    entries: huddleReviewSchema.shape.entries,
+    content: huddleReviewSchema.shape.content,
+    source: z.literal('retained-revision'),
+    observed_at: isoTimestamp,
+    owner: huddleRuntimeTargetSchema,
+    revision: huddleRevisionSchema,
+    activation: huddleReviewSchema.shape.active.nullable(),
+  })
+  .refine(
+    (value) => !value.activation || value.activation.revision === value.revision,
+    'Recorded activation differs from retained revision',
+  );
+export type HuddleRetainedRevisionRequest = z.infer<typeof huddleRetainedRevisionRequestSchema>;
+export type HuddleRetainedRevision = z.infer<typeof huddleRetainedRevisionSchema>;

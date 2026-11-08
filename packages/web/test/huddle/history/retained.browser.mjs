@@ -24,6 +24,31 @@ try {
   await page.getByText('Recorded ledger history.', { exact: false }).waitFor();
   await page.getByRole('button').filter({ hasText: 'completed · 33333333' }).click();
   await page.getByText('Retained after Stop', { exact: false }).waitFor();
+  await page.getByRole('button', { name: 'Execution source', exact: true }).click();
+  await page.getByRole('heading', { name: 'Recorded huddle revision' }).waitFor();
+  await page
+    .getByLabel('Revision source', { exact: true })
+    .getByText('// Historical execution source', { exact: false })
+    .first()
+    .waitFor();
+  assert.equal(
+    await page.getByText('Recorded variables and resolved bindings', { exact: true }).count(),
+    0,
+  );
+  await page.getByRole('button', { name: 'Back to history', exact: true }).click();
+  await page.getByRole('button', { name: 'Recorded activation', exact: true }).click();
+  await page.getByText('Recorded variables and resolved bindings', { exact: true }).click();
+  await page.getByText('retained setting', { exact: false }).waitFor();
+  await page
+    .getByLabel('Revision source', { exact: true })
+    .getByText('// Last recorded activation', { exact: false })
+    .first()
+    .waitFor();
+  for (const theme of ['dark', 'light']) {
+    await page.evaluate((theme) => window.huddleFixture.theme(theme), theme);
+    await page.screenshot({ path: `/tmp/huddle-retained-revision-${theme}.png` });
+  }
+  await page.getByRole('button', { name: 'Back to history', exact: true }).click();
   await page.getByRole('button', { name: 'Operations', exact: true }).click();
   await page.getByText('Destination reply was lost', { exact: true }).waitFor();
   assert.equal(

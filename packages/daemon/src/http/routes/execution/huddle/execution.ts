@@ -3,6 +3,8 @@ import { bodyLimit } from 'hono/body-limit';
 import {
   huddleStartSchema,
   huddleRevisionReviewSchema,
+  huddleRetainedRevisionRequestSchema,
+  huddleRetainedRevisionSchema,
   huddleDiffReviewSchema,
   huddleReviewSchema,
   huddleReadoutObserveSchema,
@@ -140,6 +142,18 @@ export function huddleExecutionRoutes(service: HuddleExecutionService): Hono {
             hexIdParam(c, 'profile'),
             c.req.param('sid'),
             await parseBody(c, huddleLifecycleCommandSchema),
+            requestAuthority(c),
+          ),
+        ),
+      ),
+    )
+    .post('/:profile/sessions/:sid/revision/retained', async (c) =>
+      c.json(
+        huddleRetainedRevisionSchema.parse(
+          await service.retainedRevision(
+            hexIdParam(c, 'profile'),
+            c.req.param('sid'),
+            await parseBody(c, huddleRetainedRevisionRequestSchema),
             requestAuthority(c),
           ),
         ),

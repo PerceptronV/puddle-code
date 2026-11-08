@@ -1,5 +1,8 @@
 import {
   huddleRevisionReviewSchema,
+  huddleRetainedRevisionRequestSchema,
+  parseHuddleRetainedRevision,
+  type HuddleRetainedRevisionRequest,
   huddleDiffReviewSchema,
   parseHuddleReview,
   supportsApplicationFeature,
@@ -32,6 +35,31 @@ export async function reviewHuddleRevision(
     await api(
       'POST',
       `/api/huddle/${profile}/sessions/${session}/${diff ? 'diff' : 'revision'}`,
+      request,
+      signal,
+    ),
+  );
+}
+
+export function useRetainedRevisionSupported() {
+  const supported = useHuddleSupported();
+  const protocol = useDaemonVersion().data?.protocol;
+  return supported && supportsApplicationFeature(protocol, { major: 28, minor: 13 });
+}
+export async function reviewRetainedHuddleRevision(
+  profile: string,
+  session: string,
+  input: HuddleRetainedRevisionRequest,
+  signal?: AbortSignal,
+) {
+  if (browserTransport() || !huddleShellSupported())
+    throw new Error('Retained revision review requires a supporting local or SSH connection');
+  const request = huddleRetainedRevisionRequestSchema.parse(input);
+  return parseHuddleRetainedRevision(
+    request,
+    await api(
+      'POST',
+      `/api/huddle/${profile}/sessions/${session}/revision/retained`,
       request,
       signal,
     ),

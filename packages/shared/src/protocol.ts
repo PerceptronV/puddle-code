@@ -365,7 +365,8 @@
 // 28.10: exact active huddle revision inspection and saved-source comparison.
 // 28.11: captured source reads and source-preserving digest-checked huddle saves.
 // 28.12: local/SSH recorded huddle owner catalogue and retained-ledger history reads.
-export const PROTOCOL_VERSION = { major: 28, minor: 12 } as const;
+// 28.13: recorded huddle revision/source inspection without a connected owner.
+export const PROTOCOL_VERSION = { major: 28, minor: 13 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

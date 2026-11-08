@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Inspect a stopped huddle's recorded activation and an execution's original source from History; CLI/MCP also compare retained revisions with exact saved source without restarting owners (application 28.13).
+
 - Inspect retained huddle executions, results and operation outcomes after Stop through the IDE and CLI/MCP; browse recorded runtimes without starting owners or treating recorded state as live evidence (application 28.12).
 
 - Guard huddle graph/layout saves against captured source changes, retain baselines in browser/window drafts, and review changed dependencies before merging; preserve edits typed during saves and require review after uncertain replies.

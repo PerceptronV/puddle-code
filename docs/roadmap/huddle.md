@@ -39,7 +39,8 @@ Internal queued Apply/Arm/Run/Interrupt now require the inspected owner and
 activation, preventing stale views from dispatching against a replacement.
 Bounded live-owner history reads validate execution/node/operation records;
 application 28.2 exposes explicit public projections. Application 28.12 adds recorded-owner discovery and retained execution/result history
-without connecting or restarting an owner. Stopped-owner revision review remains pending. Application 28.10 now exposes exact active
+without connecting or restarting an owner. Application 28.13 adds recorded activation and historical source inspection without
+a connected owner, with exact saved comparisons through CLI/MCP. Application 28.10 now exposes exact active
 revision/source/binding inspection and saved-versus-active comparison through the
 IDE, CLI and MCP. Retained inspection works after project source deletion while
 the owner remains connected. Host-side exact agent-turn admission now shares
@@ -781,7 +782,8 @@ and `huddle_authoring` now expose a client-bundled kit: structural JSON Schemas,
 generated wrapper types, editable transform/pull-feed/report components, example
 graphs and fake fixtures. Kit reads need no host or source mutation; the reported
 client protocol is not target-host capability evidence. Real-provider authoring,
-richer integrations, managed secrets and offline revision review remain unfinished.
+richer integrations and managed secrets remain unfinished. Recorded revisions are
+now inspectable through 28.13 without a connected owner.
 
 Let users select any eligible account in the current profile to create or modify
 a huddle through an ordinary managed agent. The authoring agent is distinct from
@@ -822,7 +824,8 @@ enable nested delegation, cross-profile access or unlimited agent budgets.
 
 ## 11. Phased implementation and release gates
 
-Phases 0–4 are **in progress**; phase 5 has window integration, IDE authoring assistance and a standalone authoring kit, with provider-backed authoring acceptance and offline revision review unfinished. Phase 6
+Phases 0–4 are **in progress**; phase 5 has window integration, IDE authoring assistance and a standalone authoring kit, with provider-backed authoring acceptance unfinished. Recorded revision/source
+inspection is implemented in 28.13. Phase 6
 has preparatory host maintenance integration, with packaged acceptance pending.
 Phase 1 currently has the private inbox/outbox, node-attempt and exact-operation
 ledger plus durable
@@ -837,7 +840,8 @@ baselines, IndexedDB/native draft metadata, dependency conflict review and guard
 Keep mine; missing old metadata requires review. Explicit invalid-source repair
 retains its narrower file guard. Application 28.12 adds recorded owner discovery and stopped-owner execution/result
 history through the IDE and CLI/MCP, without restarting owners. Complete settings,
-stopped-owner revision review and native/provider/platform acceptance remain pending.
+native/provider/platform acceptance remain pending. Application 28.13 adds recorded
+activation/historical source inspection and exact saved comparisons through CLI/MCP.
 The IDE now has reviewed lifecycle controls, manual input and live result inspection,
 plus initial editable prompt/review templates and connection feedback settings;
 phase 3 still needs resume/restart and provider-native acceptance. Each phase

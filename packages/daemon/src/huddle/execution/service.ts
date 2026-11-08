@@ -16,6 +16,8 @@ import {
   type HuddleHistoryOwnersRequest,
   type HuddleRetainedHistoryRequest,
   huddleRevisionReviewSchema,
+  huddleRetainedRevisionRequestSchema,
+  type HuddleRetainedRevisionRequest,
   huddleDiffReviewSchema,
   huddleReviewSchema,
   type HuddleRevisionReview,
@@ -43,6 +45,7 @@ import {
   HuddleRevisionStore,
   readRetainedHuddleRevision,
 } from '../../runtime/huddle/state/revisions.js';
+import { retainedHuddleReview } from './review/retained.js';
 import { readHuddleActivation } from '../../runtime/huddle/state/readers/activation.js';
 import { compareHuddleRevisions } from './review/compare.js';
 import type { HuddleDefinitionSnapshot } from '../definitions/capture.js';
@@ -486,6 +489,55 @@ export class HuddleExecutionService {
         );
         scope.check();
         return result;
+      })
+      .finally(() => {
+        this.pendingReviews--;
+      });
+  }
+
+  retainedRevision(
+    profile: string,
+    id: string,
+    raw: HuddleRetainedRevisionRequest,
+    authority: Authority,
+  ) {
+    const input = huddleRetainedRevisionRequestSchema.parse(raw);
+    const scope = this.scope(profile, id, authority);
+    if (this.pendingReviews >= 8)
+      throw ApiError.conflict('huddle_review_busy', 'Too many pending history or revision reads');
+    this.pendingReviews++;
+    return this.reviewQueue
+      .run('source', async () => {
+        scope.check();
+        const review = retainedHuddleReview({
+          home: this.deps.home,
+          profile,
+          session: scope.session,
+          binding: () => this.deps.runtimes.get(input.owner.runtimeId),
+          input,
+        });
+        const finish = (saved?: HuddleDefinitionSnapshot) => {
+          scope.check();
+          const result = review.finish(saved);
+          scope.check();
+          return result;
+        };
+        if (!input.expected_digest) return finish();
+        return this.deps.definitions.withSnapshot(
+          profile,
+          {
+            project_id: scope.session.project_id,
+            worktree: scope.session.worktree_path,
+            huddle_id: scope.session.huddle_id!,
+          },
+          scope.valid,
+          async (saved, location) => {
+            location.check();
+            const result = finish(saved);
+            location.check();
+            return result;
+          },
+        );
       })
       .finally(() => {
         this.pendingReviews--;

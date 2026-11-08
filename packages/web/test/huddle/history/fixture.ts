@@ -1,3 +1,4 @@
+import type { HuddleRetainedRevisionRequest } from '@puddle/shared';
 const owner = {
   runtimeId: '11111111-1111-4111-8111-111111111111',
   incarnation: '22222222-2222-4222-8222-222222222222',
@@ -10,6 +11,40 @@ export function retainedHistoryFixture() {
   return {
     fail(value: boolean) {
       failed = value;
+    },
+    revision(input: HuddleRetainedRevisionRequest) {
+      const revision = input.revision ?? 'b'.repeat(64);
+      const path = 'nodes/example/run.ts';
+      const text =
+        revision === 'a'.repeat(64)
+          ? '// Historical execution source\nexport const message = "original";\n'
+          : '// Last recorded activation\nexport const message = "updated";\n';
+      return Response.json({
+        source: 'retained-revision',
+        observed_at: '2026-11-08T11:00:00.000Z',
+        owner,
+        revision,
+        activation: input.revision
+          ? null
+          : {
+              id: '66666666-6666-4666-8666-666666666666',
+              revision,
+              variables: { task: 'retained setting' },
+              bindings: {},
+              worktree: '/fixture',
+              appliedAt: 1,
+            },
+        saved: null,
+        entries: [
+          {
+            entry: { kind: 'file', path },
+            change: 'retained',
+            before: { digest: 'c'.repeat(64), bytes: text.length },
+            after: null,
+          },
+        ],
+        ...(input.entry ? { content: { entry: input.entry, before: text, after: null } } : {}),
+      });
     },
     request(action: string, input: { owner?: typeof owner; collection?: string; after?: number }) {
       if (action === 'owners')

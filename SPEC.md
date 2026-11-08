@@ -1821,7 +1821,25 @@ cleanup policy, then hide the placement. It does not target a reviewed runtime
 incarnation. Unarchive leaves the huddle stopped and does not restore a missing
 worktree or archived project. Failed mutation replies require explicit session/runtime
 inspection; no automatic retry or fallback occurs. No HTTP/WS or version change
-is introduced. Schema/type bundles remain pending.
+is introduced. The bundled authoring kit above now supplies schema/type assets.
+Application 28.13 adds recorded revision inspection through read-only local/SSH
+`POST /api/huddle/:profile/sessions/:sid/revision/retained`. An exact recorded
+`owner` and optional `revision`, `expected_digest` and `entry` select the last
+recorded activation, an immutable historical source bundle, an exact saved-source
+comparison and a file/contract respectively. The response labels `retained-revision`
+provenance and read time; last-activation requests return recorded settings, while
+explicit historical digests return no activation settings. No live command target
+is minted. Private launch/placement validation is shared with retained history;
+last-activation reads verify ledger identity, and source reads verify bundle digest
+without creating directories or executing modules. Saved comparison uses normal
+repository capture and authority rechecks. The existing bounded review workspace
+and source/record limits apply. Missing source or a stopped owner does not prevent
+retained-only inspection; a supporting daemon is still required. CLI/MCP expose
+`retained-revision`/`huddle_retained_revision`; the IDE's History offers Recorded
+activation and Execution source through the shared read-only viewer, pinning entry
+reads to the returned digest. Recorded inspection does not offer Apply. No runtime,
+ledger or database version changes.
+
 Application 28.10 adds exact active revision/source/binding inspection and
 saved-source comparison through `POST .../revision` and `POST .../diff` under the
 existing local/SSH huddle session scope. Input contains the reviewed owner target;
@@ -1906,7 +1924,8 @@ local trigger adapters require their declared capabilities before launch. Custom
 supporting runtime and captured delivery policy. Missing source blocks new work but
 not inspection or Stop. The event host id persists in private `huddle-host.json`
 and grants no authority. Public history omits private ledger keys and operation
-inputs/targets; stopped-owner history remains pending. Active-revision inspection
+inputs/targets. Applications 28.12–28.13 add stopped-owner history and recorded
+revision inspection above. Active-revision inspection
 and comparison are described above.
 Remote profile leases and the connector deny these APIs. The local/SSH IDE gates
 execution on application 28.2 and the shell's huddle capability. Its action tray

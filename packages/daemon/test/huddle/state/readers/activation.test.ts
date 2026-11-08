@@ -5,7 +5,10 @@ import Database from 'better-sqlite3';
 import { expect, it } from 'vitest';
 import { HUDDLE_RUNTIME_CAPABILITIES, type HuddleOwnerState } from '@puddle/shared';
 import { huddleLedgerFixture } from '../../../helpers/huddle/ledger.js';
-import { readHuddleActivation } from '../../../../src/runtime/huddle/state/readers/activation.js';
+import {
+  readRecordedHuddleActivation,
+  readHuddleActivation,
+} from '../../../../src/runtime/huddle/state/readers/activation.js';
 import { readRetainedHuddleRevision } from '../../../../src/runtime/huddle/state/revisions.js';
 function setup() {
   const f = huddleLedgerFixture();
@@ -99,6 +102,27 @@ it('does not create a missing retained-source directory', () => {
     ).toThrow();
     expect(readdirSync(path)).toEqual(before);
     expect(existsSync(join(path, 'huddle-revisions'))).toBe(false);
+    const absentRuntime = randomUUID();
+    expect(() =>
+      readRetainedHuddleRevision(f.home, absentRuntime, f.identity.huddleId, 'a'.repeat(64)),
+    ).toThrow();
+    expect(existsSync(join(f.home, 'runtimes', absentRuntime))).toBe(false);
+  } finally {
+    f.cleanup();
+  }
+});
+
+it('reads the last recorded activation from a closed ledger without a live control target', () => {
+  const f = setup();
+  try {
+    f.ledger.close();
+    const before = readFileSync(f.file);
+    expect(readRecordedHuddleActivation(f.home, f.identity, f.home)).toEqual(f.applied.activation);
+    expect(() => readRecordedHuddleActivation(f.home, f.identity, '/another-worktree')).toThrow(
+      'identity',
+    );
+    expect(readFileSync(f.file)).toEqual(before);
+    expect(existsSync(f.file + '-wal')).toBe(false);
   } finally {
     f.cleanup();
   }
