@@ -53,6 +53,21 @@ nothing was written. Repository exclusion coordinates Puddle writers; editors
 outside Puddle do not participate in that lock. Detected changes fail the final
 source comparison, but this is not a filesystem-wide lock on external processes.
 
-The IDE still uses its ordinary per-file save/conflict lifecycle. Wiring these
-captured baselines into shared drafts, reconciliation and window recovery is
-remaining work; this interface does not yet change the IDE's Save button.
+The IDE uses captured saves for the graph, layout and their ordinary source tabs
+on supporting local/SSH hosts. A conflict preserves your edits. Choose **Compare**
+to inspect the edited file alongside the current source; expand **Huddle source
+review** to read changed captured scripts and contracts. **Keep mine** still checks
+that reviewed digest, so another edit requires another comparison. Saving both
+manifest and layout remains two separate writes.
+
+Browser drafts and current native window snapshots retain the baseline. A draft
+from an older client, or one whose metadata cannot be read, keeps its text and
+requires source review before saving. A lost save reply also requires review;
+Puddle does not retry it automatically. Edits typed while an earlier save is in
+flight remain dirty and recoverable.
+
+If invalid JSON prevents capturing the huddle, Compare can show the raw file.
+Saving from that review explicitly repairs only that file using its reviewed
+modification time; it cannot check the full invalid capture. Review remaining
+source afterwards. Older hosts continue using ordinary per-file guards, and a
+recovered captured draft requires a host with source-save support.

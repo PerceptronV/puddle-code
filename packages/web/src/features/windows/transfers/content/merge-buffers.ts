@@ -1,5 +1,6 @@
 import type { DesktopWorkspaceContent } from '@puddle/shared';
 import { windowBufferKey } from '../../state/content-state';
+import { sameHuddleDraftBaseline } from '@puddle/shared';
 
 /** A move cannot resolve two independently edited copies by choosing one silently. */
 export function mergeWindowBuffers(
@@ -12,7 +13,9 @@ export function mergeWindowBuffers(
     const previous = buffers.get(key);
     if (
       previous &&
-      (previous.content !== buffer.content || previous.baseMtimeMs !== buffer.baseMtimeMs)
+      (previous.content !== buffer.content ||
+        previous.baseMtimeMs !== buffer.baseMtimeMs ||
+        !sameHuddleDraftBaseline(previous.baseRevision, buffer.baseRevision))
     )
       throw new Error(`Both windows have different unsaved edits to ${buffer.path}`);
     buffers.set(key, buffer);

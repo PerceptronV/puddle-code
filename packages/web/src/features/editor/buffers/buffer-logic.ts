@@ -1,3 +1,5 @@
+import type { HuddleDraftBaseline } from '@puddle/shared';
+
 /**
  * Pure logic backing the shared buffer store (SPEC §8): saved-version
  * bookkeeping and the editor-tab label rule. Deliberately monaco-free so it
@@ -162,6 +164,7 @@ export class RefCounter {
 interface SavedState {
   versionId: number;
   mtimeMs: number;
+  revision?: HuddleDraftBaseline;
 }
 
 /**
@@ -173,8 +176,17 @@ interface SavedState {
 export class SavedStateMap {
   private readonly saved = new Map<string, SavedState>();
 
-  mark(key: string, versionId: number, mtimeMs: number): void {
-    this.saved.set(key, { versionId, mtimeMs });
+  mark(key: string, versionId: number, mtimeMs: number, revision?: HuddleDraftBaseline): void {
+    this.saved.set(key, { versionId, mtimeMs, ...(revision ? { revision } : {}) });
+  }
+
+  revision(key: string): HuddleDraftBaseline | undefined {
+    return this.saved.get(key)?.revision;
+  }
+
+  baseline(key: string, mtimeMs: number, revision?: HuddleDraftBaseline): void {
+    const previous = this.saved.get(key);
+    if (previous) this.mark(key, previous.versionId, mtimeMs, revision);
   }
 
   mtime(key: string): number | undefined {

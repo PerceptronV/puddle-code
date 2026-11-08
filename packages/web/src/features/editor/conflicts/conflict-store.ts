@@ -18,9 +18,12 @@
  */
 import type { SaverTarget } from '../buffers/save-registry';
 import { browserScope } from '../../../lib/transport/browser-transport';
+import type { HuddleDraftBaseline, HuddleSource } from '@puddle/shared';
 
 interface ConflictBase {
   revision: number;
+  huddle?: boolean;
+  uncertain?: boolean;
 }
 
 export interface UnresolvedDiskConflict extends ConflictBase {
@@ -38,6 +41,10 @@ export interface ComparedDiskConflict extends ConflictBase {
   content: string;
   /** That content's mtime: what a reconciled save must expect. */
   mtimeMs: number;
+  baseRevision?: HuddleDraftBaseline;
+  captured?: HuddleSource;
+  previousRevision?: HuddleDraftBaseline;
+  repair?: boolean;
 }
 
 export interface FailedDiskConflict extends ConflictBase {
@@ -65,9 +72,17 @@ function setConflict(key: string, conflict: DiskConflict): void {
 }
 
 /** Record a newly refused save without taking the user out of their editor. */
-export function registerConflict(key: string, target?: SaverTarget): DiskConflict {
+export function registerConflict(
+  key: string,
+  target?: SaverTarget,
+  details?: { huddle?: boolean; uncertain?: boolean },
+): DiskConflict {
   if (target) targets.set(key, { ...target, scope: browserScope('conflicts') });
-  const conflict: UnresolvedDiskConflict = { phase: 'unresolved', revision: nextRevision++ };
+  const conflict: UnresolvedDiskConflict = {
+    phase: 'unresolved',
+    revision: nextRevision++,
+    ...details,
+  };
   setConflict(key, conflict);
   return conflict;
 }
@@ -76,7 +91,7 @@ export function registerConflict(key: string, target?: SaverTarget): DiskConflic
 export function beginComparison(key: string): number | null {
   const current = conflicts.get(key);
   if (!current || (current.phase !== 'unresolved' && current.phase !== 'load-error')) return null;
-  setConflict(key, { phase: 'loading', revision: current.revision });
+  setConflict(key, { ...current, phase: 'loading' });
   return current.revision;
 }
 
@@ -86,10 +101,22 @@ export function completeComparison(
   revision: number,
   content: string,
   mtimeMs: number,
+  baseRevision?: HuddleDraftBaseline,
+  captured?: HuddleSource,
+  previousRevision?: HuddleDraftBaseline,
+  repair?: boolean,
 ): boolean {
   const current = conflicts.get(key);
   if (!current || current.phase !== 'loading' || current.revision !== revision) return false;
-  setConflict(key, { phase: 'opening', revision, content, mtimeMs });
+  setConflict(key, {
+    ...current,
+    phase: 'opening',
+    revision,
+    content,
+    mtimeMs,
+    ...(baseRevision ? { baseRevision, captured, previousRevision, huddle: true } : {}),
+    ...(repair ? { repair: true, huddle: true } : {}),
+  });
   return true;
 }
 
@@ -105,7 +132,7 @@ export function finishOpeningComparison(key: string, revision: number): boolean 
 export function failComparison(key: string, revision: number, message: string): boolean {
   const current = conflicts.get(key);
   if (!current || current.phase !== 'loading' || current.revision !== revision) return false;
-  setConflict(key, { phase: 'load-error', revision, message });
+  setConflict(key, { ...current, phase: 'load-error', revision, message });
   return true;
 }
 

@@ -830,8 +830,12 @@ scheduler and independent owner process/private control. Production launch/adopt
 and maintenance integration are implemented; attach/ask dispatch is wired, while full provider lifecycle nodes and native continuity acceptance remain unfinished. Phase 2 has
 inactive creation/opening, sidebar integration and manifest graph editing with
 shared editor drafts, movable nodes and local/SSH manual lifecycle/history APIs;
-active-revision details and saved-source comparison are implemented; complete
-settings and stopped-owner history remain pending.
+active-revision details and saved-source comparison are implemented. Supporting
+local/SSH hosts now use captured manifest/layout saves with shared source-tab
+baselines, IndexedDB/native draft metadata, dependency conflict review and guarded
+Keep mine; missing old metadata requires review. Explicit invalid-source repair
+retains its narrower file guard. Complete settings, stopped-owner history and
+native/provider/platform acceptance remain pending.
 The IDE now has reviewed lifecycle controls, manual input and live result inspection,
 plus initial editable prompt/review templates and connection feedback settings;
 phase 3 still needs resume/restart and provider-native acceptance. Each phase

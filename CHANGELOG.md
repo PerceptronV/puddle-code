@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Guard huddle graph/layout saves against captured source changes, retain baselines in browser/window drafts, and review changed dependencies before merging; preserve edits typed during saves and require review after uncertain replies.
+
 - Read exact captured huddle source and save manifest/layout text against its reviewed digest through CLI/MCP (application 28.11), preserving formatting and rejecting stale saves without automatic retry.
 
 - Cull off-screen huddle nodes and connections while preserving crossing wires, selection, keyboard focus and active gestures; retain full graph access through Node list and fit controls.

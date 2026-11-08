@@ -82,12 +82,60 @@ fixtures require private Unix IPC permission; the authorised run passes all case
 Shared/daemon/CLI and web TypeScript, scoped ESLint/formatting, web/CLI builds and
 packaged CLI help checks pass. No production daemon, native UI or provider is used.
 
-**Remaining in this workstream:** adopt captured baselines in IDE shared models,
-draft persistence, conflict review, source-tab saves and pane/window recovery.
-The current Save button still uses ordinary per-file guards. This increment does
-not complete that integration or the huddle roadmap; offline history/recovery,
-agent restart/native feedback, integration secrets/settings and provider/platform/
-packaged acceptance also remain.
+The IDE integration is described below. Offline history/recovery, agent restart/
+native feedback, integration secrets/settings and provider/platform/packaged
+acceptance remain open.
+
+## Implemented: captured IDE saves and recoverable draft baselines
+
+The normal shared editor buffer selects captured source GET/PUT for manifest and
+layout on application 28.11+ local/SSH hosts. The graph, layout and ordinary source
+tabs use the same model/save/conflict lifecycle. Verified SHA-256 captures become
+compact format-1 baseline metadata: host/profile/project/worktree/huddle identity,
+capture digest and file/contract hashes. Private browser drafts, native snapshots,
+rename/transfer and arrangement retention carry that baseline. Missing or malformed
+metadata preserves text and requires review before a guarded save; old shells may
+drop optional metadata, so no cross-version retention guarantee is claimed.
+
+Saves queue per huddle within one renderer. Only a positively acknowledged sibling
+write may advance a baseline, and only while the next edited file and existing
+retained dependencies have not changed. An unrelated query or same-file save never
+advances a stale draft. Comparison retains its captured inventory and displays
+current changed file/contract text; Save and Keep mine both use the compared
+digest. Further external edits reject that save. Taking disk reads current source
+without writing. Unknown replies preserve drafts and require review; no automatic
+retry occurs. A save acknowledgment retains text typed while the request was in
+flight. Background reads predating an acknowledged save are cancelled.
+
+Invalid source can be read as raw text. Only explicit comparison enables a
+single-file repair using the reviewed modification time; the UI states that it
+cannot guard the whole invalid capture. Ordinary older-host editing stays on file
+guards, while a draft with a captured baseline cannot silently downgrade.
+
+**138/138 tests across 17 files pass** across draft/revision verification, editor
+buffers/conflicts, browser/native arrangement retention and shared source contracts.
+They exercise corrupted/missing metadata, exact capture hashes, source-scope
+separation, acknowledged sibling sequencing, same-file stale refusal, queue failure
+and distinct-baseline merge/retention rejection. Shared/daemon/CLI/web/desktop
+TypeScript, scoped lint/formatting and the production web build pass.
+
+The isolated headless `test/huddle/source/saves.browser.mjs` checks real Monaco,
+IndexedDB and the shared graph/source editor. It verifies sequential graph/layout
+publication, captured-script changes without a manifest mtime change, another edit
+after comparison, guarded Keep mine, a lost reply with no retry, text typed during
+a held save, explicit invalid-source repair, actual page reload restoration, and
+older drafts without baselines requiring review before any source PUT. Its async
+storage polling waits for transaction completion before reloading. The existing
+editing fixture also passes with `HUDDLE_CAPTURED_SOURCE=1`, covering graph/settings,
+undo/redo, duplicate source holders and close review. The same editing check and
+layout/canvas regression pass on the older-host fixture. Dark and light source
+review captures were inspected. No runtime action is sent.
+
+Run these with `PREVIEW_URL` pointing to a daemon-free UI preview. Existing huddle
+fixtures default to application 28.10 to retain legacy file-guard coverage;
+`?source-saves` uses current protocol and real capture hashes. Native two-window
+transfers, renderer-crash restoration and SSH/provider/platform acceptance remain
+separate required gates; unit retention checks do not establish those behaviours.
 
 ## Implemented: large-graph viewport culling
 

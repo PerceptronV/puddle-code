@@ -10,7 +10,12 @@ import {
   draftWriter,
   loadDraft,
 } from '../../../lib/persistence/drafts';
-import { useSaveWorktreeFile, useWorktreeFile } from '../../../lib/queries/worktree-queries';
+import { useBufferTransport } from './use-buffer-transport';
+import {
+  restoreHuddleDraftBaseline,
+  sameHuddleDraftBaseline,
+  type HuddleDraftBaseline,
+} from '@puddle/shared';
 import {
   applyDraft,
   bufferKey,
@@ -19,6 +24,8 @@ import {
   markSaved,
   replaceContent,
   savedMtime,
+  savedRevision,
+  restoreSavedBaseline,
   subscribe,
 } from './buffer-store';
 import {
@@ -127,14 +134,15 @@ export function useEditorBuffer(
   const focused = opts?.focused ?? true;
   const { fileSettingsKey } = useFileEditorSettings();
   const key = bufferKey(session, path, root);
-  const file = useWorktreeFile(session, path, { root, live: opts?.live });
-  const saveMutation = useSaveWorktreeFile(session, root);
+  const { file, saveMutation, guarded } = useBufferTransport(session, path, root, opts?.live);
 
   const [model, setModel] = useState<monaco.editor.ITextModel | null>(null);
   const [restoredNotice, setRestoredNotice] = useState(false);
   const createdRef = useRef(false);
   const editorRef = useRef<monaco.editor.IStandaloneCodeEditor | null>(null);
-  const writerRef = useRef<Debounced<[content: string, baseMtimeMs: number]> | null>(null);
+  const writerRef = useRef<Debounced<
+    [content: string, baseMtimeMs: number, baseRevision?: HuddleDraftBaseline]
+  > | null>(null);
   const revealRef = useRef(reveal);
   revealRef.current = reveal;
   // True while a disk-reload edit is in flight. `replaceContent` fires the
@@ -146,11 +154,11 @@ export function useEditorBuffer(
 
   /** Adopt fresh disk content, suppressing the draft-writer for the edit. */
   const reloadModel = useCallback(
-    (content: string, mtimeMs: number) => {
+    (content: string, mtimeMs: number, revision?: HuddleDraftBaseline) => {
       writerRef.current?.cancel();
       reloadingRef.current = true;
       try {
-        replaceContent(key, content, mtimeMs);
+        replaceContent(key, content, mtimeMs, revision);
       } finally {
         reloadingRef.current = false;
       }
@@ -189,6 +197,7 @@ export function useEditorBuffer(
       data.content,
       transferred?.baseMtimeMs ?? data.mtime_ms,
       root,
+      transferred ? restoreHuddleDraftBaseline(transferred.baseRevision) : data.baseRevision,
     );
     // Capture Monaco's normalised disk baseline before the async IndexedDB
     // read. Reading the live model inside that callback could instead compare
@@ -202,13 +211,17 @@ export function useEditorBuffer(
     }
     void loadDraft(session, path, root).then((draft) => {
       if (!draft) return;
-      const disposition = draftDisposition(draft, baselineContent, data.mtime_ms);
+      if (created.isDisposed()) return;
+      const disposition = isDirty(key)
+        ? 'offer'
+        : draftDisposition(draft, baselineContent, data.mtime_ms, data.baseRevision);
       if (disposition === 'discard') {
         // No recoverable edits remain. In particular, do not let an mtime-only
         // rewrite turn this no-op draft into the same stale warning forever.
         void deleteDraft(session, path, root);
       } else if (disposition === 'restore') {
         // The file has not moved under the draft — restore it as dirty edits.
+        restoreSavedBaseline(key, draft.base_mtime_ms, draft.baseRevision);
         if (applyDraft(created, draft.content)) setRestoredNotice(true);
       } else {
         // The disk content moved on: keep it clean, offer the draft instead.
@@ -218,6 +231,8 @@ export function useEditorBuffer(
           action: {
             label: 'Restore draft',
             onClick: () => {
+              if (created.isDisposed()) return;
+              restoreSavedBaseline(key, draft.base_mtime_ms, draft.baseRevision);
               if (applyDraft(created, draft.content)) setRestoredNotice(true);
             },
           },
@@ -233,7 +248,12 @@ export function useEditorBuffer(
     const unregister = state.registerBuffer(identity, () => {
       if (model.isDisposed()) return state.buffer(identity) ?? null;
       return isDirty(key)
-        ? { ...identity, content: model.getValue(), baseMtimeMs: savedMtime(key) ?? 0 }
+        ? {
+            ...identity,
+            content: model.getValue(),
+            baseMtimeMs: savedMtime(key) ?? 0,
+            ...(savedRevision(key) ? { baseRevision: savedRevision(key) } : {}),
+          }
         : null;
     });
     const off = subscribe(key, () => state.bufferChanged(identity));
@@ -254,7 +274,7 @@ export function useEditorBuffer(
     writerRef.current = writer;
     const sub = model.onDidChangeContent(() => {
       if (reloadingRef.current) return; // disk reload, not a user edit
-      writer(model.getValue(), savedMtime(key) ?? 0);
+      writer(model.getValue(), savedMtime(key) ?? 0, savedRevision(key));
       announceDraftUpdated(session, path, root);
     });
     return () => {
@@ -285,7 +305,7 @@ export function useEditorBuffer(
       // peer state set surfaces the passive `saved-elsewhere` badge instead.
       if (isDirty(key)) return;
       if (res.data && res.data.content !== null) {
-        reloadModel(res.data.content, res.data.mtime_ms);
+        reloadModel(res.data.content, res.data.mtime_ms, res.data.baseRevision);
       }
       clearPeerState(key);
     });
@@ -297,21 +317,28 @@ export function useEditorBuffer(
   useEffect(() => {
     const data = file.data;
     if (!model || !data || data.content === null) return;
-    if (!isDirty(key) && data.mtime_ms !== savedMtime(key)) {
-      reloadModel(data.content, data.mtime_ms);
+    if (
+      !isDirty(key) &&
+      (data.mtime_ms !== savedMtime(key) ||
+        !sameHuddleDraftBaseline(data.baseRevision, savedRevision(key)))
+    ) {
+      reloadModel(data.content, data.mtime_ms, data.baseRevision);
     }
   }, [file.data, model, key]);
 
   const commitSaved = useCallback(
-    (versionId: number, mtimeMs: number) => {
-      markSaved(key, versionId, mtimeMs);
+    (versionId: number, mtimeMs: number, revision?: HuddleDraftBaseline) => {
+      markSaved(key, versionId, mtimeMs, revision);
       writerRef.current?.cancel();
-      void deleteDraft(session, path, root);
+      if (isDirty(key) && model) {
+        writerRef.current?.(model.getValue(), mtimeMs, revision);
+        writerRef.current?.flush();
+      } else void deleteDraft(session, path, root);
       announceSaved(session, path, mtimeMs, root);
       setRestoredNotice(false);
       clearConflict(key); // the write landed: there is nothing left to reconcile
     },
-    [key, session, path, root],
+    [key, session, path, root, model],
   );
 
   const compare = useCallback(() => {
@@ -326,7 +353,16 @@ export function useEditorBuffer(
         if (data.content === null) {
           throw new Error('The file on disk is binary and cannot be compared as text.');
         }
-        completeComparison(key, revision, data.content, data.mtime_ms);
+        completeComparison(
+          key,
+          revision,
+          data.content,
+          data.mtime_ms,
+          data.baseRevision,
+          data.captured,
+          savedRevision(key),
+          data.repair,
+        );
       })
       .catch((error: unknown) => {
         failComparison(
@@ -347,9 +383,11 @@ export function useEditorBuffer(
   useEffect(() => {
     if (!shouldOfferComparison(conflict, focused)) return;
     const id = conflictToastId(key);
-    toast('File changed on disk', {
+    toast(conflict?.huddle ? 'Review huddle source before saving' : 'File changed on disk', {
       id,
-      description: 'Nothing was written — your unsaved version is intact.',
+      description: conflict?.uncertain
+        ? 'The save outcome is uncertain. Your draft is retained; inspect source before another save.'
+        : 'Your unsaved version is intact. Compare it with the current source.',
       duration: Infinity,
       closeButton: true,
       action: { label: 'Compare', onClick: () => compareRef.current() },
@@ -371,15 +409,16 @@ export function useEditorBuffer(
         // Taking disk is an explicit resolution. A checked, identical PUT
         // acknowledges it to the daemon without rewriting the file. If it has
         // changed again, keep the conflict and the user's buffer intact.
-        const accepted = resolving
-          ? await saveMutation.mutateAsync({
-              path,
-              content: data.content,
-              expected_mtime_ms: data.mtime_ms,
-            })
-          : data;
+        const accepted =
+          resolving && !guarded
+            ? await saveMutation.mutateAsync({
+                path,
+                content: data.content,
+                expected_mtime_ms: data.mtime_ms,
+              })
+            : data;
         if (resolving && conflictFor(key)?.revision !== resolving.revision) return;
-        reloadModel(data.content, accepted.mtime_ms);
+        reloadModel(data.content, accepted.mtime_ms, data.baseRevision);
         void deleteDraft(session, path, root);
         setRestoredNotice(false);
         clearConflict(key);
@@ -389,7 +428,7 @@ export function useEditorBuffer(
           registerConflict(key, { session, path, root });
         } else toast.error(error instanceof Error ? error.message : 'Reload failed');
       });
-  }, [key, session, path, root, file, saveMutation, reloadModel]);
+  }, [key, session, path, root, file, saveMutation, reloadModel, guarded]);
 
   const overwrite = useCallback(
     (content: string, versionId: number) => {
@@ -424,21 +463,29 @@ export function useEditorBuffer(
         path,
         content,
         expected_mtime_ms: expected,
+        baseRevision: conflict?.phase === 'comparing' ? conflict.baseRevision : savedRevision(key),
+        repairReview: conflict?.phase === 'comparing' && conflict.repair,
       });
-      commitSaved(versionId, res.mtime_ms);
+      commitSaved(versionId, res.mtime_ms, res.baseRevision);
       return true;
     } catch (err) {
-      if (err instanceof ApiError && err.status === 409 && err.code === 'stale_file') {
+      if (
+        err instanceof ApiError &&
+        err.status === 409 &&
+        ['stale_file', 'huddle_source_changed', 'huddle_definition_invalid'].includes(err.code)
+      ) {
         // Nothing was written. Reconciliation is opt-in: keep the buffer
         // editable and offer Compare while this tab is focused. The disk
         // read begins only after that action synchronously locks the model.
-        registerConflict(key, { session, path, root });
+        registerConflict(key, { session, path, root }, { huddle: guarded });
       } else {
+        if (guarded && !(err instanceof ApiError && err.status < 500))
+          registerConflict(key, { session, path, root }, { huddle: true, uncertain: true });
         toast.error(err instanceof Error ? err.message : 'Save failed');
       }
       return false;
     }
-  }, [model, key, saveMutation, session, path, root, commitSaved]);
+  }, [model, key, saveMutation, session, path, root, commitSaved, guarded]);
 
   const saveRef = useRef(save);
   saveRef.current = save;
@@ -493,12 +540,16 @@ export function useEditorBuffer(
   }, [reload]);
 
   // The two decisive answers to a conflict. `takeDisk` is the ordinary reload —
-  // the buffer's edits go, the file on disk wins. `keepMine` writes the buffer
-  // with no expectation at all, so it lands whatever the disk now says.
+  // the buffer's edits go, the file on disk wins. Guarded huddle files retain
+  // the reviewed revision even for Keep mine; ordinary files may overwrite.
   const keepMine = useCallback(() => {
     if (!model || conflictFor(key)?.phase !== 'comparing') return;
+    if (guarded || savedRevision(key)) {
+      void saveRef.current();
+      return;
+    }
     overwrite(model.getValue(), model.getAlternativeVersionId());
-  }, [model, key, overwrite]);
+  }, [model, key, overwrite, guarded]);
 
   const comparisonReady = useCallback(
     (revision: number) => {
@@ -512,6 +563,9 @@ export function useEditorBuffer(
   let errorMessage: string | null = null;
   if (file.data?.binary) {
     status = 'binary';
+  } else if (guarded && model && dirty) {
+    // A failed background read must not hide recoverable, editable text.
+    status = 'ready';
   } else if (file.error) {
     if (file.error instanceof ApiError && file.error.status === 413) {
       status = 'too-large';

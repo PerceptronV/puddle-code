@@ -16,9 +16,11 @@ import {
 import { profile, project, sessions } from '../../src/dev/preview/data';
 import { huddleRuntimeFixture } from './runtime';
 import { largeGraph } from './canvas/large-graph';
+import { sourceFixture } from './source/fixture';
 
 const fixture = mountWorkspaceFixture({
   restore: new URLSearchParams(location.search).has('view-state'),
+  toasts: new URLSearchParams(location.search).has('source-saves'),
 });
 if (new URLSearchParams(location.search).has('session-triggers')) {
   fixture.addSession(
@@ -159,6 +161,14 @@ if (new URLSearchParams(location.search).has('large-graph'))
     content: JSON.stringify(document.components.n0),
     mtime: 1,
   });
+components.set(`.puddle/huddle/${savedId}/nodes/review/run.ts`, {
+  content: '// initial script',
+  mtime: 1,
+});
+const source = sourceFixture(document, disk, components);
+// Existing fixture scripts retain explicit pre-source-save host coverage.
+// Modern captured saves use ?source-saves and real computed capture hashes.
+const capturedSaves = new URLSearchParams(location.search).has('source-saves');
 let available = true;
 const runtime = huddleRuntimeFixture(() => document);
 let executionSupported = !new URLSearchParams(location.search).has('old-execution');
@@ -167,7 +177,7 @@ const changedRevision = () => {
   document.digest = (++revision).toString(16).padStart(64, '0');
 };
 let opened = false;
-if (new URLSearchParams(location.search).has('view-state')) {
+if (new URLSearchParams(location.search).has('view-state') || capturedSaves) {
   fixture.addSession(saved);
   opened = true;
 }
@@ -188,7 +198,8 @@ window.fetch = async (input, init) => {
   const prefix = `/api/huddle/${profile.id}`;
   if (
     path === '/api/version' &&
-    (!executionSupported ||
+    (!capturedSaves ||
+      !executionSupported ||
       new URLSearchParams(location.search).has('old-review') ||
       new URLSearchParams(location.search).has('old-templates') ||
       new URLSearchParams(location.search).has('old-spawn') ||
@@ -210,7 +221,9 @@ window.fetch = async (input, init) => {
                 ? 7
                 : new URLSearchParams(location.search).has('old-layout')
                   ? 3
-                  : 2,
+                  : new URLSearchParams(location.search).has('old-templates')
+                    ? 2
+                    : 10,
       },
     });
   }
@@ -287,6 +300,7 @@ window.fetch = async (input, init) => {
         diagnostics: [],
       })),
     );
+  if (path === `${prefix}/definitions/${savedId}/source`) return source.request(method, body);
   if (path === `${prefix}/definitions/${savedId}`) return Response.json(document);
   if (path === `${prefix}/definitions/${createdId}`) return Response.json(blank);
   const install = path.match(new RegExp(`^${prefix}/definitions/([^/]+)/components$`));
@@ -412,6 +426,7 @@ Object.assign(window, {
     saved: saved.id,
     project: project.id,
     source: () => JSON.parse(disk.get(savedId)!.content),
+    sourceControls: source,
     componentFiles: () => Object.fromEntries(components),
     layout: () =>
       JSON.parse(components.get(`.puddle/huddle/${savedId}/layout.json`)?.content ?? 'null'),

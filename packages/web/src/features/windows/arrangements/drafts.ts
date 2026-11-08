@@ -3,7 +3,7 @@ import type {
   DesktopBufferSnapshot,
   DesktopWorkspaceContent,
 } from '@puddle/shared';
-import { tabHoldsFile } from '@puddle/shared';
+import { tabHoldsFile, sameHuddleDraftBaseline } from '@puddle/shared';
 import { flattenTabs } from '../../workspace/layout/layout-tree';
 import { retainLateDrafts } from '../state/late-draft-recovery';
 import { windowBufferKey } from '../state/content-state';
@@ -15,7 +15,9 @@ export interface PlannedWindow {
   route: string;
 }
 const same = (a: DesktopBufferSnapshot, b: DesktopBufferSnapshot) =>
-  a.content === b.content && a.baseMtimeMs === b.baseMtimeMs;
+  a.content === b.content &&
+  a.baseMtimeMs === b.baseMtimeMs &&
+  sameHuddleDraftBaseline(a.baseRevision, b.baseRevision);
 const projectInRoute = (route?: string) => /^\/project\/([0-9a-f]{10})/.exec(route ?? '')?.[1];
 
 /** Reuse existing drafts; an arrangement never resolves two independent edits by choosing one. */

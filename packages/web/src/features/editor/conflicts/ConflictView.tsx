@@ -6,6 +6,7 @@ import { monaco, THEME_NAME } from '../monaco/monaco-setup';
 import { editorIndentationOptions } from '../monaco/monaco-options';
 import type { ComparedDiskConflict } from './conflict-store';
 import { useDiffViewState } from '../monaco/monaco-view-state';
+import { ConflictSources } from '../../huddle/documents/source/ConflictSources';
 
 /**
  * How a refused save is reconciled (SPEC §8). The daemon rejects a write whose
@@ -78,7 +79,11 @@ export function ConflictView({
     <div className="flex h-full flex-col bg-ground">
       <div className="flex items-center gap-3 bg-elevated px-3 py-1.5 text-xs text-fg-secondary">
         <span>
-          This file changed on disk. Yours is on the right — merge what you want, then save.
+          {conflict.repair
+            ? 'The huddle cannot be captured. Saving repairs only this file with a file-change check; review the remaining source afterwards.'
+            : conflict.huddle
+              ? 'Review the huddle source, reconcile your file, then save.'
+              : 'This file changed on disk. Yours is on the right — merge what you want, then save.'}
         </span>
         <button
           type="button"
@@ -110,6 +115,7 @@ export function ConflictView({
           Keep mine
         </button>
       </div>
+      <ConflictSources conflict={conflict} />
       <div className="min-h-0 flex-1">
         <DiffEditor
           // The modified side binds to the shared buffer's own URI, so the

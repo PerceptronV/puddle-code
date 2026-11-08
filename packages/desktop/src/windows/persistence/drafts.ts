@@ -1,4 +1,5 @@
 import type { DesktopWorkspaceContent } from '@puddle/shared';
+import { sameHuddleDraftBaseline } from '@puddle/shared';
 
 export function bufferIdentity(buffer: DesktopWorkspaceContent['buffers'][number]): string {
   return JSON.stringify([buffer.session, buffer.path, buffer.root ?? null]);
@@ -15,7 +16,8 @@ export function assertDraftsRetained(
           (next) =>
             bufferIdentity(next) === bufferIdentity(buffer) &&
             next.content === buffer.content &&
-            next.baseMtimeMs === buffer.baseMtimeMs,
+            next.baseMtimeMs === buffer.baseMtimeMs &&
+            sameHuddleDraftBaseline(next.baseRevision, buffer.baseRevision),
         ),
       )
     )

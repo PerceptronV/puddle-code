@@ -1695,8 +1695,28 @@ new digest automatically. Source text is bounded to 256 KiB/file and 4 MiB/128 f
 JSON documents have no BOM, while script BOMs are retained. CLI `source`/`save-source`
 and MCP `huddle_source`/`huddle_save_source` verify captured source against metadata
 and its digest, and compare a save reply with the submitted text. None needs a
-runtime or evaluates code. Existing IDE saves still need integration with this
-contract, including shared drafts, conflict review and window recovery.
+runtime or evaluates code. On supporting local/SSH hosts the IDE's shared editor
+transport uses this capture for `huddle.json` and `layout.json`, including ordinary
+source tabs. Private format-1 draft baselines retain host/profile/project/worktree/
+huddle identity, the digest, and file/contract hashes in IndexedDB and optional
+native buffer metadata; they contain no source text. Missing/invalid metadata
+keeps the text but requires explicit source review before a guarded save. Window
+transfers and arrangements treat differing baselines as differing drafts.
+
+One renderer serialises saves per huddle. Only an acknowledged write that leaves
+the next edited file and existing captured dependencies unchanged can advance a
+sibling draft's baseline; unrelated reads and same-file writes cannot. Background
+reads cannot replace an acknowledged save. Comparison shows changed captured
+files/contracts and their current text; both merged Save and Keep mine use the
+reviewed digest. Unknown outcomes retain the draft and require review. Typing
+during a save remains a persisted dirty draft after the earlier version is saved.
+Invalid source permits a raw read and an explicitly reviewed single-file repair
+with the compared mtime, never an unconditional fallback. It does not claim a
+whole-capture guard for that repair. Older hosts retain ordinary file guards;
+a captured draft cannot silently downgrade to that save path. No application,
+runtime, ledger or native persistence format bump is needed for this optional
+private recovery metadata. Older shells may drop it; the resulting draft requires
+review on a supporting renderer.
 Application 28.3 adds editable Prompt agent and Review agent templates under
 `shared/huddle/templates/`, published by `daemon/huddle/templates/` as local
 `nodes/<component>/{node.json,run.ts,prompt.ts}` source. Template creation checks

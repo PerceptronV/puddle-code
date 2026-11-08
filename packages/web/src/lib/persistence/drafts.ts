@@ -23,6 +23,11 @@
  * `void`). A draft-store outage must never interrupt editing.
  */
 import { debounce, type Debounced } from '../debounce';
+import {
+  restoreHuddleDraftBaseline,
+  sameHuddleDraftBaseline,
+  type HuddleDraftBaseline,
+} from '@puddle/shared';
 
 const DB_NAME = 'puddle-drafts';
 const DB_VERSION = 1;
@@ -37,6 +42,7 @@ export interface Draft {
   root?: string;
   content: string;
   base_mtime_ms: number;
+  baseRevision?: HuddleDraftBaseline;
   updated_at: number;
 }
 
@@ -50,11 +56,14 @@ export type DraftDisposition = 'discard' | 'restore' | 'offer';
  * later open.
  */
 export function draftDisposition(
-  draft: Pick<Draft, 'content' | 'base_mtime_ms'>,
+  draft: Pick<Draft, 'content' | 'base_mtime_ms' | 'baseRevision'>,
   diskContent: string,
   diskMtimeMs: number,
+  diskRevision?: HuddleDraftBaseline,
 ): DraftDisposition {
   if (draft.content === diskContent) return 'discard';
+  if (draft.baseRevision || diskRevision)
+    return sameHuddleDraftBaseline(draft.baseRevision, diskRevision) ? 'restore' : 'offer';
   return draft.base_mtime_ms === diskMtimeMs ? 'restore' : 'offer';
 }
 
@@ -126,6 +135,7 @@ export async function saveDraft(
   content: string,
   baseMtimeMs: number,
   root?: string,
+  baseRevision?: HuddleDraftBaseline,
 ): Promise<void> {
   const draft: Draft = {
     session,
@@ -133,6 +143,7 @@ export async function saveDraft(
     content,
     base_mtime_ms: baseMtimeMs,
     updated_at: Date.now(),
+    ...(baseRevision ? { baseRevision } : {}),
     ...(root === undefined ? {} : { root }),
   };
   try {
@@ -153,7 +164,9 @@ export async function loadDraft(
     const result = await withStore<Draft | undefined>('readonly', (store) =>
       reqDone(store.get(draftKey(session, path, root))),
     );
-    return result ?? null;
+    return result
+      ? { ...result, baseRevision: restoreHuddleDraftBaseline(result.baseRevision) }
+      : null;
   } catch (e) {
     console.warn(`loadDraft failed: ${(e as Error).message}`);
     return null;
@@ -174,7 +187,10 @@ export async function listDrafts(session: string): Promise<Draft[]> {
     const result = await withStore<Draft[]>('readonly', (store) =>
       reqDone(store.index(SESSION_INDEX).getAll(IDBKeyRange.only(session))),
     );
-    return result ?? [];
+    return (result ?? []).map((draft) => ({
+      ...draft,
+      baseRevision: restoreHuddleDraftBaseline(draft.baseRevision),
+    }));
   } catch (e) {
     console.warn(`listDrafts failed: ${(e as Error).message}`);
     return [];
@@ -203,8 +219,8 @@ export function draftWriter(
   session: string,
   path: string,
   root?: string,
-): Debounced<[content: string, baseMtimeMs: number]> {
-  return debounce((content: string, baseMtimeMs: number) => {
-    void saveDraft(session, path, content, baseMtimeMs, root);
+): Debounced<[content: string, baseMtimeMs: number, baseRevision?: HuddleDraftBaseline]> {
+  return debounce((content: string, baseMtimeMs: number, baseRevision?: HuddleDraftBaseline) => {
+    void saveDraft(session, path, content, baseMtimeMs, root, baseRevision);
   }, WRITE_DEBOUNCE_MS);
 }

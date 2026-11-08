@@ -28,9 +28,10 @@ import { workingSetKey } from '../../src/features/workspace/use-ui-state';
 import { makeLeaf, tabRefKey } from '../../src/features/workspace/layout/layout-tree';
 import { useLayoutBridge, type LayoutBridge } from '../../src/features/layouts/layouts-store';
 import '../../src/styles/app.css';
+import { Toaster } from '../../src/components/ui/sonner';
 
 /** Real Workspace with synthetic hosts only. No request can reach a daemon. */
-export function mountWorkspaceFixture(options: { restore?: boolean } = {}) {
+export function mountWorkspaceFixture(options: { restore?: boolean; toasts?: boolean } = {}) {
   if (import.meta.env.MODE !== 'ui-preview') throw new Error('Use the daemon-free preview');
   initTheme();
   initClientSettings();
@@ -169,6 +170,7 @@ export function mountWorkspaceFixture(options: { restore?: boolean } = {}) {
   const root = createRoot(document.getElementById('root')!);
   root.render(
     <QueryClientProvider client={client}>
+      {options.toasts && <Toaster />}
       <TooltipProvider>
         <NewSessionProvider>
           <MemoryRouter initialEntries={[`/project/${project.id}`]} useTransitions={false}>

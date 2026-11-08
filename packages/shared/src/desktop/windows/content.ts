@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { profileId } from '../../api/common.js';
 import { uiStateSnapshotSchema } from '../../api/workspace/ui-state.js';
 import type { DesktopWindowIdentity } from './identity.js';
+import { huddleDraftBaselineSchema } from '../../api/huddle/drafts.js';
 
 /** A recoverable editor draft; host files are never written by a window move. */
 export const desktopBufferSnapshotSchema = z.object({
@@ -10,6 +11,8 @@ export const desktopBufferSnapshotSchema = z.object({
   root: z.string().max(32_768).optional(),
   content: z.string().max(8 * 1024 * 1024),
   baseMtimeMs: z.number().finite(),
+  /** Missing/old metadata retains the text but requires review before a guarded huddle save. */
+  baseRevision: huddleDraftBaselineSchema.optional().catch(undefined),
 });
 export type DesktopBufferSnapshot = z.infer<typeof desktopBufferSnapshotSchema>;
 

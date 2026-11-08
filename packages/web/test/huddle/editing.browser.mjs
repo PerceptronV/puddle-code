@@ -8,7 +8,10 @@ const errors = [];
 page.on('pageerror', (error) => errors.push(error.message));
 try {
   await page.goto(
-    new URL('/test/huddle/fixture.html', process.env.PREVIEW_URL ?? 'http://localhost:5174/').href,
+    new URL(
+      `/test/huddle/fixture.html${process.env.HUDDLE_CAPTURED_SOURCE ? '?source-saves' : ''}`,
+      process.env.PREVIEW_URL ?? 'http://localhost:5174/',
+    ).href,
   );
   await page.waitForFunction(() => !!window.huddleFixture);
   await page.evaluate(() => window.huddleFixture.releaseProjects());

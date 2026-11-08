@@ -23,6 +23,7 @@ export * from './api/huddle/definitions.js';
 export * from './api/huddle/events.js';
 export * from './api/huddle/authoring.js';
 export * from './api/huddle/source.js';
+export * from './api/huddle/drafts.js';
 export * from './huddle/source.js';
 export * from './api/huddle/tools/source.js';
 export * from './api/huddle/tools/source-text.js';

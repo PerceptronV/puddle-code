@@ -12,6 +12,7 @@
  */
 import { monaco } from '../monaco/monaco-setup';
 import { languageForPath } from '../monaco/languages';
+import type { HuddleDraftBaseline } from '@puddle/shared';
 import {
   RefCounter,
   SavedStateMap,
@@ -91,6 +92,7 @@ export function getOrCreateModel(
   content: string,
   mtimeMs: number,
   root?: string,
+  revision?: HuddleDraftBaseline,
 ): monaco.editor.ITextModel {
   const key = bufferKey(session, path, root);
   const existing = entries.get(key);
@@ -101,19 +103,37 @@ export function getOrCreateModel(
     monaco.editor.getModel(uri) ?? monaco.editor.createModel(content, languageForPath(path), uri);
   const disposable = model.onDidChangeContent(() => notify(key));
   entries.set(key, { model, disposable });
-  savedState.mark(key, model.getAlternativeVersionId(), mtimeMs);
+  savedState.mark(key, model.getAlternativeVersionId(), mtimeMs, revision);
   return model;
 }
 
 /** Records `versionId` (from `model.getAlternativeVersionId()`) as saved. */
-export function markSaved(key: string, versionId: number, mtimeMs: number): void {
+export function markSaved(
+  key: string,
+  versionId: number,
+  mtimeMs: number,
+  revision?: HuddleDraftBaseline,
+): void {
   if (!entries.has(key)) return;
-  savedState.mark(key, versionId, mtimeMs);
+  savedState.mark(key, versionId, mtimeMs, revision);
   notify(key); // dirty flag can flip with no further content change
 }
 
 export function savedMtime(key: string): number | undefined {
   return savedState.mtime(key);
+}
+
+export function savedRevision(key: string): HuddleDraftBaseline | undefined {
+  return savedState.revision(key);
+}
+
+export function restoreSavedBaseline(
+  key: string,
+  mtimeMs: number,
+  revision?: HuddleDraftBaseline,
+): void {
+  savedState.baseline(key, mtimeMs, revision);
+  notify(key);
 }
 
 export function isDirty(key: string): boolean {
@@ -127,6 +147,7 @@ export interface RekeyedBufferSnapshot {
   content: string;
   /** Disk mtime the unsaved text was based on. */
   baseMtimeMs: number;
+  baseRevision?: HuddleDraftBaseline;
   dirty: boolean;
 }
 
@@ -151,6 +172,7 @@ export function rekeyBuffer(
   const snapshot = {
     content: entry.model.getValue(),
     baseMtimeMs: savedState.mtime(from) ?? 0,
+    ...(savedState.revision(from) ? { baseRevision: savedState.revision(from) } : {}),
     dirty: savedState.isDirty(from, entry.model.getAlternativeVersionId()),
   };
   const destination = entries.get(to);
@@ -186,7 +208,12 @@ export function rekeyBuffer(
  * keeps history "surviving where practical" at the cost of one extra
  * keystroke of undo to get past the reload itself.
  */
-export function replaceContent(key: string, content: string, mtimeMs: number): void {
+export function replaceContent(
+  key: string,
+  content: string,
+  mtimeMs: number,
+  revision?: HuddleDraftBaseline,
+): void {
   const entry = entries.get(key);
   if (!entry) return;
   const { model } = entry;
@@ -195,7 +222,7 @@ export function replaceContent(key: string, content: string, mtimeMs: number): v
   if (model.getValue() !== content) {
     model.pushEditOperations([], [{ range: model.getFullModelRange(), text: content }], () => null);
   }
-  savedState.mark(key, model.getAlternativeVersionId(), mtimeMs);
+  savedState.mark(key, model.getAlternativeVersionId(), mtimeMs, revision);
   notify(key);
 }
 

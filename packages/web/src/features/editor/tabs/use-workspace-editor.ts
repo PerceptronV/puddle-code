@@ -153,6 +153,7 @@ export function useWorkspaceEditor({
               snapshot.content,
               snapshot.baseMtimeMs,
               tab.root,
+              snapshot.baseRevision,
             );
           } else if (!snapshot) {
             // Switching projects may already have released the model and
@@ -165,6 +166,7 @@ export function useWorkspaceEditor({
                 draft.content,
                 draft.base_mtime_ms,
                 tab.root,
+                draft.baseRevision,
               );
           }
           await deleteDraft(tab.session, tab.path, tab.root);

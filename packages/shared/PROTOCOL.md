@@ -28,8 +28,14 @@ identity and SHA-256 using the unchanged canonical revision encoding, and a save
 reply must contain exactly the submitted file text. Stale, mismatched or uncertain
 replies trigger no lookup/retry/fresh digest substitution. Old document routes and
 response shapes remain unchanged. No runtime, remote, database, owner or ledger
-version changes. The IDE still uses ordinary file saves; retaining this digest
-through its draft/conflict/window lifecycle remains pending.
+version changes. The IDE now selects this transport for manifest/layout buffers
+on supporting local/SSH hosts. Optional private `DesktopBufferSnapshot.baseRevision`
+contains format-1 scoped identity, digest and per-file/contract hashes; malformed
+or unknown metadata is discarded without discarding text. Missing metadata
+requires explicit source review before a guarded save. The native format remains
+4; older shells may omit the field and thereby require review after restoration.
+No metadata is source or execution authority. Ordinary older-host file saves
+remain available, but captured drafts cannot silently downgrade to them.
 
 Client-local `pudl huddle authoring [asset-path]` and stdio MCP `huddle_authoring`
 now list/read the bundled authoring kit. MCP takes strict `{path?: string}`;

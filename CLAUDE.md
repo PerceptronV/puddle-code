@@ -760,15 +760,25 @@ must cover both files. Missing layouts use a clean virtual document with baselin
 mtime -1 uses exclusive creation; never silently overwrite a concurrent creator.
 Feature-gate absent-file creation on 28.4. Keep pointer previews local until commit,
 cancel stale-layout gestures and retain separate graph/layout undo histories.
-Save both documents through ordinary file guards without claiming atomicity.
+Save the documents separately without claiming multi-file atomicity.
 Application 28.11 adds captured-text GET/PUT under huddle definition `/source`;
 shared contracts/verification live in `api/huddle/source.ts` and `huddle/source.ts`,
 with CLI transport/MCP under `cli/huddle/source/`. Structured and text saves share
 the same digest/admission/publication path. Preserve validated text exactly, reject
 unknown JSON fields and lossy Unicode, and never turn a failed post-write observation
 into a retry with a newer digest. JSON must have no BOM; retain BOMs in script bytes.
-IDE draft/conflict/recovery integration remains unfinished; ordinary file saves
-must not be described as whole-capture guarded saves.
+The shared editor transport now uses captured saves for manifest/layout on 28.11+
+local/SSH hosts. Keep baseline verification/acknowledged-write sequencing under
+`huddle/documents/source/`, shared private metadata in `api/huddle/drafts.ts`, and
+normal buffer/draft/conflict ownership in the editor. Carry the baseline through
+IndexedDB and optional native snapshots; absent/invalid metadata retains text but
+requires review. Transfers/arrangements cannot merge differing baselines. Only
+acknowledged sibling writes may advance a baseline; never refetch-and-retry or
+advance over a same-file edit. Keep mine retains the compared digest. Invalid
+source repair requires explicit file comparison and its mtime, not a silent
+fallback. Preserve edits typed during a save and cancel pre-save reads before
+publishing its observed cache. Older hosts retain ordinary file guards, but may
+not save a recovered captured draft through those guards.
 Canvas connection gestures live under `canvas/connections/`; node islands own
 separate header and port buttons, never nested interactive controls. Socket and
 selector edits share `documents/graph-connections.ts`, manifest undo and normal
