@@ -127,6 +127,7 @@ export class RuntimeAgent {
           args,
           signalUrl,
           signalNonce: this.nonce,
+          receiveSignal: (signal) => this.receive(signal),
           ...(provider.resume_ref ? { resumeRef: provider.resume_ref } : {}),
           env: { ...captured, ...assets },
           writeInput: (data) => {

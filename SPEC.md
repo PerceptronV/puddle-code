@@ -1455,8 +1455,8 @@ is explicit, never guessed from a currently active ask. The adapter records
 no successful completion for an ask acknowledged after it ended: bounded retired
 attribution retains its origin and marks interruption. Attribution-capacity loss
 marks a gap and unknown origin for subsequent unmatched starts. The adapter advertises
-`native_turn_events: 1` only when its exact observation path exists. Interactive Codex
-observation and huddle native-completion delivery remain unfinished;
+`native_turn_events: 1` only when its exact observation path exists. Huddle
+native-completion delivery remains unfinished;
 this foundation does not enable a completion trigger or claim native/reboot acceptance.
 Headless controls now report the same stream for all four existing provider drivers.
 Each native invocation uses its private `command:<uuid>` correlation key, not a
@@ -1466,6 +1466,16 @@ ask context identifies automation. Cancellation emits interruption even if a res
 already arrived; failed binding closes later ask admission and cannot assign the
 result to an unbound placement. A bounded managed observation charge reports a gap
 on capacity refusal without preventing the ordinary command from completing.
+Interactive Codex uses `agents/codex/turns/` to correlate source turns with exact
+injected RPC/native ids before classifying automation or external input. Bounded
+unanswered contexts retain cancellation and immutable huddle origins; early native
+results wait for attribution. Missing admission, exhausted buffers and lost scope
+report gaps. Native conversation changes finish old observations before changing
+the runtime segment. Trusted in-process signal delivery preserves this ordering,
+including within native batches; a retained per-frame cursor prevents partial
+capacity retries from replaying observed messages. Legacy loopback delivery remains
+supported without advertising Codex source observation. Native-provider acceptance
+and subscriptions into huddle owners are still pending.
 The runtime entry point selects a separate huddle owner from a strict private launch
 record. It reuses runtime/memory claims, host grants and lifetime checks; consumes
 launch intent once; and provides bounded authenticated controller commands.

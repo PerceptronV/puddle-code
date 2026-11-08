@@ -95,7 +95,10 @@ export async function prepareCodexLifecycle(
   }
   const proxyPort = address.port;
   const sockets = new Set<WebSocket>();
-  const control = new CodexControl(context.bufferAllowance);
+  const control = new CodexControl(
+    context.bufferAllowance,
+    scriptedTurns && context.receiveSignal ? context : undefined,
+  );
   let owner: WebSocket | null = null;
   let disposed = false;
   const deliveries = new Set<CodexSignalQueue>();
@@ -119,6 +122,21 @@ export async function prepareCodexLifecycle(
     const delivery = new CodexSignalQueue(
       {
         ...context,
+        ...(context.receiveSignal
+          ? {
+              receiveSignal: (
+                signal: Parameters<NonNullable<LifecycleLaunchContext['receiveSignal']>>[0],
+              ) => {
+                if (
+                  'event' in signal &&
+                  signal.event === 'session_start' &&
+                  signal.agent_session_ref
+                )
+                  control.bind(signal.agent_session_ref);
+                return context.receiveSignal!(signal);
+              },
+            }
+          : {}),
         reportLifecycleUnavailable: () => {
           // An outstanding scripted turn cannot outlive uncertain native identity.
           control.disconnect();
@@ -236,6 +254,7 @@ export async function prepareCodexLifecycle(
         const raw = rawBuffer(data);
         const inspection = new CodexMessageInspection(raw, budgets.metadata);
         inspections.add(inspection);
+        let observed = 0;
         const forward = () => {
           if (closing || owner !== client) return true;
           const messages = inspection.read();
@@ -255,12 +274,18 @@ export async function prepareCodexLifecycle(
             : null;
           if (body && !packet) return false;
           try {
-            if (!inspectMessages(messages, pending, context, state)) {
-              packet?.release();
-              return false;
+            while (observed < messages.length) {
+              const message = messages[observed]!;
+              if (!inspectMessages([message], pending, context, state)) {
+                packet?.release();
+                return false;
+              }
+              if (delivery.available) {
+                if (state.activeRef) control.bind(state.activeRef);
+                control.server(message as Record<string, unknown>);
+              }
+              observed++;
             }
-            if (state.activeRef) control.bind(state.activeRef);
-            for (const message of messages) control.server(message as Record<string, unknown>);
             if (packet && !writes.send(client, packet, closePair)) closePair();
             inspection.close();
             inspections.delete(inspection);

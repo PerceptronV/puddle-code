@@ -1,5 +1,6 @@
 import { InteractiveControl } from '../../src/agents/interactive/control.js';
 import { prepareRuntimeHeadless } from './agents/runtime-headless.js';
+import { prepareCodexLifecycle } from '../../src/agents/codex/lifecycle.js';
 import { spawn } from 'node:child_process';
 import { once } from 'node:events';
 import { existsSync } from 'node:fs';
@@ -148,7 +149,13 @@ export const runtimeTestAdapter: AgentAdapter = {
   loginArgs: () => [],
   resolveSessionRef: async () => 'unused',
   statusPatterns: { waitingInput: [] },
-  prepareLifecycleLaunch: prepare,
+  prepareLifecycleLaunch: async (context) =>
+    context.env?.['PUDDLE_TEST_CODEX_NATIVE'] === '1'
+      ? {
+          ...(await prepareCodexLifecycle(context)),
+          binary: join(context.account.config_dir, 'codex'),
+        }
+      : prepare(context),
   prepareHeadlessLaunch: (context) =>
     context.env?.['PUDDLE_TEST_HEADLESS_NATIVE'] === '1'
       ? prepareRuntimeHeadless(context)

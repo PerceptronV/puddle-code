@@ -1,5 +1,5 @@
 import type { AgentNativeTurn, AgentTurnContext } from '@puddle/shared';
-import type { Account, AgentTurnSignal } from '@puddle/shared';
+import type { Account, AgentTurnSignal, AgentSignalRequest } from '@puddle/shared';
 import type { RuntimeByteAllowance } from '../runtime/resources/budget.js';
 
 export interface AgentUsage {
@@ -114,6 +114,8 @@ export interface AgentControl {
 }
 
 export interface LifecycleLaunchContext {
+  /** Trusted in-process lifecycle delivery, preserving native frame order. */
+  receiveSignal?(signal: AgentSignalRequest): boolean;
   reportNativeTurn?(event: AgentNativeTurn): void;
   reportNativeTurnGap?(agentSessionRef: string, nativeTurnId: string): void;
   /** Puddle-owned bridge buffers share the runtime owner's managed allowance. */

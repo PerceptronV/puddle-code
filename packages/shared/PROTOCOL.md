@@ -37,8 +37,13 @@ requires both the bounded native result and exit 0. All headless invocations are
 automated; missing caller context remains unknown. Cancellation, binding loss and
 source memory refusal cannot become successful external-input events. This uses
 the existing optional availability field without another protocol version change.
-Interactive Codex structured-control observation, huddle completion-node
-delivery and native-provider acceptance remain pending.
+Interactive Codex owners now observe exact native turn ids on their existing
+structured connection. Correlation waits for the matching injected RPC response;
+cancelled/unanswered asks cannot become external input. Source buffers are bounded
+separately from essential asks, with gaps and unknown attribution on loss. Trusted
+in-process identity delivery preserves event/segment ordering inside native batches;
+legacy loopback delivery remains available but does not advertise this observation path.
+Huddle completion-node delivery and native-provider acceptance remain pending.
 
 Database **47** retains bounded host session observations. Optional private huddle
 capability **`sessionEvents: 1`** enables `puddle.trigger.session@1`. Existing owners

@@ -24,8 +24,56 @@ Migration 47 retains bounded host session observations. Optional `sessionEvents:
 now delivers them to independent owners through durable subscriptions; Session
 lifecycle nodes and stopped/archived session selectors are available in the IDE.
 Runtime protocol 1.2 now retains an independent native-turn source for hook-based
-interactive and command-correlated headless controls; completion-trigger delivery remains pending.
+interactive, structured Codex and command-correlated headless controls; completion-trigger delivery remains pending.
 No user CLI command is enabled yet.
+
+## Implemented: interactive Codex native turn observation
+
+`agents/codex/turns/` observes exact native `turn/started`, final agent messages and
+`turn/completed` events on the existing app-server connection. Commentary and side
+threads do not become replies. A correlated injected `turn/start` response also
+proves admission; final completion still needs the native completion notification.
+Early results wait for the matching RPC identity before receiving immutable
+ask/huddle attribution. External turns carry no automation context. Cancellation,
+human takeover and native switches cannot turn late automated results into human
+input or donate a later ask's identity.
+Interruption ends the admitted observation; it is not proof that the native process stopped.
+
+Optional source capacity is separate from essential ask/result retention: at most
+64 unanswered contexts/512 KiB, eight active buffered source turns/8 MiB and 128
+recent terminal ids/2 MiB. Replies remain bounded to 256 KiB. Missing admission,
+lost scope and refused retention report gaps. Lost attribution makes subsequent
+unmatched origins unknown instead of guessing external input. Buffer refusal and
+observer failure do not stop the ordinary PTY or replay a command.
+Contradictory/malformed acknowledgements and returning to a conversation whose
+pending request lost its original scope also retain unknown attribution.
+
+Independent owners provide a trusted synchronous `receiveSignal` adapter callback.
+Codex delivers identity/status in native frame order, finishing the old observation
+before switching the runtime segment. Each frame retains its observation position
+through capacity pauses, so resumption does not repeat the already-observed prefix.
+Legacy contexts retain loopback HTTP lifecycle delivery but do not advertise this
+Codex source; the existing 0.159+ exact-control version gate remains required.
+No application/runtime/remote protocol or database/ledger format changes are added.
+
+Tests cover human/native turns, duplicate outcomes, early completion, both cancellation
+orders, human takeover before acknowledgement, native switches, missing admission,
+reply overflow, bounded unanswered contexts and memory refusal. Real WebSocket
+fixtures use an isolated native-protocol executable to prove multi-conversation
+batch ordering, no private RPC leakage and partial-capacity retry progress. An
+independent-owner fixture retains external completion while disconnected and exact
+huddle attribution after controller replacement through the production Codex bridge.
+These fixtures do not call installed Codex or establish native-provider acceptance.
+
+Verification on 2026-11-08: the agent/runtime-execution/huddle-operation/programme
+regression run passed **361 tests in 56 files**, with four opt-in native tests skipped
+across three files. After the final ambiguous-attribution safeguard, all **34 tests
+in six Codex control, buffering, signal, bridge and owner files** passed again.
+Shared/daemon/CLI TypeScript, repository ESLint, formatting and diff checks passed,
+with scoped checks repeated for the final edits.
+
+Huddle completion subscriptions/delivery, their editor controls and live provider,
+SSH and reboot acceptance remain pending.
 
 ## Implemented: headless native turn observation
 
@@ -59,7 +107,7 @@ observation and independent-owner recheck passed **41 tests in four files**, inc
 failed-binding admission, oversized native identities and observer failure isolation.
 Shared/daemon/CLI TypeScript, repository ESLint, formatting and diff checks passed.
 
-Interactive Codex observation, huddle completion subscriptions/delivery and their
+Huddle completion subscriptions/delivery and their
 editor controls remain pending. Application/runtime/remote protocol versions and
 database/ledger formats are unchanged by this provider integration.
 
@@ -141,7 +189,7 @@ checkout lacks `docs/reports/persistent-runtimes/resources/2026-11-04-native.jso
 and the other recorded native report fixtures. This remains missing regression
 evidence; no fabricated resource report or native acceptance result substitutes for it.
 
-Pending: interactive Codex structured-control observation, scoped native
+Pending: scoped native
 source subscriptions/delivery into huddle owners, the completion-node UI and bounded
 feedback/echo policy, stopped-source inspection and full provider/SSH/native/reboot
 acceptance. Unreceived hooks cannot be reconstructed; detected missing admission is

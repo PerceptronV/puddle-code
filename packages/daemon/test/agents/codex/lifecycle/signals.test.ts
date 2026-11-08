@@ -25,6 +25,33 @@ function gate() {
 }
 
 describe('Codex bounded identity delivery', () => {
+  it('delivers trusted runtime signals synchronously and fences refused identity without an HTTP fallback', async () => {
+    const fetch = vi.fn();
+    vi.stubGlobal('fetch', fetch);
+    const ctx = { ...context(), receiveSignal: vi.fn(() => true) };
+    const budget = new RuntimeBufferBudget({ bytes: 10000, count: 8 });
+    const queue = new CodexSignalQueue(ctx, budget);
+    const signal = {
+      nonce: 'n'.repeat(32),
+      event: 'session_start',
+      agent_session_ref: 'native',
+      cwd: '/work',
+      source: 'startup',
+    };
+    expect(queue.enqueue(JSON.stringify(signal), true)).toBe(true);
+    expect(ctx.receiveSignal).toHaveBeenCalledExactlyOnceWith(signal);
+    expect(budget.usedBytes).toBe(0);
+    ctx.receiveSignal.mockReturnValue(false);
+    expect(queue.enqueue(JSON.stringify({ ...signal, agent_session_ref: 'refused' }), true)).toBe(
+      true,
+    );
+    expect(queue.available).toBe(false);
+    expect(ctx.reportLifecycleUnavailable).toHaveBeenCalledOnce();
+    expect(queue.enqueue(JSON.stringify(signal), true)).toBe(false);
+    await queue.close();
+    expect(fetch).not.toHaveBeenCalled();
+    expect(budget.usedBytes).toBe(0);
+  });
   it('coalesces waiting status but keeps every identity transition in order', async () => {
     const hold = gate();
     const sent: string[] = [];

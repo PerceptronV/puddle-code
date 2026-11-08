@@ -1,5 +1,7 @@
 import { randomUUID } from 'node:crypto';
-import type { AgentControl } from '../adapter.js';
+import type { AgentTurnContext } from '@puddle/shared';
+import type { AgentControl, LifecycleLaunchContext } from '../adapter.js';
+import { CodexTurnObservations } from './turns/observations.js';
 import { RuntimeBufferBudget, type RuntimeByteAllowance } from '../../runtime/resources/budget.js';
 import { runtimeJsonBytes, runtimeJsonRetainedBytes } from '../../runtime/transport/encoding.js';
 
@@ -21,7 +23,18 @@ export class CodexControl implements AgentControl {
   private readonly turns: RuntimeBufferBudget;
   private readonly requests: RuntimeBufferBudget;
   private readonly earlyEvents: RuntimeBufferBudget;
-  constructor(allowance?: RuntimeByteAllowance) {
+  private readonly observations: CodexTurnObservations | null;
+  constructor(
+    allowance?: RuntimeByteAllowance,
+    observers?: Pick<LifecycleLaunchContext, 'reportNativeTurn' | 'reportNativeTurnGap'>,
+  ) {
+    this.observations = observers?.reportNativeTurn
+      ? new CodexTurnObservations(
+          allowance,
+          observers.reportNativeTurn,
+          observers.reportNativeTurnGap,
+        )
+      : null;
     this.earlyEvents = new RuntimeBufferBudget({ bytes: 32 * 1024 * 1024, count: 256 }, allowance);
     this.turns = new RuntimeBufferBudget({ bytes: 8 * 1024 * 1024, count: 1 }, allowance);
     this.requests = new RuntimeBufferBudget({ bytes: 1024 * 1024, count: 256 }, allowance);
@@ -39,6 +52,9 @@ export class CodexControl implements AgentControl {
   get ready(): boolean {
     return this.send !== null && this.thread !== null && !this.busy && !this.pending;
   }
+  get nativeTurnEvents(): boolean {
+    return this.observations !== null;
+  }
 
   connect(send: (message: RecordValue) => void): void {
     this.disconnect();
@@ -47,6 +63,7 @@ export class CodexControl implements AgentControl {
 
   bind(thread: string): void {
     if (this.thread !== thread) {
+      this.observations?.bind(thread);
       this.pending?.finish(new Error('The agent changed its native conversation'));
       this.thread = thread;
       this.busy = false;
@@ -55,6 +72,7 @@ export class CodexControl implements AgentControl {
 
   disconnect(): void {
     this.pending?.finish(new Error('The agent control connection closed'));
+    this.observations?.disconnect();
     this.send = null;
     this.thread = null;
     this.busy = false;
@@ -73,13 +91,23 @@ export class CodexControl implements AgentControl {
       method === 'thread/resume' ||
       method === 'thread/fork'
     ) {
+      if (
+        record(message['params'])['threadId'] === this.thread ||
+        record(message['params'])['threadId'] === undefined
+      )
+        this.observations?.interrupt('Human or native input interrupted the turn');
       this.pending?.finish(new Error('Human or native input interrupted the automated turn'));
       if (method === 'turn/start' && record(message['params'])['threadId'] === this.thread)
         this.busy = true;
     }
   }
 
-  ask(prompt: string, signal: AbortSignal, outputSchema?: RecordValue): Promise<string> {
+  ask(
+    prompt: string,
+    signal: AbortSignal,
+    outputSchema?: RecordValue,
+    context?: AgentTurnContext,
+  ): Promise<string> {
     if (!this.ready || !this.thread || !this.send)
       return Promise.reject(new Error('Agent is busy or not ready'));
     signal.throwIfAborted();
@@ -114,6 +142,7 @@ export class CodexControl implements AgentControl {
       };
       const finish = (error?: Error, reply?: string) => {
         if (this.pending?.id !== id) return;
+        this.observations?.endRequest(id, error);
         for (const entry of this.pending.early) entry.release();
         this.pending.early = [];
         this.pending = null;
@@ -127,6 +156,7 @@ export class CodexControl implements AgentControl {
       this.pending = { id, thread, turn: null, reply: '', early: [], earlyBytes: 0, finish };
       this.busy = true;
       signal.addEventListener('abort', abort, { once: true });
+      this.observations?.submit(id, thread, context);
       try {
         this.send!({
           id,
@@ -146,6 +176,7 @@ export class CodexControl implements AgentControl {
 
   /** True means an injected RPC response, which the TUI must not receive. */
   server(message: RecordValue): boolean {
+    this.observations?.server(message);
     const id = message['id'];
     const pending = this.pending;
     if (typeof id === 'string' && id.startsWith('puddlang:')) {

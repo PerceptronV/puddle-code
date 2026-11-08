@@ -1,5 +1,6 @@
 import type { LifecycleLaunchContext } from '../../adapter.js';
 import type { RuntimeBufferBudget } from '../../../runtime/resources/budget.js';
+import { agentSignalRequestSchema } from '@puddle/shared';
 
 interface Job {
   body: string;
@@ -16,6 +17,10 @@ export class CodexSignalQueue {
   private readonly abort = new AbortController();
   private done: (() => void) | null = null;
   settled = Promise.resolve();
+
+  get available(): boolean {
+    return !this.closed && !this.unavailable;
+  }
 
   constructor(
     private readonly context: LifecycleLaunchContext,
@@ -85,6 +90,11 @@ export class CodexSignalQueue {
         const job = this.jobs.shift();
         if (!job) break;
         try {
+          if (this.context.receiveSignal) {
+            const signal = agentSignalRequestSchema.parse(JSON.parse(job.body));
+            if (!this.context.receiveSignal(signal) && job.essential) this.fail();
+            continue;
+          }
           const response = await fetch(this.context.signalUrl, {
             method: 'POST',
             headers: { 'content-type': 'application/json' },

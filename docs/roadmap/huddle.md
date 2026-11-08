@@ -58,8 +58,10 @@ fencing and Session lifecycle editor settings. Runtime protocol 1.2 now supplies
 separate bounded native-turn stream for hook-based interactive and headless controls, retaining
 exact outcomes and originating ask/huddle identities across controller disconnection.
 Headless observations use exact command-correlated keys, successful native results
-plus exit evidence, and immutable ask attribution. Interactive Codex observation
-and delivery into huddle completion nodes remain pending.
+plus exit evidence, and immutable ask attribution. Interactive Codex now retains
+exact native turn ids, including external turns and events preceding RPC replies,
+with ordered in-process identity delivery. Delivery into huddle completion nodes
+remains pending.
 Broader recurrence rules, exact native completion subscriptions, a richer trigger health/backlog
 inspector and custom trigger/readout workers remain unfinished.
 See [implementation evidence](../acceptance/huddle.md). Unshipped

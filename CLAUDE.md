@@ -552,8 +552,12 @@ Bound records/pages, charge retained/write memory and expose gaps/pending persis
 without killing unrelated PTYs. Hook-based interactive and headless controls report
 observations. Headless command keys are invocation correlations, not provider-issued
 ids; bind native identity before publication and require result plus exit 0 for success.
-Failed binding must keep later asks unavailable. Interactive Codex observation and huddle completion-node delivery
-remain unfinished. Inspect provider availability as well as protocol support.
+Failed binding must keep later asks unavailable. Codex source observation lives in
+`agents/codex/turns/`; preserve exact RPC attribution through early events/cancellation.
+Its owner uses trusted in-process lifecycle delivery and per-frame observation progress
+to keep segment scope ordered through batched native messages and capacity retries.
+Legacy loopback delivery cannot advertise this source. Huddle completion-node delivery
+remains unfinished. Inspect provider availability as well as protocol support.
 Application 27.0 adds the closed `huddle` session kind. Migration 43 and
 `db/stores/huddle/placements.ts` retain one immutable placement per
 project/canonical worktree/definition. The common runtime inventory records its
