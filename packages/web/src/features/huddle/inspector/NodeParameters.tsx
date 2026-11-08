@@ -168,6 +168,27 @@ function Parameter({
             </option>
           ))}
         </select>
+      ) : parameter.schema.enum ? (
+        <select
+          id={id}
+          value={text}
+          className="rounded-md bg-surface p-1 text-sm"
+          onChange={(event) => setText(event.target.value)}
+        >
+          <option value="">Choose value</option>
+          {text &&
+            !parameter.schema.enum.some(
+              (value) => (textValue ? String(value) : JSON.stringify(value)) === text,
+            ) && <option value={text}>{text} · not in options</option>}
+          {parameter.schema.enum.map((value) => {
+            const encoded = textValue ? String(value) : JSON.stringify(value);
+            return (
+              <option key={encoded} value={encoded}>
+                {typeof value === 'string' ? value : JSON.stringify(value)}
+              </option>
+            );
+          })}
+        </select>
       ) : parameter.editor === 'prompt' ? (
         <textarea
           id={id}
@@ -190,6 +211,10 @@ function Parameter({
       ) : (
         <Input
           id={id}
+          type={['number', 'integer'].includes(String(parameter.schema.type)) ? 'number' : 'text'}
+          min={parameter.schema.minimum}
+          max={parameter.schema.maximum}
+          step={parameter.schema.type === 'integer' ? 1 : 'any'}
           value={text}
           onChange={(event) => setText(event.target.value)}
           placeholder={textValue ? parameter.description : 'JSON value'}

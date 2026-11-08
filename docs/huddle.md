@@ -3,8 +3,9 @@
 Huddles are project orchestration graphs powered by puddlang. This guide describes
 the implemented local/SSH workflow. The [roadmap](roadmap/huddle.md) covers the full
 design; [acceptance](acceptance/huddle.md) records verified behavior and remaining
-work. External triggers, agent spawn/resume nodes and authoring CLI/skills remain
-unfinished. Native provider, supervisor and reboot acceptance is pending.
+work. Interval triggers are available on supporting runtimes. File/Git/session
+subscriptions, calendar triggers, agent spawn/resume nodes and authoring CLI/skills
+remain unfinished. Native provider, supervisor and reboot acceptance is pending.
 
 ## Create and edit
 
@@ -64,6 +65,39 @@ and includes feedback settings. Connections use the manifest's Undo/Redo history
 they do not send prompts or run nodes. A source edit during a wire gesture cancels
 that gesture. Cycles can be drafted, but require explicit bounded feedback before
 validation permits execution.
+
+## Run on an interval
+
+Add **Interval**, connect its `event` output, and configure the interval in
+milliseconds (1 second to 24 hours; default 1 minute). This is a fixed-duration
+schedule, independent of timezones or daylight-saving rules. Calendar schedules
+and one-off dates are still pending. A huddle can have at most 32 interval nodes.
+
+The first occurrence is one interval after arming. **Start** and **Resume** arm
+automatic triggers; **Apply** starts fresh schedules for the new revision when
+armed. Interrupt/Stop disarm them, and paused time is not caught up on Resume.
+Saving or opening a graph does not arm it. Closing the frontend or disconnecting
+the daemon leaves a live independent owner's timer running.
+
+Choose how a running owner's timer handles a delayed wake-up:
+
+- **coalesce** (default): one event represents all due occurrences.
+- **skip**: deliver the latest due occurrence and report how many older ones were skipped.
+- **catch-up**: deliver up to the configured number of recent occurrences, in order;
+  report older skipped occurrences in the first event. The default limit is 10, maximum 64.
+
+Events contain `scheduledAt`, `firstScheduledAt`, `occurrences` and `skipped`.
+Dates are UTC strings; the first date identifies the beginning of the covered gap.
+Clock rollback never repeats an admitted occurrence. Clock changes are reconciled
+when the owner next wakes; this is not a real-time scheduling guarantee.
+
+Interval graphs require runtime capability `timers: 1`. Existing event-queue,
+daily execution, worker and storage limits apply. The default daily execution cap
+is 100; adjust `huddle.json` deliberately for your intended cadence. A missing
+source, exhausted admission limit or persistence failure stops timer admission
+and appears in runtime inspection. Inspect accepted executions, restore the
+resource, then explicitly Stop/Start; failed occurrences are not silently consumed.
+Retained timer state does not yet establish automatic owner-crash or reboot recovery.
 
 ## Prompt existing agents
 
@@ -128,7 +162,7 @@ must leave an acyclic graph.
 Saving changes files. It does not activate code or send agent messages. Use
 **Start** for a stopped huddle or **Apply** for an existing owner to capture saved
 source and resource bindings. Agent graphs require runtime operation capability 2.
-Review variables and activation details, then use **Run** to supply JSON input to
+Review variables and activation details. Start arms automatic triggers; use **Run** to supply JSON input to
 the manual trigger. Running executions retain their accepted source revision.
 
 Inspect execution history for results and failures. **Interrupt** stops new work

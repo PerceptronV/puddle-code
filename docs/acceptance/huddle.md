@@ -16,7 +16,64 @@ placements/owner roles. The daemon launcher and lifecycle controls now integrate
 with session kill/archive; migration 44 retains Stop intent. Migration 45 adds
 host-side agent-turn identities; the owner mailbox now has private transport,
 and production daemon dispatch now supports declared attach/ask scripts. Migration
-46 retains exact cancellation attempts. No user CLI command is enabled yet.
+46 retains exact cancellation attempts. Optional runtime `timers: 1` now admits
+interval events without a controller. No user CLI command is enabled yet.
+
+## Implemented: independent interval triggers
+
+The `puddle.trigger.interval@1` built-in exposes `intervalMs` (1,000–86,400,000),
+`missed` (`coalesce`, `skip`, `catch-up`) and `maxCatchUp` (1–64). Defaults are one
+minute, coalesce and ten catch-up events. Editor duration fields are numeric and
+schema enums are selectors. Creating/editing/saving this node never arms it;
+the execution review explains automatic activation.
+
+`runtime/huddle/triggers/` validates captured built-ins, resolves interval settings
+and runs one deadline timer per owner, with at most 32 interval nodes and 64
+admissions per wake-up. It reserves 64 KiB from the common host memory allowance
+and releases it when disarmed. No renderer or controller timer is involved. The
+next wake-up is the nearest occurrence (capped at one day), not idle polling.
+Schedule calculation uses UTC instants; clock rollback never repeats an ordinal.
+Clock jumps are reconciled at the next wake-up. Calendar/timezone/DST schedules
+and one-off dates remain pending.
+
+`state/intervals.ts` stores one bounded `intervals/current` record in ledger
+format 1. Activation/generation, anchor and last admitted ordinal are retained.
+One transaction commits event inbox, execution, source cursor and timer progress;
+queue/storage/daily-budget failures roll back progress. Event ids include the
+activation, generation and ordinal. Coalesce emits the newest due ordinal with
+its covered count. Skip emits that newest occurrence and reports older skipped
+ones. Catch-up delivers the most recent bounded set in order, reporting skipped
+older occurrences in the first event. Event data includes UTC `scheduledAt` and
+`firstScheduledAt`, plus `occurrences` and `skipped`.
+
+Start/Resume and armed Apply initialise a fresh anchor. Interrupt/Stop disarm
+before waiting on workers; old callbacks cannot admit against a new generation.
+Paused/stopped periods are not caught up. A missing canonical definition location
+or failed admission stops timers and reports owner failure; accepted work remains
+recorded. Inspection and Stop remain available. Recovery is explicit Stop/Start,
+not automatic replay. File/source presence checking is shared with host admission.
+
+Launch, Apply and the owner independently require optional **`timers: 1`** for
+interval graphs. New runtimes still support owners without that capability;
+older daemon candidates cannot adopt timer-capable owners. Passive release and
+adoption metadata carry the requirement. No REST/WS shape, application version,
+ordinary runtime contract, SQLite schema version or desktop format changes.
+
+Verification: deterministic tests cover policies, rollback, retained
+progress after ledger reopen, interrupt/rearm, one deadline timer, memory refusal,
+source failure and capability skew. Isolated owner processes admit and complete
+interval events with no controller, reconnect under a replacement, interrupt,
+rearm and stop. The public API test refuses an unsupported selected runtime before
+launch intent and verifies automatic execution plus replacing the schedule on
+Apply. Headless UI tests cover interval creation, defaults/settings/save without
+arming and existing execution controls; agent-template settings also pass. Light
+and dark interval settings screenshots were visually reviewed. The broader huddle,
+shared installation and host-update suite passed **611 tests in 95 files**, with
+**4 tests skipped in 2 files**. After final failure/shutdown refinements, all
+**24 owner/API/timer tests in 3 files** passed; the focused policy/timer suite also
+passed its 10 checks. Shared/daemon/web/CLI TypeScript builds, repository ESLint,
+Prettier, token checks and `git diff --check` pass. These checks do not prove native
+supervision, host sleep/reboot, owner-crash recovery or real-provider completion.
 
 ## Implemented: direct canvas connections
 
@@ -1266,7 +1323,7 @@ result readout contracts. The scheduler runs local script components and stores
 result-readout input in the retained invocation. It refuses unsupported built-in
 contracts and local trigger/readout adapters. Coalescing/drop admission is refused
 until those policies are implemented. The independent owner entry point below
-now composes these helpers; public creation/Run commands remain unimplemented.
+now composes these helpers; public creation/Run and interval triggers are documented above.
 
 Scheduling honours root/node concurrency and shared execution limits, with four
 worker slots by default (configurable from one to sixteen). Event outputs wake

@@ -8,6 +8,7 @@ import {
 import type { HuddleDefinitionSnapshot } from '../../../huddle/definitions/capture.js';
 import { restoreHuddleDefinition } from '../../../huddle/definitions/restore.js';
 import { HuddleLedger } from '../state/ledger.js';
+import { intervalDefinitions } from '../triggers/definitions.js';
 import { HuddleRevisionStore } from '../state/revisions.js';
 
 /** Pure source/binding validation shared by daemon admission and the independent owner. */
@@ -64,6 +65,7 @@ export function prepareHuddleActivation(
         throw new Error(`Resource parameter needs an explicit resolved binding: ${node.id}.${key}`);
     }
   }
+  intervalDefinitions(restored, activation);
   return { snapshot: restored, activation };
 }
 

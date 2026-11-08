@@ -37,6 +37,7 @@ interface RecordFilter {
   after?: number;
 }
 export type HuddleCollection =
+  | 'intervals'
   | 'inbox'
   | 'cursors'
   | 'executions'

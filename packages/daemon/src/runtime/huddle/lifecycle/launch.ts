@@ -1,3 +1,4 @@
+import { requireHuddleFeatures } from '../triggers/definitions.js';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { realpathSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -70,6 +71,14 @@ export async function launchHuddleOwner(
       'huddle_execution_unsupported',
       'Selected runtime does not support huddle agent dispatch',
     );
+  try {
+    requireHuddleFeatures(options.snapshot, selected.huddle);
+  } catch (error) {
+    throw ApiError.conflict(
+      'huddle_execution_unsupported',
+      error instanceof Error ? error.message : String(error),
+    );
+  }
   const session = deps.sessions.get(sessionId);
   if (session.kind !== 'huddle' || session.huddle_id !== options.snapshot.definition.id)
     throw ApiError.conflict(

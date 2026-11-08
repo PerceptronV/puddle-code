@@ -658,6 +658,15 @@ incompatible ports; retain validation for cycles so users can configure bounded
 feedback. UI wiring must never execute a node. Full resource settings beyond
 worktree/session selection, external component observation, large-graph culling
 and retained graph camera/selection remain unfinished.
+Optional huddle `timers: 1` supports fixed-duration interval triggers. Keep owner
+scheduling under `runtime/huddle/triggers/`, durable progress in `state/intervals.ts`
+and shared contracts under `runtime/huddle/triggers/`. Event admission and schedule
+progress commit in one ledger transaction. One deadline timer serves at most 32
+interval nodes; cap each wake-up at 64 admissions, charge retained timer memory and
+share graph budgets. Stop timers before lifecycle waits and on persistence failure.
+Validate selected/live timer support before launch/Apply, preserving old owners.
+New arming generations reset anchors; never catch up stopped time or replay an
+admitted occurrence. Reuse the source-location check before autonomous admission.
 Application 28.1 adds revision-checked `PUT /api/huddle/:profile/definitions/:id`:
 one manifest/layout publication per request, under the repository mutation lock.
 `huddle/definitions/save.ts` stages, rechecks captured source/authority and renames

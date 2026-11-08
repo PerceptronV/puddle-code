@@ -61,7 +61,11 @@ export function AddNode({
                 addGraphNode(
                   graph,
                   { kind: 'builtin', component: component.id, version: component.version },
-                  component.category === 'trigger' ? 'run' : 'result',
+                  component.id === 'puddle.trigger.interval'
+                    ? 'interval'
+                    : component.category === 'trigger'
+                      ? 'run'
+                      : 'result',
                 ),
               )
             }

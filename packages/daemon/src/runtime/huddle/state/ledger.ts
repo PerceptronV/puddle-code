@@ -13,6 +13,7 @@ import { HuddleExecutions } from './executions.js';
 import { HuddleInvocations } from './invocations.js';
 import { HuddleOperations } from './operations.js';
 import { HuddleGraphRouting } from '../execution/graph.js';
+import { HuddleIntervals } from './intervals.js';
 import { HuddleActivations } from './activation.js';
 
 /** Owner-local durable execution authority; application SQLite remains daemon-owned. */
@@ -21,6 +22,7 @@ export class HuddleLedger {
   readonly invocations: HuddleInvocations;
   readonly operations: HuddleOperations;
   readonly activations: HuddleActivations;
+  readonly intervals: HuddleIntervals;
   private readonly database: HuddleStateDatabase;
 
   constructor(
@@ -33,6 +35,7 @@ export class HuddleLedger {
     this.invocations = new HuddleInvocations(this.database, this.executions);
     this.operations = new HuddleOperations(this.database, this.executions, this.invocations);
     this.activations = new HuddleActivations(this.database);
+    this.intervals = new HuddleIntervals(this.database, this.executions, this.activations);
   }
 
   page(

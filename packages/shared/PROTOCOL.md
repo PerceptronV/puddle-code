@@ -1,5 +1,20 @@
 # The puddle communication protocol
 
+Optional private huddle capability **`timers: 1`** enables the version-1
+`puddle.trigger.interval` built-in. Launch/Apply and owner validation require this
+capability before arming interval graphs. Existing owners without timers remain
+supported; daemon adoption metadata must cover every retained owner capability.
+Ordinary agent/terminal runtime 1.1 and application 28.4 are unchanged: this adds
+no REST/WS field or command. The built-in uses existing component/parameter shapes.
+
+The owner ledger retains one bounded `intervals/current` record under ledger
+format 1. Schedule generation, anchor and occurrence progress are written with
+normal durable admission; advancing a timer and admitting its event are atomic.
+Arming after interruption and applying a revision start new schedule anchors.
+Trigger missed-occurrence policies are distinct from the graph queue policy,
+which currently still requires `queue`. Owner/controller loss is not permission
+to replay an admitted occurrence or resume an arbitrary script body.
+
 Application **28.4** reserves `expected_mtime_ms: -1` on the existing worktree-file
 PUT for exclusive creation of an absent file. The host uses `wx`; an existing file
 or symlink returns `409 stale_file` without replacement. Other conditional and

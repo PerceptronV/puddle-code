@@ -44,6 +44,10 @@ agent templates now materialise project-local source, with worktree/session sele
 prompt substitution and bounded feedback settings. An isolated two-agent test verifies
 reply exchange and approval exit; spawn/resume and native-provider acceptance remain
 pending. The [usage guide](../huddle.md) describes the implemented slice.
+Phase 4 now has the first autonomous built-in: runtime-owned interval triggers,
+durable occurrence admission, coalesce/skip/bounded catch-up, and explicit timer
+capability gating. Calendar, Filetree, Git, Puddle lifecycle subscriptions and
+custom trigger/readout workers remain unfinished.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals except where explicitly documented
 in acceptance as implemented.
@@ -711,7 +715,7 @@ enable nested delegation, cross-profile access or unlimited agent budgets.
 
 ## 11. Phased implementation and release gates
 
-Phases 0–3 are **in progress**; phases 4–5 are **not started**. Phase 6
+Phases 0–4 are **in progress**; phase 5 has window integration but authoring assistance remains unfinished. Phase 6
 has preparatory host maintenance integration, with packaged acceptance pending.
 Phase 1 currently has the private inbox/outbox, node-attempt and exact-operation
 ledger plus durable

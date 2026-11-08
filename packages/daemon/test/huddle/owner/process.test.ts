@@ -2,7 +2,14 @@ import { randomBytes, randomUUID } from 'node:crypto';
 import { spawn } from 'node:child_process';
 import { connect as connectSocket } from 'node:net';
 import { once } from 'node:events';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  realpathSync,
+  existsSync,
+  readFileSync,
+  writeFileSync,
+  mkdirSync,
+  unlinkSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it } from 'vitest';
 import {
@@ -21,6 +28,7 @@ import {
   runtimeDirectory,
 } from '../../../src/runtime/ownership/storage.js';
 import { acquireHostClaim } from '../../../src/security/claims.js';
+import { withInterval } from '../../helpers/huddle/interval.js';
 import { schedulerSnapshot } from '../../helpers/huddle/scheduler.js';
 import {
   prepare,
@@ -44,14 +52,24 @@ async function until(check: () => boolean | Promise<boolean>) {
     await sleep(20);
   }
 }
-function fixture(source: string, concurrency = 1) {
+function fixture(source: string, concurrency = 1, interval = false) {
   const base = prepare();
+  if (interval) {
+    base.home = realpathSync(base.home);
+    base.launch.identity.canonical_worktree_path = base.home;
+  }
   const huddleId = randomBytes(16).toString('hex');
   const snapshot = schedulerSnapshot(huddleId, source);
   snapshot.definition.execution.concurrency = concurrency;
   snapshot.definition.nodes.find((node) => node.id === 'worker')!.concurrency = concurrency;
   snapshot.files['huddle.json'] = JSON.stringify(snapshot.definition);
   snapshot.digest = huddleRevisionDigest(snapshot.files, snapshot.components);
+  if (interval) {
+    withInterval(snapshot);
+    const root = join(base.home, '.puddle', 'huddle', huddleId);
+    mkdirSync(root, { recursive: true });
+    writeFileSync(join(root, 'huddle.json'), snapshot.files['huddle.json']!);
+  }
   const launch = huddleOwnerLaunchSchema.parse({
     format: 1,
     role: 'huddle',
@@ -120,6 +138,67 @@ const wrap = (source: string) =>
   `import {HuddleNode} from 'puddlang/huddle'; import fs from 'node:fs'; export default HuddleNode({contract:'./node.json', async run({inputs}) { ${source} }});`;
 
 describe('independent huddle owner process', () => {
+  it('admits interval events without a controller, then interrupts and rearms future occurrences', async () => {
+    const f = fixture(wrap('return {completed: inputs.value};'), 1, true);
+    const { client, child } = await start(f);
+    await arm(client);
+    client.close();
+    f.controller.release();
+    await sleep(2300);
+    const replacement = await acquireRuntimeControllerWhenAvailable(f.home);
+    controllers.push(replacement);
+    const observer = await connect(f, f.launch, replacement.record);
+    const records = () => observer.request({ t: 'records', collection: 'executions', after: 0 });
+    await until(async () => {
+      const response = await records();
+      if (response.t === 'records') {
+        const failed = response.rows.find((row) =>
+          ['failed', 'interrupted'].includes(JSON.parse(row.body).state),
+        );
+        if (failed) throw new Error(failed.body);
+      }
+      const inspected = await observer.request({ t: 'inspect' });
+      if (inspected.t === 'state' && inspected.state.failure)
+        throw new Error(inspected.state.failure);
+      return (
+        response.t === 'records' &&
+        response.rows.filter((row) => JSON.parse(row.body).state === 'completed').length >= 2
+      );
+    });
+    await observer.request({ t: 'interrupt' });
+    const before = await records();
+    expect(before.t).toBe('records');
+    await sleep(1200);
+    const paused = await records();
+    expect(paused).toMatchObject({ rows: before.t === 'records' ? before.rows : [] });
+    await arm(observer);
+    await until(async () => {
+      const response = await records();
+      return (
+        response.t === 'records' &&
+        before.t === 'records' &&
+        response.rows.length > before.rows.length
+      );
+    });
+    await observer.request({ t: 'shutdown' });
+    await until(() => child.exitCode !== null);
+    expect(child.exitCode).toBe(0);
+  });
+
+  it('stops timer admission visibly if the definition disappears', async () => {
+    const f = fixture(wrap('return {completed: inputs.value};'), 1, true);
+    const { client } = await start(f);
+    await arm(client);
+    unlinkSync(join(f.home, '.puddle', 'huddle', f.launch.scope.huddleId, 'huddle.json'));
+    await until(async () => {
+      const state = await client.request({ t: 'inspect' });
+      return state.t === 'state' && state.state.failure !== null;
+    });
+    const records = await client.request({ t: 'records', collection: 'executions', after: 0 });
+    expect(records).toMatchObject({ t: 'records', rows: [] });
+    await client.request({ t: 'shutdown' });
+  });
+
   it('wakes an active scheduler when a new root can use another worker slot', async () => {
     const f = fixture(
       wrap(

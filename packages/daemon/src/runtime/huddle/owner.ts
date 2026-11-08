@@ -18,6 +18,9 @@ import { HuddleRevisionController } from './control/revisions.js';
 import { admitManualHuddle } from './control/manual.js';
 import { HuddleScheduler } from './execution/scheduler.js';
 import { HuddleOwnerServer } from './transport/server.js';
+import { requireHuddleDefinitionLocation } from '../../huddle/definitions/location.js';
+import { HuddleTimerController } from './triggers/controller.js';
+import { requireHuddleFeatures } from './triggers/definitions.js';
 import { HuddleOperationMailbox } from './operations/mailbox.js';
 
 /** One independent graph owner. It never opens the application's database or creates a PTY. */
@@ -28,6 +31,7 @@ export class HuddleOwner {
   private readonly scheduler: HuddleScheduler;
   private readonly transport: HuddleOwnerServer;
   private readonly operations: HuddleOperationMailbox;
+  private readonly timers: HuddleTimerController;
   private status: HuddleOwnerState['state'] = 'running';
   private failure: string | null = null;
   private observation = 0;
@@ -70,6 +74,26 @@ export class HuddleOwner {
           return this.operations.request(request, invocation, signal);
         },
       });
+      this.timers = new HuddleTimerController(
+        this.ledger,
+        this.store,
+        launch.capabilities,
+        () => this.drive(),
+        (error) => {
+          this.failure = (error instanceof Error ? error.message : String(error)).slice(0, 4096);
+          try {
+            this.persist();
+          } catch {
+            this.failure = 'Huddle timer state persistence failed';
+          }
+        },
+        () =>
+          requireHuddleDefinitionLocation(
+            launch.identity.canonical_worktree_path,
+            launch.scope.huddleId,
+          ),
+        memory.allowance,
+      );
       this.transport = new HuddleOwnerServer(home, launch, memory.allowance, (request) =>
         this.execute(request),
       );
@@ -101,7 +125,9 @@ export class HuddleOwner {
       }
       syncPrivateDirectory(memory.directory);
       const { initial } = memory.launch;
-      owner.revisions.apply(owner.store.read(initial.revision), initial, 0);
+      const snapshot = owner.store.read(initial.revision);
+      requireHuddleFeatures(snapshot, memory.launch.capabilities);
+      owner.revisions.apply(snapshot, initial, 0);
       owner.persist();
       await owner.transport.listen();
       return owner;
@@ -160,11 +186,14 @@ export class HuddleOwner {
     this.driving = pending;
     const finished = (error?: unknown) => {
       if (this.driving === pending) this.driving = null;
-      if (error !== undefined)
+      if (error !== undefined) {
+        this.timers.stop();
         this.failure = (error instanceof Error ? error.message : String(error)).slice(0, 4096);
+      }
       try {
         this.persist();
       } catch {
+        this.timers.stop();
         this.failure = 'Huddle owner state persistence failed';
       }
     };
@@ -219,6 +248,7 @@ export class HuddleOwner {
       };
     }
     if (request.t === 'shutdown') {
+      this.timers.stop();
       // Acknowledgement is acceptance only. Retain ownership until workers and queued controls have drained.
       setImmediate(() => {
         void this.stop().catch(() => {});
@@ -227,11 +257,16 @@ export class HuddleOwner {
     }
     if (this.stopping || this.interrupting) throw new Error('Huddle lifecycle change is pending');
     if (request.t === 'interrupt') {
+      this.timers.stop();
       this.interrupting = this.scheduler.halt('interrupted', 'Huddle interrupted by controller');
       try {
         await this.interrupting;
         await this.driving;
         this.persist();
+      } catch (error) {
+        this.failure = (error instanceof Error ? error.message : String(error)).slice(0, 4096);
+        this.persist();
+        throw error;
       } finally {
         this.interrupting = null;
       }
@@ -244,17 +279,15 @@ export class HuddleOwner {
         this.memory.launch.identity.canonical_worktree_path
       )
         throw new Error('Huddle definition worktree cannot change within an owner');
-      this.revisions.apply(
-        this.store.read(request.activation.revision),
-        request.activation,
-        request.expectedGeneration,
-      );
-      this.persist();
+      const snapshot = this.store.read(request.activation.revision);
+      requireHuddleFeatures(snapshot, this.memory.launch.capabilities);
+      this.revisions.apply(snapshot, request.activation, request.expectedGeneration);
+      this.refreshTimers();
       return state();
     }
     if (request.t === 'arm') {
       this.ledger.activations.setIntent(request.expectedGeneration, 'armed', request.autoStart);
-      this.persist();
+      this.refreshTimers();
       this.drive();
       return state();
     }
@@ -274,11 +307,24 @@ export class HuddleOwner {
     };
   }
 
+  private refreshTimers() {
+    try {
+      this.persist();
+      this.timers.refresh();
+    } catch (error) {
+      this.timers.stop();
+      this.failure = (error instanceof Error ? error.message : String(error)).slice(0, 4096);
+      this.persist();
+      throw error;
+    }
+  }
+
   stop(): Promise<void> {
     if (!this.stopping) this.stopping = this.shutdown();
     return this.stopping;
   }
   private async shutdown() {
+    this.timers.stop();
     this.status = 'stopping';
     try {
       this.persist();

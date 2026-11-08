@@ -22,7 +22,7 @@ export function huddleExecutionBindings(
     throw ApiError.conflict('huddle_execution_unsupported', message);
   };
   if (snapshot.definition.execution.queue !== 'queue')
-    unsupported('This runtime supports queued manual inputs only');
+    unsupported('This runtime supports queued trigger inputs only');
   for (const node of snapshot.definition.nodes) {
     const component = snapshot.components[node.id]!;
     if (node.source.kind === 'local' && component.category !== 'script')

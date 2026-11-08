@@ -101,7 +101,7 @@ export function CommandDialog({
         <DialogDescription>
           {running
             ? 'Send one input to the active graph. Apply saved edits to use them in future runs.'
-            : 'Use the saved files and the variables below. Unsaved script edits are not included. Starting does not send input.'}
+            : 'Use the saved files and the variables below. Unsaved script edits are not included. Start arms automatic triggers; Apply resets their schedule for the new revision. Manual input is sent separately.'}
         </DialogDescription>
         {!running && (
           <div className="space-y-1 text-xs text-fg-muted">

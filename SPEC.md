@@ -1379,6 +1379,15 @@ accepted revision, variable values and resource bindings across later Apply.
 The scheduler starts isolated workers under root/node concurrency limits, wakes
 on events/deadlines and releases idle graph caches. Interruption fences admission,
 cancels queued roots and observes child exit; unknown termination blocks dispatch.
+The optional `timers: 1` role capability adds interval triggers under
+`runtime/huddle/triggers/`. One owner deadline timer admits bounded occurrences
+without a renderer or daemon controller. UTC anchors and generation-scoped progress
+live in `intervals/current`; event/cursor/schedule progress commit together. Start,
+Resume and armed Apply start fresh schedules. Interrupt/Stop disarm; missing source
+or exhausted admission stops the timer and reports owner failure. Coalesce, skip
+and bounded catch-up describe missed timer occurrences, independently of graph queue
+policy. Timers share host memory admission and execution/storage budgets. Calendar,
+Filetree/Git/Puddle subscriptions and custom adapters remain unfinished.
 The runtime entry point selects a separate huddle owner from a strict private launch
 record. It reuses runtime/memory claims, host grants and lifetime checks; consumes
 launch intent once; and provides bounded authenticated controller commands.

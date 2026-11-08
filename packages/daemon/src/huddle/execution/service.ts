@@ -1,3 +1,4 @@
+import { requireHuddleFeatures } from '../../runtime/huddle/triggers/definitions.js';
 import { randomUUID } from 'node:crypto';
 import {
   huddleStartSchema,
@@ -291,6 +292,14 @@ export class HuddleExecutionService {
             'huddle_execution_unsupported',
             'This owner cannot dispatch agent operations; start with a supporting runtime',
           );
+        try {
+          requireHuddleFeatures(snapshot, state.capabilities);
+        } catch (error) {
+          throw ApiError.conflict(
+            'huddle_execution_unsupported',
+            error instanceof Error ? error.message : String(error),
+          );
+        }
         scope.check();
         new HuddleRevisionStore(
           this.deps.home,
