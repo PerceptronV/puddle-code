@@ -4,10 +4,12 @@ Status: foundation in progress, 2026-11-08. The full objective remains the
 [huddle roadmap](../roadmap/huddle.md). Application 27.1 exposes inactive definition
 creation/opening through local/SSH HTTP. Application 28.0 adds the sidebar entry
 and graph panes. Manifest editing now shares ordinary editor drafts, undo and
-conflict review; layout editing remains unfinished. The IDE now includes reviewed
+conflict review. Layout drafts now support pointer/touch and keyboard node movement,
+position fields, pan/fit and shared-source close/transfer handling. The IDE includes reviewed
 manual execution controls and live history.
 Application 28.2 exposes local/SSH manual execution and live-owner history APIs.
 Application 28.3 adds editable agent templates and feedback settings.
+Application 28.4 adds guarded absent-file creation and layout editing.
 Runtime archives declare their internal huddle-role contracts;
 application 27.0 now includes huddle session identity and migration 43 records
 placements/owner roles. The daemon launcher and lifecycle controls now integrate
@@ -15,6 +17,60 @@ with session kill/archive; migration 44 retains Stop intent. Migration 45 adds
 host-side agent-turn identities; the owner mailbox now has private transport,
 and production daemon dispatch now supports declared attach/ask scripts. Migration
 46 retains exact cancellation attempts. No user CLI command is enabled yet.
+
+## Implemented: movable nodes and shared layout drafts
+
+The canvas supports primary-pointer and touch dragging, keyboard arrows (10 units,
+50 with Shift), X/Y position fields, background panning, zoom and fit graph/selection.
+Pointer previews stay local until release; one finished drag adds one layout undo
+step. Escape, pointer cancellation and lost capture discard the preview. A gesture
+checks the layout model version before commit and cannot replace a concurrent source
+edit. Negative coordinates and schema bounds remain supported. Position edits retain
+all current node positions and discard orphan positions; graph/node execution is
+unchanged.
+
+`documents/use-source-buffer.ts` shares ordinary editor state for `huddle.json` and
+`layout.json`. Graph Undo/Redo and layout Undo move/Redo move are separate histories;
+Cmd/Ctrl-Z on a focused node uses layout history. Save and the huddle save shortcut
+save both documents through their individual file guards. A partial save can leave
+one file saved and the other conflicted; there is no multi-file transaction claim.
+Open layout uses the same Monaco model. Dirty markers, refcounts, duplicate-view
+close review, browser recovery drafts, desktop capture/transfer/arrangement helpers
+and archive source retention now include both files. Unsaved layout content with an
+absent-file baseline remains a normal transferable draft.
+
+An absent optional layout is represented as clean default text only after a valid
+sibling definition is read. Opening does not write source or create an owner.
+Application **28.4** reserves `expected_mtime_ms: -1` on worktree-file PUT for
+exclusive creation. Existing files and symlinks return `409 stale_file` without
+replacement. Client creation requires advertised 28.4 support; ordinary saves keep
+their existing mtime guards. Layout movement is gated on that host floor. Runtime
+contracts, database schema and private desktop content format are unchanged.
+
+The canvas conflict check exposed a shared Monaco issue when adopting a shorter
+disk document while old diff gutter ranges remained mounted. ConflictView now
+detaches its models before Take disk replacement while keeping the widget alive.
+A failed read restores the comparison without replacing its context services.
+It keeps the shared draft/model and normal conditional reconciliation path.
+
+Verification: **562 tests passed in 77 files** across shared huddle/window contracts,
+worktree-file routes, web editor/workspace/window helpers and huddle navigation.
+Tests include competing absent-file creators, existing-file/symlink preservation,
+two-document transfer/capture and last-holder accounting. The headless canvas check
+covers zoom-aware mouse dragging, real browser touch events, keyboard movement,
+undo/redo, Escape, a concurrent source edit during a drag, panning, fit controls,
+guarded creation, save conflict, failed Take disk read and successful retry, and
+duplicate layout-source close review. It also verifies older-host gating and makes
+no execution request. All five huddle browser scripts (authoring, editing, templates,
+execution and canvas) and ordinary duplicate-file close checks pass. Three headless
+window regressions pass: pane return, file menus and project layouts. Shared, daemon,
+web and CLI TypeScript builds, repository ESLint/Prettier, token contrast checks and
+`git diff --check` pass. Light and dark canvas screenshots were visually reviewed.
+
+Wire dragging, retained camera/selection, viewport culling/large-graph measurement,
+unified graph/layout undo and full native window gestures remain unfinished. These
+checks use the UI-only preview and isolated file-route fixtures, not native desktop
+input or production agents.
 
 ## Implemented: editable agent templates and feedback settings
 
@@ -578,10 +634,10 @@ tab-entry animations; it passed unchanged in isolation, followed by
 `browser-components`. This intermittent animation result remains recorded here;
 no assertion was weakened. Light and dark huddle screenshots were inspected.
 
-Later manifest editing is documented above. Still pending: node movement and wire
-dragging, complete generated settings and component-change observation,
-retained graph camera/selection across transfers, templates, IDE execution
-controls/history and authoring assistance. This is an initial inspectable pane,
+Later manifest/layout editing, templates and execution controls are documented above.
+Still pending: wire dragging, complete generated settings and component-change
+observation, retained graph camera/selection across transfers and authoring assistance.
+This remains partial IDE implementation,
 not acceptance of the complete IDE. Native OS focus/drag and packaged continuity
 remain separate pending checks.
 
@@ -1421,7 +1477,7 @@ Phase 1 has retained revisions/activation, the ledger, routing, workers and a ma
 scheduler composed in an independent owner process, now exposed through local/SSH
 lifecycle and live-history APIs with IDE controls. Next complete retained/offline
 history, active-revision detail, the exact-operation
-bridge, host resource accounting and lifecycle fencing. Finish node movement and
+bridge, host resource accounting and lifecycle fencing. Finish wire dragging,
 settings, actual trigger/readout adapters, provider-backed lifecycle nodes,
 authoring tools/docs/skills and packaged integration.
 

@@ -10,7 +10,13 @@ export function FileCloseScope({ state, children }: { state: UiStateHandle; chil
 }
 
 export function useRetainFileOnClose(file: Parameters<typeof fileViewCount>[1]) {
+  const retained = useFileCloseRetention();
+  return () => retained(file);
+}
+
+export function useFileCloseRetention() {
   const state = useContext(Context);
   // Read at the gesture and again at approval: another view can open during review.
-  return () => state !== null && fileViewCount(state.current(), file) > 1;
+  return (file: Parameters<typeof fileViewCount>[1]) =>
+    state !== null && fileViewCount(state.current(), file) > 1;
 }

@@ -1,5 +1,5 @@
 import { IslandSeparator } from './IslandSeparator';
-import { huddleDefinitionPath } from '@puddle/shared';
+import { huddleSourcePaths } from '@puddle/shared';
 import { Fragment, useMemo } from 'react';
 import { Group, Panel, type Layout } from 'react-resizable-panels';
 import type {
@@ -80,7 +80,9 @@ export function TileTree({ tree, ...handlers }: { tree: LayoutNode } & TileHandl
       if (t.type === 'huddle') {
         const session = handlers.sessions.find((session) => session.id === t.session);
         if (session?.huddle_id)
-          out.push({ session: t.session, path: huddleDefinitionPath(session.huddle_id) });
+          out.push(
+            ...huddleSourcePaths(session.huddle_id).map((path) => ({ session: t.session, path })),
+          );
         continue;
       }
       // Commit and untitled tabs use private/profile-owned models. External

@@ -51,7 +51,7 @@ export type PreviewAssetResponse = z.infer<typeof previewAssetResponseSchema>;
 /** `PUT /api/worktrees/:sid/file?path=…` — save editor content back to disk. */
 export const putFileRequestSchema = z.object({
   content: z.string(),
-  /** Optimistic-concurrency guard: reject the write if the file changed since this mtime. */
+  /** Optimistic concurrency; -1 requires exclusive creation of an absent file (28.4). */
   expected_mtime_ms: z.number().optional(),
 });
 export type PutFileRequest = z.infer<typeof putFileRequestSchema>;

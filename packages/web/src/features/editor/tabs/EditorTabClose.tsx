@@ -19,26 +19,39 @@ import { desktopWindowContext } from '../../windows/window-context';
 import { useEditorCloseRequest } from '../../workspace/tabs/close/TabCloseRequests';
 import { cancelDiscardedDraftWrites } from '../buffers/draft-discard';
 import { useCloseReview } from '../../workspace/tabs/close/use-close-review';
-import { useRetainFileOnClose } from '../../workspace/tabs/close/FileCloseScope';
+import { useFileCloseRetention } from '../../workspace/tabs/close/FileCloseScope';
 
 /** Reactive dirty flag for one (session, path[, root]) buffer. */
-function useDirty(session: string, path: string, root?: string): boolean {
-  const key = bufferKey(session, path, root);
+function useDirty(
+  session: string,
+  path: string,
+  root?: string,
+  relatedPaths: string[] = [],
+): boolean {
+  const paths = [path, ...relatedPaths].join('\0');
   const profile = useCurrentProfileId();
   const recovery = profile && desktopWindowContext() ? desktopContentState(profile) : null;
   return useSyncExternalStore(
     useCallback(
       (cb: () => void) => {
-        const offModel = subscribe(key, cb);
+        const offModels = paths
+          .split('\0')
+          .map((path) => subscribe(bufferKey(session, path, root), cb));
         const offRecovery = recovery?.subscribe(cb);
         return () => {
-          offModel();
+          offModels.forEach((off) => off());
           offRecovery?.();
         };
       },
-      [key, recovery],
+      [paths, session, root, recovery],
     ),
-    () => isDirty(key) || !!recovery?.buffer({ session, path, root }),
+    () =>
+      paths
+        .split('\0')
+        .some(
+          (path) =>
+            isDirty(bufferKey(session, path, root)) || !!recovery?.buffer({ session, path, root }),
+        ),
   );
 }
 
@@ -54,14 +67,16 @@ export function EditorDirtyDot({
   path,
   kind,
   root,
+  relatedPaths,
 }: {
   session: string;
   path: string;
   kind: EditorTabKind;
   /** Absolute browse root of an `external` tab (SPEC §8). */
   root?: string;
+  relatedPaths?: string[];
 }) {
-  const dirty = useDirty(session, path, root) && kind !== 'commit';
+  const dirty = useDirty(session, path, root, relatedPaths) && kind !== 'commit';
   if (!dirty) return null;
   return (
     <Circle
@@ -88,6 +103,7 @@ export function EditorTabClose({
   onClose,
   closeKey,
   recovered = false,
+  relatedPaths = [],
 }: {
   session: string;
   path: string;
@@ -98,32 +114,45 @@ export function EditorTabClose({
   onClose: (signal?: AbortSignal) => void | Promise<boolean>;
   closeKey?: string;
   recovered?: boolean;
+  relatedPaths?: string[];
 }) {
   const profileId = useCurrentProfileId();
   // Untitled drafts have their own workspace-owned deletion dialogue.
-  const dirty = useDirty(session, path, root) && kind !== 'commit' && kind !== 'untitled';
+  const dirty =
+    useDirty(session, path, root, relatedPaths) && kind !== 'commit' && kind !== 'untitled';
   const { review, pending } = useCloseReview<null>(closeKey ?? bufferKey(session, path, root));
-  const retainFile = useRetainFileOnClose({ session, path, root });
+  const retainFile = useFileCloseRetention();
+  const files = [path, ...relatedPaths].map((path) => ({ session, path, root }));
+  const recovery = profileId && desktopWindowContext() ? desktopContentState(profileId) : null;
+  const needsReview = () =>
+    files.some(
+      (file) =>
+        (isDirty(bufferKey(file.session, file.path, file.root)) || !!recovery?.buffer(file)) &&
+        (recovered || !retainFile(file)),
+    );
 
   const requestClose = (signal?: AbortSignal): Promise<boolean> => {
     if (signal?.aborted) return Promise.resolve(false);
-    return dirty && (recovered || !retainFile())
+    return dirty && needsReview()
       ? review.request('discard', null, signal)
       : Promise.resolve(onClose(signal)).then((accepted) => accepted !== false);
   };
   useEditorCloseRequest(closeKey, requestClose);
   const discard = () => {
     if (!pending || review.get() !== pending) return;
-    if (!recovered && retainFile()) {
+    if (!recovered && !needsReview()) {
       review.finish(pending, true);
       onClose();
       return;
     }
-    if (!recovered) cancelDiscardedDraftWrites(session, path, root);
-    if (profileId) desktopContentState(profileId).discardBuffer({ session, path, root });
-    if (!recovered) {
-      void deleteDraft(session, path, root);
-      announceDraftDiscarded(session, path, root);
+    for (const file of files) {
+      if (!recovered && retainFile(file)) continue;
+      if (!recovered) cancelDiscardedDraftWrites(file.session, file.path, file.root);
+      if (profileId) desktopContentState(profileId).discardBuffer(file);
+      if (!recovered) {
+        void deleteDraft(file.session, file.path, file.root);
+        announceDraftDiscarded(file.session, file.path, file.root);
+      }
     }
     review.finish(pending, true);
     onClose();
@@ -158,7 +187,9 @@ export function EditorTabClose({
             <DialogDescription>
               {recovered
                 ? 'This removes the recovered copy from this window. Download or copy it first if you want to keep it.'
-                : 'This file has unsaved changes. Closing the tab will discard them.'}
+                : relatedPaths.length
+                  ? 'This huddle has unsaved source or layout changes. Closing its last view will discard them.'
+                  : 'This file has unsaved changes. Closing the tab will discard them.'}
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

@@ -16,7 +16,7 @@ Past releases: see docs/changelogs/.
 - Build huddles with editable Prompt agent and Review agent nodes, project worktree/agent selectors, input variables in prompts and bounded feedback settings. Templates save ordinary source files; graph editing and execution remain separate.
 - Start and apply saved huddle graphs, send manual input, interrupt/resume/stop execution and inspect paged results in the IDE on supporting local/SSH hosts. Failed replies require observation before another action; reconnect never resends input. Agent spawning and external triggers remain pending.
 - Add New huddle to the session tray, collapsed rail and project menus, with explicit worktree selection and saved-huddle opening. Huddles open as separate pane content; creating/opening stays inactive.
-- Edit huddle nodes, connections, parameter bindings, colours and icons using a shared graph/source draft with undo and save-conflict review. Manifest drafts follow pane/window transfers and closing duplicate views preserves them. Node movement remains pending.
+- Edit huddle nodes, connections, parameter bindings, colours and icons using shared source drafts. Move nodes with mouse, touch, arrow keys or position fields; pan and fit the graph. Manifest and layout drafts follow pane/window transfers, with separate undo histories and save-conflict review.
 - Preserve huddle tabs through layouts and native window content. Application protocol 28 and desktop recovery format 4 require supporting clients; existing agent/terminal runtime contracts remain unchanged.
 
 #### Changed
@@ -26,6 +26,7 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
+- Detach a conflict comparison before adopting shorter disk content, avoiding stale Monaco gutter ranges while retaining retryable comparison after a failed read.
 - Cover the native terminal's leftmost column in Ripple so prompt markers and input do not appear twice when the handle is dragged to the bottom, on desktop and mobile.
 - Refresh cached website favicons, installed web app icons and notification icons to use the new Puddle logo set.
 
@@ -33,6 +34,7 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Support guarded creation of absent worktree files through `expected_mtime_ms: -1` (application 28.4). Concurrent creations and existing symlinks return a conflict without replacement.
 - Dispatch huddle attach/ask scripts to explicitly bound live agents, sharing ordinary puddlang busy admission and preserving accepted turns through daemon handoff. Surface unsent refusals, retain uncertain sends, and persist exact cancellation attempts (database schema 46); agent graphs require huddle operation capability 2.
 - Add internal huddle agent-turn admission with durable caller identities, shared result-capacity accounting and explicit owner acknowledgement before result reclamation (database schema 45). Custom scripts and shipped prompt/review nodes can attach to declared live agents; spawn/resume remains pending.
 - Expose local/SSH huddle Start, Apply, Rearm, Run, Interrupt, Stop and live-history APIs (application 28.2). Run saved manual-input/local-script graphs in independent owners with reviewed activation targets; unsupported selectors and custom adapters remain gated.

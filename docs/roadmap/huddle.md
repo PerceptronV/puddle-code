@@ -9,10 +9,12 @@ captured-source script workers, retained revisions/activation and a manual sched
 in an independent owner process with private authenticated control, explicit
 runtime-role metadata and pinned capability checks. Phase 2 has the third session
 kind, immutable application placement and common runtime inventory role, with
-application protocol 28.3. Local/SSH inactive creation, discovery, inspection and
+application protocol 28.4. Local/SSH inactive creation, discovery, inspection and
 placement opening now have sidebar creation and a graph pane with manifest
-editing, shared source drafts, settings, undo and file-conflict review. Node
-movement and full visual editing remain unfinished. The IDE now exposes saved-source
+editing, shared source/layout drafts, settings, undo and file-conflict review.
+Pointer/touch and keyboard node movement, position settings, pan and fit controls
+are implemented. Wire dragging, graph camera/selection persistence and large-graph
+culling remain unfinished. The IDE now exposes saved-source
 Start/Apply, manual Run, Interrupt/Resume/Stop and live execution history. Daemon
 adoption/projection now observes independent huddle owners alongside ordinary
 runtimes, including across isolated daemon replacement. Pinned production launch
@@ -717,8 +719,8 @@ graph routing, isolated script workers, retained revisions/activation and a manu
 scheduler and independent owner process/private control. Production launch/adoption
 and maintenance integration are implemented; attach/ask dispatch is wired, while full provider lifecycle nodes and native continuity acceptance remain unfinished. Phase 2 has
 inactive creation/opening, sidebar integration and manifest graph editing with
-shared editor drafts and local/SSH manual lifecycle/history APIs; node movement,
-complete settings, stopped-owner history and active-revision detail remain pending.
+shared editor drafts, movable nodes and local/SSH manual lifecycle/history APIs;
+wire dragging, complete settings, stopped-owner history and active-revision detail remain pending.
 The IDE now has reviewed lifecycle controls, manual input and live result inspection,
 plus initial editable prompt/review templates and connection feedback settings;
 phase 3 still needs spawn/resume and provider-native acceptance. Each phase

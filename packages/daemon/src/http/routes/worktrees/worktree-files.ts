@@ -89,6 +89,19 @@ export function worktreeFileRoutes(deps: WorktreeDeps): Hono {
       if (!existsSync(parent) || !statSync(parent).isDirectory()) {
         throw ApiError.badRequest('not_a_directory', `parent directory of ${rel} does not exist`);
       }
+      if (body.expected_mtime_ms === -1) {
+        const content = newFileContent(target, body.content);
+        try {
+          writeFileSync(target, content, { encoding: 'utf8', flag: 'wx' });
+        } catch (error) {
+          if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+          deps.compilation?.fileConflicted(target);
+          throw ApiError.conflict('stale_file', `${rel} already exists`);
+        }
+        const st = statSync(target);
+        deps.compilation?.fileChanged(target);
+        return c.json<PutFileResponse>({ path: rel, mtime_ms: st.mtimeMs, size: st.size });
+      }
       if (body.expected_mtime_ms !== undefined) {
         if (!existsSync(target)) {
           deps.compilation?.fileConflicted(target);

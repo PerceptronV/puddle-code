@@ -10,6 +10,7 @@ import {
   huddleDocumentSchema,
   huddleComponentSchema,
   huddleAgentTemplateFiles,
+  huddleLayoutSchema,
   sessionSchema,
 } from '@puddle/shared';
 import { profile, project, sessions } from '../../src/dev/preview/data';
@@ -139,6 +140,7 @@ const changedRevision = () => {
   document.digest = (++revision).toString(16).padStart(64, '0');
 };
 let opened = false;
+let failLayoutRead = false;
 const nativeFetch = window.fetch.bind(window);
 window.fetch = async (input, init) => {
   const url = new URL(input instanceof Request ? input.url : String(input), location.href);
@@ -151,12 +153,21 @@ window.fetch = async (input, init) => {
   const prefix = `/api/huddle/${profile.id}`;
   if (
     path === '/api/version' &&
-    (!executionSupported || new URLSearchParams(location.search).has('old-templates'))
+    (!executionSupported ||
+      new URLSearchParams(location.search).has('old-templates') ||
+      new URLSearchParams(location.search).has('old-layout'))
   ) {
     const version = await transport.request(method, path, body).then((response) => response.json());
     return Response.json({
       ...version,
-      protocol: { major: 28, minor: executionSupported ? 2 : 1 },
+      protocol: {
+        major: 28,
+        minor: !executionSupported
+          ? 1
+          : new URLSearchParams(location.search).has('old-layout')
+            ? 3
+            : 2,
+      },
     });
   }
   const execution = path.match(new RegExp(`^${prefix}/sessions/([^/]+)/([^/]+)$`));
@@ -227,16 +238,34 @@ window.fetch = async (input, init) => {
   }
   if (path.endsWith('/file') && url.searchParams.get('path')?.startsWith('.puddle/huddle/')) {
     const filename = url.searchParams.get('path')!.replaceAll('/./', '/');
+    if (method === 'GET' && filename.endsWith('/layout.json') && failLayoutRead)
+      return Response.json(
+        { error: { code: 'read_failed', message: 'Layout read failed' } },
+        { status: 500 },
+      );
     const id = filename.split('/')[2]!;
     const definition = filename === `.puddle/huddle/${id}/huddle.json`;
-    const file = definition ? disk.get(id) : components.get(filename);
+    let file = definition ? disk.get(id) : components.get(filename);
+    const creating =
+      !file &&
+      method === 'PUT' &&
+      body.expected_mtime_ms === -1 &&
+      filename.endsWith('/layout.json');
+    if (creating) {
+      file = { content: '', mtime: 1 };
+      components.set(filename, file);
+    }
     if (!file)
       return Response.json(
         { error: { code: 'not_found', message: 'File not found' } },
         { status: 404 },
       );
     if (method === 'PUT') {
-      if (body.expected_mtime_ms !== undefined && body.expected_mtime_ms !== file.mtime)
+      if (
+        !creating &&
+        body.expected_mtime_ms !== undefined &&
+        body.expected_mtime_ms !== file.mtime
+      )
         return Response.json(
           { error: { code: 'stale_file', message: 'Definition changed on disk' } },
           { status: 409 },
@@ -256,6 +285,12 @@ window.fetch = async (input, init) => {
               );
           }
         }
+      }
+      if (filename.endsWith('/layout.json')) {
+        const target = id === savedId ? document : blank!;
+        const parsed = huddleLayoutSchema.safeParse(JSON.parse(file.content));
+        target.layout = parsed.success ? parsed.data : undefined;
+        changedRevision();
       }
     }
     return Response.json({
@@ -278,6 +313,21 @@ Object.assign(window, {
     project: project.id,
     source: () => JSON.parse(disk.get(savedId)!.content),
     componentFiles: () => Object.fromEntries(components),
+    layout: () =>
+      JSON.parse(components.get(`.puddle/huddle/${savedId}/layout.json`)?.content ?? 'null'),
+    failLayoutRead: (value: boolean) => {
+      failLayoutRead = value;
+    },
+    externalLayout: (nodes: Record<string, { x: number; y: number }>) => {
+      const filename = `.puddle/huddle/${savedId}/layout.json`;
+      const previous = components.get(filename);
+      document.layout = huddleLayoutSchema.parse({ format: 1, nodes });
+      components.set(filename, {
+        content: JSON.stringify(document.layout),
+        mtime: (previous?.mtime ?? 0) + 1,
+      });
+      changedRevision();
+    },
     externalEdit: (name: string) => {
       const file = disk.get(savedId)!;
       const value = JSON.parse(file.content);

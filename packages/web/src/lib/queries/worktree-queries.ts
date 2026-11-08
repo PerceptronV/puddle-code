@@ -28,6 +28,8 @@ import type {
 import { api, apiFetchRaw } from '../transport/api';
 import { focusAwareInterval } from './poll-focus';
 import { downloadBlob } from '../download-blob';
+import { optionalHuddleLayout } from './optional-huddle-layout';
+import { supportsApplicationFeature, type VersionResponse } from '@puddle/shared';
 
 /**
  * TanStack Query hooks for a session's worktree: file browsing/editing (the
@@ -92,6 +94,8 @@ export function useWorktreeFile(
       api<FileResponse>(
         'GET',
         `/api/worktrees/${sid}/file?path=${encodeURIComponent(path)}${rootParam(root)}`,
+      ).catch((error) =>
+        root === undefined && sid ? optionalHuddleLayout(sid, path, error) : Promise.reject(error),
       ),
     enabled: sid !== undefined && (opts?.enabled ?? true),
     // `live`: keep re-reading the file so a view that only READS it (a rendered
@@ -109,12 +113,18 @@ export function useWorktreeFile(
 export function useSaveWorktreeFile(sid: string | undefined, root?: string) {
   const qc = useQueryClient();
   return useMutation({
-    mutationFn: ({ path, ...body }: { path: string } & PutFileRequest) =>
-      api<PutFileResponse>(
+    mutationFn: ({ path, ...body }: { path: string } & PutFileRequest) => {
+      if (body.expected_mtime_ms === -1) {
+        const version = qc.getQueryData<VersionResponse>(['version']);
+        if (!supportsApplicationFeature(version?.protocol, { major: 28, minor: 4 }))
+          throw new Error('Creating this file without overwriting requires a newer host');
+      }
+      return api<PutFileResponse>(
         'PUT',
         `/api/worktrees/${sid}/file?path=${encodeURIComponent(path)}${rootParam(root)}`,
         body,
-      ),
+      );
+    },
     onSuccess: (_res, { path }) => {
       void qc.invalidateQueries({
         queryKey: root === undefined ? ['wt-file', sid, path] : ['wt-file', sid, path, root],

@@ -1,4 +1,4 @@
-import { huddleDefinitionPath } from '@puddle/shared';
+import { huddleDefinitionPath, huddleSourcePaths } from '@puddle/shared';
 import { tabCloseKey } from '../tabs/close/TabCloseRequests';
 import { panePathLabel } from './pane-path';
 import './pane-tab-strip.css';
@@ -621,6 +621,7 @@ function PaneTab({
             <LazyEditorDirtyDot
               session={session.id}
               path={huddleDefinitionPath(session.huddle_id)}
+              relatedPaths={huddleSourcePaths(session.huddle_id).slice(1)}
               kind="file"
             />
           )}
@@ -631,6 +632,7 @@ function PaneTab({
                 closeKey={tabCloseKey(leafId, key)}
                 session={session.id}
                 path={huddleDefinitionPath(session.huddle_id)}
+                relatedPaths={huddleSourcePaths(session.huddle_id).slice(1)}
                 kind="file"
                 label={renderTitle(session)}
                 onClose={onClose}

@@ -1414,7 +1414,17 @@ and project menus. Huddle content renders saved nodes/ports/wires, a list/inspec
 and ordinary editor source links. Manifest graph edits now share the source file's
 Monaco model, drafts, undo, conditional saves and conflict review. Node creation,
 connection selectors, deletion, parameter bindings and appearance controls are
-available; node movement and complete settings remain unfinished.
+available. Application 28.4 adds pointer/touch node movement, arrow-key movement,
+position fields, background panning and fit controls. Positions edit a shared
+`layout.json` model with its own undo history; one completed drag is one edit,
+and cancelled or stale-layout gestures cannot overwrite source changes. A missing
+layout starts as a clean virtual document only after sibling definition validation;
+an explicit Save uses `expected_mtime_ms: -1` for exclusive creation. Existing files
+still use ordinary conditional saves. Source and layout saves are independent;
+their combined save action does not promise a multi-file transaction. Huddle dirty
+markers, close review, retained models and transfer/arrangement capture hold both
+documents; archive retains both source tabs. Complete settings, wire dragging,
+camera/selection persistence and large-graph culling remain unfinished.
 Application 28.3 adds editable Prompt agent and Review agent templates under
 `shared/huddle/templates/`, published by `daemon/huddle/templates/` as local
 `nodes/<component>/{node.json,run.ts,prompt.ts}` source. Template creation checks
@@ -1440,7 +1450,7 @@ checks. A stale captured digest returns a conflict; a lost reply requires source
 inspection. Save returns diagnostics without activating code. This does not provide
 a multi-file transaction or a lock against external editors. The graph UI currently
 shares the ordinary editor's mtime-checked file-save path. Huddle tabs hold their
-manifest buffers through transfer/arrangement planning and close review; duplicate
+manifest and layout buffers through transfer/arrangement planning and close review; duplicate
 source/graph views retain the shared text. Existing agent/terminal creation and
 restart controls cannot launch huddles. The shared launcher now has a huddle path
 under the existing admission, supervisor and host memory controls. It requires an

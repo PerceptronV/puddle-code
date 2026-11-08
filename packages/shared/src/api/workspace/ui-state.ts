@@ -63,7 +63,7 @@ export const tabRefSchema = z.discriminatedUnion('type', [
 ]);
 export type TabRef = z.infer<typeof tabRefSchema>;
 
-/** A graph view holds its manifest buffer even without an explicit source tab. */
+/** A graph view holds its manifest and layout even without explicit source tabs. */
 export function tabHoldsFile(
   ref: TabRef,
   file: Pick<EditorTabRef, 'session' | 'path' | 'root'>,
@@ -76,7 +76,7 @@ export function tabHoldsFile(
     ref.type === 'huddle' &&
     ref.session === file.session &&
     file.root === undefined &&
-    /^\.puddle\/huddle\/[a-f0-9]{32}\/huddle\.json$/.test(file.path)
+    /^\.puddle\/huddle\/[a-f0-9]{32}\/(huddle|layout)\.json$/.test(file.path)
   );
 }
 

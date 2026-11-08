@@ -1,5 +1,5 @@
 import { languageForPath } from '../monaco/languages';
-import { useEffect, useId, useMemo, useRef } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { DiffEditor } from '@monaco-editor/react';
 import { useFileEditorSettings } from '../settings/file-editor-settings';
 import { monaco, THEME_NAME } from '../monaco/monaco-setup';
@@ -38,12 +38,13 @@ export function ConflictView({
   conflict: ComparedDiskConflict;
   /** The shared buffer — bound as the modified side, so edits are the real thing. */
   model: monaco.editor.ITextModel;
-  onTakeDisk(): void;
+  onTakeDisk(): Promise<void>;
   onKeepMine(): void;
   onSave(): void;
   onReady?(revision: number): void;
 }) {
   const settings = useFileEditorSettings();
+  const [takingDisk, setTakingDisk] = useState(false);
   const restoreView = useDiffViewState(['conflict', model.uri.toString()]);
   const instanceId = useId();
   const fontMono = useMemo(
@@ -81,7 +82,21 @@ export function ConflictView({
         </span>
         <button
           type="button"
-          onClick={onTakeDisk}
+          disabled={takingDisk}
+          onClick={() => {
+            // Detach old diff ranges before replacing the shared text with a
+            // shorter disk version. Keep the widget alive so a failed read
+            // can restore the comparison without replacing its context services.
+            const editor = diffRef.current;
+            const models = editor?.getModel();
+            editor?.setModel(null);
+            setTakingDisk(true);
+            void onTakeDisk().finally(() => {
+              if (editor && diffRef.current === editor && models) editor.setModel(models);
+              else models?.original.dispose();
+              setTakingDisk(false);
+            });
+          }}
           className="ml-auto shrink-0 text-fg-muted transition-colors hover:text-fg"
         >
           Take the disk version
@@ -89,7 +104,7 @@ export function ConflictView({
         <button
           type="button"
           onClick={onKeepMine}
-          disabled={conflict.phase !== 'comparing'}
+          disabled={takingDisk || conflict.phase !== 'comparing'}
           className="shrink-0 text-fg-muted transition-colors hover:text-fg"
         >
           Keep mine

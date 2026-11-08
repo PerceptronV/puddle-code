@@ -641,9 +641,18 @@ that saved source is the active revision, or that acceptance means completion.
 Manifest graph editing uses the shared `huddle.json` editor model, existing conditional file
 saves/drafts/conflicts and undo history. `tabHoldsFile` recognises manifest ownership
 for window transfers, close review, arrangements and model retention. Keep source
-holders when a graph closes, and retain a source tab when its session is archived.
-The save registry retains every mounted holder. Node movement, full resource
-settings beyond worktree/session selection, external component observation and retained huddle view state remain unfinished.
+holders when a graph closes, and retain both source tabs when its session is archived.
+The save registry retains every mounted holder. Application 28.4 makes `layout.json`
+a second shared editor buffer: huddle tab dirty/close/transfer/arrangement ownership
+must cover both files. Missing layouts use a clean virtual document with baseline
+-1 only after validating the sibling definition. Worktree-file PUT with expected
+mtime -1 uses exclusive creation; never silently overwrite a concurrent creator.
+Feature-gate absent-file creation on 28.4. Keep pointer previews local until commit,
+cancel stale-layout gestures and retain separate graph/layout undo histories.
+Save both documents through ordinary file guards without claiming atomicity.
+Full resource settings beyond worktree/session selection, external component
+observation, wire dragging, large-graph culling and retained graph camera/selection
+remain unfinished.
 Application 28.1 adds revision-checked `PUT /api/huddle/:profile/definitions/:id`:
 one manifest/layout publication per request, under the repository mutation lock.
 `huddle/definitions/save.ts` stages, rechecks captured source/authority and renames

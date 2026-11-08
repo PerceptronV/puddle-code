@@ -68,6 +68,27 @@ function errorCode(body: unknown): string {
   return (body as { error: { code: string } }).error.code;
 }
 
+it('exclusively creates an absent file and preserves a concurrent creation or symlink', async () => {
+  const path = 'new-layout.json';
+  const replies = await Promise.all([
+    putFile(sessionId, path, { content: '{"writer":1}', expected_mtime_ms: -1 }),
+    putFile(sessionId, path, { content: '{"writer":2}', expected_mtime_ms: -1 }),
+  ]);
+  expect(replies.map((reply) => reply.status).sort()).toEqual([200, 409]);
+  const text = readFileSync(join(worktree, path), 'utf8');
+  expect(JSON.parse(text)).toEqual({ writer: replies[0]!.status === 200 ? 1 : 2 });
+  expect(
+    (await putFile(sessionId, path, { content: 'overwrite', expected_mtime_ms: -1 })).status,
+  ).toBe(409);
+  expect(readFileSync(join(worktree, path), 'utf8')).toBe(text);
+  symlinkSync(path, join(worktree, 'layout-link.json'));
+  expect(
+    (await putFile(sessionId, 'layout-link.json', { content: 'overwrite', expected_mtime_ms: -1 }))
+      .status,
+  ).toBe(409);
+  expect(readFileSync(join(worktree, path), 'utf8')).toBe(text);
+});
+
 it('notifies eager compilation after each accepted save, including rooted files, but never after a stale save', async () => {
   const path = 'eager-save.tex';
   writeFileSync(join(worktree, path), 'initial');

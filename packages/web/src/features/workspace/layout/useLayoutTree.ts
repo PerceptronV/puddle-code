@@ -76,7 +76,7 @@ export interface LayoutController {
   revealSource(followerLeafId: string, target: EditorTab): string;
   /** Retarget every live view of a file after its on-disk path changes. */
   renameFile(source: EditorTab, nextPath: string): void;
-  removeSession(session: string, source?: EditorTab): void;
+  removeSession(session: string, source?: EditorTab | EditorTab[]): void;
   pruneSessions(alive: ReadonlySet<string>): void;
   resize(splitId: string, sizes: number[]): void;
   drop(spec: DropSpec): void;
@@ -326,7 +326,8 @@ export function useLayoutTree(uiState: UiStateHandle, scopeKey = 'profile'): Lay
         if (source) {
           for (const leaf of allLeaves(current)) {
             if (leaf.tabs.some((ref) => ref.type === 'huddle' && ref.session === session))
-              current = addBackgroundTabToLeaf(current, leaf.id, { type: 'editor', tab: source });
+              for (const tab of Array.isArray(source) ? source : [source])
+                current = addBackgroundTabToLeaf(current, leaf.id, { type: 'editor', tab });
           }
         }
         persist(pruneTabs(current, (ref) => ref.type === 'editor' || ref.session !== session));

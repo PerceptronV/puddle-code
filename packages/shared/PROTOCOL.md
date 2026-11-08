@@ -1,5 +1,19 @@
 # The puddle communication protocol
 
+Application **28.4** reserves `expected_mtime_ms: -1` on the existing worktree-file
+PUT for exclusive creation of an absent file. The host uses `wx`; an existing file
+or symlink returns `409 stale_file` without replacement. Other conditional and
+unconditional saves retain their existing semantics. Frontends must check 28.4
+before requesting absent-file creation; older hosts reject a missing-file
+conditional write. No message shape, runtime contract or database change is made.
+
+The IDE now treats an absent `.puddle/huddle/<id>/layout.json` as a clean virtual
+layout only after reading a valid sibling definition. Its draft baseline is -1;
+opening does not publish files. Huddle tabs hold both manifest and layout buffers
+for dirty review, recovery and transfer. Layout/source saves remain independent
+file writes, not a multi-file transaction. Graph movement uses shared editor drafts
+and separate layout undo, with pointer cancellation and layout-version checks.
+
 Application **28.3** adds local/SSH
 `POST /api/huddle/:profile/definitions/:id/components`. Its strict body contains
 `project_id`, `worktree`, `template` (`prompt-agent` or `review-agent`) and a

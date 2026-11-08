@@ -15,6 +15,7 @@ runtime with huddle support. Each huddle has its own random 32-character hex id:
 ```text
 <worktree>/.puddle/huddle/<huddle_id>/
   huddle.json
+  layout.json                 # optional, created when positions are saved
   nodes/
     <component>/
       node.json
@@ -38,6 +39,20 @@ Select a node to configure its parameters, colour and icon. **Open contract** an
 the same manifest draft, undo history and save-conflict handling. Local contract
 settings come from saved files. Save contract edits to update the inspector;
 unsaved contract drafts are not used as execution contracts.
+
+On application 28.4, drag nodes with a mouse or touch, or focus a node and use
+arrow keys (10 units, or 50 with Shift). Its inspector also offers X/Y position
+fields. Escape or pointer cancellation abandons a drag. Drag the empty background
+to pan, and use **Fit graph**, **Fit selected** or the zoom controls to navigate.
+
+Positions use a separate `layout.json` draft. **Undo move** / **Redo move** and
+Cmd/Ctrl-Z while a node is focused operate on that layout history; the main
+**Undo** / **Redo** controls operate on the graph definition. **Open layout** uses
+the normal editor. Save or Cmd/Ctrl-S from the huddle saves both files, with separate
+conflict checks; this is not a single atomic write. A missing layout is created
+only on save, and a file created by someone else in the meantime causes a conflict.
+Both drafts follow pane/window transfers and last-view close review. Camera and
+selection persistence and dragging connections between sockets remain unfinished.
 
 ## Prompt existing agents
 

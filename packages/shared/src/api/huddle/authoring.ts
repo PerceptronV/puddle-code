@@ -72,3 +72,7 @@ export type HuddleOpened = z.infer<typeof huddleOpenedSchema>;
 export function huddleDefinitionPath(id: string): string {
   return `.puddle/huddle/${huddleIdSchema.parse(id)}/huddle.json`;
 }
+
+export function huddleSourcePaths(id: string): [string, string] {
+  return [huddleDefinitionPath(id), `.puddle/huddle/${id}/layout.json`];
+}

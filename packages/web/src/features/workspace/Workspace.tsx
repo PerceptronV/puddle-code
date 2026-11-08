@@ -1,5 +1,5 @@
 import { NewHuddleDialog } from '../huddle/documents/NewHuddleDialog';
-import { huddleDefinitionPath } from '@puddle/shared';
+import { huddleSourcePaths } from '@puddle/shared';
 import { useHuddleSupported } from '../huddle/documents/queries';
 import { ContentMotion } from '../../components/ui/content-motion';
 import { TrayMotionProvider } from '../../components/ui/tray-motion';
@@ -589,11 +589,10 @@ function WorkspaceInner() {
         focusedRef?.type === 'huddle'
           ? tabSessions.find((s) => s.id === focusedRef.session)
           : undefined;
-      requestActiveTabSave(
-        session?.huddle_id
-          ? { session: session.id, path: huddleDefinitionPath(session.huddle_id) }
-          : layout.activeEditorTab,
-      );
+      if (session?.huddle_id) {
+        for (const path of huddleSourcePaths(session.huddle_id))
+          requestActiveTabSave({ session: session.id, path });
+      } else requestActiveTabSave(layout.activeEditorTab);
     },
     'editor.compile': () => {
       const tab = layout.activeEditorTab;

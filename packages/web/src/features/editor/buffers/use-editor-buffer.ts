@@ -68,7 +68,7 @@ export interface EditorBuffer {
   /** A save the daemon refused because the file moved on disk, until reconciled. */
   conflict: DiskConflict | null;
   /** Resolve a conflict by discarding the buffer and taking the file on disk. */
-  takeDisk(): void;
+  takeDisk(): Promise<void>;
   /** Resolve a conflict by writing the buffer over whatever is on disk. */
   keepMine(): void;
   /** Lock the buffer, load the current disk version, and open reconciliation. */
@@ -361,7 +361,7 @@ export function useEditorBuffer(
 
   const reload = useCallback(() => {
     const resolving = conflictFor(key);
-    void file
+    return file
       .refetch({ throwOnError: true })
       .then(async (res) => {
         const data = res.data;

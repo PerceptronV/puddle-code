@@ -3,6 +3,7 @@ import {
   desktopPaneCloseReview,
   desktopPaneOrphanedBuffers,
   huddleDefinitionPath,
+  huddleSourcePaths,
 } from '@puddle/shared';
 import { fileViewCount } from '../../src/features/workspace/tabs/close/file-views';
 import { DesktopContentState } from '../../src/features/windows/state/content-state';
@@ -28,6 +29,40 @@ import { sessionLifecycle } from '../../src/features/workspace/sessions/lifecycl
 const id = '00000000-0000-4000-8000-000000000001';
 const project = '1111111111';
 const ref = sessionTabRef({ id, kind: 'huddle' });
+
+it('transfers both huddle documents, including an absent layout draft, and reviews their last holders', () => {
+  const [manifest, layout] = huddleSourcePaths('a'.repeat(32));
+  const buffers = [
+    { session: id, path: manifest, content: 'graph draft', baseMtimeMs: 1 },
+    { session: id, path: layout, content: 'layout draft', baseMtimeMs: -1 },
+  ];
+  const leaf = makeLeaf([ref]);
+  const snapshot = uiStateSnapshotSchema.parse({ layout_tree: leaf });
+  const content = { snapshot, buffers, views: {} };
+  expect(desktopPaneCloseReview(content)).toMatchObject({
+    required: true,
+    orphaned: 0,
+    targets: [{ paneId: leaf.id, ref }],
+  });
+  expect(desktopPaneOrphanedBuffers(content)).toEqual([]);
+  const moved = detachTabContent(content, project, ref, leaf.id);
+  expect(moved.destination.buffers).toEqual(buffers);
+  expect(moved.source.buffers).toEqual([]);
+  const duplicate = uiStateSnapshotSchema.parse({
+    layout_tree: makeSplit('row', [
+      leaf,
+      makeLeaf([{ type: 'editor', tab: { session: id, path: layout } }]),
+    ]),
+  });
+  expect(fileViewCount(duplicate, buffers[0]!)).toBe(1);
+  expect(fileViewCount(duplicate, buffers[1]!)).toBe(2);
+  const shared = detachTabContent({ ...content, snapshot: duplicate }, project, ref, leaf.id);
+  expect(shared.source.buffers).toEqual([buffers[1]]);
+  expect(shared.destination.buffers).toEqual(buffers);
+  const state = new DesktopContentState();
+  for (const buffer of buffers) state.registerBuffer(buffer, () => buffer);
+  expect(state.capture(snapshot).buffers).toEqual(buffers);
+});
 
 it('moves a graph manifest draft with its implicit huddle view, reviews it on close, and preserves duplicate source holders', () => {
   const buffer = {

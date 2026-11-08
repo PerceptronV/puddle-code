@@ -29,7 +29,7 @@ try {
   await page.getByText('run.event → result.value', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Graph', exact: true }).click();
   await page.getByRole('button', { name: 'Zoom out', exact: true }).click();
-  await page.getByRole('button', { name: 'Reset zoom' }).filter({ hasText: '75%' }).waitFor();
+  await page.getByRole('button', { name: 'Reset zoom' }).filter({ hasText: '80%' }).waitFor();
   if (process.env.PUDDLE_HUDDLE_SCREENSHOTS) {
     for (const theme of ['light', 'dark']) {
       await page.evaluate((value) => {

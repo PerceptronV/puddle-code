@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useSyncExternalStore } from 'react';
+import { useMemo } from 'react';
 import { toast } from 'sonner';
 import {
   coreHuddleComponents,
@@ -9,15 +9,8 @@ import {
   type HuddleDocument,
   type Session,
 } from '@puddle/shared';
-import { useEditorBuffer } from '../../editor/buffers/use-editor-buffer';
-import {
-  applyDraft,
-  bufferKey,
-  subscribe,
-  retainModel,
-  releaseModel,
-} from '../../editor/buffers/buffer-store';
-import { comparisonLocksBuffer } from '../../editor/conflicts/conflict-store';
+import { applyDraft } from '../../editor/buffers/buffer-store';
+import { useHuddleSource } from './use-source-buffer';
 import { useLocalHuddleComponents } from './local-components';
 
 /** Graph and JSON views edit one recoverable model with the existing save/conflict policy. */
@@ -27,16 +20,7 @@ export function useGraphBuffer(
   focused: boolean,
 ) {
   const path = huddleDefinitionPath(session.huddle_id!);
-  const buffer = useEditorBuffer(session.id, path, null, undefined, { focused, live: true });
-  const key = bufferKey(session.id, path);
-  useEffect(() => {
-    retainModel(key);
-    return () => releaseModel(key);
-  }, [key]);
-  const text = useSyncExternalStore(
-    useCallback((listener) => subscribe(key, listener), [key]),
-    () => buffer.model?.getValue() ?? '',
-  );
+  const { buffer, text, locked } = useHuddleSource(session.id, path, focused);
   const parsed = useMemo(() => {
     try {
       const definition = huddleDefinitionSchema.parse(JSON.parse(text));
@@ -73,7 +57,6 @@ export function useGraphBuffer(
       diagnostics: validateHuddleGraph(definition, new Map(Object.entries(components))),
     };
   }, [parsed, captured, local]);
-  const locked = buffer.status !== 'ready' || comparisonLocksBuffer(buffer.conflict);
   const edit = (update: (definition: HuddleDefinition) => HuddleDefinition) => {
     const model = buffer.model;
     if (!model || locked) return;

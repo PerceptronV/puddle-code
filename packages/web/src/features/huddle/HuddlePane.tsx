@@ -13,6 +13,9 @@ import { removeGraphNode } from './documents/graph-edits';
 import { NodeAppearance } from './inspector/NodeAppearance';
 import { NodeParameters } from './inspector/NodeParameters';
 import { ExecutionControls } from './execution/ExecutionControls';
+import { useLayoutBuffer } from './documents/use-layout-buffer';
+import { NodePosition } from './inspector/NodePosition';
+import { defaultPosition } from './canvas/geometry';
 
 export function HuddlePane({ session, focused = true }: { session: Session; focused?: boolean }) {
   const supported = useHuddleSupported();
@@ -29,6 +32,7 @@ function HuddleEditor({ session, focused }: { session: Session; focused: boolean
   const profile = useCurrentProfileId() ?? undefined;
   const document = useHuddleDocument(profile, session);
   const draft = useGraphBuffer(session, document.data, focused);
+  const layout = useLayoutBuffer(session, focused, draft.graph?.definition);
   const { buffer, graph, edit } = draft;
   const [selected, setSelected] = useState<string | null>(null);
   const [list, setList] = useState(false);
@@ -38,6 +42,9 @@ function HuddleEditor({ session, focused }: { session: Session; focused: boolean
   const prefix = `.puddle/huddle/${session.huddle_id}/`;
   const node = graph?.definition.nodes.find((node) => node.id === selected);
   const component = node && graph?.components[node.id];
+  const position =
+    node &&
+    (layout.layout?.nodes[node.id] ?? defaultPosition(graph!.definition.nodes.indexOf(node)));
   const source = node?.source.kind === 'local' ? node.source.manifest : null;
   // Contract paths permit ./; editor model identities must use one spelling.
   const openSource = (file: string) =>
@@ -95,9 +102,11 @@ function HuddleEditor({ session, focused }: { session: Session; focused: boolean
           <button
             type="button"
             className={actionClass}
-            disabled={draft.locked || !buffer.dirty}
+            disabled={draft.locked || (!buffer.dirty && !layout.buffer.dirty)}
             onClick={() => {
-              void Promise.resolve(buffer.save()).then(() => document.refetch());
+              void Promise.all([buffer.save(), layout.buffer.save()]).then(() =>
+                document.refetch(),
+              );
             }}
           >
             Save
@@ -112,6 +121,9 @@ function HuddleEditor({ session, focused }: { session: Session; focused: boolean
           </button>
           <button type="button" className={actionClass} onClick={() => openSource('huddle.json')}>
             Open definition
+          </button>
+          <button type="button" className={actionClass} onClick={() => openSource('layout.json')}>
+            Open layout
           </button>
           <button
             type="button"
@@ -134,7 +146,9 @@ function HuddleEditor({ session, focused }: { session: Session; focused: boolean
           locked={draft.locked || !!buffer.conflict}
         />
       )}
-      {buffer.dirty && <p className="px-4 text-xs text-fg-muted">Unsaved changes</p>}
+      {(buffer.dirty || layout.buffer.dirty) && (
+        <p className="px-4 text-xs text-fg-muted">Unsaved changes</p>
+      )}
       {buffer.restoredNotice && (
         <p className="px-4 text-xs text-fg-muted">Restored unsaved changes</p>
       )}
@@ -149,8 +163,35 @@ function HuddleEditor({ session, focused }: { session: Session; focused: boolean
           </button>
         </div>
       )}
+      {layout.buffer.peerBadge && (
+        <p className="px-4 text-xs text-fg-muted">This layout has changes in another window.</p>
+      )}
+      {layout.buffer.restoredNotice && (
+        <p className="px-4 text-xs text-fg-muted">Restored unsaved layout changes</p>
+      )}
+      {layout.buffer.conflict?.phase === 'unresolved' && (
+        <div className="flex items-center gap-2 px-4 text-xs text-fg-muted">
+          The layout changed on disk. Your edits are intact.
+          <button type="button" className={actionClass} onClick={layout.buffer.compare}>
+            Compare layout
+          </button>
+        </div>
+      )}
+      {layout.buffer.status === 'error' || (layout.buffer.status === 'ready' && layout.error) ? (
+        <p className="px-4 text-xs text-fg-muted">
+          Layout:{' '}
+          {layout.buffer.errorMessage ?? 'Fix layout.json in its source editor to arrange nodes.'}
+        </p>
+      ) : null}
       {buffer.conflict && buffer.conflict.phase !== 'unresolved' ? (
         <ConflictSurface session={session.id} path={draft.path} buffer={buffer} focused={focused} />
+      ) : layout.buffer.conflict && layout.buffer.conflict.phase !== 'unresolved' ? (
+        <ConflictSurface
+          session={session.id}
+          path={layout.path}
+          buffer={layout.buffer}
+          focused={focused}
+        />
       ) : buffer.status === 'error' ||
         buffer.status === 'binary' ||
         buffer.status === 'too-large' ? (
@@ -226,7 +267,23 @@ function HuddleEditor({ session, focused }: { session: Session; focused: boolean
                   ))}
                 </div>
               ) : (
-                <GraphOverview document={graph} selected={selected} onSelect={setSelected} />
+                <GraphOverview
+                  document={{ ...graph, layout: layout.layout ?? graph.layout }}
+                  selected={selected}
+                  onSelect={setSelected}
+                  move={layout.move}
+                  version={layout.version}
+                  locked={layout.locked || draft.locked}
+                  undo={() => {
+                    if (!layout.locked) void layout.buffer.model?.undo();
+                  }}
+                  redo={() => {
+                    if (!layout.locked) void layout.buffer.model?.redo();
+                  }}
+                  canUndo={!!layout.buffer.model?.canUndo()}
+                  canRedo={!!layout.buffer.model?.canRedo()}
+                  onDelete={(id) => edit((definition) => removeGraphNode(definition, id))}
+                />
               )}
               {node && (
                 <aside
@@ -269,6 +326,14 @@ function HuddleEditor({ session, focused }: { session: Session; focused: boolean
                     edit={edit}
                   />
                   <NodeAppearance node={node} component={component} edit={edit} />
+                  {position && (
+                    <NodePosition
+                      key={`${node.id}:${position.x}:${position.y}`}
+                      position={position}
+                      locked={layout.locked || draft.locked}
+                      apply={(value) => layout.move(node.id, value, layout.version)}
+                    />
+                  )}
                   <button
                     type="button"
                     className={`${actionClass} mt-4`}

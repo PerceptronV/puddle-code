@@ -83,6 +83,7 @@ export function LazyEditorDirtyDot(props: {
   path: string;
   kind: EditorTabKind;
   root?: string;
+  relatedPaths?: string[];
 }) {
   return (
     <Suspense fallback={null}>
@@ -100,6 +101,7 @@ export function LazyEditorTabClose(props: {
   kind: EditorTabKind;
   /** Absolute browse root of an `external` tab (SPEC §8). */
   root?: string;
+  relatedPaths?: string[];
   label: string;
   onClose: (signal?: AbortSignal) => void | Promise<boolean>;
   closeKey?: string;

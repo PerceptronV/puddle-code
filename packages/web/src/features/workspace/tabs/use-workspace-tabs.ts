@@ -2,7 +2,7 @@ import { huddleShellSupported } from '../../huddle/documents/queries';
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useLocation, useNavigate, useParams } from 'react-router';
 import type { Session, TabRef } from '@puddle/shared';
-import { huddleDefinitionPath } from '@puddle/shared';
+import { huddleSourcePaths } from '@puddle/shared';
 import { tabKind } from '../../editor/tabs/editor-tabs';
 import { wsManager } from '../../../lib/transport/ws';
 import { rememberClosedTab, takeClosedTab } from './closed-tabs';
@@ -214,7 +214,7 @@ export function useWorkspaceTabs({
       layout.removeSession(
         id,
         session?.huddle_id
-          ? { session: id, path: huddleDefinitionPath(session.huddle_id) }
+          ? huddleSourcePaths(session.huddle_id).map((path) => ({ session: id, path }))
           : undefined,
       );
       if (wasActive) {

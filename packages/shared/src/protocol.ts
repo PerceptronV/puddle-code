@@ -358,7 +358,8 @@
 // 28.1: revision-checked inactive huddle source saves (local/SSH only).
 // 28.2: local/SSH huddle lifecycle commands, runtime observation and bounded history.
 // 28.3: materialise editable huddle agent-node templates without activating a graph.
-export const PROTOCOL_VERSION = { major: 28, minor: 3 } as const;
+// 28.4: expected_mtime_ms -1 exclusively creates an absent file; huddle layout drafts.
+export const PROTOCOL_VERSION = { major: 28, minor: 4 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(
