@@ -1,16 +1,7 @@
 import type { HuddleComponent } from '../../api/huddle/components.js';
-import type { HuddleDefinition } from '../../api/huddle/definitions.js';
+import type { HuddleDefinition, HuddleDiagnostic } from '../../api/huddle/definitions.js';
 import type { HuddleValueSchema } from '../../api/huddle/contracts.js';
 import { huddlePortCompatibility, validateHuddleValue } from './values.js';
-
-export interface HuddleDiagnostic {
-  severity: 'error' | 'warning';
-  code: string;
-  path: string;
-  message: string;
-  node?: string;
-  edge?: string;
-}
 
 /** Components are resolved per node from a captured revision, never loaded as code. */
 export function validateHuddleGraph(

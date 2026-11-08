@@ -162,6 +162,19 @@ describe('profile-bound host authority', () => {
       expect((await f.req(path!, method)).status).toBe(403);
     expect(f.dispatch).not.toHaveBeenCalled();
   });
+  it('denies huddle authoring and inspection to remote profile leases', async () => {
+    const f = fixture();
+    const prefix = `/api/huddle/${f.one.profile.id}`;
+    for (const [path, method] of [
+      [`${prefix}/availability`, 'GET'],
+      [`${prefix}/definitions`, 'GET'],
+      [`${prefix}/definitions/${'a'.repeat(32)}`, 'GET'],
+      [`${prefix}/definitions`, 'POST'],
+      [`${prefix}/open`, 'POST'],
+    ])
+      expect((await f.req(path!, method)).status).toBe(403);
+    expect(f.dispatch).not.toHaveBeenCalled();
+  });
   it('scopes discovery even when the browser omits filters, and leaves local leases unrestricted', async () => {
     const f = fixture();
     for (const [path, id] of [

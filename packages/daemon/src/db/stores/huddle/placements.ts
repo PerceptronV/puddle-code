@@ -11,6 +11,16 @@ export class HuddlePlacements {
     this.sessions = new SessionStore(db);
   }
 
+  find(projectId: string, worktree: string, huddleId: string): Session | undefined {
+    const row = this.db
+      .prepare(
+        `SELECT id FROM sessions WHERE kind = 'huddle'
+      AND project_id = ? AND canonical_worktree_path = ? AND huddle_id = ?`,
+      )
+      .get(projectId, worktree, huddleId) as { id: string } | undefined;
+    return row ? this.sessions.get(row.id) : undefined;
+  }
+
   open(input: {
     projectId: string;
     worktree: string;

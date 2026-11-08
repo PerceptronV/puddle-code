@@ -22,7 +22,7 @@ packages/
 │   ├── src/host/         # shared service definitions/commands plus supervision/ identity inspection
 │   ├── src/agents/       # adapters own flags, cached native catalogue discovery, and exact lifecycle integration
 │   ├── src/puddlang/     # trusted TypeScript runner, bounded operations and durable run/event records
-│   ├── src/huddle/       # definitions/: data-only graph discovery and bounded source capture; runtime/UI not enabled yet
+│   ├── src/huddle/       # definitions/, components/, control/: inactive authoring and bounded source capture
 │   ├── src/compilation/  # provider-neutral compile modes, scheduling, dependency observation, and artefacts
 │   ├── src/code/         # manual single-file execution recipes, host tool discovery and managed output
 │   ├── src/latex/        # local TeX discovery/recipes, managed outputs, and inverse SyncTeX
@@ -97,7 +97,7 @@ context. Session sidebar presentations live under `workspace/sessions/sidebar/`,
 sharing the workspace-owned selection controller and session action policy.
 
 Within `shared/src/api/`, schemas are grouped into `agents/`, `connection/`,
-`huddle/` (preparatory document contracts, not an enabled API),
+`huddle/` (documents and inactive authoring contracts),
 `notebooks/`, `workspace/` and `worktrees/`; common and smaller host/execution
 schemas remain at the root. `shared/src/index.ts` remains the public export surface.
 Daemon HTTP routes group worktree handlers under `http/routes/worktrees/` and
@@ -544,8 +544,15 @@ Application 27.0 adds the closed `huddle` session kind. Migration 43 and
 `db/stores/huddle/placements.ts` retain one immutable placement per
 project/canonical worktree/definition. The common runtime inventory records its
 role/capabilities without a terminal segment; preserve ordinary launch fingerprints
-and protocol 1.1. No public creation route is enabled. Callers must check scope and
-runtime support before placement intent; keep huddles out of ordinary session
+and protocol 1.1. Application 27.1 exposes local/SSH inactive authoring
+through `huddle/control/service.ts` and `http/routes/execution/huddle/`. Require
+explicit registered project/worktree roots, recheck request authority and selected
+runtime support after async work, and never arm or launch during create/open.
+Source publication may outlive a failed placement insertion; retain it for
+discovery/open and never retry creation after a lost reply. Existing placement
+opens and read-only inspection do not require a capable current default. Deny
+remote profile leases. Callers must check scope and runtime support before new
+placement intent; keep huddles out of ordinary session
 creation, PTY controls and runtime restart. `runtime/huddle/controller/` supplies
 role-aware discovery, observation and retirement. Keep huddle clients separate
 from PTY clients under the existing controller claim. Persist observation versions
@@ -568,7 +575,7 @@ paths delegate to these controls and refuse unresolved owner cleanup. Keep huddl
 controls in the common maintenance pause/drain. Automatic service cleanup excludes
 interrupted huddles until descendant recovery is proven. A never-consumed attempt
 can retire under all owner/launch claims and a durable fence; missing consumed-owner
-state cannot. Public creation/Start routes remain unfinished.
+state cannot. Public Start/Run routes and the IDE remain unfinished.
 `runtime/huddle/ownership/` owns shared exact-binding and clean-retirement evidence;
 import it directly from adoption, maintenance and collection. Offline removal adopts
 both roles; `host/removal/runtimes/` separates their interruption reviews. Recheck

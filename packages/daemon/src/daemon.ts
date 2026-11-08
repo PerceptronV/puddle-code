@@ -104,6 +104,8 @@ import { WorktreeManager } from './worktrees/manager.js';
 import { WsGateway } from './ws/gateway.js';
 import { PuddlangService } from './puddlang/service.js';
 import { PuddlangStore } from './puddlang/store.js';
+import { HuddleService } from './huddle/control/service.js';
+import { HuddlePlacements } from './db/stores/huddle/placements.js';
 import type { HostUpdateCheckpointReference } from '@puddle/shared';
 import { HostUpdateCheckpointWriter } from './updates/checkpoints/store.js';
 import { HostUpdateAdoptionWriter } from './updates/checkpoints/adoption.js';
@@ -430,6 +432,17 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       worktrees,
     });
     failedStartup.push(() => puddlang.dispose());
+    const huddles = new HuddleService({
+      home: paths.home,
+      profiles,
+      projects,
+      repos,
+      worktrees,
+      storage,
+      placements: new HuddlePlacements(db),
+      launcher: runtimeLauncher,
+      changed: (projectId) => service.emit('sessions-changed', { projectIds: [projectId] }),
+    });
     const updateInspection = new HostUpdateInspection({
       connector: new HostUpdateConnector(paths.home),
       compatibility: new HostUpdateCompatibility({
@@ -577,6 +590,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
         notebooks,
         latex,
         puddlang,
+        huddles,
       },
       ws: { gateway, upgradeWebSocket },
     });

@@ -9,11 +9,12 @@ captured-source script workers, retained revisions/activation and a manual sched
 in an independent owner process with private authenticated control, explicit
 runtime-role metadata and pinned capability checks. Phase 2 has the third session
 kind, immutable application placement and common runtime inventory role, with
-application protocol 27.0; public creation and the IDE remain unfinished. Daemon
+application protocol 27.1. Local/SSH inactive creation, discovery, inspection and
+placement opening are available; the IDE remains unfinished. Daemon
 adoption/projection now observes independent huddle owners alongside ordinary
 runtimes, including across isolated daemon replacement. Pinned production launch
 and exact-owner controls now integrate with session kill/archive. Authorised public
-creation/Start/Run, native supervision, provider dispatch and UI integration remain
+Start/Run, native supervision, provider dispatch and UI integration remain
 unfinished. Selected-daemon startup checks retained huddle contracts read-only
 before service mutations, while allowing compatible controllers to inspect
 interrupted owners. Offline host removal, purge fencing and release
@@ -21,7 +22,8 @@ collection now recognise huddle ownership and clean shutdown evidence. Host-upda
 checkpoints and fresh adoption/recovery now preserve huddle contracts alongside
 ordinary owners.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
-API names and examples below remain proposals, not available commands/imports.
+API names and examples below remain proposals except where explicitly documented
+in acceptance as implemented.
 
 The user explicitly permits breaking puddlang changes during this work; its
 current script API is not fixed. Prefer a coherent huddle execution model over
@@ -91,7 +93,7 @@ grid, bevelled boxes, thick borders or glossy headers.
 
 | Area | Existing code to reuse | Required extension |
 | --- | --- | --- |
-| Session identity | `shared/src/api/agents/sessions.ts`, daemon `db/stores/sessions.ts`, `db/stores/huddle/placements.ts` and `sessions/` | Migration 43 and application 27.0 add huddle placement identity without an account, native conversation or PTY. Authorised creation/lifecycle services and the remaining binary-kind audit are still required. |
+| Session identity | `shared/src/api/agents/sessions.ts`, daemon `db/stores/sessions.ts`, `db/stores/huddle/placements.ts` and `sessions/` | Migration 43 and application 27.0 add huddle placement identity without an account, native conversation or PTY. Inactive creation/opening is exposed in application 27.1; public execution controls and the remaining binary-kind audit are still required. |
 | Sidebar and actions | Web `features/workspace/sessions/SessionSidebar.tsx`, `sidebar/`, `SessionActions.tsx`, `lifecycle.ts`, `session-selection.ts` | Add creation, glyph, opening and lifecycle policy to expanded/collapsed presentations and bulk actions. Current callbacks and rows assume ordinary sessions. |
 | Puddlang | Daemon `puddlang/service.ts`, `operations.ts`, `runner.ts`, `runtime-api.ts`, `outcomes/`; shared `api/agents/puddlang*.ts` | Reuse provider-neutral spawn/attach/ask/stop and exact turn handling. Current programmes are daemon-owned child processes and become interrupted on daemon replacement. No graph, durable scheduler or plug-in API exists. |
 | Independent ownership | Daemon `runtime/ownership/`, `transport/`, `lifecycle/`, `resources/`, `controller/`, `execution/turns.ts`; shared `runtime/` | Add a huddle owner role with retained graph state and triggers. Existing terminal snapshots, native-conversation segments and agent launch seeds cannot stand in for a huddle. |
@@ -682,11 +684,15 @@ enable nested delegation, cross-profile access or unlimited agent budgets.
 
 ## 11. Phased implementation and release gates
 
-Phases 0 and 1 are **in progress**; phases 2–6 are **not started**. Phase 1 currently
-has the private inbox/outbox, node-attempt and exact-operation ledger plus durable
+Phases 0, 1 and 2 are **in progress**; phases 3–5 are **not started**. Phase 6
+has preparatory host maintenance integration, with packaged acceptance pending.
+Phase 1 currently has the private inbox/outbox, node-attempt and exact-operation
+ledger plus durable
 graph routing, isolated script workers, retained revisions/activation and a manual
-scheduler and independent owner process/private control. Production service/adoption
-integration and the provider bridge remain unfinished. Each phase must update
+scheduler and independent owner process/private control. Production launch/adoption
+and maintenance integration are implemented; the provider bridge and native continuity acceptance remain unfinished. Phase 2 has
+inactive creation/opening APIs but no canvas or sidebar integration yet. Each phase
+must update
 `docs/acceptance/huddle.md` with implemented details and evidence, rather than
 leaving the only accurate description in code or marking future phases complete.
 

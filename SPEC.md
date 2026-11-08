@@ -1397,8 +1397,18 @@ worktree/definition identity and a role in the common runtime inventory. They ha
 no placement-level provider, conversation, owned branch or terminal segment.
 Ordinary agent/terminal launch fingerprints, records and runtime protocol 1.1 are
 unchanged. The internal placement store does not launch an owner or grant project
-authority; its future service must validate scope and runtime capability first.
-There is no huddle creation API or IDE yet. Existing agent/terminal creation and
+authority. Application 27.1 exposes local/SSH inactive authoring through
+`/api/huddle/:profile`: availability, definition discovery/inspection, blank
+creation and placement opening. The service resolves an explicit registered
+project/worktree under the repository lock, checks profile/request authority and
+storage, and rechecks installed runtime support before source and placement writes.
+Creation saves `.puddle/huddle/<random-32-hex-id>/huddle.json`; repeated open returns
+one placement. Read-only inspection and existing placement opens remain available
+with an unsupported runtime default. A source publication followed by failed
+placement admission leaves discoverable files; lost create replies must not cause
+automatic creation retries. No owner launches or trigger admissions occur during
+creation/opening. Remote profile leases are denied. The IDE and public Start/Run
+remain unfinished. Existing agent/terminal creation and
 restart controls cannot launch huddles. The shared launcher now has a huddle path
 under the existing admission, supervisor and host memory controls. It requires an
 installed capable release, validates the retained activation before intent, pins

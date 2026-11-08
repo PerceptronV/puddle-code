@@ -89,3 +89,13 @@ export const huddleLayoutSchema = z.strictObject({
     .refine((value) => Object.keys(value).length <= HUDDLE_LIMITS.nodes),
 });
 export type HuddleLayout = z.infer<typeof huddleLayoutSchema>;
+
+export const huddleDiagnosticSchema = z.strictObject({
+  severity: z.enum(['error', 'warning']),
+  code: z.string(),
+  path: z.string(),
+  message: z.string(),
+  node: z.string().optional(),
+  edge: z.string().optional(),
+});
+export type HuddleDiagnostic = z.infer<typeof huddleDiagnosticSchema>;

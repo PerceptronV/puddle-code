@@ -353,7 +353,8 @@
 // 26.23: frontend terminology with legacy private host-update command normalization.
 // 27.0: huddle is a third session kind with a project/worktree definition identity.
 // Older closed session-kind readers require a coordinated frontend/daemon update.
-export const PROTOCOL_VERSION = { major: 27, minor: 0 } as const;
+// 27.1: local/SSH inactive huddle creation, discovery, inspection and placement opening.
+export const PROTOCOL_VERSION = { major: 27, minor: 1 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

@@ -1,12 +1,75 @@
 # Huddle implementation and acceptance
 
 Status: foundation in progress, 2026-11-08. The full objective remains the
-[huddle roadmap](../roadmap/huddle.md). Huddles cannot yet be created or run through
-the application. Runtime archives declare their internal huddle-role contracts;
+[huddle roadmap](../roadmap/huddle.md). Application 27.1 exposes inactive definition
+creation/opening through local/SSH HTTP; public execution controls and the IDE
+remain unfinished. Runtime archives declare their internal huddle-role contracts;
 application 27.0 now includes huddle session identity and migration 43 records
 placements/owner roles. The daemon launcher and lifecycle controls now integrate
-with session kill/archive; migration 44 retains Stop intent. No huddle creation
-route, user CLI command or IDE is enabled yet.
+with session kill/archive; migration 44 retains Stop intent. No user CLI command
+or IDE is enabled yet.
+
+## Implemented: inactive authoring API
+
+Application **27.1** adds local/SSH routes under `/api/huddle/:profile`:
+
+| Method/path | Behaviour |
+| --- | --- |
+| `GET /availability` | Reports installed huddle support, selected build and service/host-session lifetime; no launch. |
+| `GET /definitions?project_id=…&worktree=…` | Bounded data-only discovery, including separate malformed-sibling errors. |
+| `GET /definitions/:id?project_id=…&worktree=…` | Captured definition, layout, resolved component contracts, digest and diagnostics; no module evaluation or source bundle in the response. |
+| `POST /definitions` | `{ project_id, worktree, name }` creates a blank definition and stopped placement, returning HTTP 201. |
+| `POST /open` | `{ project_id, worktree, huddle_id }` opens a saved definition, returning its unique placement and document. |
+
+Shared schemas live under `api/huddle/authoring.ts`; thin routes compose
+`huddle/control/service.ts`. Caller authority and profile/project membership are
+checked before work and after asynchronous resolution, storage admission and
+capture. The worktree must be an explicit absolute root from the project's
+registered repository. Aliases canonicalise to the same placement. Repository
+locking serialises these actions with managed worktree mutations. Archived
+projects require unarchiving; opening an archived placement does not unarchive it.
+
+Creation checks the installed runtime's exact huddle metadata/helpers and available
+lifetime before any source write, then rechecks selection before source publication
+and placement insertion. Storage admission covers the project root and private
+home. Missing support never falls back to a daemon-owned process. Existing
+placements remain openable after the selected default loses huddle support;
+read-only discovery and inspection require no runtime support. Creating a new
+placement from existing source still requires capable runtime support.
+
+Each definition gets a server-generated random 32-character lowercase hex id in
+`.puddle/huddle/<id>/huddle.json`. Exclusive directory/file creation never replaces
+another definition; symlinked collection directories are refused. The initial
+graph is blank, with explicit finite execution defaults. Creation/opening adds no
+runtime binding, PTY, account, provider conversation or branch ownership. The
+existing `sessions-changed` notification invalidates other views when a placement
+is created. No trigger is armed and no agent prompt is sent.
+
+Filesystem publication and SQLite placement insertion are separate operations.
+If publication succeeds but later admission/insertion fails, source remains for
+explicit discovery/open. A lost create reply must be observed by discovery; do
+not automatically retry creation, because each create is a distinct definition.
+Repeated open is idempotent at the placement key, including concurrent requests.
+Remote profile leases are denied both by the existing profile middleware and the
+huddle routes; the connector allowlist and remote protocol remain unchanged.
+
+Automated coverage uses temporary Git repositories, SQLite and passive installed
+release fixtures. It exercises distinct definitions, alias/concurrent opens,
+unsupported runtime and default changes, authority revocation before writes and
+after capture, project archival, selection changes, storage rejection, foreign
+profiles, invalid roots, symlinked collections, retained-source recovery, strict
+HTTP inputs and remote-lease denial. These checks do not launch an owner or prove
+native supervision, provider orchestration or UI acceptance.
+
+Verification: **238 tests passed in 31 files** across shared contracts, huddle
+control/controller, definition capture, runtime selection, HTTP and profile
+security. The first sandboxed attempt passed 225 checks; 13 owner-process checks
+could not bind private Unix sockets (`EPERM`). The same suite passed with the
+required socket permission using isolated fixture homes. Shared/daemon/web
+TypeScript builds, scoped lint, formatting and whitespace checks passed.
+
+Still pending: source/graph conflict-aware editing, templates, public Start/Run,
+sidebar creation and opening, the IDE and normal huddle tab/window integration.
 
 ## Implemented: application placements and runtime inventory
 
@@ -22,9 +85,9 @@ The internal `db/stores/huddle/placements.ts` opens one stopped identity, canoni
 worktree aliases and returns the existing identity on repeated opens, including
 an archived one. Different definitions in one worktree and the same portable
 definition in different worktrees remain independent. Opening does not write
-definition files, unarchive, arm triggers or launch an owner. The future public
-service must authorise the project/worktree and validate installed huddle support
-before calling this store; this helper grants neither scope nor runtime admission.
+definition files, unarchive, arm triggers or launch an owner. The public authoring
+service authorises the project/worktree and validates installed huddle support
+before creating a placement; this helper grants neither scope nor runtime admission.
 
 Database guards forbid provider/account/conversation attachment, branch ownership,
 implicit cwd, conversion of an ordinary placement and relocation of a huddle's

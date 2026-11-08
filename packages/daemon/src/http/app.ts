@@ -52,6 +52,8 @@ import { releaseNotesRoutes } from './routes/release-notes.js';
 import { worktreeRoutes } from './routes/worktrees/worktrees.js';
 import { puddlangRoutes } from './routes/execution/puddlang.js';
 import type { PuddlangService } from '../puddlang/service.js';
+import type { HuddleService } from '../huddle/control/service.js';
+import { huddleAuthoringRoutes } from './routes/execution/huddle/authoring.js';
 
 /** Everything the REST + WS surface needs; `api` is absent in narrow tests. */
 export interface AppDeps {
@@ -82,6 +84,7 @@ export interface AppDeps {
     notebooks?: NotebookKernels;
     latex: LatexProvider;
     puddlang?: PuddlangService;
+    huddles?: HuddleService;
   };
   ws?: {
     gateway: WsGateway;
@@ -144,6 +147,7 @@ export function buildApp(deps: AppDeps): Hono {
     app.route('/api/worktrees', worktreeRoutes(api));
     app.route('/api/host', hostRoutes(api));
     if (api.puddlang) app.route('/api/puddlang', puddlangRoutes(api.puddlang));
+    if (api.huddles) app.route('/api/huddle', huddleAuthoringRoutes(api.huddles));
 
     // Agent-hook status side-channel (SPEC §4): deliberately OUTSIDE /api —
     // the caller is a hook process on this host with no bearer token; the

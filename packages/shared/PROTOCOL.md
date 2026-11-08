@@ -1,13 +1,24 @@
 # The puddle communication protocol
 
+Application **27.1** adds local/SSH inactive huddle authoring under
+`/api/huddle/:profile`: GET availability, GET definitions and individual captured
+documents, POST definitions and POST open. Creation requires an explicit registered
+project/worktree and capable installed runtime. It saves a random-id blank graph
+and stopped placement without launching or arming an owner. Repeated open returns
+one placement; creation is not automatically retried after a lost reply. Read-only
+inspection and existing-placement opens remain available with an unsupported
+runtime default. Inputs and replies are defined in `api/huddle/authoring.ts`.
+Remote profile access is denied; remote/runtime protocols and database schema are
+unchanged. Frontends must feature-detect 27.1 before using these routes.
+
 Application **27.0** adds `huddle` to the closed session-kind enum and an optional
 `huddle_id` definition identity on session projections. Old clients cannot safely
 interpret that kind, so frontend and daemon require a coordinated major update.
 Migration 43 retains one huddle placement per project/canonical worktree/definition
 and records huddle owners in the common runtime inventory without terminal segments.
 The existing create-session request still accepts only agent/terminal kinds;
-huddle creation and public Start/Run routes are not enabled yet. Independent-owner
-adoption, lifecycle controls and host maintenance integration are tracked in
+huddle creation uses its separate 27.1 routes; public Start/Run remain pending.
+Independent-owner adoption, lifecycle controls and host maintenance integration are tracked in
 [huddle acceptance](../../docs/acceptance/huddle.md).
 Agent/terminal runtime protocol 1.1 and remote transport protocol 5 are unchanged.
 
