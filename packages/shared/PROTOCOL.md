@@ -1,5 +1,40 @@
 # The puddle communication protocol
 
+Application **28.12** adds local/SSH read-only POST
+`/api/huddle/:profile/sessions/:sid/history/owners` and `/history/retained`.
+The owner catalogue takes `{after?: {created_at, runtime_id}}` and returns
+`{source: "recorded-bindings", records, next}` with at most 64 newest-first
+recorded runtime identities/builds/states/timestamps. The cursor orders timestamp
+and runtime id together; these states are not live owner evidence.
+
+Retained pages take the existing exact `owner`, `collection`, `after` and required
+execution `parent`, without `include_readout_observation`. They return
+`{source: "retained-ledger", observed_at, history}`; history uses the existing
+bounded public record projection and cursor. Reads work with a stopped or
+unconnected owner and missing project source, while the supporting daemon is
+available. They never connect/start/reconcile an owner, invoke a readout or change
+an execution outcome. Existing live `/history` semantics are unchanged.
+
+The controller rechecks profile/placement authority and binds private launch and
+ledger identity to the exact recorded runtime/incarnation. History and revision
+reads share one workspace with at most eight queued/active requests. Snapshot
+readers never open the original with SQLite: stable main/WAL copies use private
+scratch, and a checkpointed main file uses an immutable in-memory copy. Bounds are
+128 MiB main, 256 MiB WAL and the existing 256-row/1 MiB history page; actual SQL
+body sizes are checked before materialisation. Missing/changed/unsupported state
+fails without creation, migrations, retry or owner recovery. Scratch is removed
+on normal success/failure; crash-orphaned OS temporary files remain a resource
+acceptance consideration. No owner protocol, ledger or application database
+migration is added.
+
+CLI `pudl huddle history-owners|retained-history SESSION_ID --request JSON` and MCP
+`huddle_history_owners`/`huddle_retained_history` require 28.12. They are read-only
+and verify exact owner/collection/page correspondence. The IDE's History action
+opens recorded runtimes when no connected owner is available; live history offers
+Recorded runtimes navigation. Recorded views label provenance/read time, do not
+poll copied ledgers or clear uncertain-command review, and expose no readout
+reconciliation controls. Older hosts retain connected-owner history.
+
 Application **28.11** adds local/SSH `GET/PUT
 /api/huddle/:profile/definitions/:id/source`. GET takes the existing explicit
 project/worktree query and returns `{document, files}` from one verified capture;

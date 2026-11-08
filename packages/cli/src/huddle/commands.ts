@@ -24,6 +24,8 @@ export const huddleHelp = `  pudl huddle list --project ID --worktree /absolute/
   pudl huddle open <huddle-id> --project ID --worktree /absolute/host/worktree
   pudl huddle source <huddle-id> --project ID --worktree /absolute/host/worktree
   pudl huddle save-source <huddle-id> --project ID --worktree /absolute/host/worktree --request JSON
+  pudl huddle history-owners <session-id> --request JSON
+  pudl huddle retained-history <session-id> --request JSON
   pudl huddle runtime <session-id>
   pudl huddle session|archive|unarchive <session-id>
   pudl huddle start|apply|run|interrupt|resume|stop <session-id> --request JSON

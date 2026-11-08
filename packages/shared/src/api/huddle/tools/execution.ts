@@ -1,4 +1,8 @@
 import { z } from 'zod';
+import {
+  huddleHistoryOwnersRequestSchema,
+  huddleRetainedHistoryRequestSchema,
+} from '../history.js';
 import { sessionId } from '../../common.js';
 import { huddleJsonSchema, HUDDLE_LIMITS } from '../values.js';
 import { huddleRevisionReviewSchema, huddleDiffReviewSchema } from '../review.js';
@@ -15,6 +19,8 @@ const session = { session_id: sessionId };
 /** All mutations carry reviewed values. Tools must never resolve a newer target implicitly. */
 export const huddleExecutionToolSchemas = {
   runtime: z.strictObject(session),
+  'history-owners': z.strictObject({ ...session, request: huddleHistoryOwnersRequestSchema }),
+  'retained-history': z.strictObject({ ...session, request: huddleRetainedHistoryRequestSchema }),
   revision: z.strictObject({ ...session, request: huddleRevisionReviewSchema }),
   diff: z.strictObject({ ...session, request: huddleDiffReviewSchema }),
   start: z.strictObject({ ...session, request: huddleStartSchema }),
@@ -28,6 +34,8 @@ export const huddleExecutionToolSchemas = {
 };
 export const huddleToolExecutionCommandSchema = z.discriminatedUnion('action', [
   huddleExecutionToolSchemas.runtime.extend({ action: z.literal('runtime') }),
+  huddleExecutionToolSchemas['history-owners'].extend({ action: z.literal('history-owners') }),
+  huddleExecutionToolSchemas['retained-history'].extend({ action: z.literal('retained-history') }),
   huddleExecutionToolSchemas.revision.extend({ action: z.literal('revision') }),
   huddleExecutionToolSchemas.diff.extend({ action: z.literal('diff') }),
   huddleExecutionToolSchemas.start.extend({ action: z.literal('start') }),
@@ -42,6 +50,16 @@ export const huddleToolExecutionCommandSchema = z.discriminatedUnion('action', [
 export type HuddleToolExecutionCommand = z.infer<typeof huddleToolExecutionCommandSchema>;
 
 const definitions = [
+  [
+    'history-owners',
+    'List a bounded page of recorded runtime identities for this huddle placement, including stopped and older owners. Supply request {} for the first page or its after cursor. Recorded states do not prove liveness. No owner is started.',
+    true,
+  ],
+  [
+    'retained-history',
+    'Read recorded executions, invocations or operations from the exact retained owner ledger. Supply owner, collection, after and parent where required. Works without a connected owner or project source; running/unknown records are not completion or live-state evidence. No execution, reconciliation or retry.',
+    true,
+  ],
   [
     'revision',
     'Inspect the exact active huddle revision, variables, resolved bindings and source/contract inventory. Supply the inspected target, optionally entry {kind: file|component, path} for retained text. Works without saved source while the owner is connected. Does not execute, save or apply.',

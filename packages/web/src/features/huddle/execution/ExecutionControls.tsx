@@ -1,3 +1,5 @@
+import { useRetainedHistorySupported } from './history/api';
+import { RecordedHistoryDialog } from './history/RecordedHistoryDialog';
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
@@ -44,6 +46,8 @@ export function ExecutionControls({
   locked: boolean;
 }) {
   const supported = useHuddleExecutionSupported();
+  const retainedSupported = useRetainedHistorySupported();
+  const [recordedHistory, setRecordedHistory] = useState(false);
   const reviewSupported = useHuddleReviewSupported();
   const runtime = useHuddleRuntime(profile, session.id, focused);
   const source = useHuddleDocument(profile, session);
@@ -251,13 +255,6 @@ export function ExecutionControls({
               >
                 Stop
               </button>
-              <button
-                type="button"
-                className={graphActionClass}
-                onClick={() => setHistory({ owner: ownerIdentity(current.target) })}
-              >
-                History
-              </button>
             </>
           )}
           <button
@@ -268,6 +265,20 @@ export function ExecutionControls({
           >
             {commands.status.review ? 'Inspect outcome' : 'Inspect runtime'}
           </button>
+          {(current || retainedSupported) && (
+            <button
+              type="button"
+              className={graphActionClass}
+              disabled={busy}
+              onClick={() =>
+                current
+                  ? setHistory({ owner: ownerIdentity(current.target) })
+                  : setRecordedHistory(true)
+              }
+            >
+              History
+            </button>
+          )}
         </ControlTray>
         {dirty && (
           <span className="text-xs text-fg-muted">Save source edits before Start or Apply.</span>
@@ -314,12 +325,27 @@ export function ExecutionControls({
           onClose={() => setRevisionTarget(null)}
         />
       )}
+      {recordedHistory && (
+        <RecordedHistoryDialog
+          profile={profile}
+          session={session.id}
+          onClose={() => setRecordedHistory(false)}
+        />
+      )}
       {history && (
         <HistoryDialog
           profile={profile}
           session={session.id}
           owner={history.owner}
           initialExecution={history.execution}
+          onRecordedRuntimes={
+            retainedSupported
+              ? () => {
+                  setHistory(null);
+                  setRecordedHistory(true);
+                }
+              : undefined
+          }
           onClose={() => setHistory(null)}
         />
       )}

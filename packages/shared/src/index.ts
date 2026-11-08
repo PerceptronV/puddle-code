@@ -25,6 +25,7 @@ export * from './api/huddle/authoring.js';
 export * from './api/huddle/source.js';
 export * from './api/huddle/drafts.js';
 export * from './huddle/source.js';
+export * from './huddle/history.js';
 export * from './api/huddle/tools/source.js';
 export * from './api/huddle/tools/source-text.js';
 export * from './api/huddle/tools/execution.js';
@@ -45,6 +46,7 @@ export {
   reviewSpawnedAgentComponent,
 } from './huddle/templates/agents/owned.js';
 export * from './api/huddle/execution.js';
+export * from './api/huddle/history.js';
 export * from './runtime/huddle/triggers/custom.js';
 export * from './huddle/validation/values.js';
 export * from './huddle/validation/graph.js';

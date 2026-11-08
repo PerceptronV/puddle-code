@@ -16,6 +16,7 @@ import {
 import { profile, project, sessions } from '../../src/dev/preview/data';
 import { huddleRuntimeFixture } from './runtime';
 import { largeGraph } from './canvas/large-graph';
+import { retainedHistoryFixture } from './history/fixture';
 import { sourceFixture } from './source/fixture';
 
 const fixture = mountWorkspaceFixture({
@@ -166,6 +167,7 @@ components.set(`.puddle/huddle/${savedId}/nodes/review/run.ts`, {
   mtime: 1,
 });
 const source = sourceFixture(document, disk, components);
+const retainedHistory = retainedHistoryFixture();
 // Existing fixture scripts retain explicit pre-source-save host coverage.
 // Modern captured saves use ?source-saves and real computed capture hashes.
 const capturedSaves = new URLSearchParams(location.search).has('source-saves');
@@ -275,6 +277,12 @@ window.fetch = async (input, init) => {
           { id: 'plain', scripted_turns: false },
         ],
       });
+  }
+  if (new URLSearchParams(location.search).has('retained-history')) {
+    const action = path.match(
+      new RegExp(`^${prefix}/sessions/${saved.id}/history/(owners|retained)$`),
+    );
+    if (action) return retainedHistory.request(action[1]!, body);
   }
   const execution = path.match(new RegExp(`^${prefix}/sessions/([^/]+)/(readouts/observe|[^/]+)$`));
   if (execution)
@@ -427,6 +435,7 @@ Object.assign(window, {
     project: project.id,
     source: () => JSON.parse(disk.get(savedId)!.content),
     sourceControls: source,
+    retainedHistory,
     componentFiles: () => Object.fromEntries(components),
     layout: () =>
       JSON.parse(components.get(`.puddle/huddle/${savedId}/layout.json`)?.content ?? 'null'),

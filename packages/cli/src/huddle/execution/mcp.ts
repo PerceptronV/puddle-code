@@ -10,6 +10,10 @@ export function executionTools(client?: HuddleExecutionClient) {
   return huddleExecutionMcpTools
     .filter((tool) => tool.action !== 'observe-readout' || client.readoutObservation)
     .filter((tool) => !['revision', 'diff'].includes(tool.action) || client.revisionReview)
+    .filter(
+      (tool) =>
+        !['history-owners', 'retained-history'].includes(tool.action) || client.retainedHistory,
+    )
     .map(({ name, description, inputSchema, annotations }) => ({
       name,
       description,

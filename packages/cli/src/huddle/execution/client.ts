@@ -4,6 +4,8 @@ import {
   huddleRunAcceptedSchema,
   huddleStoppedSchema,
   huddleHistoryPageSchema,
+  huddleHistoryOwnersSchema,
+  parseHuddleRetainedHistory,
   huddleReadoutObserveAcceptedSchema,
   parseHuddleReview,
   supportsApplicationFeature,
@@ -16,6 +18,7 @@ export class HuddleExecutionClient {
   readonly readoutObservation: boolean;
   readonly customTriggers: boolean;
   readonly revisionReview: boolean;
+  readonly retainedHistory: boolean;
   constructor(
     private readonly request: (path: string, body?: unknown) => Promise<unknown>,
     protocol?: { major: number; minor: number },
@@ -23,6 +26,7 @@ export class HuddleExecutionClient {
     this.supported = supportsApplicationFeature(protocol, { major: 28, minor: 2 });
     this.readoutObservation = supportsApplicationFeature(protocol, { major: 28, minor: 6 });
     this.customTriggers = supportsApplicationFeature(protocol, { major: 28, minor: 7 });
+    this.retainedHistory = supportsApplicationFeature(protocol, { major: 28, minor: 12 });
     this.revisionReview = supportsApplicationFeature(protocol, { major: 28, minor: 10 });
   }
   async execute(raw: HuddleToolExecutionCommand) {
@@ -30,6 +34,18 @@ export class HuddleExecutionClient {
       throw new Error('Huddle runtime tools require compatible daemon protocol 28.2 or newer');
     const command = huddleToolExecutionCommandSchema.parse(raw);
     const path = `/sessions/${command.session_id}`;
+    if (command.action === 'history-owners' || command.action === 'retained-history') {
+      if (!this.retainedHistory)
+        throw new Error('Retained huddle history requires daemon protocol 28.12 or newer');
+      return command.action === 'history-owners'
+        ? huddleHistoryOwnersSchema.parse(
+            await this.request(`${path}/history/owners`, command.request),
+          )
+        : parseHuddleRetainedHistory(
+            command.request,
+            await this.request(`${path}/history/retained`, command.request),
+          );
+    }
     if (command.action === 'revision' || command.action === 'diff') {
       if (!this.revisionReview)
         throw new Error('Huddle revision review requires daemon protocol 28.10 or newer');

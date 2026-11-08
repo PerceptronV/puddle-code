@@ -599,7 +599,7 @@ an inspected saved digest. Rearm retains the current activation. Public schemas
 explicitly project owner/ledger data; never return private launch evidence or
 operation inputs/targets. Recheck declared worktree bindings after async admission.
 The installation event id in `huddle-host.json` is not authority. Full agent lifecycle
-bridges, offline readout reconciliation and stopped-owner history remain pending; unsupported execution is rejected before launch.
+bridges and offline readout reconciliation remain pending; unsupported execution is rejected before launch.
 Migration 48 adds `huddle_runtime_spawns`; host admission lives under
 `huddle/operations/spawns/`. The private `sessions/creation/caller.ts` hooks record
 placement and exact runtime consumption inside existing store transactions. Never
@@ -738,6 +738,18 @@ queue mutations on reconnect. Explicit runtime/history inspection clears the
 review barrier after a failure; failed observation leaves it intact. Poll only
 focused runtime/visible history pages and stop polling after errors. Do not infer
 that saved source is the active revision, or that acceptance means completion.
+Application 28.12 adds recorded owner catalogue and retained ledger pages under
+`huddle/execution/history/`, with bounded shared snapshots under
+`runtime/huddle/state/readers/`. Verify immutable binding/launch/ledger scope and
+profile authority; reads never require a live owner, installed runtime or project
+source. Never open original ledgers with SQLite: even readonly opens can create
+sidecars. Copy checked stable main/WAL files into bounded private scratch, or use
+a bounded in-memory checkpointed snapshot. Keep the existing read-only activation
+reader on this helper too; do not create missing runtime directories. Catalogue
+and page provenance are recorded, not liveness/completion evidence. Preserve live
+history separately. Recorded UI pages do not poll, offer readout actions or clear
+uncertain-command review. CLI/MCP tools share exact identities and feature gating;
+no automatic live fallback. Native crash/SSH/resource acceptance remains open.
 Application 28.10 adds active revision and saved-source diff under
 `huddle/execution/review/` and web `huddle/execution/review/`. Keep exact target,
 saved digest and selected entry across read/Apply; reject substitutions. The

@@ -1,4 +1,6 @@
 import { realpathSync } from 'node:fs';
+import { readRetainedHuddleHistory } from './history/retained.js';
+import { projectHuddleHistory } from './history/projection.js';
 import { requireHuddleHostFeatures } from '../../runtime/huddle/triggers/definitions.js';
 import { randomUUID } from 'node:crypto';
 import {
@@ -9,14 +11,15 @@ import {
   huddleRunSchema,
   huddleLifecycleCommandSchema,
   huddleHistoryRequestSchema,
+  huddleHistoryOwnersRequestSchema,
+  huddleRetainedHistoryRequestSchema,
+  type HuddleHistoryOwnersRequest,
+  type HuddleRetainedHistoryRequest,
   huddleRevisionReviewSchema,
   huddleDiffReviewSchema,
   huddleReviewSchema,
   type HuddleRevisionReview,
   type HuddleDiffReview,
-  huddleExecutionViewSchema,
-  huddleInvocationViewSchema,
-  huddleOperationViewSchema,
   canonicalHuddleJson,
   type HuddleStart,
   type HuddleApply,
@@ -59,7 +62,10 @@ interface Dependencies extends HuddleResourceStores {
   profiles: Pick<ProfileStore, 'get'>;
   projects: Pick<ProjectStore, 'get'>;
   sessions: Pick<SessionStore, 'get'>;
-  runtimes: Pick<RuntimeStore, 'ownerOf' | 'hasUnreleasedHuddle' | 'stopRequested'>;
+  runtimes: Pick<
+    RuntimeStore,
+    'ownerOf' | 'hasUnreleasedHuddle' | 'stopRequested' | 'get' | 'huddleHistory'
+  >;
   definitions: HuddleService;
   controls: HuddleRuntimeControls;
   launcher?: Pick<RuntimeLauncher, 'launchHuddle' | 'checkHuddleAvailable'>;
@@ -414,44 +420,76 @@ export class HuddleExecutionService {
     const { owner, include_readout_observation, ...query } = input;
     const page = await this.deps.controls.records(id, owner, query, scope.valid);
     scope.check();
-    if (page.collection === 'executions')
-      return {
-        ...page,
-        records: page.records.map(({ ordinal, record }) => ({
-          ordinal,
-          record: huddleExecutionViewSchema.parse(record),
-        })),
-      };
-    if (page.collection === 'invocations')
-      return {
-        ...page,
-        records: page.records.map(({ ordinal, record }) => ({
-          ordinal,
-          record: huddleInvocationViewSchema.parse(record),
-        })),
-      };
+    return projectHuddleHistory(page, include_readout_observation);
+  }
+
+  historyOwners(
+    profile: string,
+    id: string,
+    raw: HuddleHistoryOwnersRequest,
+    authority: Authority,
+  ) {
+    const input = huddleHistoryOwnersRequestSchema.parse(raw);
+    const scope = this.scope(profile, id, authority);
+    const records = this.deps.runtimes.huddleHistory(id, input.after);
+    for (const binding of records) {
+      if (
+        binding.profile_id !== profile ||
+        binding.project_id !== scope.session.project_id ||
+        binding.huddle_id !== scope.session.huddle_id ||
+        binding.canonical_worktree_path !== scope.session.worktree_path
+      )
+        throw ApiError.conflict(
+          'huddle_history_changed',
+          'Recorded huddle placement identity changed',
+        );
+    }
+    scope.check();
+    const last = records.at(-1);
     return {
-      ...page,
-      records: page.records.map(({ ordinal, record }) => ({
-        ordinal,
-        record: huddleOperationViewSchema.parse({
-          ...record,
-          ...(include_readout_observation &&
-          record.kind === 'readout' &&
-          record.consumed &&
-          record.state === 'unknown' &&
-          typeof record.target === 'object' &&
-          record.target !== null &&
-          !Array.isArray(record.target) &&
-          typeof record.target.support === 'object' &&
-          record.target.support !== null &&
-          !Array.isArray(record.target.support) &&
-          record.target.support.reconciliation === 'observe'
-            ? { readout_observation: true }
-            : {}),
-        }),
+      source: 'recorded-bindings' as const,
+      records: records.map((binding) => ({
+        owner: { runtimeId: binding.runtime_id, incarnation: binding.incarnation },
+        build: binding.build,
+        recorded_state: binding.state,
+        created_at: binding.created_at,
+        ended_at: binding.ended_at,
       })),
+      next:
+        records.length === 64 && last
+          ? { created_at: last.created_at, runtime_id: last.runtime_id }
+          : null,
     };
+  }
+
+  retainedHistory(
+    profile: string,
+    id: string,
+    raw: HuddleRetainedHistoryRequest,
+    authority: Authority,
+  ) {
+    const input = huddleRetainedHistoryRequestSchema.parse(raw);
+    const scope = this.scope(profile, id, authority);
+    if (this.pendingReviews >= 8)
+      throw ApiError.conflict('huddle_review_busy', 'Too many pending history or revision reads');
+    this.pendingReviews++;
+    return this.reviewQueue
+      .run('source', async () => {
+        scope.check();
+        const binding = this.deps.runtimes.get(input.owner.runtimeId);
+        const result = readRetainedHuddleHistory(
+          this.deps.home,
+          profile,
+          scope.session,
+          binding,
+          input,
+        );
+        scope.check();
+        return result;
+      })
+      .finally(() => {
+        this.pendingReviews--;
+      });
   }
 
   reviewRevision(profile: string, id: string, raw: HuddleRevisionReview, authority: Authority) {

@@ -161,7 +161,7 @@ only when the connected host supports those fields (28.6/28.7).
 | `apply` | `expected_digest`, `variables`, and exact `target` |
 | `run` | `target`, manual-trigger `node`, caller-chosen UUID `event_id`, explicit JSON `data` |
 | `interrupt`, `resume`, `stop` | `target` |
-| `history` | `owner`, `collection`, nonnegative `after`; execution `parent` for invocations, invocation `parent` for operations |
+| `history` | `owner`, `collection`, nonnegative `after`; execution `parent` for invocations and operations |
 | `observe-readout` | `target`, `operation_id` |
 
 Use `owner.target` from a connected runtime inspection **verbatim** as `target`:
@@ -253,3 +253,32 @@ The subsequent Apply still requires the reviewed target and saved digest; viewin
 the comparison does not apply it. Unsaved edits are excluded. Older hosts retain
 the existing Apply controls without comparison. These observations currently
 require a connected owner; offline/stopped-owner review remains unfinished.
+
+
+## History after an owner stops
+
+On a supporting local/SSH daemon (application 28.12+), list the huddle placement's
+recorded runtimes with:
+
+```sh
+pudl huddle history-owners SESSION_ID --request '{}'
+```
+
+Use its returned `owner` identity in an explicit request to
+`pudl huddle retained-history SESSION_ID --request JSON`. Supply `collection`,
+`after: 0` initially, and the execution UUID as `parent` for node/operation pages.
+Use the returned cursor for subsequent pages. MCP names are
+`huddle_history_owners` and `huddle_retained_history`, each taking
+`{session_id, request}`. Neither needs project source or a running huddle. The
+host daemon must remain available; these are not client-side offline caches.
+
+Results are labelled recorded evidence. A last-recorded `running` execution may
+have lost its owner, and an `unknown` external operation is still unknown. Reads
+never restart work, retry operations or reconcile readouts. Missing, unsupported
+or concurrently changing private state produces an error without a live fallback.
+
+The IDE's **History** action opens the recorded runtime list after Stop. From a
+live history view, choose **Recorded runtimes** to inspect earlier owners. Choose
+an execution to see nodes, results and operation outcomes. Recorded pages show
+the read time and refresh only explicitly; they offer no readout observation
+controls and do not resolve an uncertain-command warning.

@@ -34,6 +34,64 @@ delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## Implemented: retained history after Stop
+
+Application **28.12** adds local/SSH read-only `POST
+/api/huddle/:profile/sessions/:sid/history/owners` and `/history/retained`.
+The catalogue pages through 64 recorded bindings at a time using a stable
+creation-time/runtime-id cursor. Retained pages require an exact runtime and
+incarnation and reuse the existing public execution, invocation/result and
+operation projections. Private launch paths, credentials and reconciliation
+controls are omitted. The supporting daemon must be available; this is not a
+client-side offline cache. Existing connected-owner history is unchanged.
+
+The controller verifies profile, project, placement, worktree, huddle, private
+launch and ledger identities. Reads do not inspect, connect, start, adopt or
+recover owners, evaluate source or deliver/reconcile readouts. Missing project
+source does not prevent history inspection. Recorded running and unknown states
+stay recorded; they establish neither current activity nor completion.
+
+`runtime/huddle/state/readers/database.ts` shares bounded snapshot inspection
+between retained history and activation review. It never opens the original
+ledger with SQLite: even a read-only open could create sidecars after the last
+writer closes. A checkpointed main file is copied into memory, with journal-mode
+header conversion confined to that copy; main plus WAL are copied into a private
+scratch directory with SQLite regenerating only the copied shared-memory index.
+File identity, size and modification/change timestamps are rechecked around the
+read. Missing private directories are not created or chmodded. Changed evidence,
+unsupported versions, hot rollback journals, orphan shared-memory files and
+invalid identities fail without repair. Main/WAL reads are capped at 128/256 MiB;
+history pages use actual SQL text lengths before materialising at most 256 rows
+and 1 MiB of body text. History and source review share one workspace with at most
+eight pending/active requests. Normal success/error removes scratch; daemon-crash
+scratch cleanup and large-inventory resource acceptance remain open.
+
+CLI `history-owners`/`retained-history` and corresponding read-only MCP tools gate
+on 28.12. Shared parsing checks exact owner, collection, record order, parent and
+page cursor. Unsupported hosts do not fall back to a live owner or retry. The IDE
+opens the recorded-runtime chooser from History when no owner is connected;
+live history also offers Recorded runtimes navigation. Recorded pages show their
+provenance and read time, support explicit refresh/pagination, do not poll copied
+ledgers, expose no readout-observation actions and do not clear pending command
+review. Current source and retained revision inspection remain separate.
+
+Verification covers real temporary owner Start/Run/Stop through HTTP followed by
+source deletion and retained result inspection without relaunch, private-field
+projection, wrong placement/incarnation refusal, catalogue pagination, revoked
+and remote authority, closed/live/crash-like WAL readers, unchanged source bytes
+and sidecars, physical/text bounds, malformed parent/identity/version rejection,
+and CLI/MCP gating and exact response validation. Browser checks cover recorded
+runtime navigation, retained results, unknown readout outcomes, explicit refresh
+failure, no polling or lifecycle/reconciliation calls, and the existing live
+execution flow. Dark/light screenshots were inspected. This does not establish
+real provider, SSH, supervisor or full crash/reboot acceptance.
+
+The final regression run passes **117/117 tests in 13 files**, including the
+reader, HTTP, active revision, CLI/MCP and shared contract suites. Shared/daemon/
+CLI and web TypeScript, scoped ESLint/formatting, web and CLI builds, and packaged
+CLI help checks pass. Only temporary fixture owners and a headless UI preview
+were launched; no production daemon, provider or interactive native window was used.
+
 ## Implemented: captured text and digest-checked source authoring
 
 Application **28.11** adds local/SSH `GET/PUT
@@ -82,7 +140,7 @@ fixtures require private Unix IPC permission; the authorised run passes all case
 Shared/daemon/CLI and web TypeScript, scoped ESLint/formatting, web/CLI builds and
 packaged CLI help checks pass. No production daemon, native UI or provider is used.
 
-The IDE integration is described below. Offline history/recovery, agent restart/
+The IDE integration is described below. Stopped-owner revision review/recovery, agent restart/
 native feedback, integration secrets/settings and provider/platform/packaged
 acceptance remain open.
 
@@ -222,7 +280,7 @@ touch/keyboard movement, cancellation, stale gestures, undo/redo and conflicts.
 Web TypeScript, changed-source ESLint/formatting and production web/CLI builds pass.
 No production daemon or interactive native window was started.
 Native interactive window/reboot acceptance remains pending; headless/unit evidence
-does not substitute for it. Remaining overall: offline history/recovery, agent
+does not substitute for it. Remaining overall: stopped-owner revision inspection/recovery, agent
 restart/native feedback, full digest-save integration,
 managed integration secrets, and provider/platform/packaged acceptance. Earlier
 camera/selection remaining-work notes below are superseded by this increment.
@@ -271,7 +329,7 @@ rejects traversal and connection/worktree flags, and advertises the command in
 help. The copied frontend contains the updated authoring skill. No production
 daemon, native desktop, external service or real provider was used.
 Remaining: real-provider authoring and integration acceptance, managed secrets,
-offline history/recovery, agent restart/native feedback, graph save/view persistence
+stopped-owner revision inspection/recovery, agent restart/native feedback, graph save/view persistence
 and remaining platform/packaged lifecycle acceptance. Earlier authoring-asset
 remaining-work notes below are superseded by this increment.
 
@@ -304,7 +362,8 @@ uses normal registered worktree capture/repository locking. Authority and the
 complete owner target are checked after asynchronous work. A source edit or
 lifecycle change rejects review without substituting a later revision. Missing
 project source still permits retained-only review on a connected owner. Offline
-and stopped-owner source/history inspection remain unfinished.
+and stopped-owner source inspection remain unfinished; retained history is now
+available through 28.12 as described above.
 
 The IDE exposes **Active revision** and includes a read-only comparison in
 **Apply saved** on supporting hosts. It shows files and resolved node contracts,
@@ -336,7 +395,7 @@ TypeScript, changed-source ESLint/formatting, semantic token checks and bundled
 skill validation pass. Production web and CLI builds pass; packaged help lists
 revision/diff and the copied frontend contains the updated authoring skill.
 
-Remaining overall: offline history/recovery, authoring schema/type/component assets,
+Remaining overall: stopped-owner revision inspection/recovery, authoring schema/type/component assets,
 agent resume/restart and native feedback, full graph-save/view persistence and
 provider/platform/packaged acceptance.
 
@@ -377,7 +436,7 @@ changed-source ESLint/formatting and bundled skill validation pass. Production w
 and CLI builds pass; packaged help lists the placement commands and the copied
 frontend contains the updated skill.
 
-Remaining: offline history, standalone authoring assets,
+Remaining: stopped-owner revision inspection, standalone authoring assets,
 agent restart/native feedback, owner recovery and platform/provider acceptance.
 
 ## Implemented: CLI/MCP placement and runtime controls
@@ -421,7 +480,7 @@ after bounding failure details so MCP truncation cannot hide observation guidanc
 CLI/frontend production builds and packaged help pass; the copied frontend contains
 the updated authoring skill. The installed-launch fixture also resolves compiled
 shared output, so rebuild that package before running it after contract edits.
-Remaining tool work: offline history,
+Remaining tool work: stopped-owner revision inspection,
 standalone schema/types and component fixtures. Runtime recovery, agent restart
 nodes, native feedback and platform/provider acceptance remain open elsewhere.
 
@@ -509,7 +568,7 @@ semantic colour checks and diff checks pass. The production web build passes and
 contains the canonical skill in the lazy huddle asset. No production daemon,
 native desktop or real provider was launched.
 Remaining authoring work: standalone schemas/types and complete extension examples,
-Offline history, managed
+Stopped-owner revision inspection, managed
 integration secrets, and real-provider authoring evidence. No protocol, runtime
 metadata, ledger or database format changes are introduced by this UI action.
 
@@ -2297,8 +2356,8 @@ version changes were needed for this UI increment.
   node/operation pages, showing states, inputs, results and consumed dispatch.
   Previous/Next and refresh retain cursor semantics; focused runtime and visible
   history pages poll every three seconds, stopping on errors. Value previews are
-  visibly truncated at 16 KiB. Stopped/offline history, full-value export and active
-  revision/binding inspection remain unfinished.
+  visibly truncated at 16 KiB. Full-value export remains unfinished. The later 28.10/28.12 increments above
+  add connected-owner revision/binding inspection and stopped-owner history.
 
 UI-only verification uses `test/huddle/execution.browser.mjs`, with synthetic
 HTTP replies and no daemon or provider. It covers the 28.1 capability gate,
@@ -2370,8 +2429,8 @@ existing 256-row/1 MiB private-ledger limits. Their cursor enumerates rows, not
 changes: refresh earlier pages for mutable outcomes. Public inspection identifies
 the active activation; application 28.10 now exposes its revision digest, source
 and binding details through the review endpoints documented above.
-Retained history after owner shutdown, reboot recovery, auto-start controls,
-provider-backed nodes remain unfinished; the IDE integration is documented above.
+Retained history after owner shutdown is now implemented in 28.12 above.
+Reboot recovery, auto-start controls and full provider lifecycle coverage remain unfinished; the IDE integration is documented above.
 
 Verification: **377 tests in 53 files** passed across the shared schemas, complete
 huddle suite, daemon profile-authority tests and connector policy tests. Six new
@@ -2411,8 +2470,8 @@ Unknown operations remain unknown.
 
 This controller increment originally added no HTTP routes or UI controls; the
 28.2 routes above now reuse it. It does not read stopped owners' ledgers or change
-private owner contracts, ordinary runtime 1.1, or remote protocol 5. Retained/offline
-history projection remains pending; the IDE now uses the 28.2 APIs above.
+private owner contracts, ordinary runtime 1.1, or remote protocol 5. The separate 28.12 path above now projects retained history without an owner;
+the IDE uses both routes according to the selected history source.
 
 Verification: **184 tests in 31 files** passed across shared/huddle and
 daemon/huddle, including five new real isolated-owner controller tests and four
@@ -3428,8 +3487,8 @@ software and did not start a service.
 Phase 0 remains open for the full component catalogue and resource admission.
 Phase 1 has retained revisions/activation, the ledger, routing, workers and a manual
 scheduler composed in an independent owner process, now exposed through local/SSH
-lifecycle and live-history APIs with IDE controls. Next complete retained/offline
-history, complete provider lifecycle coverage, host resource accounting and
+lifecycle, live-history and retained-history APIs with IDE controls. Next complete
+stopped-owner revision inspection, provider lifecycle coverage, host resource accounting and
 lifecycle fencing. Active-revision/source review is now implemented above. Finish settings,
 additional integration adapters, provider-backed lifecycle nodes,
 managed integration secrets, real-service adapters and packaged integration.

@@ -33,12 +33,13 @@ Revision-checked single-file source saves now reject detected concurrent edits;
 the graph UI currently shares ordinary editor conditional file saves. Application
 28.11 adds exact captured-source reads and text-preserving digest-checked saves,
 with CLI/MCP support and response verification. Full-capture digest integration
-with IDE drafts/conflicts/window recovery remains unfinished; retained graph view
-state is implemented.
+with IDE drafts/conflicts/window recovery and retained graph view state are now
+implemented.
 Internal queued Apply/Arm/Run/Interrupt now require the inspected owner and
 activation, preventing stale views from dispatching against a replacement.
 Bounded live-owner history reads validate execution/node/operation records;
-application 28.2 exposes explicit public projections. Stopped-owner history remains pending. Application 28.10 now exposes exact active
+application 28.2 exposes explicit public projections. Application 28.12 adds recorded-owner discovery and retained execution/result history
+without connecting or restarting an owner. Stopped-owner revision review remains pending. Application 28.10 now exposes exact active
 revision/source/binding inspection and saved-versus-active comparison through the
 IDE, CLI and MCP. Retained inspection works after project source deletion while
 the owner remains connected. Host-side exact agent-turn admission now shares
@@ -780,7 +781,7 @@ and `huddle_authoring` now expose a client-bundled kit: structural JSON Schemas,
 generated wrapper types, editable transform/pull-feed/report components, example
 graphs and fake fixtures. Kit reads need no host or source mutation; the reported
 client protocol is not target-host capability evidence. Real-provider authoring,
-richer integrations, managed secrets and offline history remain unfinished.
+richer integrations, managed secrets and offline revision review remain unfinished.
 
 Let users select any eligible account in the current profile to create or modify
 a huddle through an ordinary managed agent. The authoring agent is distinct from
@@ -821,7 +822,7 @@ enable nested delegation, cross-profile access or unlimited agent budgets.
 
 ## 11. Phased implementation and release gates
 
-Phases 0–4 are **in progress**; phase 5 has window integration, IDE authoring assistance and a standalone authoring kit, with provider-backed authoring acceptance and offline history unfinished. Phase 6
+Phases 0–4 are **in progress**; phase 5 has window integration, IDE authoring assistance and a standalone authoring kit, with provider-backed authoring acceptance and offline revision review unfinished. Phase 6
 has preparatory host maintenance integration, with packaged acceptance pending.
 Phase 1 currently has the private inbox/outbox, node-attempt and exact-operation
 ledger plus durable
@@ -834,8 +835,9 @@ active-revision details and saved-source comparison are implemented. Supporting
 local/SSH hosts now use captured manifest/layout saves with shared source-tab
 baselines, IndexedDB/native draft metadata, dependency conflict review and guarded
 Keep mine; missing old metadata requires review. Explicit invalid-source repair
-retains its narrower file guard. Complete settings, stopped-owner history and
-native/provider/platform acceptance remain pending.
+retains its narrower file guard. Application 28.12 adds recorded owner discovery and stopped-owner execution/result
+history through the IDE and CLI/MCP, without restarting owners. Complete settings,
+stopped-owner revision review and native/provider/platform acceptance remain pending.
 The IDE now has reviewed lifecycle controls, manual input and live result inspection,
 plus initial editable prompt/review templates and connection feedback settings;
 phase 3 still needs resume/restart and provider-native acceptance. Each phase

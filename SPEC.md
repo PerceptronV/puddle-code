@@ -1683,6 +1683,34 @@ unmount. Selected/focused objects and active drag/connection sources stay mounte
 wire control-point hulls retain crossing and backward curves even with both nodes
 off screen. Fit graph can render the whole graph; Node list and the connection
 inspector still address all objects. Complete settings remain unfinished.
+Application 28.12 adds a bounded recorded-owner catalogue and retained history
+under huddle session `/history/owners` and `/history/retained` POST routes. Catalogue
+requests page newest-first by recorded creation time plus runtime id; replies are
+labelled `recorded-bindings`. Retained requests name the exact runtime/incarnation,
+collection/cursor and execution parent and return `retained-ledger`, read time and
+the existing public history projection. They require current profile/placement
+authority and matching immutable binding, private launch and ledger identities,
+but no installed/connected owner or project source. A supporting daemon is still
+required. No execution outcome changes and no adoption, provider call or readout
+reconciliation occurs. Private inputs, operation targets and launch evidence stay
+private. Old live-history behavior remains available.
+
+The shared read snapshot never opens the original database with SQLite or creates
+missing runtime directories. Checkpointed ledgers use bounded read-only in-memory
+copies; stable main/WAL pairs use private scratch and a read transaction, regenerating
+only the copy's shared-memory index. Recheck file identity/size/timestamps around
+copying and observation; changed or unsupported evidence fails without retry.
+Limits are 128 MiB main and 256 MiB WAL. History reads share the revision workspace
+queue (at most eight requests) and bound pages to 256 rows/1 MiB using actual SQL
+byte lengths before returning text. Normal cleanup removes scratch; crash-orphaned
+OS scratch and platform/resource measurements remain acceptance work.
+
+CLI/MCP expose `history-owners`/`retained-history` and the corresponding underscored
+tool names. Recorded views in the IDE show provenance/read time and explicit refresh,
+with no polling or mutation/reconciliation controls. History remains reachable when
+the owner stops; live views can navigate to recorded runtimes. Recorded pending,
+running and unknown outcomes never establish current activity or completion.
+No runtime/ledger or application database version changes accompany these reads.
 Application 28.11 adds local/SSH `GET/PUT /api/huddle/:profile/definitions/:id/source`
 for source-preserving authoring. A read returns `{document, files}` from one capture;
 a save takes explicit project/worktree, `expected_digest` and

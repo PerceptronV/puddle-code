@@ -77,6 +77,28 @@ export class RuntimeStore {
     );
   }
 
+  /** Stable bounded catalogue of recorded bindings, never evidence of owner liveness. */
+  huddleHistory(
+    sessionId: string,
+    after?: { created_at: string; runtime_id: string },
+  ): RuntimeBinding[] {
+    return this.db
+      .prepare(
+        `SELECT * FROM runtime_bindings WHERE role = 'huddle'
+      AND launch_session_id = ? AND active_session_id = ?
+      AND (? IS NULL OR created_at < ? OR (created_at = ? AND runtime_id < ?))
+      ORDER BY created_at DESC, runtime_id DESC LIMIT 64`,
+      )
+      .all(
+        sessionId,
+        sessionId,
+        after?.created_at ?? null,
+        after?.created_at ?? null,
+        after?.created_at ?? null,
+        after?.runtime_id ?? null,
+      ) as RuntimeBinding[];
+  }
+
   live(limit = Number.MAX_SAFE_INTEGER): RuntimeBinding[] {
     if (!Number.isSafeInteger(limit) || limit < 1)
       throw new Error('Invalid runtime inventory limit');

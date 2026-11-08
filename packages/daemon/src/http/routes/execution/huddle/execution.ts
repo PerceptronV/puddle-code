@@ -12,6 +12,10 @@ import {
   huddleLifecycleCommandSchema,
   huddleRuntimeInspectionSchema,
   huddleHistoryRequestSchema,
+  huddleHistoryOwnersRequestSchema,
+  huddleHistoryOwnersSchema,
+  huddleRetainedHistoryRequestSchema,
+  huddleRetainedHistorySchema,
   huddleHistoryPageSchema,
   huddleRunAcceptedSchema,
   huddleStoppedSchema,
@@ -136,6 +140,30 @@ export function huddleExecutionRoutes(service: HuddleExecutionService): Hono {
             hexIdParam(c, 'profile'),
             c.req.param('sid'),
             await parseBody(c, huddleLifecycleCommandSchema),
+            requestAuthority(c),
+          ),
+        ),
+      ),
+    )
+    .post('/:profile/sessions/:sid/history/owners', async (c) =>
+      c.json(
+        huddleHistoryOwnersSchema.parse(
+          service.historyOwners(
+            hexIdParam(c, 'profile'),
+            c.req.param('sid'),
+            await parseBody(c, huddleHistoryOwnersRequestSchema),
+            requestAuthority(c),
+          ),
+        ),
+      ),
+    )
+    .post('/:profile/sessions/:sid/history/retained', async (c) =>
+      c.json(
+        huddleRetainedHistorySchema.parse(
+          await service.retainedHistory(
+            hexIdParam(c, 'profile'),
+            c.req.param('sid'),
+            await parseBody(c, huddleRetainedHistoryRequestSchema),
             requestAuthority(c),
           ),
         ),

@@ -13,21 +13,29 @@ import {
 } from '../../../components/ui/dialog';
 import { ControlTray } from '../../../components/ui/control-tray';
 import { huddleHistory } from './api';
+import { huddleRetainedHistory } from './history/api';
 import { historyKey, useHuddleRuntime, useHuddleCommands } from './queries';
 import { useDaemonVersion } from '../../../lib/queries/queries';
 import { ReadoutObservation } from './ReadoutObservation';
 import { graphActionClass } from '../inspector/GraphEditing';
 
 type Owner = HuddleHistoryRequest['owner'];
-function usePage(profile: string, session: string, input: HuddleHistoryRequest) {
-  return useQuery<HuddleHistoryPage>({
-    queryKey: [...historyKey(profile, session), input],
-    queryFn: ({ signal }) => huddleHistory(profile, session, input, signal),
+function usePage(profile: string, session: string, input: HuddleHistoryRequest, retained = false) {
+  return useQuery<HuddleHistoryPage & { observedAt?: string }>({
+    queryKey: [...historyKey(profile, session), ...(retained ? ['retained'] : []), input],
+    queryFn: ({ signal }) =>
+      retained
+        ? huddleRetainedHistory(profile, session, input, signal).then((value) => ({
+            ...value.history,
+            observedAt: value.observed_at,
+          }))
+        : huddleHistory(profile, session, input, signal),
     retry: false,
     networkMode: 'always',
     staleTime: 0,
-    refetchInterval: (query) => (query.state.error ? false : 3000),
+    refetchInterval: (query) => (retained || query.state.error ? false : 3000),
     refetchIntervalInBackground: false,
+    refetchOnWindowFocus: !retained,
   });
 }
 
@@ -36,18 +44,22 @@ export function HistoryDialog({
   session,
   owner,
   initialExecution,
+  retained = false,
+  onRecordedRuntimes,
   onClose,
 }: {
   profile: string;
   session: string;
   owner: Owner;
   initialExecution?: string;
+  retained?: boolean;
+  onRecordedRuntimes?(): void;
   onClose(): void;
 }) {
   const [cursors, setCursors] = useState([0]);
   const [selected, select] = useState<string | null>(initialExecution ?? null);
   const after = cursors.at(-1)!;
-  const page = usePage(profile, session, { owner, collection: 'executions', after });
+  const page = usePage(profile, session, { owner, collection: 'executions', after }, retained);
   const data: Extract<HuddleHistoryPage, { collection: 'executions' }> | undefined =
     page.data?.collection === 'executions' ? page.data : undefined;
   const selectedRecord = data?.records.find(({ record }) => record.id === selected)?.record;
@@ -61,10 +73,22 @@ export function HistoryDialog({
       <DialogContent wide>
         <DialogTitle>Huddle history</DialogTitle>
         <DialogDescription>
-          Execution acceptance and completion are separate. History is currently available while
-          this runtime is connected.
+          {retained
+            ? 'Recorded ledger history. Pending, running and unknown records do not establish current activity or completion. Nothing is restarted or reconciled.'
+            : 'Execution acceptance and completion are separate. This view reads the connected runtime.'}
         </DialogDescription>
+        <p className="break-all text-xs text-fg-muted">Runtime {owner.runtimeId}</p>
+        {retained && page.data?.observedAt && (
+          <p className="text-xs text-fg-muted">
+            Read {new Date(page.data.observedAt).toLocaleString()}
+          </p>
+        )}
         <ControlTray label="History pages" className="w-fit">
+          {onRecordedRuntimes && (
+            <button type="button" className={graphActionClass} onClick={onRecordedRuntimes}>
+              Recorded runtimes
+            </button>
+          )}
           <button
             type="button"
             className={graphActionClass}
@@ -142,6 +166,7 @@ export function HistoryDialog({
                 session={session}
                 owner={owner}
                 execution={selected}
+                retained={retained}
               />
             </div>
           ) : (
@@ -160,25 +185,33 @@ function ExecutionRecords({
   session,
   owner,
   execution,
+  retained,
 }: {
   profile: string;
   session: string;
   owner: Owner;
   execution: string;
+  retained: boolean;
 }) {
   const [collection, setCollection] = useState<'invocations' | 'operations'>('invocations');
   const [cursors, setCursors] = useState([0]);
   const after = cursors.at(-1)!;
   const protocol = useDaemonVersion().data?.protocol;
-  const observationSupported = supportsApplicationFeature(protocol, { major: 28, minor: 6 });
-  const page = usePage(profile, session, {
-    owner,
-    collection,
-    after,
-    parent: execution,
-    ...(observationSupported ? { include_readout_observation: true as const } : {}),
-  });
-  const runtime = useHuddleRuntime(profile, session, true);
+  const observationSupported =
+    !retained && supportsApplicationFeature(protocol, { major: 28, minor: 6 });
+  const page = usePage(
+    profile,
+    session,
+    {
+      owner,
+      collection,
+      after,
+      parent: execution,
+      ...(observationSupported ? { include_readout_observation: true as const } : {}),
+    },
+    retained,
+  );
+  const runtime = useHuddleRuntime(profile, session, !retained);
   const commands = useHuddleCommands(profile, session);
   const current = runtime.data?.owner;
   const observationTarget =
@@ -231,7 +264,7 @@ function ExecutionRecords({
           {page.error.message}
         </p>
       )}
-      {commands.status.review && (
+      {!retained && commands.status.review && (
         <button
           type="button"
           className={graphActionClass}
