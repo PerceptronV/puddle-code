@@ -1,5 +1,5 @@
 import { realpathSync } from 'node:fs';
-import { encodeHuddleAgentTarget } from '@puddle/shared';
+import { encodeHuddleAgentTarget, encodeHuddleLifecycleTarget } from '@puddle/shared';
 import type { SessionStore } from '../../db/stores/sessions.js';
 import type { RuntimeStore } from '../../db/stores/runtimes.js';
 import type { RuntimeProgrammeTurns } from '../../runtime/controller/programme-turns.js';
@@ -11,9 +11,52 @@ export function resolveHuddleAgent(
   project: string,
   reference: string,
   worktree: string,
+  lifecycle?: 'resume' | 'restart',
 ) {
   const session = deps.sessions.get(reference);
   const owner = deps.runtimes.ownerOf(reference);
+  if (lifecycle) {
+    if (
+      session.kind !== 'agent' ||
+      session.project_id !== project ||
+      session.status === 'archived' ||
+      realpathSync(session.worktree_path) !== worktree ||
+      !session.account_id ||
+      !session.agent_type ||
+      !session.agent_mode ||
+      !session.agent_session_ref ||
+      (lifecycle === 'resume'
+        ? !!owner || !['exited', 'interrupted'].includes(session.status)
+        : !owner ||
+          owner.role !== 'session' ||
+          owner.profile_id !== profile ||
+          owner.active_session_id !== reference ||
+          owner.canonical_worktree_path !== worktree ||
+          deps.runtimes.stopRequested(owner.runtime_id))
+    )
+      throw ApiError.conflict(
+        'huddle_agent_unavailable',
+        'Choose an agent with a resumable conversation in the declared worktree',
+      );
+    return encodeHuddleLifecycleTarget({
+      sessionId: reference,
+      projectId: project,
+      worktree,
+      accountId: session.account_id,
+      agent: session.agent_type,
+      mode: session.agent_mode,
+      nativeRef: session.agent_session_ref,
+      runtime: owner
+        ? {
+            runtimeId: owner.runtime_id,
+            incarnation: owner.incarnation,
+            sessionId: reference,
+            projectId: project,
+            worktree,
+          }
+        : null,
+    });
+  }
   if (
     session.kind !== 'agent' ||
     session.status === 'archived' ||

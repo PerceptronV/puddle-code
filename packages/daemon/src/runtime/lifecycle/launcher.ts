@@ -1,4 +1,4 @@
-import type { SessionCreationCaller } from '../../sessions/creation/caller.js';
+import type { SessionLaunchCaller } from '../../sessions/creation/caller.js';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { realpathSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -40,7 +40,7 @@ interface LaunchOptions {
   provider?: RuntimeProviderLaunch;
   codeRunDirectory?: string;
   programme?: ProgrammeOperation;
-  creation?: SessionCreationCaller;
+  creation?: SessionLaunchCaller;
   beforeLaunch?: (release: RuntimeSelectedRelease) => void;
 }
 

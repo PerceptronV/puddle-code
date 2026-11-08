@@ -107,6 +107,7 @@ export * from './runtime/huddle/owner.js';
 export * from './runtime/huddle/capabilities.js';
 export * from './runtime/huddle/operations/agents.js';
 export * from './runtime/huddle/operations/spawns.js';
+export * from './runtime/huddle/operations/lifecycle.js';
 export * from './runtime/huddle/operations/spawn-mailbox.js';
 export * from './runtime/huddle/operations/mailbox.js';
 export * from './runtime/capabilities.js';

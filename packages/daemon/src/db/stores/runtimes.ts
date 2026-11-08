@@ -1,4 +1,4 @@
-import type { SessionCreationCaller } from '../../sessions/creation/caller.js';
+import type { SessionLaunchCaller } from '../../sessions/creation/caller.js';
 import { isAbsolute } from 'node:path';
 import {
   runtimeIdentitySchema,
@@ -144,7 +144,10 @@ export class RuntimeStore {
           .prepare(
             `SELECT s.session_id FROM huddle_runtime_spawns s
       WHERE s.runtime_id IS NULL AND NOT EXISTS
-      (SELECT 1 FROM terminal_placements p WHERE p.session_id = s.session_id)`,
+      (SELECT 1 FROM terminal_placements p WHERE p.session_id = s.session_id)
+      UNION SELECT o.session_id FROM huddle_session_operations o
+      WHERE o.runtime_id IS NULL AND o.previous_runtime_id IS
+        (SELECT p.runtime_id FROM terminal_placements p WHERE p.session_id = o.session_id)`,
           )
           .all() as Array<{ session_id: string }>
       ).map((row) => row.session_id),
@@ -340,7 +343,7 @@ export class RuntimeStore {
     releasePath: string;
     codeRunDirectory?: string;
     programme?: ProgrammeOperation;
-    creation?: SessionCreationCaller;
+    creation?: SessionLaunchCaller;
     huddle?: { id: string; capabilities: HuddleRuntimeCapabilities };
   }): RuntimeBinding {
     const identity = runtimeIdentitySchema.parse(input.identity);

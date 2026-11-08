@@ -92,7 +92,9 @@ export function useNodeResourceOptions(
             (observing
               ? agent.kind !== 'huddle'
               : agent.kind === 'agent' &&
-                !['archived', 'exited', 'interrupted'].includes(agent.status)) &&
+                (component?.lifecycle === 'resume'
+                  ? ['exited', 'interrupted'].includes(agent.status)
+                  : !['archived', 'exited', 'interrupted'].includes(agent.status))) &&
             (!worktree || agent.worktree_path === worktree),
         )
         .map((agent) => ({

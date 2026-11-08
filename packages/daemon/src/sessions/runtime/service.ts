@@ -1,3 +1,4 @@
+import type { SessionLaunchCaller } from '../creation/caller.js';
 import { existsSync } from 'node:fs';
 import type {
   Account,
@@ -32,7 +33,11 @@ type Dependencies = Pick<
 export class SessionRuntimeService {
   constructor(
     private readonly deps: Dependencies,
-    private readonly resume: (id: string, guard: RuntimeLaunchGuard) => Promise<Session>,
+    private readonly resume: (
+      id: string,
+      guard: RuntimeLaunchGuard,
+      caller?: SessionLaunchCaller,
+    ) => Promise<Session>,
     private readonly checkLoggedIn: (account: Account, adapter: AgentAdapter) => Promise<void>,
   ) {}
   private restartBlocker(session: Session): RestartBlocker | null {
@@ -80,6 +85,7 @@ export class SessionRuntimeService {
     id: string,
     request: RestartSessionRuntimeRequest,
     authorised: () => boolean,
+    caller?: SessionLaunchCaller,
   ): Promise<Session> {
     const requireAuthority = () => {
       if (!authorised())
@@ -146,6 +152,6 @@ export class SessionRuntimeService {
     };
     beforeLaunch(launcher.selectedRelease());
     this.deps.events.record(id, 'killed');
-    return this.resume(id, beforeLaunch);
+    return this.resume(id, beforeLaunch, caller);
   }
 }

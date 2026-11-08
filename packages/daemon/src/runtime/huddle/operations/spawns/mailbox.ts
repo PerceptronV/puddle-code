@@ -1,3 +1,5 @@
+import { huddleLifecycleRequestSchema } from '@puddle/shared';
+import { huddleLifecycleReceipt } from '../../../../huddle/operations/lifecycle/receipt.js';
 import {
   HUDDLE_OPERATION_PAGE_LIMITS,
   canonicalHuddleJson,
@@ -210,7 +212,7 @@ export class HuddleSpawnMailbox {
     if (this.ledger.spawnCleanup.unavailable(scope.operationId, error)) this.changed();
   }
 
-  /** Handles can cross nodes within one execution, never silently cross execution/worktree scope. */
+  /** Spawn/lifecycle results can cross nodes in one execution; this grants no cleanup ownership. */
   target(
     invocation: HuddleInvocationRecord,
     reference: string | { runtime_id: string; session_id: string },
@@ -231,10 +233,26 @@ export class HuddleSpawnMailbox {
       for (const row of rows) {
         after = row.ordinal;
         const operation = huddleOperationRecordSchema.parse(JSON.parse(row.body));
-        if (operation.kind !== 'spawn') continue;
-        const before = this.describe(operation.id);
+        if (!['spawn', 'resume', 'restart'].includes(operation.kind)) continue;
         const result = huddleSpawnOutcomeSchema.parse(operation.result);
-        this.verify(before, result);
+        if (operation.kind === 'spawn') this.verify(this.describe(operation.id), result);
+        else {
+          const request = huddleLifecycleRequestSchema.parse(operation.input);
+          const { activation } = this.revisions.forExecution(operation.executionId);
+          const scope = {
+            owner: this.ledger.operations.origin(operation.id) ?? this.identity,
+            executionId: operation.executionId,
+            invocationId: operation.invocationId,
+            operationId: operation.id,
+            activationId: activation.id,
+            revision: this.ledger.executions.get(operation.executionId).revision,
+          };
+          if (
+            result.agent.sessionId !== request.target.sessionId ||
+            result.receipt !== huddleLifecycleReceipt(scope, request, result.agent)
+          )
+            throw new Error('Lifecycle agent differs from retained readiness');
+        }
         const target = result.agent;
         const selected =
           typeof reference === 'string'
@@ -246,7 +264,7 @@ export class HuddleSpawnMailbox {
         if (selected) matches.set(canonicalHuddleJson(target), target);
       }
     }
-    if (matches.size > 1) throw new Error('Spawned agent identity is ambiguous');
+    if (matches.size > 1) throw new Error('Recorded agent identity is ambiguous');
     return [...matches.values()][0] ?? null;
   }
 

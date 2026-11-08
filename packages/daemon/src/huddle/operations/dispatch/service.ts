@@ -1,11 +1,21 @@
-import type { HuddleAgentOperation, HuddleSpawnOperation } from '@puddle/shared';
+import type { HuddleAgentLifecycle } from '../lifecycle/service.js';
+import { executeHuddleLifecycle } from './lifecycle.js';
+import type {
+  HuddleAgentOperation,
+  HuddleSpawnOperation,
+  HuddleLifecycleOperation,
+} from '@puddle/shared';
 import type { RuntimeStore } from '../../../db/stores/runtimes.js';
 import type { RuntimeConnections } from '../../../runtime/transport/connections.js';
 import type { RuntimeReconciler } from '../../../runtime/controller/reconcile.js';
 import type { HuddleOwnerClient } from '../../../runtime/huddle/transport/client.js';
 import { HostAdmission } from '../../../host/lifecycle/admission.js';
 import type { HuddleAgentTurns } from '../turns/service.js';
-import { validateHuddleOperation, validateHuddleSpawn } from './authority.js';
+import {
+  validateHuddleOperation,
+  validateHuddleSpawn,
+  validateHuddleLifecycle,
+} from './authority.js';
 import type { HuddleAgentSpawns } from '../spawns/service.js';
 import type { HuddleDispatchTask } from './context.js';
 import { executeHuddleAsk } from './turns.js';
@@ -14,7 +24,8 @@ import { cleanupHuddleSpawn } from './cleanup.js';
 
 type Task =
   | ({ kind: 'ask' } & HuddleDispatchTask<HuddleAgentOperation>)
-  | ({ kind: 'spawn' } & HuddleDispatchTask<HuddleSpawnOperation>);
+  | ({ kind: 'spawn' } & HuddleDispatchTask<HuddleSpawnOperation>)
+  | ({ kind: 'lifecycle' } & HuddleDispatchTask<HuddleLifecycleOperation>);
 interface Entry {
   id: string;
   client: HuddleOwnerClient;
@@ -43,6 +54,7 @@ export class HuddleAgentDispatcher {
       reconciler: RuntimeReconciler;
       turns: HuddleAgentTurns;
       spawns?: HuddleAgentSpawns;
+      lifecycle?: HuddleAgentLifecycle;
     },
   ) {}
 
@@ -110,19 +122,30 @@ export class HuddleAgentDispatcher {
     try {
       await this.admission.run(async () => {
         if (!entry.cursor && entry.lane === 'ask') entry.dirty = false;
-        // Both lanes share four page passes and the host-wide task bound.
+        // All lanes share four page passes and the host-wide task bound.
         for (let pass = 0; pass < 4 && this.current(entry); pass++) {
           const response = await entry.client.request({
-            t: entry.lane === 'ask' ? 'operation-page' : 'spawn-page',
+            t:
+              entry.lane === 'ask'
+                ? 'operation-page'
+                : entry.lane === 'spawn'
+                  ? 'spawn-page'
+                  : 'lifecycle-page',
             after: entry.cursor,
           });
           if (!this.current(entry)) return;
           if (
             (entry.lane === 'ask' && response.t !== 'operation-page') ||
-            (entry.lane === 'spawn' && response.t !== 'spawn-page')
+            (entry.lane === 'spawn' && response.t !== 'spawn-page') ||
+            (entry.lane === 'lifecycle' && response.t !== 'lifecycle-page')
           )
             return;
-          if (response.t !== 'operation-page' && response.t !== 'spawn-page') return;
+          if (
+            response.t !== 'operation-page' &&
+            response.t !== 'spawn-page' &&
+            response.t !== 'lifecycle-page'
+          )
+            return;
           if (
             response.page.next < entry.cursor ||
             response.page.records.some((row) => row.ordinal <= entry.cursor)
@@ -135,11 +158,17 @@ export class HuddleAgentDispatcher {
                   operation,
                   abort: new AbortController(),
                 }))
-              : response.page.records.map(({ operation }) => ({
-                  kind: 'spawn',
-                  operation,
-                  abort: new AbortController(),
-                }));
+              : response.t === 'spawn-page'
+                ? response.page.records.map(({ operation }) => ({
+                    kind: 'spawn',
+                    operation,
+                    abort: new AbortController(),
+                  }))
+                : response.page.records.map(({ operation }) => ({
+                    kind: 'lifecycle',
+                    operation,
+                    abort: new AbortController(),
+                  }));
           for (const task of candidates) {
             const operation = task.operation;
             const existing = entry.tasks.get(operation.scope.operationId);
@@ -148,6 +177,8 @@ export class HuddleAgentDispatcher {
                 existing.operation = task.operation;
               else if (existing.kind === 'spawn' && task.kind === 'spawn')
                 existing.operation = task.operation;
+              else if (existing.kind === 'lifecycle' && task.kind === 'lifecycle')
+                existing.operation = task.operation;
               else throw new Error('Owner operation changed kind');
               if (!operation.active) existing.abort.abort(new Error('Huddle invocation ended'));
               continue;
@@ -155,6 +186,7 @@ export class HuddleAgentDispatcher {
             if (
               (task.kind !== 'spawn' || task.operation.cleanup.state !== 'pending') &&
               (operation.state === 'cancelled' ||
+                (task.kind === 'lifecycle' && ['completed', 'failed'].includes(operation.state)) ||
                 (operation.result && 'rejected' in operation.result) ||
                 (task.kind === 'spawn' &&
                   (operation.state === 'completed' ||
@@ -169,7 +201,9 @@ export class HuddleAgentDispatcher {
             if (!binding) return;
             if (task.kind === 'ask')
               validateHuddleOperation(this.deps.home, binding, entry.client, task.operation);
-            else validateHuddleSpawn(this.deps.home, binding, entry.client, task.operation);
+            else if (task.kind === 'spawn')
+              validateHuddleSpawn(this.deps.home, binding, entry.client, task.operation);
+            else validateHuddleLifecycle(this.deps.home, binding, entry.client, task.operation);
             entry.tasks.set(operation.scope.operationId, task);
             this.tasks++;
             void this.admission
@@ -188,6 +222,14 @@ export class HuddleAgentDispatcher {
               entry.client.state?.capabilities.spawns === 1
             ) {
               entry.lane = 'spawn';
+              continue;
+            }
+            if (
+              entry.lane !== 'lifecycle' &&
+              this.deps.lifecycle &&
+              entry.client.state?.capabilities.lifecycle === 1
+            ) {
+              entry.lane = 'lifecycle';
               continue;
             }
             entry.lane = 'ask';
@@ -237,7 +279,9 @@ export class HuddleAgentDispatcher {
     };
     try {
       if (task.kind === 'ask') await executeHuddleAsk({ ...context, task }, this.deps.turns);
-      else if (this.deps.spawns) {
+      else if (task.kind === 'lifecycle' && this.deps.lifecycle)
+        await executeHuddleLifecycle({ ...context, task }, this.deps.lifecycle);
+      else if (task.kind === 'spawn' && this.deps.spawns) {
         const cleanupPending = () => task.operation.cleanup.state === 'pending';
         if (cleanupPending()) await cleanupHuddleSpawn({ ...context, task }, this.deps.spawns);
         else {

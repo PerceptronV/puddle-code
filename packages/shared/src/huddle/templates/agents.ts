@@ -1,3 +1,4 @@
+import { lifecycleAgentComponent, lifecycleAgentSource } from './agents/lifecycle.js';
 import {
   agentNodeSource,
   agentPromptSource,
@@ -9,6 +10,8 @@ import { promptSpawnedAgentComponent, reviewSpawnedAgentComponent } from './agen
 import type { HuddleInstallTemplate } from '../../api/huddle/templates.js';
 
 export const huddleAgentTemplates = [
+  { template: 'resume-agent', component: lifecycleAgentComponent('resume'), minor: 14 },
+  { template: 'restart-agent', component: lifecycleAgentComponent('restart'), minor: 14 },
   { template: 'prompt-agent', component: promptAgentComponent, minor: 3 },
   { template: 'review-agent', component: reviewAgentComponent, minor: 3 },
   { template: 'spawn-agent', component: spawnAgentComponent, minor: 8 },
@@ -24,9 +27,11 @@ export function huddleAgentTemplateFiles(template: HuddleInstallTemplate['templa
     files: {
       'node.json': JSON.stringify(component, null, 2) + '\n',
       'run.ts':
-        template === 'spawn-agent'
-          ? spawnAgentSource
-          : agentNodeSource(structured, template.endsWith('-spawned-agent')),
+        template === 'resume-agent' || template === 'restart-agent'
+          ? lifecycleAgentSource(template === 'resume-agent' ? 'resume' : 'restart')
+          : template === 'spawn-agent'
+            ? spawnAgentSource
+            : agentNodeSource(structured, template.endsWith('-spawned-agent')),
       'prompt.ts': agentPromptSource,
     },
   };

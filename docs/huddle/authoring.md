@@ -310,3 +310,32 @@ source removal while the supporting daemon is reachable. They do not restart the
 runtime, execute code or provide Apply authority. Entry reads pin the returned
 revision. Retained source can be unavailable after deletion or corruption of its
 private runtime data; inspection does not recreate or repair it.
+
+
+## Resume and restart an existing agent
+
+On application 28.14 and a runtime advertising `lifecycle: 1`, Add node includes
+**Resume agent** and **Restart agent**. Choose an explicit worktree and session,
+then configure the prompt (`{{input}}` and `{{input.field}}` substitutions work as
+for Prompt agent). Resume lists stopped sessions; Restart lists live agents.
+Both require a known native conversation and use the session's existing account,
+provider, permissions and mode through Puddle's ordinary session controls.
+
+The editable contract declares `"lifecycle": "resume"` or `"lifecycle": "restart"`.
+Its script calls `puddlang.resume(bindings.agent)` or
+`puddlang.restart(bindings.agent)` and receives an agent handle for the existing
+`ask()` API. The templates send the configured prompt and expose `agent`,
+`completed` and turn-event outputs. Returned handles may feed subsequent nodes
+in the same execution with the same declared worktree. These agents remain under
+ordinary session ownership; huddle Stop does not clean them up as new spawns.
+
+Saving stays inactive. Start/Apply captures the conversation and, for Restart,
+the exact current runtime. Declaring and activating a Restart node authorises
+stopping that runtime and its terminals using the current installed runtime
+selection. Before dispatch, Puddle records the runtime inspection and impact
+fingerprint, then its normal restart service rechecks that fingerprint. Terminal
+process state is lost. A replaced runtime or changed conversation requires a fresh
+Apply; the node never follows a replacement or restarts after a generic prompt
+failure. A lost reply is observed through retained operation history and cannot
+cause another resume/restart. If dispatch was interrupted before a replacement
+was recorded, inspect the ordinary session before taking a new explicit action.

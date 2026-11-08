@@ -5,6 +5,8 @@ import { huddleKeySchema, huddleRelativePathSchema } from './values.js';
 
 export const huddleInstallTemplateSchema = huddleOpenSchema.extend({
   template: z.enum([
+    'resume-agent',
+    'restart-agent',
     'prompt-agent',
     'review-agent',
     'spawn-agent',

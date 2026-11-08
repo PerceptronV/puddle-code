@@ -1,4 +1,4 @@
-import type { SessionCreationCaller } from './creation/caller.js';
+import type { SessionCreationCaller, SessionLaunchCaller } from './creation/caller.js';
 import type {
   Account,
   AgentSignalRequest,
@@ -235,7 +235,7 @@ export class SessionService extends EventEmitter {
       : { kind: 'legacy' };
     this.runtimeMaintenance = new SessionRuntimeService(
       deps,
-      (id, guard) => this.resumeCore(id, guard),
+      (id, guard, caller) => this.resumeCore(id, guard, undefined, caller),
       (account, adapter) => this.assertLoggedIn(account, adapter),
     );
     this.environment = new SessionEnvironment(deps);
@@ -811,10 +811,21 @@ export class SessionService extends EventEmitter {
     return this.lifecycleMutex.run('native-conversation-switch', () => this.resumeCore(id));
   }
 
+  /** Private orchestrator entry: normal resume, with authority and atomic launch attribution. */
+  async resumeForCaller(id: string, caller: SessionLaunchCaller): Promise<Session> {
+    return this.lifecycleMutex.run('native-conversation-switch', () => {
+      caller.check();
+      if (this.launchBackend.kind !== 'independent')
+        throw new Error('Orchestrated resume requires an independent runtime');
+      return this.resumeCore(id, () => caller.check(), undefined, caller);
+    });
+  }
+
   private async resumeCore(
     id: string,
     beforeLaunch?: RuntimeLaunchGuard,
     beforeLegacySpawn?: () => void,
+    caller?: SessionLaunchCaller,
   ): Promise<Session> {
     this.assertLegacyRuntime(id);
     const session = this.deps.sessions.get(id);
@@ -891,6 +902,7 @@ export class SessionService extends EventEmitter {
       interruptedNote: wasInterrupted,
       beforeLaunch,
       beforeLegacySpawn,
+      caller,
     });
     this.deps.events.record(id, 'resumed', {
       was_interrupted: wasInterrupted,
@@ -920,6 +932,7 @@ export class SessionService extends EventEmitter {
       interruptedNote: boolean;
       beforeLaunch?: RuntimeLaunchGuard;
       beforeLegacySpawn?: () => void;
+      caller?: SessionLaunchCaller;
     },
   ): Promise<{ skip: boolean; downgraded: boolean }> {
     const skip = this.evaluateSkip(profileId, account, adapter, session.skip_permissions);
@@ -954,6 +967,7 @@ export class SessionService extends EventEmitter {
       undefined,
       opts.beforeLaunch,
       opts.beforeLegacySpawn,
+      opts.caller,
     );
     this.legacy.bindRuntimeConversation(session.id);
     if (!this.deps.runtimes?.usesExternalTerminals(session.id))
@@ -1078,9 +1092,10 @@ export class SessionService extends EventEmitter {
     id: string,
     request: RestartSessionRuntimeRequest,
     authorised: () => boolean,
+    caller?: SessionLaunchCaller,
   ): Promise<Session> {
     return this.lifecycleMutex.run('native-conversation-switch', () =>
-      this.runtimeMaintenance.restart(id, request, authorised),
+      this.runtimeMaintenance.restart(id, request, authorised, caller),
     );
   }
 
@@ -1294,7 +1309,7 @@ export class SessionService extends EventEmitter {
     programme?: ProgrammeOperation,
     beforeLaunch?: RuntimeLaunchGuard,
     beforeLegacySpawn?: () => void,
-    creation?: SessionCreationCaller,
+    creation?: SessionLaunchCaller,
   ): Promise<void> {
     this.assertLegacyRuntime(sessionId);
     await this.deps.storage?.assertAdmission([

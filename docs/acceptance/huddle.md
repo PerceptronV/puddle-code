@@ -34,6 +34,32 @@ delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## Implemented: agent resume/restart nodes
+
+Application **28.14** adds editable Resume agent and Restart agent templates.
+The component's optional `lifecycle` declaration selects the stopped/live session
+resolver; Start/Apply captures account, provider, mode, conversation, worktree and
+any exact outgoing runtime. Optional owner **`lifecycle: 1`** requires operations-2
+and spawns-1 (shared handle resolution); older owners reject these graphs.
+The worker's `puddlang.resume/restart` calls use the existing bounded host-operation
+queue, immutable caller origins and single-consumption claims.
+
+`huddle/operations/lifecycle/` calls SessionService's ordinary resume and runtime
+inspection/restart paths. Migration **50** retains one host attempt, restart impact
+review, replacement runtime identity and readiness receipt. The launch identity
+is bound inside existing runtime preparation, before supervisor dispatch. Lost
+replies remain observation-only, including when no replacement is yet recorded.
+Account/conversation/worktree changes and unrelated replacement runtimes are rejected.
+Unlaunched attempts exclude the original placement from boot auto-resume; a later
+explicit user launch supersedes that exclusion without settling the old attempt.
+The returned handle can feed an exact ask or another node in the same execution.
+Resumed/restarted agents keep ordinary ownership and are excluded from spawn cleanup.
+Restart policy and terminal-state loss are documented in the template and authoring guide.
+
+Focused isolated checks cover both ordinary lifecycle paths and retained results,
+plus the real resume template through an independent owner, worker, dispatcher and
+agent runtime. Live-provider and packaged/native acceptance remain pending.
+
 ## Implemented: execution settings in the IDE
 
 The Settings panel edits concurrency, per-execution turn/spawn/invocation limits,

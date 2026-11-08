@@ -1,5 +1,26 @@
 # The puddle communication protocol
 
+Application **28.14** adds `resume-agent`/`restart-agent` source templates and an
+optional component `lifecycle: "resume" | "restart"` declaration. The declared
+session binding captures conversation/account/provider/mode/worktree and the exact
+outgoing runtime for restart. These graphs require optional owner `lifecycle: 1`,
+which depends on operations-2 and spawns-1. Older graphs/agent owners are unchanged.
+Private `lifecycle-page`, `lifecycle-claim`, `lifecycle-settle` and
+`lifecycle-unavailable` messages share the existing bounded authenticated owner
+transport and daemon dispatch queue. Worker `resume`/`restart` operations carry a
+declared reference; standalone puddlang runners reject these operations for now.
+
+Migration **50** retains host lifecycle intent, restart impact review, replacement
+runtime and readiness outcome. Existing runtime preparation atomically binds the
+new owner before launch; only a fresh owner claim may call the ordinary session
+resume/restart service. Retained outcomes bind the original scope, request and
+agent handle by receipt. An unlaunched lifecycle attempt suppresses boot auto-resume
+for its original placement until a separate explicit launch changes ownership.
+Uncertain calls are observation-only; they never restart
+or resume again. Lifecycle results permit same-execution handle use without
+spawn-cleanup ownership. The existing private ledger/caller-origin formats and
+agent runtime protocol remain unchanged.
+
 Huddle ask/spawn intent now has an additive owner-private `operation-origins`
 collection in the existing ledger-1 generic records table. Format-1 rows retain
 caller `RuntimeIdentity` plus invocation id under the operation key and execution

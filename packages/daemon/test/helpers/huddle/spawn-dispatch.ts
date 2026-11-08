@@ -1,3 +1,4 @@
+import { HuddleAgentLifecycle } from '../../../src/huddle/operations/lifecycle/service.js';
 import { spawnOwnerFixture } from './spawn-owner.js';
 import { HuddleAgentDispatcher } from '../../../src/huddle/operations/dispatch/service.js';
 import { HuddleAgentTurns } from '../../../src/huddle/operations/turns/service.js';
@@ -6,7 +7,15 @@ import { HuddleTurnStore } from '../../../src/huddle/operations/turns/store.js';
 export async function spawnDispatcherFixture(edit?: Parameters<typeof spawnOwnerFixture>[1]) {
   const f = await spawnOwnerFixture(true, edit);
   const turns = new HuddleAgentTurns(f.deps.turns, new HuddleTurnStore(f.db));
-  let dispatcher = new HuddleAgentDispatcher({ ...f, turns });
+  const lifecycle = new HuddleAgentLifecycle({
+    db: f.db,
+    sessions: f.sessions,
+    runtimes: f.runtimes,
+    service: f.service,
+    turns: f.deps.turns,
+    adapters: f.deps.adapters,
+  });
+  let dispatcher = new HuddleAgentDispatcher({ ...f, turns, lifecycle });
   dispatcher.start();
   return {
     ...f,
@@ -14,7 +23,7 @@ export async function spawnDispatcherFixture(edit?: Parameters<typeof spawnOwner
       return dispatcher;
     },
     replace(spawns = f.spawns) {
-      dispatcher = new HuddleAgentDispatcher({ ...f, turns, spawns });
+      dispatcher = new HuddleAgentDispatcher({ ...f, turns, spawns, lifecycle });
       dispatcher.start();
     },
     async outcome() {

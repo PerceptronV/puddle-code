@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Add editable Resume agent and Restart agent huddle nodes, reusing normal session controls, exact conversation/worktree bindings and retained replacement results; uncertain replies never repeat the lifecycle action (application 28.14).
+
 - Configure huddle execution limits, owned-agent cleanup and node concurrency in the IDE, using the existing draft, undo, Save and explicit Start/Apply flow.
 
 - Inspect a stopped huddle's recorded activation and an execution's original source from History; CLI/MCP also compare retained revisions with exact saved source without restarting owners (application 28.13).

@@ -18,7 +18,7 @@ export function huddleExecutionBindings(
   snapshot: HuddleDefinitionSnapshot,
   variables: HuddleStart['variables'],
   worktrees: string[],
-  agent?: (reference: string, worktree: string) => string,
+  agent?: (reference: string, worktree: string, lifecycle?: 'resume' | 'restart') => string,
   observeSession?: (reference: string, worktree: string, kind: 'any' | 'agent') => string,
   resources?: (
     component: HuddleComponent,
@@ -44,7 +44,8 @@ export function huddleExecutionBindings(
       ? observeSession &&
         ((reference: string, worktree: string) =>
           observeSession(reference, worktree, completion ? 'agent' : 'any'))
-      : agent;
+      : agent &&
+        ((reference: string, worktree: string) => agent(reference, worktree, component.lifecycle));
     if (component.capabilities.includes('sessions') && !observing && !agent)
       unsupported('The huddle agent-operation bridge is not available yet');
     const values = resolveHuddleParameters(snapshot.definition, node, component, variables);

@@ -1,3 +1,4 @@
+import { HuddleLifecycleMailbox } from './operations/lifecycle/mailbox.js';
 import { closeSync, fsyncSync, openSync, realpathSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import {
@@ -42,6 +43,7 @@ export class HuddleOwner {
   private readonly scheduler: HuddleScheduler;
   private readonly transport: HuddleOwnerServer;
   private readonly operations: HuddleOperationMailbox;
+  private readonly lifecycle?: HuddleLifecycleMailbox;
   private readonly spawns?: HuddleSpawnMailbox;
   private readonly timers: HuddleTimerController;
   private readonly filetrees: HuddleFiletreeController;
@@ -88,6 +90,14 @@ export class HuddleOwner {
           () => this.persist(),
           pending,
         );
+      if (launch.capabilities.lifecycle === 1)
+        this.lifecycle = new HuddleLifecycleMailbox(
+          launch.identity,
+          this.ledger,
+          this.revisions,
+          () => this.persist(),
+          pending,
+        );
       this.operations = new HuddleOperationMailbox(
         launch.identity,
         this.ledger,
@@ -107,6 +117,13 @@ export class HuddleOwner {
           operation: (request, invocation, signal) => {
             if (!launch.capabilities.operations)
               throw new Error('Owner has no host-operation capability');
+            if (
+              request.action.kind === 'operation' &&
+              ['resume', 'restart'].includes(request.action.operation.op)
+            ) {
+              if (!this.lifecycle) throw new Error('Owner has no session lifecycle capability');
+              return this.lifecycle.request(request, invocation, signal);
+            }
             if (request.action.kind === 'operation' && request.action.operation.op === 'spawn') {
               if (!this.spawns) throw new Error('Owner has no agent-spawn capability');
               return this.spawns.request(request, invocation, signal);
@@ -351,6 +368,35 @@ export class HuddleOwner {
             ({ slot: _slot, ...source }) => source,
           ),
         },
+      };
+    }
+    if (
+      request.t === 'lifecycle-page' ||
+      request.t === 'lifecycle-claim' ||
+      request.t === 'lifecycle-settle' ||
+      request.t === 'lifecycle-unavailable'
+    ) {
+      if (!this.lifecycle) throw new Error('Owner has no session lifecycle capability');
+      if (request.t === 'lifecycle-page')
+        return { t: 'lifecycle-page', id: request.id, page: this.lifecycle.page(request.after) };
+      if (request.t === 'lifecycle-claim') {
+        if (this.stopping || this.interrupting || this.failure)
+          throw new Error('Huddle lifecycle change is pending');
+        return {
+          t: 'lifecycle-claim',
+          id: request.id,
+          ...this.lifecycle.claim(request.operationId),
+        };
+      }
+      if (request.t === 'lifecycle-unavailable') {
+        this.lifecycle.unavailable(request.scope, request.unsent, request.error);
+        return { t: 'accepted', id: request.id };
+      }
+      return {
+        t: 'lifecycle-settled',
+        id: request.id,
+        operationId: request.scope.operationId,
+        result: this.lifecycle.settle(request.scope, request.result),
       };
     }
     if (

@@ -43,6 +43,12 @@ export function createPuddlangClient(
   agent = (handle: PuddlangHandle) => new PuddlangAgent(handle, call),
 ) {
   return Object.freeze({
+    async resume(reference: string): Promise<PuddlangAgent> {
+      return agent(puddlangHandleSchema.parse(await call({ op: 'resume', reference })));
+    },
+    async restart(reference: string): Promise<PuddlangAgent> {
+      return agent(puddlangHandleSchema.parse(await call({ op: 'restart', reference })));
+    },
     async spawn(options: PuddlangSpawn): Promise<PuddlangAgent> {
       return agent(puddlangHandleSchema.parse(await call({ op: 'spawn', options })));
     },

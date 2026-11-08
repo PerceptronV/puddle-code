@@ -24,15 +24,19 @@ export async function spawnOwnerFixture(
   edit?: (
     snapshot: HuddleDefinitionSnapshot,
     bindings: HuddleRevisionActivation['bindings'],
-  ) => void,
+    host: ReturnType<typeof huddleSpawnServiceFixture>,
+  ) => void | Promise<void>,
 ) {
   const capabilities = { ...HUDDLE_RUNTIME_CAPABILITIES };
-  if (!enabled) delete capabilities.spawns;
+  if (!enabled) {
+    delete capabilities.spawns;
+    delete capabilities.lifecycle;
+  }
   const f = huddleSpawnServiceFixture(120_000, capabilities);
   const binding = f.runtimes.get(f.scope.owner.runtime_id)!;
   const { snapshot, bindings } = spawnGraphSnapshot(binding.huddle_id!, f.request);
   if (edit) {
-    edit(snapshot, bindings);
+    await edit(snapshot, bindings, f);
     snapshot.files['huddle.json'] = JSON.stringify(snapshot.definition);
     snapshot.files['nodes/example/node.json'] = JSON.stringify(snapshot.components.worker);
     snapshot.digest = huddleRevisionDigest(snapshot.files, snapshot.components);

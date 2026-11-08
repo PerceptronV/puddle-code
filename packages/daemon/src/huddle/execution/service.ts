@@ -73,7 +73,13 @@ interface Dependencies extends HuddleResourceStores {
   controls: HuddleRuntimeControls;
   launcher?: Pick<RuntimeLauncher, 'launchHuddle' | 'checkHuddleAvailable'>;
   storage?: Pick<StorageMonitor, 'assertAdmission'>;
-  agentBinding?: (profile: string, project: string, reference: string, worktree: string) => string;
+  agentBinding?: (
+    profile: string,
+    project: string,
+    reference: string,
+    worktree: string,
+    lifecycle?: 'resume' | 'restart',
+  ) => string;
 }
 
 /** Local/SSH placement authority surrounds every private owner operation. */
@@ -234,8 +240,14 @@ export class HuddleExecutionService {
             input.variables,
             location.worktrees,
             this.deps.agentBinding &&
-              ((reference, worktree) =>
-                this.deps.agentBinding!(profile, session.project_id, reference, worktree)),
+              ((reference, worktree, lifecycle) =>
+                this.deps.agentBinding!(
+                  profile,
+                  session.project_id,
+                  reference,
+                  worktree,
+                  lifecycle,
+                )),
             observeSession,
             (component, values) =>
               huddleResourceBindings(this.deps, profile, session.project_id, component, values),
@@ -259,8 +271,14 @@ export class HuddleExecutionService {
             input.variables,
             location.worktrees,
             this.deps.agentBinding &&
-              ((reference, worktree) =>
-                this.deps.agentBinding!(profile, session.project_id, reference, worktree)),
+              ((reference, worktree, lifecycle) =>
+                this.deps.agentBinding!(
+                  profile,
+                  session.project_id,
+                  reference,
+                  worktree,
+                  lifecycle,
+                )),
             observeSession,
             (component, values) =>
               huddleResourceBindings(this.deps, profile, session.project_id, component, values),

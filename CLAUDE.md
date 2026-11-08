@@ -532,6 +532,10 @@ data-only and do not infer runtime support from the existence of document schema
 Reuse SessionService/runtime controls and existing status/turn observations for
 huddle agent lifecycle nodes and triggers. Do not build another lifecycle manager
 or status detector. Prioritise finishing features with focused existing checks.
+Agent resume/restart nodes declare `lifecycle` and require lifecycle-1 owners;
+`huddle/operations/lifecycle/` uses SessionService and migration 50 launch attribution.
+Retain original intent and impact review; never repeat an uncertain lifecycle call
+or adopt its replacement into spawn cleanup. Worker APIs return same-execution handles.
 `runtime/huddle/state/` retains a separate private ledger with atomic cursor,
 activation and operation records. Never reset dispatch consumption after a lost
 reply, and reserve outcome storage before external work. Ledger recovery assumes

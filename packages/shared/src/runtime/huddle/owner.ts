@@ -1,3 +1,7 @@
+import {
+  huddleLifecycleOperationSchema,
+  huddleLifecyclePageSchema,
+} from './operations/lifecycle.js';
 import { z } from 'zod';
 import {
   huddleSessionFeedCursorSchema,
@@ -154,6 +158,21 @@ export const huddleOwnerRequestSchema = z.discriminatedUnion('t', [
   }),
   z.strictObject({ t: z.literal('operation-page'), ...request, after: sequence }),
   z.strictObject({ t: z.literal('spawn-page'), ...request, after: sequence }),
+  z.strictObject({ t: z.literal('lifecycle-page'), ...request, after: sequence }),
+  z.strictObject({ t: z.literal('lifecycle-claim'), ...request, operationId: z.uuid() }),
+  z.strictObject({
+    t: z.literal('lifecycle-settle'),
+    ...request,
+    scope: huddleSpawnScopeSchema,
+    result: huddleSpawnOutcomeSchema,
+  }),
+  z.strictObject({
+    t: z.literal('lifecycle-unavailable'),
+    ...request,
+    scope: huddleSpawnScopeSchema,
+    unsent: z.boolean(),
+    error: z.string().min(1).max(4096),
+  }),
   z.strictObject({ t: z.literal('spawn-claim'), ...request, operationId: z.uuid() }),
   z.strictObject({
     t: z.literal('spawn-cleanup-settle'),
@@ -229,6 +248,19 @@ export const huddleOwnerRequestSchema = z.discriminatedUnion('t', [
 ]);
 export type HuddleOwnerRequest = z.infer<typeof huddleOwnerRequestSchema>;
 export const huddleOwnerResponseSchema = z.discriminatedUnion('t', [
+  z.strictObject({ t: z.literal('lifecycle-page'), id: z.uuid(), page: huddleLifecyclePageSchema }),
+  z.strictObject({
+    t: z.literal('lifecycle-claim'),
+    id: z.uuid(),
+    dispatch: z.boolean(),
+    operation: huddleLifecycleOperationSchema,
+  }),
+  z.strictObject({
+    t: z.literal('lifecycle-settled'),
+    id: z.uuid(),
+    operationId: z.uuid(),
+    result: huddleSpawnOutcomeSchema,
+  }),
   z.strictObject({ t: z.literal('changed'), observation: sequence }),
   z.strictObject({ t: z.literal('state'), id: z.uuid(), state: huddleOwnerStateSchema }),
   z.strictObject({ t: z.literal('accepted'), id: z.uuid() }),

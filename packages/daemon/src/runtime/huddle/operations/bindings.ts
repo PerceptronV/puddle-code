@@ -25,7 +25,7 @@ export function huddleAgentWorktree(
   return bindings.worktree;
 }
 
-/** Only retained resource bindings or an execution-owned spawn can name an agent. */
+/** Only retained resource bindings or this execution’s spawn/lifecycle results can name an agent. */
 export function huddleBoundAgent(
   component: HuddleComponent,
   activation: HuddleRevisionActivation,
@@ -37,7 +37,7 @@ export function huddleBoundAgent(
   const bindings = activation.bindings[node] ?? {};
   const matches = new Map<string, HuddleAgentTarget>();
   for (const [name, parameter] of Object.entries(component.parameters)) {
-    if (parameter.editor !== 'session' || !bindings[name]) continue;
+    if (component.lifecycle || parameter.editor !== 'session' || !bindings[name]) continue;
     const target = decodeHuddleAgentTarget(bindings[name]);
     if (target.worktree !== worktree)
       throw new Error('Agent binding differs from the declared worktree');
@@ -51,14 +51,14 @@ export function huddleBoundAgent(
   }
   if (owned) {
     if (owned.worktree !== worktree)
-      throw new Error('Spawned agent differs from the declared worktree');
+      throw new Error('Recorded agent differs from the declared worktree');
     const selected =
       typeof reference === 'string'
         ? reference === owned.runtimeId ||
           reference === owned.sessionId ||
           reference === encodeHuddleAgentTarget(owned)
         : reference.runtime_id === owned.runtimeId && reference.session_id === owned.sessionId;
-    if (!selected) throw new Error('Spawned agent differs from the requested handle');
+    if (!selected) throw new Error('Recorded agent differs from the requested handle');
     matches.set(canonicalHuddleJson(owned), owned);
   }
   if (matches.size !== 1)

@@ -1414,6 +1414,16 @@ blocks clean owner retirement. Trigger workers cannot dispatch agent operations.
 Opt-in `include_custom_triggers=true` runtime inspection exposes cursor-free health
 to the IDE while preserving older strict response shapes. See
 [custom trigger usage](docs/huddle/triggers.md) and the acceptance document for limits.
+Application 28.14 adds Resume agent and Restart agent node templates. Their
+`lifecycle` contract declaration pins session/conversation/worktree resources and
+requires owner `lifecycle: 1`. The shared operation dispatcher calls normal
+SessionService resume and inspected runtime restart; no second lifecycle manager
+or provider status detector is introduced. Migration 50 records one host attempt,
+restart impact review, atomically attributed replacement runtime and readiness
+receipt. Reconnect observes recorded outcomes without dispatching again. Returned
+handles support exact asks in the same execution; these existing sessions never
+become huddle-owned spawns. Source edits stay inactive until Start/Apply.
+
 Migration 48 adds host-side `huddle_runtime_spawns`. Private creation callers
 record a huddle operation's placement in the session transaction and bind its exact
 runtime in launch preparation before supervisor dispatch. The intent binds owner,

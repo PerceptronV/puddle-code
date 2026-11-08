@@ -74,7 +74,9 @@ returns its initial prompt reply and an execution-scoped handle. Application 28.
 adds Prompt spawned agent and Review spawned agent templates. Their explicit
 execution-scoped inputs retain each handle across feedback rounds; two isolated
 agents now complete a spawn-once review loop through these shipped templates.
-Resume/restart and native-provider acceptance remain pending.
+Resume/restart templates now use ordinary SessionService lifecycle controls with
+durable operation/launch attribution (application 28.14, runtime lifecycle-1).
+Native-provider acceptance remains pending.
 The [usage guide](../huddle.md) describes the implemented slice.
 Phase 4 now has runtime-owned interval, one-off date/time and daily/selected-weekday
 calendar triggers, durable occurrence admission, coalesce/skip/bounded catch-up,
@@ -467,6 +469,11 @@ then use an explicit policy/approval appropriate to that invocation. Changed
 targets or uncertain replies block further action. A generic trigger is not
 permission to stop an unrelated or replacement runtime. Initial lifecycle nodes
 can ship spawn/attach/prompt/resume before this restart gate is complete.
+Implemented policy: an activated component with `lifecycle: "restart"` authorises
+replacement of its captured runtime, including its terminals, using the installed
+runtime selection. The ordinary inspection/restart service captures and rechecks
+its impact fingerprint; the host operation retains that review before dispatch.
+It never follows a replacement runtime or retries an uncertain action.
 
 ## 6. Project storage and agent-friendly authoring
 
@@ -621,7 +628,9 @@ spawn dispatch now shares the daemon operation queue and maintenance gate. Start
 resolve explicit account ids, matching scripted-turn providers, the source project
 and canonical registered worktrees, with admission rechecks and owner capability
 gates. Owned-agent cleanup now has separate retained intent/acknowledgements and
-shares the operation dispatcher; resume integration remains pending. Ordinary
+shares the operation dispatcher. Resume/restart now use a third lifecycle lane,
+calling existing SessionService controls and retaining exact replacement identity
+with migration 50; they do not acquire spawn cleanup ownership. Ordinary
 puddlang runner operations still depend on a daemon-owned run record. Extract/reuse their agent
 semantics with an explicit owner caller type and durable invocation keys. During
 daemon absence, owner-local triggers and scripts can continue; operations needing
@@ -864,7 +873,7 @@ native/provider/platform acceptance remain pending. Application 28.13 adds recor
 activation/historical source inspection and exact saved comparisons through CLI/MCP.
 The IDE now has reviewed lifecycle controls, manual input and live result inspection,
 plus initial editable prompt/review templates and connection feedback settings;
-phase 3 still needs resume/restart and provider-native acceptance. Each phase
+phase 3 now includes resume/restart; provider-native acceptance remains. Each phase
 must update
 `docs/acceptance/huddle.md` with implemented details and evidence, rather than
 leaving the only accurate description in code or marking future phases complete.

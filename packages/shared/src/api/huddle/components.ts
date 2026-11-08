@@ -36,6 +36,7 @@ export const huddleComponentSchema = z
       .max(5)
       .default([]),
     activation: z.enum(['all', 'any']).default('all'),
+    lifecycle: z.enum(['resume', 'restart']).optional(),
     trigger: z.strictObject({ resume: z.enum(['continue', 'fresh']) }).optional(),
     readout: z
       .strictObject({
@@ -49,6 +50,15 @@ export const huddleComponentSchema = z
     dependencies: z.array(huddleRelativePathSchema).max(HUDDLE_LIMITS.files).default([]),
   })
   .superRefine((component, ctx) => {
+    if (
+      component.lifecycle &&
+      (component.category !== 'script' || !component.capabilities.includes('sessions'))
+    )
+      ctx.addIssue({
+        code: 'custom',
+        path: ['lifecycle'],
+        message: 'Lifecycle actions require a session script',
+      });
     const retained = Object.entries(component.inputs).filter(
       ([, port]) => port.scope === 'execution',
     );

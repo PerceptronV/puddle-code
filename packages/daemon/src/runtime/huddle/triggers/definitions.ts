@@ -45,6 +45,8 @@ export function requireHuddleFeatures(
 ) {
   for (const node of snapshot.definition.nodes) {
     const component = snapshot.components[node.id]!;
+    if (component.lifecycle && capabilities.lifecycle !== 1)
+      throw new Error('This runtime does not support huddle session lifecycle actions');
     if (
       Object.values(component.inputs).some((port) => port.scope === 'execution') &&
       capabilities.executionInputs !== 1

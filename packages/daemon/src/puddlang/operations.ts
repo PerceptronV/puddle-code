@@ -40,6 +40,8 @@ export class PuddlangOperations {
     dispatched?: () => void,
   ): Promise<unknown> {
     this.signal.throwIfAborted();
+    if (operation.op === 'resume' || operation.op === 'restart')
+      throw new Error('Lifecycle operations require a huddle with declared session bindings');
     if (operation.op === 'spawn') return this.spawn(operation.options, operationId);
     if (operation.op === 'attach') {
       const runtime = this.checked(operation.reference);

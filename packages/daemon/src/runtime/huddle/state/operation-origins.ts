@@ -40,7 +40,7 @@ export class HuddleOperationOrigins {
   }
 
   prepare(operation: HuddleOperationRecord, raw: RuntimeIdentity) {
-    if (!['ask', 'spawn'].includes(operation.kind))
+    if (!['ask', 'spawn', 'resume', 'restart'].includes(operation.kind))
       throw new Error('Only host agent operations have an owner origin');
     const owner = this.owner(raw);
     const previous = this.get(operation);

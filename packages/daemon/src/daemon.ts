@@ -1,3 +1,4 @@
+import { HuddleAgentLifecycle } from './huddle/operations/lifecycle/service.js';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
 import { dirname } from 'node:path';
@@ -472,6 +473,14 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       connections: runtimeConnections,
       reconciler: runtimeReconciler,
       turns: new HuddleAgentTurns(runtimeProgrammeTurns, new HuddleTurnStore(db)),
+      lifecycle: new HuddleAgentLifecycle({
+        db,
+        sessions,
+        runtimes,
+        service,
+        turns: runtimeProgrammeTurns,
+        adapters,
+      }),
       spawns: new HuddleAgentSpawns({
         store: new HuddleSpawnStore(db),
         service,
@@ -509,13 +518,14 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       sessions,
       runtimes,
       definitions: huddles,
-      agentBinding: (profile, project, reference, worktree) =>
+      agentBinding: (profile, project, reference, worktree, lifecycle) =>
         resolveHuddleAgent(
           { sessions, runtimes, turns: runtimeProgrammeTurns },
           profile,
           project,
           reference,
           worktree,
+          lifecycle,
         ),
       controls: runtimeControls.huddles,
       launcher: runtimeLauncher,
@@ -730,6 +740,8 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     bootSwitches.length = 0;
     if (config.autoResume) {
       for (const id of new Set([...reconciled.interrupted, ...runtimeReconciler.autoResumeIds()])) {
+        // A consumed orchestrator action must not become a fresh boot-time launch.
+        if (runtimes.unstartedHuddleSessions().has(id)) continue;
         await service
           .resume(id)
           .catch((e) => console.warn(`auto-resume ${id} failed: ${e.message}`));
