@@ -25,7 +25,7 @@ import {
   customProjectColourSupported,
 } from '../../../../lib/transport/protocol-support';
 import type { ProjectHeaderActions } from './types';
-import { ProjectWindowMenu } from '../../../windows/project-window-menu';
+import { ProjectWindowMenu } from '../../../windows/menus/project-window-menu';
 
 /**
  * A project-name drag reorders projects; its payload is this private MIME so no

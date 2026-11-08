@@ -19,7 +19,7 @@ import { publishUntitledContent, requestUntitledSave } from '../buffers/untitled
 import { useCodeViewState } from '../monaco/monaco-view-state';
 import { UNTITLED_SESSION } from '@puddle/shared';
 import { desktopWindowContext } from '../../windows/window-context';
-import { desktopContentState } from '../../windows/content-state';
+import { desktopContentState } from '../../windows/state/content-state';
 
 /** How long after the last keystroke the draft persists to the profile store. */
 const PERSIST_DEBOUNCE_MS = 800;

@@ -6,7 +6,7 @@ verification; pending items are not support claims.
 
 ## Implemented foundation
 
-- `desktop/src/windows/connections.ts` owns one cockpit connection per target and
+- `desktop/src/windows/hosts/connections.ts` owns one cockpit connection per target and
   multiple independent window identities. Opening windows shares pending connects;
   closing the last window retires the connection. Refresh and retirement are
   serialised, including late connections during app quit.
@@ -17,7 +17,7 @@ verification; pending items are not support claims.
   host/project/pane entries, preserving several windows on a host. Saved routes
   exclude queries, fragments, credentials, and external URLs. Native placement
   and SPA destinations are captured during use as well as orderly quit.
-- `desktop/src/windows/state.ts` owns versioned working sets and dirty-buffer
+- `desktop/src/windows/persistence/state.ts` owns versioned working sets and dirty-buffer
   snapshots independently of renderer lifetime. Preparation retains the source;
   destination readiness followed by source confirmation commits both revisions
   in one atomic write.
@@ -43,14 +43,14 @@ verification; pending items are not support claims.
   stopping the shared cockpit and resumes same-origin survivors. Navigation is
   serial per host, duplicate requests join one operation, and Command-Q drains
   it before checkpointing again. Failed saves preserve the original connection.
-- `web/features/windows/transfer-content.ts` provides the pane extraction
+- `web/features/windows/transfers/content/transfer-content.ts` provides the pane extraction
   projection. It preserves tab order, active and
   preview selection, view state, and relevant dirty buffers; duplicate source
   views keep their recoverable text. Other project slices and orphaned recovery
   drafts stay with the source. Mixed-project panes move intact with the current
   project as their anchor.
 - The pane tab-strip context menu now offers **Open pane in window** on native
-  host/project windows. `desktop/windows/transfers.ts` stages the destination,
+  host/project windows. `desktop/windows/transfers/coordinator.ts` stages the destination,
   waits for its shared Workspace to mount, and then requires source confirmation.
   Source/destination renderers remain fenced during handoff. Failure or timeout
   rolls back; uncertain replies are observed without repeating the move. A dirty
@@ -133,13 +133,34 @@ verification; pending items are not support claims.
   and initial/history visits, including session destinations. A detached window
   can request another project through its host, opening that host if needed.
   Explicit project close checkpoints and retains its return state without needing
-  a host window; Command-Q preserves its open arrangement. **Return project to
-  host** uses the same close policy. The next host visit restores the workspace;
+  a host window; Command-Q preserves its open arrangement. With no host open,
+  **Return project to host** uses the same close policy. The next host visit restores the workspace;
   a new-window request can instead reopen it. Failed native creation leaves the
   return record intact. Moved views are removed from inactive historical slices,
   and mode changes after return derive the project's latest workspace.
 
-Project drag/dock, named window arrangements, and native OS acceptance are still
+- Dedicated project labels now register native project drag offers in expanded
+  and collapsed sidebars (application 26.16). A same-host host window accepts the
+  drop across its workspace or dashboard; select the matching profile first.
+  The menu return action uses the same live handoff when a host is open. Source
+  models unmount before final capture, including cleanup edits; the host accepts
+  the complete project merge before the source confirms. Commit atomically closes
+  project ownership and preserves destination content, then dismisses the source.
+  Interrupted preparations retain the source; committed moves cannot reopen an
+  empty dedicated owner. Cancellation remounts the original project; an uncertain
+  outcome remains fenced for recovery. Drag payloads carry no document content.
+- Native reload preserves saved active editor tabs when the URL still carries
+  the last session binding. Explicit session/notification activation still opens
+  its terminal and is consumed so a subsequent reload does not repeat it.
+- Window implementation and tests are grouped by responsibility. Web modules
+  use `state/`, `transfers/content/`, `drag/`, `navigation/`, `lifecycle/` and
+  `menus/`; context and renderer composition stay at the root. Desktop modules
+  use `hosts/`, `persistence/`, `lifecycle/` and `transfers/`, with registry/IPC
+  composition at the root. Private shared contracts live in
+  `shared/src/desktop/windows/` and retain the public package exports. Browser
+  fixtures and current documentation reference the new paths directly.
+
+Named window arrangements and native OS acceptance are still
 pending. Pane/project detachment and menu return do not deliver the whole roadmap. Undo-stack transfer
 is not implemented; restored editors use
 new Monaco models with recovered text.
@@ -294,6 +315,26 @@ the real coordinators through a synthetic bridge. Platform focus/Space behaviour
 actual title bars, restart/SSH recovery and individual palette/notification UI
 gestures still require acceptance; shared routing alone is not evidence for every
 native gesture.
+
+The project drag/return increment and directory reorganisation passed 275 tests
+across 28 window, lifecycle, layout and shared-contract files. Shared, desktop and
+web TypeScript, targeted ESLint, formatting and whitespace checks passed. The web
+production build passed with its existing chunk-size advisory. Recovery tests
+reload the durable store before and after live project commit, verifying original
+ownership before confirmation and destination ownership after it. Source tests
+include model-cleanup edits in the final capture and restore the original project
+after a refused merge. Registered project drag tests reject foreign hosts,
+profiles and invalid sources and prevent a consumed offer from dispatching twice.
+
+`WINDOW_TRANSFER_KIND=project WINDOW_DOCK_BACK=drag` passed the Chromium handoff,
+including native-style project reload, drop-highlight expiry, complete return,
+source dismissal and host reload with the editor still selected. The menu-return
+variant (`WINDOW_DOCK_BACK=1`), independent project closure/return with no host,
+existing pane drag/return and ordinary browser pane-drag regressions also passed.
+The inspected returned-workspace screenshot is
+`/tmp/puddle-live-project-docking.png`. These fixtures use real coordinators and
+synthetic bridge/DataTransfer delivery; native OS dragging, collapsed-label
+gestures, monitor placement, live PTY continuity and restart remain unverified.
 
 Native acceptance has not run. Use an isolated UI preview for desktop interaction;
 start any real daemon from a plain shell, never from a coding-agent session.

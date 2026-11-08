@@ -2297,15 +2297,35 @@ project workspace. Native session destinations retain explicit activation.
 Detached windows can ask their host to open another project, creating the host
 window if necessary; ordinary work in a detached window does not require one.
 Explicit project close checkpoints its latest workspace into the return record;
-Command-Q retains its open arrangement. The project menu's return action uses
-that same close policy. The next host visit accepts the returned workspace, or
+Command-Q retains its open arrangement. With no host open, the project menu's
+return action uses that same close policy. The next host visit accepts the returned workspace, or
 an explicit new-window action reopens the retained project. Failed native creation
 keeps the return record available. Profile-layout extraction removes moved views
 from historical slices; returning lets the next mode transition derive the
-project's latest slice. Project drag/dock and native OS acceptance remain pending.
+project's latest slice.
+
+Application 26.16 adds project drag-back from its existing sidebar label, in both
+expanded and collapsed presentations, onto a host window. The host highlights
+the drop surface; a cancelled drag clears that highlight. Main validates a
+single-use offer for the same host/profile and requests the source's return.
+The source releases its models before its final capture so cleanup edits enter
+the handoff. The host plans and mounts the complete project workspace through
+the existing project merge, preserving mixed-project tabs and retained drafts.
+Destination acceptance and source confirmation atomically commit content and
+remove the project owner from the reopen set; native dismissal follows that
+durable result. Cancellation restores the source; uncertain outcomes remain
+fenced for recovery. The menu return action uses this live handoff when a host
+is open. Select the same profile in the host before returning. Native reload
+respects saved active editor tabs instead of replaying the last session binding;
+explicit native session/notification activation is consumed once.
 
 The native shell now separates one host cockpit connection from its native
-window records (`desktop/src/windows/`). Connection establishment and refresh
+window records (`desktop/src/windows/`). Its `hosts/`, `persistence/`, `lifecycle/`
+and `transfers/` directories separate connection management, durable state,
+renderer commands and ownership changes. The web window feature similarly groups
+state, transfer projections, drag handling, navigation, lifecycle and menus, with
+window context and composition at the root. Private shared contracts live under
+`shared/src/desktop/windows/`; package exports remain stable. Connection establishment and refresh
 are shared per target; only closing the final associated window retires that
 connection. Reopen state retains stable host/project/pane identities and native
 placement. Legacy target-only entries migrate to host windows.
@@ -2392,8 +2412,8 @@ to their native window/host/profile; foreign or unscoped references cannot mutat
 local resources. Ordinary browser payloads and dragging retain their existing path.
 
 The shared workspace can render full host, headerless project, and pane-only
-presentations; detached windows use native title bars. Project drag/dock and
-named window arrangements remain in progress. See
+presentations; detached windows use native title bars. Named window arrangements
+and native OS acceptance remain in progress. See
 `docs/roadmap/windows.md` for the full contract and `docs/acceptance/windows.md`
 for implemented behaviour and verified scope. These foundations do not yet
 constitute the complete detached-window feature.

@@ -32,8 +32,8 @@ import {
 } from '../src/index.js';
 
 describe('shared API schemas', () => {
-  it('declares protocol 26.15 for native project windows and routing', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 26, minor: 15 });
+  it('declares protocol 26.16 for native project drag and return', () => {
+    expect(PROTOCOL_VERSION).toEqual({ major: 26, minor: 16 });
   });
 
   it('accepts headless mode and rejects the previous scripted name', () => {

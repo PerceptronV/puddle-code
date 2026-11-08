@@ -4,8 +4,8 @@ import { compilationSourceKey, sourceExtension } from '../../editor/compilation/
 import { useEffect, useRef, useState } from 'react';
 import { useDroppable } from '@dnd-kit/core';
 import { useParams } from 'react-router';
-import { dropPaneWindow, PANE_WINDOW_MIME } from '../../windows/pane-drag';
-import { dropTabWindow } from '../../windows/tab-drag';
+import { dropPaneWindow, PANE_WINDOW_MIME } from '../../windows/drag/pane-drag';
+import { dropTabWindow } from '../../windows/drag/tab-drag';
 import { toastError } from '../../../lib/transport/errors';
 import type {
   CompilationMode,

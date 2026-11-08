@@ -7,7 +7,7 @@ import {
   encodeLocalDrag,
   isLocalDragScope,
   windowDragScope,
-} from '../../windows/drag-scope';
+} from '../../windows/drag/drag-scope';
 
 /**
  * The native-DnD payload for "something openable as a tab": file rows in the

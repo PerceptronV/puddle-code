@@ -29,6 +29,7 @@ import { setCountDragImage, useArchiveDrop } from './drag';
 import { PROJECT_MIME, ProjectMenuBody } from './project-controls';
 import { SessionRow } from './SessionRow';
 import type { ProjectHeaderActions, SessionGroup, SidebarSessionSelection } from './types';
+import { beginProjectWindowDrag, canDragProjectWindow } from '../../../windows/drag/project-drag';
 
 /** The session-list body (extracted so the sidebar shell can swap in Scratchpad). */
 export function SessionListBody({
@@ -211,13 +212,21 @@ export function SessionListBody({
                       style={appearanceColourStyle(group.colour)}
                       {...menuOnDoubleClick()}
                       draggable
+                      title={
+                        canDragProjectWindow(group.projectId)
+                          ? 'Drag project back to its host window'
+                          : undefined
+                      }
                       onDragStart={(e) => {
+                        if (beginProjectWindowDrag(e.dataTransfer, group.projectId)) return;
                         e.dataTransfer.setData(PROJECT_MIME, group.projectId);
                         setDragProject(group.projectId);
                       }}
                       onDragEnd={() => setDragProject(null)}
                       className={cn(
                         'block truncate px-3 pb-1 pt-2 text-2xs font-medium uppercase tracking-wide transition-colors compact:pb-0.5 compact:pt-1.5',
+                        canDragProjectWindow(group.projectId) &&
+                          'cursor-grab active:cursor-grabbing',
                         group.colour
                           ? cn(appearanceColourClass(group.colour), 'hover:opacity-75')
                           : 'text-fg-gold hover:text-fg',

@@ -47,7 +47,8 @@ packages/
 │   ├── src/features/editor/ # buffers/, conflicts/, compilation/, monaco/, notebooks/ (including widgets/),
 │   │                       # previews/ (html/, markdown/, pdf/), tabs/; pane composition stays at the root
 │   ├── src/features/workspace/ # layout/, panes/, sessions/, sidebar/, tabs/; Workspace and shared context at the root
-│   ├── src/features/windows/ # native window context, durable working sets, staged pane handoff and recovery
+│   ├── src/features/windows/ # state/, transfers/content/, drag/, navigation/, lifecycle/, menus/;
+│   │                        # native window context and renderer composition stay at the root
 │   ├── src/features/terminal/ # clipboard/, input/, links/, rich-output/, scroll/; terminal composition at the root
 │   ├── src/features/guide/ # public deployed-app /guide; edit guide.md for setup/upgrade instructions
 │   └── src/features/remote/ + mobile/ # remote account/pairing/settings + host-grouped project cards,
@@ -71,7 +72,8 @@ packages/
                # embedded cockpit. Shell concerns only (windows, OS links, notification raise);
                # anything both shells need goes in cli/src/lib, NEVER here. Build mirrors the
                # CLI's (scripts/build.mjs); `pnpm --filter @puddle-code/desktop dist` packages it.
-               # src/windows/ owns shared host connections, window state, private IPC and transfer coordination.
+               # src/windows/ groups hosts/, persistence/, lifecycle/ and transfers/;
+               # project routing and private state IPC compose these at its root.
 deploy/remote/       # self-hosted service/static app images, Caddy TLS ingress and private env example
 scripts/build-tarball.mjs   # self-contained host archive: puddled, puddler and connector, CURRENT platform
 scripts/build-cli-tarball.mjs # self-contained CLI archive; shares scripts/lib/node-runtime.mjs
@@ -101,6 +103,11 @@ Web, daemon and CLI tests live under `test/<feature>/`, mirroring the source
 responsibility; reusable fixtures stay in `test/helpers/`. Existing recursive test
 discovery includes these directories. Numbered database migrations remain together
 in their ordered directory.
+
+Private desktop window contracts live under `shared/src/desktop/windows/`, grouped
+into identities, content, persistence, transfers, drag, project navigation, commands
+and the composed bridge. Export them through the existing package entry point.
+Window tests mirror the source responsibility directories.
 
 Keep components and their supporting logic beside the feature they serve. Split a
 crowded directory by responsibility, retain composition modules at its root, and

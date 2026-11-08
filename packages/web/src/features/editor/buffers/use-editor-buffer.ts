@@ -47,7 +47,7 @@ import { registerSaver, saverKey } from './save-registry';
 import type { RevealTarget } from '../../workspace/editor-context';
 import { consumeEditorReveal } from '../monaco/editor-reveal';
 import { useCurrentProfileId } from '../../profile/profile-store';
-import { desktopContentState } from '../../windows/content-state';
+import { desktopContentState } from '../../windows/state/content-state';
 import { desktopWindowContext } from '../../windows/window-context';
 
 /** What the CodeEditor view renders for a (session, path) tab. */

@@ -27,7 +27,7 @@ import {
   DialogTitle,
 } from '../../../components/ui/dialog';
 import { Button } from '../../../components/ui/button';
-import { desktopContentState } from '../../windows/content-state';
+import { desktopContentState } from '../../windows/state/content-state';
 
 /** Own draft creation, save destination and discard confirmation independently of the shell. */
 export function useWorkspaceDrafts({

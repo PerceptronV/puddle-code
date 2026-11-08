@@ -27,7 +27,7 @@ import {
 import { FileTypeIcon, FolderIcon } from './file-icons';
 import { FileMenuItems } from './FileMenuItems';
 import { folderStatus, gitDecoration } from './git-decoration';
-import { useOpenTabWindow } from '../windows/use-window-transfer';
+import { useOpenTabWindow } from '../windows/transfers/use-window-transfer';
 
 const INDENT_PX = 16;
 

@@ -1,6 +1,6 @@
 import { currentProfileId } from '../../profile/profile-store';
 import { desktopWindowContext } from '../../windows/window-context';
-import { desktopContentState } from '../../windows/content-state';
+import { desktopContentState } from '../../windows/state/content-state';
 
 /** Bounded window view state; named stores join desktop recovery and handoff. */
 export class ViewStateStore<T> {

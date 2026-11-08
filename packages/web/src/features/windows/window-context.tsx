@@ -6,7 +6,7 @@ import {
   type DesktopWindowContext,
 } from '@puddle/shared';
 import { desktopBridge } from '../../lib/desktop';
-import { fenceWindowInteraction } from './interaction-fence';
+import { fenceWindowInteraction } from './lifecycle/interaction-fence';
 
 let context: DesktopWindowContext | null = null;
 let initialising: Promise<void> | null = null;

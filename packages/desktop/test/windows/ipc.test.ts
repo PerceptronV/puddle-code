@@ -4,7 +4,7 @@ import { mkdtempSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { uiStateSnapshotSchema } from '@puddle/shared';
-import { DesktopWindowState } from '../../src/windows/state.js';
+import { DesktopWindowState } from '../../src/windows/persistence/state.js';
 import { registerWindowStateIpc } from '../../src/windows/ipc.js';
 
 const homes: string[] = [];

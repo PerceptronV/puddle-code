@@ -15,7 +15,7 @@ import { tokenStore } from './lib/transport/auth';
 import { queryClient } from './lib/queries/client';
 import { useProfiles } from './lib/queries/queries';
 import { DesktopWindowGate } from './features/windows/window-context';
-import { ProjectWindowRouter } from './features/windows/project-router';
+import { ProjectWindowRouter } from './features/windows/navigation/project-router';
 
 // Route-level chunks: each page loads on first visit, not up front.
 const Dashboard = lazy(() =>

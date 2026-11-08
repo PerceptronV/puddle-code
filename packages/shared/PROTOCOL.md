@@ -1,5 +1,13 @@
 # The puddle communication protocol
 
+Application **26.16** adds optional private project drag registration, drop and
+live return capabilities. A single-use offer binds the registered project window;
+only a host window on the same host/profile can receive its source-directed move.
+The renderer releases its models before final capture, and the existing handoff
+commits destination content and source closure together. Lost replies never
+authorise another move. Older shells omit these controls. No daemon, runtime or
+remote operation changes.
+
 Application **26.15** exposes optional private project-window prepare/focus/route
 capabilities and bounded native open/navigation commands. Main resolves the
 registered sender's host and unique project owner; renderers never choose a host

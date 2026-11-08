@@ -1,5 +1,5 @@
 import type { TreeResponse } from '@puddle/shared';
-import { decodeLocalDrag, encodeLocalDrag } from '../windows/drag-scope';
+import { decodeLocalDrag, encodeLocalDrag } from '../windows/drag/drag-scope';
 
 /**
  * Pure, DOM-free helpers for the file explorer (SPEC §8): worktree-relative

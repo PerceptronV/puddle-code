@@ -4,7 +4,7 @@ import {
   desktopWindowWriteSchema,
   type DesktopWindowContext,
 } from '@puddle/shared';
-import type { DesktopWindowState } from './state.js';
+import type { DesktopWindowState } from './persistence/state.js';
 
 /** Keep state access bound to the registered sender; requests never choose a window or host. */
 export function registerWindowStateIpc({

@@ -34,7 +34,7 @@ import {
 import { basename, dirOf, joinAbsolutePath } from './explorer-paths';
 import { FileMenuItems } from './FileMenuItems';
 import { useExplorerFs } from './use-explorer-fs';
-import { useOpenTabWindow } from '../windows/use-window-transfer';
+import { useOpenTabWindow } from '../windows/transfers/use-window-transfer';
 
 /**
  * A path-backed editor tab's file-tree menu. It deliberately uses the same menu

@@ -5,16 +5,20 @@ import { fetchProfileState, putProfileState } from '../../lib/queries/queries';
 import { debounce } from '../../lib/debounce';
 import { toastError } from '../../lib/transport/errors';
 import type { UiStateHandle } from '../workspace/use-ui-state';
-import { desktopContentState } from './content-state';
+import { desktopContentState } from './state/content-state';
 import { desktopWindowContext, suspendDesktopContent } from './window-context';
-import { DesktopWorkingSet } from './working-set';
-import { desktopProfileSeed } from './profile-seed';
-import { registerRendererLifecycle } from './renderer-lifecycle';
-import { fenceWindowInteraction } from './interaction-fence';
+import { DesktopWorkingSet } from './state/working-set';
+import { desktopProfileSeed } from './state/profile-seed';
+import { registerRendererLifecycle } from './lifecycle/renderer-lifecycle';
+import { fenceWindowInteraction } from './lifecycle/interaction-fence';
 import { allLeaves, focusTab, tabRefKey } from '../workspace/layout/layout-tree';
 import { currentProfileId } from '../profile/profile-store';
-import { DestinationTransfer } from './destination-transfer';
-import { transferDock, transferTabIntoWindow } from './pane-transfer';
+import { DestinationTransfer } from './transfers/destination-transfer';
+import {
+  transferDock,
+  transferTabIntoWindow,
+  transferProjectToHost,
+} from './transfers/pane-transfer';
 
 const workingSets = new Map<string, DesktopWorkingSet>();
 const empty = uiStateSnapshotSchema.parse({});
@@ -78,6 +82,9 @@ export async function registerDesktopWindowLifecycle(): Promise<void> {
         !context ||
         (command.kind === 'move-pane' &&
           (context.identity.kind !== 'pane' || context.identity.projectId !== command.projectId)) ||
+        (command.kind === 'move-project' &&
+          (context.identity.kind !== 'project' ||
+            context.identity.projectId !== command.projectId)) ||
         (context.identity.kind !== 'host' && context.identity.profileId !== command.profileId) ||
         currentProfileId() !== command.profileId ||
         !owner?.loaded() ||
@@ -86,6 +93,17 @@ export async function registerDesktopWindowLifecycle(): Promise<void> {
       )
         throw new Error('The dragged pane is no longer available');
       const sourceRoute = window.location.pathname.split('/session/')[0]!;
+      if (command.kind === 'move-project') {
+        void transferProjectToHost(
+          owner,
+          transfers,
+          command.projectId,
+          command.destinationId,
+          fenceWindowInteraction,
+          suspendDesktopContent,
+        ).catch(toastError);
+        return;
+      }
       const operation =
         command.kind === 'move-tab'
           ? transferTabIntoWindow(
@@ -125,7 +143,7 @@ export async function registerDesktopWindowLifecycle(): Promise<void> {
         .catch(toastError);
     },
     (command) => {
-      void import('./project-actions')
+      void import('./navigation/project-actions')
         .then(({ handleProjectCommand }) => handleProjectCommand(command))
         .catch(toastError);
     },

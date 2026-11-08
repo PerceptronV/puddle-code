@@ -1,0 +1,22 @@
+import type { DesktopWindowContext } from './identity.js';
+import type {
+  DesktopWorkspaceVersion,
+  DesktopWindowWrite,
+  DesktopWindowWriteResult,
+} from './content.js';
+import type { DesktopWindowTransfersBridge } from './transfers.js';
+import type { DesktopWindowProjectsBridge } from './projects.js';
+import type { DesktopWindowLifecycleBridge } from './commands.js';
+
+/** Capability-detected private bridge, independent of daemon feature availability. */
+export interface DesktopWindowsBridge {
+  version: 1;
+  context(): Promise<DesktopWindowContext>;
+  /** Checkpoint this window before a renderer-requested reload. */
+  reload?(): Promise<void>;
+  read(profileId: string): Promise<DesktopWorkspaceVersion | null>;
+  write(request: DesktopWindowWrite): Promise<DesktopWindowWriteResult>;
+  lifecycle?: DesktopWindowLifecycleBridge;
+  transfers?: DesktopWindowTransfersBridge;
+  projects?: DesktopWindowProjectsBridge;
+}

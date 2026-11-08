@@ -7,6 +7,11 @@ import { rememberClosedTab, takeClosedTab } from './closed-tabs';
 import { findLeaf, tabRefKey, type DropEdge } from '../layout/layout-tree';
 import type { LayoutController } from '../layout/useLayoutTree';
 import type { UiStateHandle } from '../use-ui-state';
+import { desktopWindowContext } from '../../windows/window-context';
+import {
+  hasInactiveSavedSession,
+  consumeNativeSessionActivation,
+} from '../../windows/navigation/session-restoration';
 
 /** Own URL restoration, terminal navigation and closed-tab history for a workspace. */
 export function useWorkspaceTabs({
@@ -75,6 +80,7 @@ export function useWorkspaceTabs({
   // active session (which per-project layouts make a distinct value).
   const [restoredProject, setRestoredProject] = useState<string | null>(null);
   const restored = restoredProject === projectId;
+  const firstSessionBinding = useRef(true);
   // Set when the active tab is closed: the router clears the URL param a
   // render later, so this stops the deep-link effect resurrecting the tab in
   // the interim (it would otherwise leave a zombie header — no active session).
@@ -119,7 +125,12 @@ export function useWorkspaceTabs({
     setRestoredProject(projectId);
     const stored = uiState.snapshot.active_session;
     const storedSession = sessions.find((s) => s.id === stored);
-    if (!activeSessionId && storedSession && storedSession.status !== 'archived') {
+    if (
+      !activeSessionId &&
+      storedSession &&
+      storedSession.status !== 'archived' &&
+      !(desktopWindowContext() && hasInactiveSavedSession(uiState.snapshot, storedSession.id))
+    ) {
       void navigate(`/project/${projectId}/session/${storedSession.id}`, { replace: true });
     }
   }, [restored, uiState, projectReady, sessions, activeSessionId, navigate, projectId]);
@@ -134,6 +145,8 @@ export function useWorkspaceTabs({
   // and the deps limited to what actually changes on navigation.
   useEffect(() => {
     if (!restored) return;
+    const initial = firstSessionBinding.current;
+    firstSessionBinding.current = false;
     if (isNarrowRef.current) {
       if (activeSessionId) {
         setPhoneSelection(activeSessionId);
@@ -148,6 +161,13 @@ export function useWorkspaceTabs({
       justClosedActive.current = null; // close completed; the URL caught up
       return;
     }
+    if (
+      initial &&
+      !notificationKey &&
+      desktopWindowContext() &&
+      hasInactiveSavedSession(uiStateRef.current.current(), activeSessionId)
+    )
+      return;
     // Don't re-open the tab we're closing while the URL param still lags.
     if (activeSessionId === justClosedActive.current && !notificationKey) return;
     justClosedActive.current = null;
@@ -166,6 +186,8 @@ export function useWorkspaceTabs({
     if (ui.snapshot.active_session !== activeSessionId) {
       ui.update({ active_session: activeSessionId });
     }
+    if (notificationKey && desktopWindowContext())
+      consumeNativeSessionActivation(activeSessionId, notificationKey);
   }, [restored, activeSessionId, notificationKey]);
 
   // Closing a session from the sidebar / its lifecycle menu removes its terminal

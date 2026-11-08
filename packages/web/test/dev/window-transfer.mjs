@@ -14,7 +14,7 @@ const directory = await mkdtemp(join(tmpdir(), 'puddle-live-window-'));
 const implementation = join(directory, 'implementation.mjs');
 await build({
   stdin: {
-    contents: `export { DesktopWindowState } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/state.ts'))};\nexport { WindowTransfers } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers.ts'))};\nexport { WindowCommands } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/commands.ts'))};\nexport { WindowDrags } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/drags.ts'))};\nexport { ProjectWindows } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/projects.ts'))};`,
+    contents: `export { DesktopWindowState } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/persistence/state.ts'))};\nexport { WindowTransfers } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers/coordinator.ts'))};\nexport { WindowCommands } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/lifecycle/commands.ts'))};\nexport { WindowDrags } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers/drags.ts'))};\nexport { ProjectWindows } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/projects.ts'))};`,
     resolveDir: root,
   },
   bundle: true,
@@ -129,6 +129,8 @@ async function openPage(record) {
     if (method === 'dropPane') return drags.dropPane(id, request);
     if (method === 'beginTabDrag') return drags.beginTab(id, request);
     if (method === 'dropTab') return drags.dropTab(id, request);
+    if (method === 'beginProjectDrag') return drags.beginProject(id, request);
+    if (method === 'dropProject') return drags.dropProject(id, request);
     if (method === 'reload') {
       await commands.request(id, 'checkpoint');
       await page.reload();
@@ -225,6 +227,9 @@ async function openPage(record) {
             'beginTabDrag',
             'dropTab',
             'prepareTabDock',
+            'beginProjectDrag',
+            'dropProject',
+            'prepareProjectDock',
             'accept',
             'commit',
             'observe',
@@ -272,7 +277,9 @@ try {
           : source.locator('[data-pane-drag-handle]').first();
   if (mode === 'project') {
     await source.evaluate(async () =>
-      (await import('/src/features/windows/project-actions.ts')).navigateProjectRoute('/'),
+      (await import('/src/features/windows/navigation/project-actions.ts')).navigateProjectRoute(
+        '/',
+      ),
     );
     await trigger.waitFor();
   }
@@ -374,39 +381,100 @@ try {
       .first()
       .click({ position: { x: 10, y: 12 } });
     await target.locator('[data-editor-surface] .monaco-editor').first().waitFor();
-    await closePage('host');
-    const latest = 'Project draft after the host window closed';
-    await target.evaluate(async (text) => {
-      const { monaco } = await import('/src/features/editor/monaco/monaco-setup.ts');
-      const editor = monaco.editor
-        .getEditors()
-        .find((editor) => editor.getModel()?.uri.scheme === 'puddle');
-      editor.getModel().setValue(text);
-    }, latest);
-    await target
-      .locator('[data-sidebar-motion="sessions-project-0000000002"]')
-      .first()
-      .dispatchEvent('contextmenu', { button: 2 });
-    await target.getByRole('menuitem', { name: 'Return project to host', exact: true }).click();
-    await expect.poll(() => target.isClosed()).toBe(true);
-    assert.equal(records.size, 0);
-    assert.ok(state.returnedProject(destination.window.id));
-    await openPage({
-      target: 'local',
-      window: { id: 'host', kind: 'host' },
-      route: '/project/0000000002',
-    });
-    const returned = pages.get('host');
-    await returned.waitForFunction(async (expected) => {
-      const { monaco } = await import('/src/features/editor/monaco/monaco-setup.ts');
-      return monaco.editor
-        .getEditors()
-        .some((editor) => editor.getModel()?.getValue() === expected);
-    }, latest);
-    await expect.poll(() => state.returnedProject(destination.window.id)).toBeNull();
-    await returned.screenshot({ path: '/tmp/puddle-live-project-return.png' });
-    assert.deepEqual(errors, []);
-    console.log('Project menu, click/history redirect, independent closure and host return pass.');
+    await Promise.all([
+      target.waitForEvent('load'),
+      target.evaluate(() => {
+        void window.puddleDesktop.windows.reload();
+      }),
+    ]);
+    await checkText(target);
+    if (dockBack) {
+      if (dragBack) {
+        const payload = await target.evaluate(() => {
+          const label = window.document.querySelector(
+            '[data-sidebar-motion="sessions-project-0000000002"]',
+          );
+          const data = new window.DataTransfer();
+          label.dispatchEvent(
+            new window.DragEvent('dragstart', { bubbles: true, dataTransfer: data }),
+          );
+          return data.getData('application/x-puddle-project-window');
+        });
+        assert.ok(payload, 'project label registers a native window drag');
+        assert.ok(!payload.includes('Unsaved text'));
+        const drop = async (type) =>
+          source.locator('[data-project-window-drop-target]').evaluate(
+            (element, { payload, type }) => {
+              const data = new window.DataTransfer();
+              data.setData('application/x-puddle-project-window', payload);
+              element.dispatchEvent(
+                new window.DragEvent(type, { bubbles: true, cancelable: true, dataTransfer: data }),
+              );
+            },
+            { payload, type },
+          );
+        await drop('dragenter');
+        await expect(
+          source.getByRole('status').filter({ hasText: 'Return project here' }),
+        ).toBeVisible();
+        await expect(source.getByText('Return project here')).toHaveCount(0);
+        await drop('drop');
+      } else {
+        await target
+          .locator('[data-sidebar-motion="sessions-project-0000000002"]')
+          .first()
+          .dispatchEvent('contextmenu', { button: 2 });
+        await target.getByRole('menuitem', { name: 'Return project to host', exact: true }).click();
+      }
+      await expect.poll(() => target.isClosed()).toBe(true);
+      await checkText(source);
+      assert.equal(state.projectWindow('host', profile, destination.window.projectId), null);
+      assert.equal(state.openWindows().length, 1);
+      assert.equal(new URL(source.url()).pathname.split('/session/')[0], '/project/0000000002');
+      await source.reload();
+      await checkText(source);
+      await source.screenshot({ path: '/tmp/puddle-live-project-docking.png' });
+      assert.deepEqual(errors, []);
+      console.log(
+        `Project ${dragBack ? 'drag' : 'menu'} return, atomic source closure and host reload pass.`,
+      );
+    } else {
+      await closePage('host');
+      const latest = 'Project draft after the host window closed';
+      await target.evaluate(async (text) => {
+        const { monaco } = await import('/src/features/editor/monaco/monaco-setup.ts');
+        const editor = monaco.editor
+          .getEditors()
+          .find((editor) => editor.getModel()?.uri.scheme === 'puddle');
+        editor.getModel().setValue(text);
+      }, latest);
+      await target
+        .locator('[data-sidebar-motion="sessions-project-0000000002"]')
+        .first()
+        .dispatchEvent('contextmenu', { button: 2 });
+      await target.getByRole('menuitem', { name: 'Return project to host', exact: true }).click();
+      await expect.poll(() => target.isClosed()).toBe(true);
+      assert.equal(records.size, 0);
+      assert.ok(state.returnedProject(destination.window.id));
+      await openPage({
+        target: 'local',
+        window: { id: 'host', kind: 'host' },
+        route: '/project/0000000002',
+      });
+      const returned = pages.get('host');
+      await returned.waitForFunction(async (expected) => {
+        const { monaco } = await import('/src/features/editor/monaco/monaco-setup.ts');
+        return monaco.editor
+          .getEditors()
+          .some((editor) => editor.getModel()?.getValue() === expected);
+      }, latest);
+      await expect.poll(() => state.returnedProject(destination.window.id)).toBeNull();
+      await returned.screenshot({ path: '/tmp/puddle-live-project-return.png' });
+      assert.deepEqual(errors, []);
+      console.log(
+        'Project menu, click/history redirect, independent closure and host return pass.',
+      );
+    }
   } else if (addTab) {
     assert.equal(mode, 'pane');
     assert.ok(['file', 'tab', 'session'].includes(addTab));

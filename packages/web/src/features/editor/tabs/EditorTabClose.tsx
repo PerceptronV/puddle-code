@@ -14,7 +14,7 @@ import { bufferKey, isDirty, subscribe } from '../buffers/buffer-store';
 import { announceDraftDiscarded } from '../buffers/editor-sync';
 import type { EditorTabKind } from './editor-tabs';
 import { useCurrentProfileId } from '../../profile/profile-store';
-import { desktopContentState } from '../../windows/content-state';
+import { desktopContentState } from '../../windows/state/content-state';
 
 /** Reactive dirty flag for one (session, path[, root]) buffer. */
 function useDirty(session: string, path: string, root?: string): boolean {

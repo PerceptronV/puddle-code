@@ -46,14 +46,14 @@ import { readX11Workspace, restoreX11Workspace } from './x11-workspace.js';
 import { refreshNavigation } from './refresh-navigation.js';
 import { hostUpdateApprovals } from './host-updates/approval.js';
 import { DesktopNotifications } from './notifications.js';
-import { HostConnections, type HostConnection } from './windows/connections.js';
-import { DesktopWindowState } from './windows/state.js';
+import { HostConnections, type HostConnection } from './windows/hosts/connections.js';
+import { DesktopWindowState } from './windows/persistence/state.js';
 import { registerWindowStateIpc } from './windows/ipc.js';
-import { WindowCommands } from './windows/commands.js';
-import { WindowDrags, registerWindowDragIpc } from './windows/drags.js';
-import { WindowTransfers, registerWindowTransferIpc } from './windows/transfers.js';
-import { WindowNavigations } from './windows/navigation.js';
-import { reloadContents } from './windows/reload.js';
+import { WindowCommands } from './windows/lifecycle/commands.js';
+import { WindowDrags, registerWindowDragIpc } from './windows/transfers/drags.js';
+import { WindowTransfers, registerWindowTransferIpc } from './windows/transfers/coordinator.js';
+import { WindowNavigations } from './windows/hosts/navigation.js';
+import { reloadContents } from './windows/hosts/reload.js';
 import { ProjectWindows, registerProjectWindowIpc } from './windows/projects.js';
 
 /**
@@ -171,8 +171,10 @@ const windowTransfers = new WindowTransfers({
     }
   },
   committed: () => {
-    for (const record of windowState?.openWindows() ?? [])
-      rememberedWindows.set(reopenWindowId(record), record);
+    const open = windowState?.openWindows() ?? [];
+    const ids = new Set(open.map(reopenWindowId));
+    for (const id of rememberedWindows.keys()) if (!ids.has(id)) rememberedWindows.delete(id);
+    for (const record of open) rememberedWindows.set(reopenWindowId(record), record);
   },
 });
 const projectWindows = new ProjectWindows({

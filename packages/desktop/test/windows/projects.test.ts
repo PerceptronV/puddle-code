@@ -4,7 +4,7 @@ import { join } from 'node:path';
 import { afterEach, expect, it, vi } from 'vitest';
 import { uiStateSnapshotSchema, type DesktopProjectCommand } from '@puddle/shared';
 import { ProjectWindows } from '../../src/windows/projects.js';
-import { DesktopWindowState } from '../../src/windows/state.js';
+import { DesktopWindowState } from '../../src/windows/persistence/state.js';
 import { reopenWindowId, type ReopenWindow } from '../../src/reopen.js';
 
 const profileId = '1234567890';

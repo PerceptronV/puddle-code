@@ -32,6 +32,7 @@ import { CollapsibleSessions, IconButton } from './controls';
 import { setCountDragImage, useArchiveDrop } from './drag';
 import { PROJECT_MIME, ProjectMenuBody } from './project-controls';
 import type { ProjectHeaderActions, SessionGroup, SidebarSessionSelection } from './types';
+import { beginProjectWindowDrag, canDragProjectWindow } from '../../../windows/drag/project-drag';
 
 /** The collapsed rail's archive target: an icon at the rail's foot. */
 function RailArchiveTarget({
@@ -326,12 +327,15 @@ export function CollapsedSessionsRail({
                         {...menuOnDoubleClick()}
                         draggable
                         onDragStart={(e) => {
+                          if (beginProjectWindowDrag(e.dataTransfer, group.projectId)) return;
                           e.dataTransfer.setData(PROJECT_MIME, group.projectId);
                           setDragProject(group.projectId);
                         }}
                         onDragEnd={() => setDragProject(null)}
                         className={cn(
                           'w-full px-1 text-center text-2xs uppercase transition-colors',
+                          canDragProjectWindow(group.projectId) &&
+                            'cursor-grab active:cursor-grabbing',
                           group.colour
                             ? cn(appearanceColourClass(group.colour), 'hover:opacity-75')
                             : 'text-fg-muted hover:text-fg',
@@ -342,7 +346,10 @@ export function CollapsedSessionsRail({
                       </Link>
                     </TooltipTrigger>
                   </ContextMenuTrigger>
-                  <TooltipContent side="left">{group.name}</TooltipContent>
+                  <TooltipContent side="left">
+                    {group.name}
+                    {canDragProjectWindow(group.projectId) ? ' · Drag back to host' : ''}
+                  </TooltipContent>
                 </Tooltip>
                 <ProjectMenuBody
                   projectId={group.projectId}

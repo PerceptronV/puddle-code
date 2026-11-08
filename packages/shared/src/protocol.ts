@@ -343,7 +343,8 @@
 // 26.13: private native tab drag offers, positioned tab handoff and scoped companion drags.
 // 26.14: private project transfer planning and durable returned-project records.
 // 26.15: optional native project-window controls and shared project navigation.
-export const PROTOCOL_VERSION = { major: 26, minor: 15 } as const;
+// 26.16: registered native project dragging and atomic live project return.
+export const PROTOCOL_VERSION = { major: 26, minor: 16 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

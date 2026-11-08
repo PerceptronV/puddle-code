@@ -15,6 +15,15 @@ anything not run. Do not copy this proposal there and describe it as delivered.
 Update the relevant SPEC sections and changelog when behavior ships. This roadmap
 remains the design intent; the acceptance document describes what was implemented.
 
+Keep implementation modules in hierarchical directories grouped by responsibility.
+Use the window feature's `state/`, `transfers/content/`, `drag/`, `navigation/`,
+`lifecycle/` and `menus/` groups, leaving shared context and composition at its
+root. Desktop window code groups host connections, persistence, lifecycle and
+transfers separately; private contracts belong under `shared/src/desktop/windows/`.
+Tests mirror those responsibilities. Extend the appropriate group as work grows,
+update direct imports and fixtures when moving files, and retain public package
+entry points without adding internal compatibility forwarding modules.
+
 ## Outcome
 
 Add two window types to the native desktop application while reusing the existing

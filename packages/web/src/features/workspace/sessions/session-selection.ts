@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { decodeLocalDrag, encodeLocalDrag } from '../../windows/drag-scope';
+import { decodeLocalDrag, encodeLocalDrag } from '../../windows/drag/drag-scope';
 
 /** Companion payload for a native sidebar drag that carries several sessions. */
 export const SESSION_DRAG_MIME = 'application/x-puddle-sessions';

@@ -69,7 +69,7 @@ import { browserTransport } from '../../../lib/transport/browser-transport';
 import { RuntimeDialog } from './runtime/RuntimeDialog';
 import { useCurrentProfileId } from '../../profile/profile-store';
 import { sessionLifecycle } from './lifecycle';
-import { useOpenTabWindow } from '../../windows/use-window-transfer';
+import { useOpenTabWindow } from '../../windows/transfers/use-window-transfer';
 
 /**
  * The shared lifecycle-menu model for one session: which actions apply, the

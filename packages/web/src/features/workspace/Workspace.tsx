@@ -1,7 +1,7 @@
 import { ContentMotion } from '../../components/ui/content-motion';
 import { TrayMotionProvider } from '../../components/ui/tray-motion';
 import { animateSidebar } from './layout/animate-sidebar';
-import { useAcceptWindowTransfer } from '../windows/use-window-transfer';
+import { useAcceptWindowTransfer } from '../windows/transfers/use-window-transfer';
 import { IslandSeparator } from './layout/IslandSeparator';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { useNavigate, useParams } from 'react-router';

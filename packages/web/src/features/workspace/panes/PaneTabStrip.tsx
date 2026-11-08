@@ -39,11 +39,11 @@ import { SessionTabActions } from '../sessions/SessionTabActions';
 import { TabTooltipBody } from './TabTooltip';
 import { tabRefKey } from '../layout/layout-tree';
 import { useDropIndicator } from '../layout/TilingDnd';
-import { PaneWindowContextMenu } from '../../windows/PaneWindowContextMenu';
-import { TabWindowContextMenu } from '../../windows/TabWindowContextMenu';
-import { beginPaneWindowDrag, canDragPaneWindow } from '../../windows/pane-drag';
+import { PaneWindowContextMenu } from '../../windows/menus/PaneWindowContextMenu';
+import { TabWindowContextMenu } from '../../windows/menus/TabWindowContextMenu';
+import { beginPaneWindowDrag, canDragPaneWindow } from '../../windows/drag/pane-drag';
 import { useParams } from 'react-router';
-import { dropTabWindow } from '../../windows/tab-drag';
+import { dropTabWindow } from '../../windows/drag/tab-drag';
 import {
   TAB_MIME,
   hasTabTransfer,

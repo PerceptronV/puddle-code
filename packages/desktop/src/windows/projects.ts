@@ -10,8 +10,8 @@ import {
   type DesktopWindowContext,
 } from '@puddle/shared';
 import { reopenWindowId, type ReopenWindow } from '../reopen.js';
-import type { DesktopWindowState } from './state.js';
-import type { WindowTransfers } from './transfers.js';
+import type { DesktopWindowState } from './persistence/state.js';
+import type { WindowTransfers } from './transfers/coordinator.js';
 
 /** Native ownership and routing; project contents still use the shared workspace handoff. */
 export class ProjectWindows {

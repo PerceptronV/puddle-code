@@ -53,6 +53,7 @@ import { useWaitingNotifications } from './use-waiting-notifications';
 import { ScratchpadPopover } from '../scratchpad/ScratchpadPopover';
 import { LayoutsPopover } from '../layouts/LayoutsPopover';
 import { desktopWindowContext } from '../windows/window-context';
+import { useProjectWindowDrop } from '../windows/drag/project-drag';
 import { desktopBridge, useDesktopFullScreen } from '../../lib/desktop';
 import { cn } from '../../lib/utils';
 import {
@@ -355,6 +356,7 @@ function TopBar() {
 }
 
 function ShellBody() {
+  const projectDrop = useProjectWindowDrop();
   useStatusCacheSync();
   useLocalSyncEngine();
   useWaitingNotifications();
@@ -384,7 +386,21 @@ function ShellBody() {
     // The cockpit owns exactly one viewport; routed views provide the scroll
     // surfaces within it. Clip any missed descendant constraint here and stop
     // a nested surface at its limit from rubber-banding the whole window.
-    <div className="flex h-screen flex-col overflow-hidden overscroll-y-none bg-ground">
+    <div
+      ref={projectDrop.ref}
+      data-project-window-drop-target={projectDrop.enabled || undefined}
+      className="relative flex h-screen flex-col overflow-hidden overscroll-y-none bg-ground"
+    >
+      {projectDrop.active && (
+        <div className="pointer-events-none absolute inset-1.5 z-50 flex items-center justify-center rounded-[var(--ui-surface-radius)] bg-accent/20">
+          <span
+            role="status"
+            className="rounded-[var(--ui-radius)] bg-surface px-4 py-2 text-sm text-fg shadow-lg"
+          >
+            Return project here
+          </span>
+        </div>
+      )}
       <HostAppearanceTheme />
       <DesktopHostIdentity />
       <HostPeekOverlay />
