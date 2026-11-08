@@ -1,3 +1,4 @@
+import { recoverHuddlesAtStartup } from './runtime/huddle/recovery/startup.js';
 import { HuddleAgentLifecycle } from './huddle/operations/lifecycle/service.js';
 import { tmpdir } from 'node:os';
 import { randomUUID } from 'node:crypto';
@@ -747,6 +748,21 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
           .catch((e) => console.warn(`auto-resume ${id} failed: ${e.message}`));
       }
     }
+
+    // This is separate from agent auto-resume: each huddle run needs its own explicit opt-in.
+    if (runtimeLauncher)
+      await recoverHuddlesAtStartup({
+        home: paths.home,
+        runtimes,
+        sessions,
+        projects,
+        launcher: runtimeLauncher,
+        storage,
+        failed: (id, error) =>
+          console.warn(
+            `huddle auto-start ${id} failed: ${error instanceof Error ? error.message : String(error)}`,
+          ),
+      });
 
     // Register the tier-2 proxy's raw WebSocket upgrade listener AFTER serve() so
     // it becomes the SECOND 'upgrade' listener — see attachProxyUpgrade for why

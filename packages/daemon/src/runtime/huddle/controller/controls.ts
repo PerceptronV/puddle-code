@@ -193,7 +193,7 @@ export class HuddleRuntimeControls {
     sessionId: string,
     expected: HuddleControlTarget,
     request:
-      | { t: 'arm'; expectedGeneration: number; autoStart: boolean }
+      | { t: 'arm'; expectedGeneration: number; autoStart?: boolean }
       | { t: 'interrupt' }
       | { t: 'apply'; activation: HuddleActivationInput; expectedGeneration: number },
     authorised: Authorised,
@@ -226,8 +226,12 @@ export class HuddleRuntimeControls {
             ? this.feedBaseline()
             : undefined;
         // Capture after queued review, immediately before the one exact lifecycle send.
+        const command =
+          request.t === 'arm'
+            ? { ...request, autoStart: request.autoStart ?? state.control.autoStart }
+            : request;
         const response = await target.client.request({
-          ...request,
+          ...command,
           ...(feedBaseline ? { feedBaseline } : {}),
           ...(captured ? { completionBaselines: captured.baselines } : {}),
         });
@@ -238,10 +242,44 @@ export class HuddleRuntimeControls {
       reviewed,
     );
   }
+  autoStart(
+    sessionId: string,
+    expected: HuddleControlTarget,
+    previous: boolean,
+    enabled: boolean,
+    authorised: Authorised,
+  ) {
+    const reviewed = { ...expected };
+    return this.run(
+      sessionId,
+      authorised,
+      async (target) => {
+        const state = await this.review(target, reviewed, authorised);
+        if (state.capabilities.autoStart !== 1)
+          throw ApiError.conflict(
+            'huddle_execution_unsupported',
+            'This runtime has no auto-start setting',
+          );
+        this.requireDispatch(target, authorised);
+        const response = await target.client.request({
+          t: 'auto-start',
+          expectedGeneration: reviewed.generation,
+          activationId: reviewed.activationId,
+          expected: previous,
+          enabled,
+        });
+        if (response.t !== 'state') throw unavailable();
+        await this.observe(target, response.state, authorised);
+        return response.state;
+      },
+      reviewed,
+    );
+  }
+
   arm(
     sessionId: string,
     expected: HuddleControlTarget,
-    autoStart: boolean,
+    autoStart: boolean | undefined,
     authorised: Authorised,
   ) {
     return this.mutate(

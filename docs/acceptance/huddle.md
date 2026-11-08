@@ -34,6 +34,33 @@ delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## Implemented: opt-in startup after reboot
+
+Application **28.16** and owner **`autoStart: 1`** expose an **Auto-start after
+reboot** switch beside the IDE execution actions. CLI `pudl huddle auto-start` and
+MCP `huddle_auto_start` share the exact `{target, expected, enabled}` request.
+Inspection includes `auto_start` only when requested and supported. Changing the
+setting preserves activation/generation, schedules and source cursors; stale
+previous values reject without retry. It belongs to the current run. Apply and
+Interrupt/Resume preserve it; Stop/Archive prevent startup, and a fresh Start is off.
+
+`runtime/huddle/recovery/startup.ts` runs after host binding and normal agent
+resume. Its 64-binding pages include unresolved huddles, verify their launch/boot
+and recorded intent, and exclude archived projects/placements and Stop requests.
+Only armed, opted-in predecessors from an earlier verified boot enter the existing
+recovery launcher. Placement/source/storage checks surround admission; the opt-in
+is checked again under retirement/state claims. A same-boot or already accepted
+replacement is never launched again. This is independent of agent autoResume and
+uses the existing lifecycle and notification-feed machinery.
+
+**12/12 focused checks in three existing files pass**, including the real fixture
+replacement owner, retained queued work/legacy operation identity/session cursor,
+opt-out/archive exclusions, no second launch on another startup pass, exact setting
+comparison and public Interrupt/Resume preservation. Shared/daemon/CLI builds and
+web type checking pass. The reboot is modelled with retained state; actual OS reboot,
+supervision and same-boot crash recovery remain outstanding. No production daemon
+or native desktop windows were used.
+
 ## Implemented: explicit recovery after a host reboot
 
 Application **28.15** adds local/SSH `POST /api/huddle/:profile/sessions/:sid/recover`
@@ -41,8 +68,8 @@ with `{owner: {runtimeId, incarnation}}`. Opt-in runtime inspection
 `include_recovery=true` exposes the exact unresolved predecessor. The IDE offers
 **Recover after reboot**; CLI `pudl huddle recover` and MCP `huddle_recover` use the
 same request and never retry mutations automatically. This restores the recorded
-activation rather than applying edited project source. Automatic startup is not
-implemented yet.
+activation rather than applying edited project source. Application 28.16 adds the
+explicit auto-start setting described above.
 
 Optional runtime **`recovery: 1`** restores a bounded copy of the private ledger
 and every retained revision in a new runtime directory. Recovery requires a
@@ -67,7 +94,7 @@ retained state. Session notifications reuse the existing durable feed and cursor
 Completion subscriptions retain exact native owners; an unavailable/replaced
 agent, missing resource or expired cursor reports a gap/failure rather than
 silently rebasing. Inspect and explicitly rearm/rebind as appropriate. Same-boot
-crash recovery, auto-start, native reboot/supervision acceptance and resource
+crash recovery, native reboot/supervision acceptance and resource
 measurements remain outstanding.
 
 Focused verification: **12/12 checks in four files** pass, covering the new real
@@ -159,7 +186,7 @@ and fake provider adapters, not production services or real provider acceptance.
 
 This provenance increment alone did not enable recovery. Application 28.15 now
 uses it for explicit reboot recovery, described above. Same-boot descendant
-fencing, automatic startup and native crash/reboot acceptance remain unfinished.
+fencing and native crash/reboot acceptance remain unfinished.
 
 ## Implemented: recorded activation and historical source inspection
 
@@ -2608,7 +2635,7 @@ changes: refresh earlier pages for mutable outcomes. Public inspection identifie
 the active activation; application 28.10 now exposes its revision digest, source
 and binding details through the review endpoints documented above.
 Retained history after owner shutdown is now implemented in 28.12 above.
-Reboot recovery, auto-start controls and full provider lifecycle coverage remain unfinished; the IDE integration is documented above.
+Explicit reboot recovery, auto-start controls and resume/restart nodes are implemented above; full native/provider lifecycle acceptance remains unfinished.
 
 Verification: **377 tests in 53 files** passed across the shared schemas, complete
 huddle suite, daemon profile-authority tests and connector policy tests. Six new
@@ -3173,7 +3200,7 @@ This is compatibility admission, not proof that any huddle has recovered. A
 compatible daemon can start with interrupted huddle bindings so users can inspect
 and recover them; the check does not replay, rearm or restart their work. Retained
 huddle references require support even when their owner is no longer running.
-New-owner recovery, auto-start after reboot and native service supervision remain
+Explicit reboot recovery and auto-start are implemented above; native service supervision remains
 separate acceptance gates.
 
 Verification uses live isolated ordinary/huddle owners with scripted systemd

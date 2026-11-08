@@ -63,6 +63,25 @@ export class HuddleActivations {
     });
   }
 
+  /** A setting change preserves active trigger identities, schedules and cursors. */
+  setAutoStart(
+    expectedGeneration: number,
+    activationId: string | null,
+    expected: boolean,
+    enabled: boolean,
+  ) {
+    return this.db.atomic(() => {
+      const current = this.current();
+      if (
+        current.generation !== expectedGeneration ||
+        current.activationId !== activationId ||
+        current.autoStart !== expected
+      )
+        throw new Error('Huddle auto-start setting changed; inspect it again');
+      return this.save({ ...current, autoStart: enabled });
+    });
+  }
+
   private save(input: HuddleControlState) {
     const control = huddleControlStateSchema.parse(input);
     this.db.put('control', 'current', '', control.state, control, {

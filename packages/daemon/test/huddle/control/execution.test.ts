@@ -110,12 +110,19 @@ it('starts saved source without running it, runs exact input, applies a revision
           row.record.result?.completed === 84,
       ),
     );
+    expect((await f.request('runtime')).body.owner).not.toHaveProperty('auto_start');
+    expect((await f.request('runtime?include_auto_start=true')).body.owner.auto_start).toBe(false);
+    const setting = await f.request('auto-start', { target: next, expected: false, enabled: true });
+    expect(setting.status).toBe(200);
+    expect(setting.body.owner.auto_start).toBe(true);
+    expect(setting.body.owner.target).toEqual(next);
     const interrupted = await f.request('interrupt', { target: next });
     expect(interrupted.status).toBe(200);
     expect(interrupted.body.owner.lifecycle).toBe('interrupted');
     const resumed = await f.request('rearm', { target: interrupted.body.owner.target });
     expect(resumed.status).toBe(200);
     expect(resumed.body.owner.target.activationId).toBe(next.activationId);
+    expect((await f.request('runtime?include_auto_start=true')).body.owner.auto_start).toBe(true);
     expect((await f.request('stop', { target: resumed.body.owner.target })).body).toEqual({
       stopped: true,
     });

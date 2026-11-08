@@ -5,6 +5,8 @@ import { requireHuddleHostFeatures } from '../../runtime/huddle/triggers/definit
 import { randomUUID } from 'node:crypto';
 import {
   huddleStartSchema,
+  huddleAutoStartSchema,
+  type HuddleAutoStart,
   huddleRecoverSchema,
   type HuddleRecover,
   huddleReadoutObserveSchema,
@@ -137,6 +139,7 @@ export class HuddleExecutionService {
     includeReadoutObservation = false,
     includeCustomTriggers = false,
     includeRecovery = false,
+    includeAutoStart = false,
   ): Promise<HuddleRuntimeInspection> {
     const scope = this.scope(profile, id, authority);
     const recovery = () => {
@@ -172,6 +175,9 @@ export class HuddleExecutionService {
           build: state.build,
           lifetime: state.lifetime,
           lifecycle: state.control.state,
+          ...(includeAutoStart && state.capabilities.autoStart === 1
+            ? { auto_start: state.control.autoStart }
+            : {}),
           executing: state.executing,
           stopping:
             state.state !== 'running' ||
@@ -438,10 +444,24 @@ export class HuddleExecutionService {
     );
   }
 
+  async autoStart(profile: string, id: string, raw: HuddleAutoStart, authority: Authority) {
+    const input = huddleAutoStartSchema.parse(raw);
+    const scope = this.scope(profile, id, authority, input.enabled);
+    await this.deps.controls.autoStart(
+      id,
+      input.target,
+      input.expected,
+      input.enabled,
+      scope.valid,
+    );
+    scope.check();
+    return this.inspect(profile, id, authority, false, false, false, true);
+  }
+
   async rearm(profile: string, id: string, raw: HuddleLifecycleCommand, authority: Authority) {
     const input = huddleLifecycleCommandSchema.parse(raw);
     const scope = this.scope(profile, id, authority, true);
-    await this.deps.controls.arm(id, input.target, false, scope.valid);
+    await this.deps.controls.arm(id, input.target, undefined, scope.valid);
     scope.check();
     return this.inspect(profile, id, authority);
   }

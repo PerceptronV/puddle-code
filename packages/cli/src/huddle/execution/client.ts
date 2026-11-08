@@ -22,10 +22,12 @@ export class HuddleExecutionClient {
   readonly retainedHistory: boolean;
   readonly retainedRevision: boolean;
   readonly recovery: boolean;
+  readonly autoStart: boolean;
   constructor(
     private readonly request: (path: string, body?: unknown) => Promise<unknown>,
     protocol?: { major: number; minor: number },
   ) {
+    this.autoStart = supportsApplicationFeature(protocol, { major: 28, minor: 16 });
     this.recovery = supportsApplicationFeature(protocol, { major: 28, minor: 15 });
     this.supported = supportsApplicationFeature(protocol, { major: 28, minor: 2 });
     this.readoutObservation = supportsApplicationFeature(protocol, { major: 28, minor: 6 });
@@ -72,6 +74,7 @@ export class HuddleExecutionClient {
       if (this.readoutObservation) query.set('include_readout_observation', 'true');
       if (this.customTriggers) query.set('include_custom_triggers', 'true');
       if (this.recovery) query.set('include_recovery', 'true');
+      if (this.autoStart) query.set('include_auto_start', 'true');
       return huddleRuntimeInspectionSchema.parse(
         await this.request(`${path}/runtime${query.size ? '?' + query.toString() : ''}`),
       );
@@ -81,6 +84,8 @@ export class HuddleExecutionClient {
         throw new Error('Readout observation history requires daemon protocol 28.6 or newer');
       return huddleHistoryPageSchema.parse(await this.request(`${path}/history`, command.request));
     }
+    if (command.action === 'auto-start' && !this.autoStart)
+      throw new Error('Huddle auto-start settings require daemon protocol 28.16 or newer');
     if (command.action === 'recover' && !this.recovery)
       throw new Error('Huddle recovery requires daemon protocol 28.15 or newer');
     if (command.action === 'observe-readout' && !this.readoutObservation)

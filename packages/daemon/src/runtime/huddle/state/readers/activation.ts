@@ -20,6 +20,19 @@ export function readHuddleActivation(home: string, state: HuddleOwnerState) {
   );
 }
 
+/** Current recorded intent, used only after checking the immutable launch and boot. */
+export function readRecordedHuddleControl(home: string, identity: HuddleLedgerIdentity) {
+  return withHuddleReadSnapshot(home, identity, (db) => {
+    const row = db
+      .prepare(
+        "SELECT CASE WHEN typeof(body) = 'text' AND length(CAST(body AS BLOB)) <= 4096 THEN body ELSE NULL END AS body FROM records WHERE collection = 'control' AND id = 'current'",
+      )
+      .get() as { body: string | null } | undefined;
+    if (!row?.body) throw new Error('Retained huddle control is missing or exceeds its limit');
+    return huddleControlStateSchema.parse(JSON.parse(row.body));
+  });
+}
+
 /** Last committed activation metadata is recorded evidence, not a command target. */
 export function readRecordedHuddleActivation(
   home: string,

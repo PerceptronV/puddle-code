@@ -122,6 +122,10 @@ export class HuddleOwnerClient extends EventEmitter {
   }
   request(value: Command): Promise<HuddleOwnerResponse> {
     if (this.closed) return Promise.reject(new RuntimeConnectionLost());
+    if (value.t === 'auto-start' && this.state?.capabilities.autoStart !== 1)
+      return Promise.reject(
+        new HuddleOwnerRejected('rejected', 'Owner has no auto-start setting capability'),
+      );
     if (value.t.startsWith('lifecycle-') && this.state?.capabilities.lifecycle !== 1)
       return Promise.reject(
         new HuddleOwnerRejected('rejected', 'Owner has no session lifecycle capability'),

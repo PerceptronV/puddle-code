@@ -1,5 +1,7 @@
 import {
   huddleApplySchema,
+  huddleAutoStartSchema,
+  type HuddleAutoStart,
   huddleRecoverSchema,
   type HuddleRecover,
   huddleReadoutObserveSchema,
@@ -24,6 +26,7 @@ import { browserTransport } from '../../../lib/transport/browser-transport';
 import { huddleShellSupported } from '../documents/queries';
 
 export type HuddleCommand =
+  | { action: 'auto-start'; input: HuddleAutoStart }
   | { action: 'recover'; input: HuddleRecover }
   | { action: 'readouts/observe'; input: HuddleReadoutObserve }
   | { action: 'start'; input: HuddleStart }
@@ -42,12 +45,14 @@ export async function inspectHuddle(
   includeReadoutObservation = false,
   includeCustomTriggers = false,
   includeRecovery = false,
+  includeAutoStart = false,
 ) {
   local();
   const query = new URLSearchParams();
   if (includeReadoutObservation) query.set('include_readout_observation', 'true');
   if (includeCustomTriggers) query.set('include_custom_triggers', 'true');
   if (includeRecovery) query.set('include_recovery', 'true');
+  if (includeAutoStart) query.set('include_auto_start', 'true');
   return huddleRuntimeInspectionSchema.parse(
     await api(
       'GET',
@@ -76,6 +81,7 @@ export async function huddleHistory(
 export async function sendHuddleCommand(profile: string, session: string, command: HuddleCommand) {
   local();
   const schemas = {
+    'auto-start': huddleAutoStartSchema,
     recover: huddleRecoverSchema,
     'readouts/observe': huddleReadoutObserveSchema,
     start: huddleStartSchema,

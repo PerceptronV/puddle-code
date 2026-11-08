@@ -8,7 +8,10 @@ import { readRuntimeJson } from '../../ownership/storage.js';
 import { retireRuntimeMemoryGrant } from '../../resources/host/retirement.js';
 import { huddleBindingLaunch } from '../ownership/binding.js';
 import { retainedHuddleDirectory } from '../state/readers/database.js';
-import { readRecordedHuddleActivation } from '../state/readers/activation.js';
+import {
+  readRecordedHuddleActivation,
+  readRecordedHuddleControl,
+} from '../state/readers/activation.js';
 import { readRetainedHuddleRevision } from '../state/revisions.js';
 
 /** A different verified boot fences every old descendant, including detached script children. */
@@ -16,6 +19,7 @@ export function acquireHuddleRecoverySource(
   home: string,
   binding: RuntimeBinding,
   boot: string | null,
+  autoStartOnly = false,
 ) {
   const claims = acquireRuntimeRetirementClaims(home, binding.runtime_id);
   const extra: Array<{ release(): void }> = [];
@@ -25,6 +29,11 @@ export function acquireHuddleRecoverySource(
     const source = huddleBindingLaunch(home, binding);
     if (!boot || !source.boot_id || boot === source.boot_id || binding.state === 'exited')
       throw new Error('Recovery requires an unresolved owner from a verified earlier host boot');
+    if (autoStartOnly) {
+      const control = readRecordedHuddleControl(home, source.scope);
+      if (source.capabilities.autoStart !== 1 || control.state !== 'armed' || !control.autoStart)
+        throw new Error('Huddle is no longer armed for automatic recovery');
+    }
     const activation = readRecordedHuddleActivation(
       home,
       source.scope,

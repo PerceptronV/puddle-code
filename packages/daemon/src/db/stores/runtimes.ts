@@ -239,6 +239,15 @@ export class RuntimeStore {
       .get(canonicalPath);
   }
 
+  /** Bounded boot catalogue; the caller verifies retained intent and exact boot before recovery. */
+  huddleStartupCandidates(after = ''): RuntimeBinding[] {
+    return this.db
+      .prepare(
+        "SELECT * FROM runtime_bindings WHERE role = 'huddle' AND state != 'exited' AND runtime_id > ? ORDER BY runtime_id LIMIT 64",
+      )
+      .all(after) as RuntimeBinding[];
+  }
+
   unresolvedHuddle(sessionId: string): RuntimeBinding | null {
     return (
       (this.db

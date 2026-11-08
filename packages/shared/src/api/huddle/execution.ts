@@ -38,6 +38,7 @@ export const huddleRuntimeInspectionSchema = z.strictObject({
         build: z.string().max(128),
         lifetime: z.enum(['service', 'host_session']),
         lifecycle: z.enum(['stopped', 'armed', 'interrupted']),
+        auto_start: z.boolean().optional(),
         executing: z.boolean(),
         stopping: z.boolean(),
         failure: z.string().max(4096).nullable(),
@@ -65,6 +66,11 @@ export const huddleRecoverSchema = z.strictObject({ owner: huddleRuntimeTargetSc
 export type HuddleRecover = z.infer<typeof huddleRecoverSchema>;
 export const huddleApplySchema = huddleStartSchema.extend({ target: huddleCommandTargetSchema });
 export const huddleLifecycleCommandSchema = z.strictObject({ target: huddleCommandTargetSchema });
+export const huddleAutoStartSchema = huddleLifecycleCommandSchema.extend({
+  expected: z.boolean(),
+  enabled: z.boolean(),
+});
+export type HuddleAutoStart = z.infer<typeof huddleAutoStartSchema>;
 export const huddleRunSchema = huddleLifecycleCommandSchema.extend({
   node: huddleKeySchema,
   event_id: z.uuid(),

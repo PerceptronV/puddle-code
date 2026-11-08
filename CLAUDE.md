@@ -970,7 +970,13 @@ runtime, bind one successor atomically, and interrupt running scripts before
 scheduler construction. Preserve original callers for historical host operations;
 never dispatch them again. IDE/CLI/MCP share the exact recorded-owner target. Do not
 turn a failed or lost reply into retry permission. Same-boot descendant fencing,
-auto-start and native reboot acceptance remain unfinished.
+native reboot acceptance remain unfinished. Application 28.16 adds owner autoStart-1
+and an explicit per-run setting. Keep setting changes separate from Arm: exact
+previous-value checks must preserve generation, schedules and cursors. Startup pages
+unresolved owners in `runtime/huddle/recovery/startup.ts`, skips same-boot/stopped/
+interrupted/archived/Stop-requested runs, and rechecks the opted-in armed intent under
+recovery claims. It reuses the recovery launcher and never retries accepted dispatch.
+Apply and Interrupt/Resume preserve the setting; fresh Start defaults off.
 Application 28.7 and `customTriggers: 1` gate local HuddleTrigger subscriptions.
 Keep adapters under `puddlang/huddle/`, source orchestration under
 `runtime/huddle/triggers/custom/`, and durable cursor/event admission in

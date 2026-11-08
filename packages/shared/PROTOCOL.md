@@ -1,5 +1,23 @@
 # The puddle communication protocol
 
+Application **28.16** adds local/SSH `POST
+/api/huddle/:profile/sessions/:sid/auto-start` with `{target, expected, enabled}`.
+`expected` is the inspected setting. Opt-in `include_auto_start=true` adds
+`owner.auto_start` only for owners advertising **`autoStart: 1`**, which requires
+`recovery: 1`. Private `auto-start` checks the exact generation, activation and
+previous value, then changes only the retained preference. It does not arm a
+stopped graph, advance generation or reset schedules/cursors. Old clients and
+owners keep their previous shapes and controls.
+
+The daemon's paginated startup pass recovers only opted-in, armed owners from a
+verified earlier boot. It excludes archived placements/projects and retained Stop
+requests, rechecks source/placement/storage and verifies the opt-in again under
+recovery claims. Existing replacement intent prevents another launch after a lost
+reply. Same-boot daemon replacement adopts surviving owners normally. The setting
+belongs to the current run: Apply and Interrupt/Resume preserve it; Stop suppresses
+auto-start, and a fresh Start defaults off. Agent `autoResume` configuration remains
+independent. No database or ledger migration is needed. CLI/MCP gate on 28.16.
+
 Application **28.15** adds explicit local/SSH huddle reboot recovery, `POST
 /api/huddle/:profile/sessions/:sid/recover` with `{owner: {runtimeId, incarnation}}`.
 Runtime inspection includes optional `recovery: {owner}` only when requested with
@@ -15,8 +33,8 @@ The new owner verifies the pristine copied ledger before opening it and interrup
 in-flight scripts before scheduler construction. Pending roots, captured revisions,
 trigger cursors, budgets and receipts survive. Historical operations retain their
 original callers and are observation-only through descendants. No agent runtime
-protocol or ledger format bump is needed. Auto-start and same-boot recovery remain
-unimplemented; native reboot acceptance is still required.
+protocol or ledger format bump is needed. Application 28.16 adds explicit auto-start
+as described above. Same-boot recovery and native reboot acceptance remain unfinished.
 
 Application **28.14** adds `resume-agent`/`restart-agent` source templates and an
 optional component `lifecycle: "resume" | "restart"` declaration. The declared

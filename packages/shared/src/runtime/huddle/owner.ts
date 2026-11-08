@@ -248,6 +248,14 @@ export const huddleOwnerRequestSchema = z.discriminatedUnion('t', [
     expectedGeneration: sequence,
     autoStart: z.boolean(),
   }),
+  z.strictObject({
+    t: z.literal('auto-start'),
+    ...request,
+    expectedGeneration: sequence,
+    activationId: z.uuid().nullable(),
+    expected: z.boolean(),
+    enabled: z.boolean(),
+  }),
   z.strictObject({ t: z.literal('interrupt'), ...request }),
   z.strictObject({ t: z.literal('shutdown'), ...request }),
   z.strictObject({

@@ -1,7 +1,10 @@
 import { randomBytes, randomUUID } from 'node:crypto';
 import { readFileSync, writeFileSync, realpathSync } from 'node:fs';
 import { join } from 'node:path';
-import { expect, it } from 'vitest';
+import { expect, it, vi } from 'vitest';
+import { recoverHuddlesAtStartup } from '../../../src/runtime/huddle/recovery/startup.js';
+import { ProjectStore } from '../../../src/db/stores/projects.js';
+import { huddleControlTarget } from '../../../src/runtime/huddle/controller/observations.js';
 import {
   HUDDLE_RUNTIME_CAPABILITIES,
   RUNTIME_PROTOCOL_VERSION,
@@ -124,8 +127,30 @@ it('recovers one recorded owner after reboot, resumes queued work and subscripti
     } finally {
       ledger.close();
     }
+    const projects = new ProjectStore(f.db);
+    const failed = vi.fn();
+    const startup = () => recoverHuddlesAtStartup({ ...f, projects, failed });
+    await startup(); // The default is off, even for an armed predecessor from an earlier boot.
+    expect(f.run).not.toHaveBeenCalled();
+    const retainedLedger = new HuddleLedger(f.home, launch.scope);
+    try {
+      const control = retainedLedger.activations.current();
+      retainedLedger.activations.setAutoStart(
+        control.generation,
+        control.activationId,
+        false,
+        true,
+      );
+    } finally {
+      retainedLedger.close();
+    }
+    projects.setArchived(f.project.id, true);
+    await startup();
+    expect(f.run).not.toHaveBeenCalled();
+    projects.setArchived(f.project.id, false);
     writeFileSync(join(f.home, 'release'), 'go');
-    await f.launcher.recoverHuddle(f.session.id, target, () => true);
+    await startup();
+    expect(failed).not.toHaveBeenCalled();
     const replacement = f.runtimes.ownerOf(f.session.id)!;
     expect(replacement.runtime_id).not.toBe(identity.runtime_id);
     const replacementLaunch = huddleOwnerLaunchSchema.parse(
@@ -158,6 +183,30 @@ it('recovers one recorded owner after reboot, resumes queued work and subscripti
       t: 'session-sources',
       sources: [{ node: 'sessions', cursor }],
     });
+    const before = (await f.controls.huddles.inspect(f.session.id, () => true)).control;
+    await f.controls.huddles.autoStart(
+      f.session.id,
+      huddleControlTarget(client.state!),
+      true,
+      false,
+      () => true,
+    );
+    expect(client.state!.control).toEqual({ ...before, autoStart: false });
+    expect(await client.request({ t: 'session-sources' })).toMatchObject({
+      t: 'session-sources',
+      sources: [{ node: 'sessions', cursor }],
+    });
+    await expect(
+      f.controls.huddles.autoStart(
+        f.session.id,
+        huddleControlTarget(client.state!),
+        true,
+        false,
+        () => true,
+      ),
+    ).rejects.toMatchObject({ code: 'huddle_command_rejected' });
+    await startup(); // A daemon replacement on the same boot must only adopt the existing owner.
+    expect(f.run).toHaveBeenCalledTimes(1);
     const retained = withHuddleReadSnapshot(
       f.home,
       client.state!.scope,

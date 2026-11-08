@@ -124,11 +124,12 @@ export class RuntimeLauncher {
     sessionId: string,
     target: { runtimeId: string; incarnation: string },
     authorised: () => boolean,
+    autoStartOnly = false,
   ): Promise<void> {
     return this.admit(async () => {
       const lifetime = await this.lifetime();
       const selected = this.selectedHuddleRelease();
-      if (selected.huddle.recovery !== 1)
+      if (selected.huddle.recovery !== 1 || (autoStartOnly && selected.huddle.autoStart !== 1))
         throw ApiError.conflict(
           'huddle_recovery_unsupported',
           'Select a runtime with huddle reboot recovery support',
@@ -142,7 +143,14 @@ export class RuntimeLauncher {
         binding.active_session_id !== sessionId
       )
         throw ApiError.conflict('huddle_recovery_changed', 'The recorded owner changed');
-      const recovery = acquireHuddleRecoverySource(this.deps.home, binding, lifetime.bootId);
+      if (autoStartOnly && this.deps.runtimes.stopRequested(binding.runtime_id))
+        throw ApiError.conflict('huddle_stopping', 'Stop was requested for this huddle');
+      const recovery = acquireHuddleRecoverySource(
+        this.deps.home,
+        binding,
+        lifetime.bootId,
+        autoStartOnly,
+      );
       try {
         await launchHuddleOwner(
           this.deps,

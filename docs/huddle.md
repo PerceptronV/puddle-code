@@ -138,7 +138,8 @@ source, exhausted admission limit or persistence failure stops timer admission
 and appears in runtime inspection. Inspect accepted executions, restore the
 resource, then explicitly Stop/Start; failed occurrences are not silently consumed.
 Explicit **Recover after reboot** restores retained timer progress and its configured
-missed-event policy. Automatic startup and same-boot owner recovery remain pending.
+missed-event policy. Enable **Auto-start after reboot** to recover an armed run
+when the host starts. Same-boot owner recovery remains pending.
 
 ## Run on a calendar or a one-off date
 
@@ -469,7 +470,7 @@ Completed work is preserved. Scripts that were running are marked interrupted;
 uncertain prompts, spawns and lifecycle changes are observed using their original
 identities and are never automatically sent again. History remains available.
 Recovery requires a verified host reboot; it currently rejects an owner crash on
-the same boot. Automatic startup is still pending. Replaced agents or unavailable
+the same boot. Replaced agents or unavailable
 resources remain explicit errors/gaps; inspect them before rearming or applying
 new bindings. After a failed recovery reply, inspect the runtime and history.
 Do not repeat the command or substitute a newer target automatically.
@@ -477,3 +478,23 @@ Do not repeat the command or substitute a newer target automatically.
 CLI: inspect `pudl huddle runtime SESSION_ID`, then pass its `recovery.owner` as
 `pudl huddle recover SESSION_ID --request '{"owner": {"runtimeId": "…", "incarnation": "…"}}'`.
 The `huddle_recover` MCP tool takes the same owner with `session_id` and `request`.
+
+## Start an armed huddle automatically after reboot
+
+On application 28.16 and runtime `autoStart: 1`, enable **Auto-start after reboot**
+next to the execution controls. It defaults off for a new run. Changing it does
+not reset schedules, move trigger cursors or arm a stopped graph. Apply and
+Interrupt/Resume preserve the preference; a fresh Start after Stop defaults off.
+
+When the daemon starts after a verified host reboot, it restores opted-in runs
+whose last intent was armed. Stopped/interrupted runs and archived huddles/projects
+stay inactive, even if the preference was enabled. Normal daemon replacement on
+the same boot reconnects to surviving runtimes. An uncertain accepted launch is
+not attempted again. Missing resources and unsupported installed runtimes leave
+the huddle available for inspection and explicit recovery. This setting does not
+change ordinary agents' auto-resume configuration or install a host startup service.
+
+For CLI/MCP, inspect runtime with a supporting client, then send
+`{target, expected: false, enabled: true}` to `pudl huddle auto-start SESSION_ID --request JSON`
+or `huddle_auto_start`. Use the actual inspected `auto_start` value for `expected`.
+After a lost reply, inspect the setting before another explicit action.

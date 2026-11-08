@@ -1,3 +1,4 @@
+import { AutoStartControl } from './AutoStartControl';
 import { useRetainedHistorySupported } from './history/api';
 import { RecordedHistoryDialog } from './history/RecordedHistoryDialog';
 import { useState } from 'react';
@@ -302,6 +303,14 @@ export function ExecutionControls({
             </button>
           )}
         </ControlTray>
+        {current && current.auto_start !== undefined && (
+          <AutoStartControl
+            enabled={current.auto_start}
+            target={current.target}
+            disabled={!canAct || session.status === 'archived' || locked}
+            send={send}
+          />
+        )}
         {dirty && (
           <span className="text-xs text-fg-muted">Save source edits before Start or Apply.</span>
         )}

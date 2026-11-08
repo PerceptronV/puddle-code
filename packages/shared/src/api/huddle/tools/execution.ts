@@ -12,6 +12,7 @@ import {
 } from '../review.js';
 import {
   huddleStartSchema,
+  huddleAutoStartSchema,
   huddleRecoverSchema,
   huddleApplySchema,
   huddleRunSchema,
@@ -24,6 +25,7 @@ const session = { session_id: sessionId };
 /** All mutations carry reviewed values. Tools must never resolve a newer target implicitly. */
 export const huddleExecutionToolSchemas = {
   runtime: z.strictObject(session),
+  'auto-start': z.strictObject({ ...session, request: huddleAutoStartSchema }),
   recover: z.strictObject({ ...session, request: huddleRecoverSchema }),
   'retained-revision': z.strictObject({ ...session, request: huddleRetainedRevisionRequestSchema }),
   'history-owners': z.strictObject({ ...session, request: huddleHistoryOwnersRequestSchema }),
@@ -41,6 +43,7 @@ export const huddleExecutionToolSchemas = {
 };
 export const huddleToolExecutionCommandSchema = z.discriminatedUnion('action', [
   huddleExecutionToolSchemas.runtime.extend({ action: z.literal('runtime') }),
+  huddleExecutionToolSchemas['auto-start'].extend({ action: z.literal('auto-start') }),
   huddleExecutionToolSchemas.recover.extend({ action: z.literal('recover') }),
   huddleExecutionToolSchemas['retained-revision'].extend({
     action: z.literal('retained-revision'),
@@ -61,6 +64,11 @@ export const huddleToolExecutionCommandSchema = z.discriminatedUnion('action', [
 export type HuddleToolExecutionCommand = z.infer<typeof huddleToolExecutionCommandSchema>;
 
 const definitions = [
+  [
+    'auto-start',
+    'Set whether the current huddle run recovers automatically when the host starts after a verified reboot (host 28.16+). Supply request {target, expected, enabled}; expected is the inspected auto_start value. Does not arm a stopped graph, reset schedules/cursors or restart any process. Stop, Interrupt and Archive suppress startup even when enabled. This preference belongs to the current run; a fresh Start defaults off. Inspect after a failed reply; never retry automatically.',
+    false,
+  ],
   [
     'recover',
     'Recover the exact recorded huddle owner after a verified host reboot (host 28.15+). Supply request {owner: {runtimeId, incarnation}} from runtime recovery inspection. Restores the last active source, queued events and trigger cursors; interrupted scripts are not replayed. May resume automatic triggers. Same-boot recovery is unavailable. Never retry after a lost reply; inspect runtime/history.',

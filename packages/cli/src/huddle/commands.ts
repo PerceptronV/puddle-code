@@ -29,7 +29,7 @@ export const huddleHelp = `  pudl huddle list --project ID --worktree /absolute/
   pudl huddle retained-revision <session-id> --request JSON
   pudl huddle runtime <session-id>
   pudl huddle session|archive|unarchive <session-id>
-  pudl huddle start|apply|run|interrupt|resume|stop|recover <session-id> --request JSON
+  pudl huddle start|apply|run|interrupt|resume|stop|recover|auto-start <session-id> --request JSON
   pudl huddle history|observe-readout <session-id> --request JSON
   pudl huddle revision|diff <session-id> --request JSON
 
@@ -44,6 +44,9 @@ Runtime commands use that placement's declared worktree. Start/Apply require an
 explicit expected_digest and variables; Apply and later mutations require the
 exact target from runtime inspection. Run also requires node, event_id and data.
 History requires owner, collection, after and parent for invocations/operations.
+Auto-start requires {target, expected, enabled} (host 28.16+). Use the inspected
+auto_start boolean as expected. This changes only the current run's reboot policy,
+not its schedules/cursors. Only armed runs recover automatically; fresh Start defaults off.
 Recover requires {owner} from runtime recovery inspection (host 28.15+). It restores
 the last active graph after a verified reboot, preserving queued work/cursors and
 interrupting running scripts without replay. Same-boot recovery is unavailable.

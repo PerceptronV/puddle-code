@@ -566,6 +566,18 @@ export class HuddleOwner {
       return { t: 'accepted', id: request.id };
     }
     if (this.stopping || this.interrupting) throw new Error('Huddle lifecycle change is pending');
+    if (request.t === 'auto-start') {
+      if (this.memory.launch.capabilities.autoStart !== 1)
+        throw new Error('Owner has no auto-start setting capability');
+      this.ledger.activations.setAutoStart(
+        request.expectedGeneration,
+        request.activationId,
+        request.expected,
+        request.enabled,
+      );
+      this.persist();
+      return state();
+    }
     if (request.t === 'interrupt') {
       this.stopTriggers();
       this.interrupting = this.scheduler.halt('interrupted', 'Huddle interrupted by controller');

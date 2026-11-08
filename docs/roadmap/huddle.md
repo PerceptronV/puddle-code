@@ -117,8 +117,10 @@ automatic same-boot owner-crash recovery remain unfinished. Explicit reboot reco
 now restores the recorded activation, queued work and trigger cursors in one
 replacement owner (application 28.15, runtime recovery-1, migration 51). Running
 scripts are interrupted and historical agent operations remain observation-only.
-The IDE and CLI/MCP expose this action. Auto-start and native reboot acceptance
-remain pending.
+The IDE and CLI/MCP expose this action. Application 28.16 adds a per-run auto-start
+switch and a paginated host-startup pass through the same recovery launcher. Only
+armed, opted-in predecessors from an earlier boot are recovered. Native reboot
+acceptance and same-boot recovery remain pending.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals except where explicitly documented
 in acceptance as implemented.
@@ -669,7 +671,8 @@ origin across reconstruction; they do not relabel old work as a new incarnation.
 Explicit reboot recovery now uses verified boot change and retirement claims to
 fence descendants, one atomic predecessor/successor mapping, a copied ledger and
 restored subscriptions/queues. Old operations retain observation-only host authority.
-Same-boot descendant fencing and explicit auto-start integration remain unfinished.
+Explicit per-run auto-start is implemented in 28.16; same-boot descendant fencing
+and native reboot acceptance remain unfinished.
 Legacy rows without provenance must retain their verified original launch identity;
 never backfill them from a replacement's identity.
 
