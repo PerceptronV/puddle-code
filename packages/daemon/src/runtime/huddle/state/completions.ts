@@ -3,8 +3,6 @@ import {
   canonicalHuddleJson,
   completionHuddleTrigger,
   HUDDLE_COMPLETION_SOURCE_LIMIT,
-  huddleCompletionBaselinesSchema,
-  huddleCompletionSettingsSchema,
   huddleCompletionSourceSchema,
   huddleJsonSchema,
   runtimeNativeTurnPageSchema,
@@ -17,6 +15,7 @@ import {
 import { HuddleStateDatabase, stateJson } from './database.js';
 import { HuddleExecutions } from './executions.js';
 import { HuddleActivations } from './activation.js';
+import { validateCompletionBaselines } from '../triggers/completions/baselines.js';
 import type { CompletionDefinition } from '../triggers/completions/definitions.js';
 
 const equal = (left: unknown, right: unknown) =>
@@ -40,13 +39,6 @@ export class HuddleCompletionSources {
     activation: HuddleRevisionActivation,
     input: HuddleCompletionBaseline[],
   ) {
-    const baselines = huddleCompletionBaselinesSchema.parse(input);
-    if (
-      definitions.length > HUDDLE_COMPLETION_SOURCE_LIMIT ||
-      definitions.length !== baselines.length ||
-      new Set(definitions.map((definition) => definition.node)).size !== definitions.length
-    )
-      throw new Error('Completion subscriptions require one exact baseline per node');
     this.db.atomic(() => {
       const control = this.activations.current();
       if (
@@ -61,28 +53,14 @@ export class HuddleCompletionSources {
         )
       )
         throw new Error('Completion subscriptions changed within an activation');
-      for (const [slot, definition] of definitions.entries()) {
-        huddleCompletionSettingsSchema.parse({
-          worktree: definition.worktree,
-          session: definition.session,
-        });
-        const baseline = baselines.find((item) => item.node === definition.node);
-        const binding = activation.bindings[definition.node];
-        if (
-          slot !== definition.slot ||
-          !baseline ||
-          binding?.worktree !== definition.worktree ||
-          binding.session !== definition.session ||
-          baseline.target.sessionId !== definition.session ||
-          baseline.target.sessionId === this.db.identity.sessionId ||
-          baseline.target.identity.runtime_id === this.db.identity.runtimeId ||
-          baseline.target.identity.profile_id !== this.db.identity.profileId ||
-          baseline.target.identity.project_id !== this.db.identity.projectId ||
-          baseline.target.identity.canonical_worktree_path !== definition.worktree
-        )
-          throw new Error(
-            'Completion baseline differs from its declared owner/session/worktree scope',
-          );
+      const baselines = validateCompletionBaselines(
+        definitions,
+        activation,
+        input,
+        this.db.identity,
+      );
+      for (const baseline of baselines) {
+        const slot = baseline.slot;
         const source = huddleCompletionSourceSchema.parse({
           ...baseline,
           slot,

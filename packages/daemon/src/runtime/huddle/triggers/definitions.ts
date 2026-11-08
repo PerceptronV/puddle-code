@@ -1,12 +1,12 @@
 import {
   canonicalHuddleJson,
-  coreHuddleComponents,
   intervalHuddleTrigger,
   calendarHuddleTrigger,
   dateHuddleTrigger,
   filetreeHuddleTrigger,
   gitHuddleTrigger,
   sessionHuddleTrigger,
+  completionHuddleTrigger,
   HUDDLE_INTERVAL_LIMIT,
   huddleIntervalSettingsSchema,
   resolveHuddleParameters,
@@ -14,6 +14,7 @@ import {
   type HuddleRuntimeCapabilities,
 } from '@puddle/shared';
 import type { HuddleDefinitionSnapshot } from '../../../huddle/definitions/capture.js';
+import { runtimeHuddleComponents } from '../components/catalogue.js';
 
 export function intervalDefinitions(
   snapshot: HuddleDefinitionSnapshot,
@@ -53,9 +54,11 @@ export function requireHuddleFeatures(
     if (node.source.kind !== 'builtin') continue;
     if (component.id === sessionHuddleTrigger.id && capabilities.sessionEvents !== 1)
       throw new Error('This runtime does not support huddle session triggers');
+    if (component.id === completionHuddleTrigger.id && capabilities.completionEvents !== 1)
+      throw new Error('This runtime does not support huddle completion subscriptions');
     if (component.id === gitHuddleTrigger.id && capabilities.git !== 1)
       throw new Error('This runtime does not support huddle Git triggers');
-    const expected = coreHuddleComponents.get(`${node.source.component}@${node.source.version}`);
+    const expected = runtimeHuddleComponents.get(`${node.source.component}@${node.source.version}`);
     if (
       !expected ||
       canonicalHuddleJson(JSON.parse(JSON.stringify(expected))) !==

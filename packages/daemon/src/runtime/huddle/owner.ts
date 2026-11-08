@@ -9,19 +9,21 @@ import {
   type HuddleOwnerResponse,
   type HuddleOwnerState,
   type HuddleSessionFeedCursor,
+  type HuddleCompletionBaseline,
 } from '@puddle/shared';
 import { atomicPrivateJson, syncPrivateDirectory } from '@puddle/shared/node';
 import { prepareRuntimeLifetime } from '../lifecycle/lifetime.js';
 import { RuntimeOwnerMemory } from '../resources/host/owner.js';
 import { HuddleLedger } from './state/ledger.js';
 import { HuddleRevisionStore } from './state/revisions.js';
-import { HuddleRevisionController } from './control/revisions.js';
+import { HuddleRevisionController, prepareHuddleActivation } from './control/revisions.js';
 import { admitManualHuddle } from './control/manual.js';
 import { HuddleScheduler } from './execution/scheduler.js';
 import { HuddleOwnerServer } from './transport/server.js';
 import { requireHuddleDefinitionLocation } from '../../huddle/definitions/location.js';
 import { HuddleTimerController } from './triggers/controller.js';
 import { HuddleSessionController } from './triggers/sessions/controller.js';
+import { HuddleCompletionController } from './triggers/completions/controller.js';
 import { requireSessionBaseline } from './triggers/sessions/definitions.js';
 import { HuddleGitController } from './triggers/git/controller.js';
 import { HuddleFiletreeController } from './triggers/filetree/controller.js';
@@ -40,6 +42,7 @@ export class HuddleOwner {
   private readonly filetrees: HuddleFiletreeController;
   private readonly git: HuddleGitController;
   private readonly sessions: HuddleSessionController;
+  private readonly completions: HuddleCompletionController;
   private status: HuddleOwnerState['state'] = 'running';
   private failure: string | null = null;
   private observation = 0;
@@ -48,6 +51,7 @@ export class HuddleOwner {
   private interrupting: Promise<void> | null = null;
   private driving: Promise<void> | null = null;
   private releaseLifetime: (() => void) | null = null;
+  private triggerEpoch = 0;
 
   private constructor(
     home: string,
@@ -122,6 +126,17 @@ export class HuddleOwner {
         memory.allowance,
       );
       this.sessions = new HuddleSessionController(
+        this.ledger,
+        this.store,
+        launch.capabilities,
+        () =>
+          requireHuddleDefinitionLocation(
+            launch.identity.canonical_worktree_path,
+            launch.scope.huddleId,
+          ),
+        memory.allowance,
+      );
+      this.completions = new HuddleCompletionController(
         this.ledger,
         this.store,
         launch.capabilities,
@@ -296,6 +311,28 @@ export class HuddleOwner {
       }
       return { t: 'accepted', id: request.id };
     }
+    if (
+      request.t === 'completion-sources' ||
+      request.t === 'completion-events' ||
+      request.t === 'completion-unavailable'
+    ) {
+      if (this.memory.launch.capabilities.completionEvents !== 1)
+        throw new Error('Owner has no completion subscription capability');
+      if (request.t === 'completion-sources')
+        return { t: 'completion-sources', id: request.id, sources: this.completions.list() };
+      if (this.stopping || this.interrupting || this.failure)
+        throw new Error('Completion admission is unavailable');
+      this.completions.requireCurrent(request.source);
+      try {
+        if (request.t === 'completion-unavailable')
+          throw new Error(`Completion ${request.source.node}: observation gap: ${request.error}`);
+        if (this.completions.accept(request.source, request.page)) this.drive();
+      } catch (error) {
+        this.triggerFailure(error);
+        throw error;
+      }
+      return { t: 'accepted', id: request.id };
+    }
     if (request.t === 'records') {
       return {
         t: 'records',
@@ -335,6 +372,12 @@ export class HuddleOwner {
       return state();
     }
     if (this.failure) throw new Error('Huddle owner needs recovery');
+    if (
+      (request.t === 'apply' || request.t === 'arm') &&
+      request.completionBaselines !== undefined &&
+      this.memory.launch.capabilities.completionEvents !== 1
+    )
+      throw new Error('Owner has no completion subscription capability');
     if (request.t === 'apply') {
       if (
         realpathSync(request.activation.worktree) !==
@@ -343,21 +386,33 @@ export class HuddleOwner {
         throw new Error('Huddle definition worktree cannot change within an owner');
       const snapshot = this.store.read(request.activation.revision);
       requireHuddleFeatures(snapshot, this.memory.launch.capabilities);
-      if (this.ledger.activations.current().state === 'armed')
+      if (this.ledger.activations.current().state === 'armed') {
         requireSessionBaseline(snapshot, request.feedBaseline);
+        const prepared = prepareHuddleActivation(
+          snapshot,
+          request.activation,
+          this.ledger.identity.huddleId,
+        );
+        this.completions.validate(
+          prepared.snapshot,
+          prepared.activation,
+          request.completionBaselines,
+        );
+      }
       this.revisions.apply(snapshot, request.activation, request.expectedGeneration);
-      await this.refreshTriggers(request.feedBaseline);
+      await this.refreshTriggers(request.feedBaseline, request.completionBaselines);
       return state();
     }
     if (request.t === 'arm') {
       const control = this.ledger.activations.current();
-      if (control.activationId)
-        requireSessionBaseline(
-          this.store.read(this.ledger.activations.get(control.activationId).revision),
-          request.feedBaseline,
-        );
+      if (control.activationId) {
+        const activation = this.ledger.activations.get(control.activationId);
+        const snapshot = this.store.read(activation.revision);
+        requireSessionBaseline(snapshot, request.feedBaseline);
+        this.completions.validate(snapshot, activation, request.completionBaselines);
+      }
       this.ledger.activations.setIntent(request.expectedGeneration, 'armed', request.autoStart);
-      await this.refreshTriggers(request.feedBaseline);
+      await this.refreshTriggers(request.feedBaseline, request.completionBaselines);
       this.drive();
       return state();
     }
@@ -378,10 +433,12 @@ export class HuddleOwner {
   }
 
   private stopTriggers() {
+    this.triggerEpoch++;
     this.timers.stop();
     this.filetrees.stop();
     this.git.stop();
     this.sessions.stop();
+    this.completions.stop();
   }
   private triggerFailure(error: unknown) {
     this.stopTriggers();
@@ -392,18 +449,28 @@ export class HuddleOwner {
       this.failure = 'Huddle trigger state persistence failed';
     }
   }
-  private async refreshTriggers(baseline?: HuddleSessionFeedCursor) {
+  private async refreshTriggers(
+    baseline?: HuddleSessionFeedCursor,
+    completionBaselines?: HuddleCompletionBaseline[],
+  ) {
+    this.stopTriggers();
+    const epoch = this.triggerEpoch;
+    const current = () => epoch === this.triggerEpoch && !this.stopping && !this.interrupting;
     try {
-      this.stopTriggers();
       await Promise.all([this.filetrees.settled(), this.git.settled()]);
+      if (!current()) return;
       this.persist();
       await this.filetrees.refresh();
+      if (!current()) return;
       if (this.failure) throw new Error(this.failure);
       await this.git.refresh();
+      if (!current()) return;
       if (this.failure) throw new Error(this.failure);
       this.sessions.refresh(baseline);
+      this.completions.refresh(completionBaselines);
       this.timers.refresh();
     } catch (error) {
+      if (!current()) return;
       this.stopTriggers();
       this.failure = (error instanceof Error ? error.message : String(error)).slice(0, 4096);
       this.persist();

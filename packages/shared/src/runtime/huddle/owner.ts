@@ -4,6 +4,12 @@ import {
   huddleSessionFeedPageSchema,
 } from './triggers/session-feed.js';
 import { huddleSessionSourceSchema, HUDDLE_SESSION_SOURCE_LIMIT } from './triggers/sessions.js';
+import {
+  huddleCompletionSourceSchema,
+  huddleCompletionBaselinesSchema,
+  HUDDLE_COMPLETION_SOURCE_LIMIT,
+} from './triggers/completions.js';
+import { runtimeNativeTurnPageSchema } from '../native-turns.js';
 import { runtimeIdentitySchema } from '../protocol.js';
 import { huddleJsonSchema, huddleKeySchema } from '../../api/huddle/values.js';
 import { huddleLedgerIdentitySchema } from './state.js';
@@ -96,6 +102,19 @@ export const huddleOwnerRequestSchema = z.discriminatedUnion('t', [
     controllerEpoch: sequence,
   }),
   z.strictObject({ t: z.literal('inspect'), ...request }),
+  z.strictObject({ t: z.literal('completion-sources'), ...request }),
+  z.strictObject({
+    t: z.literal('completion-events'),
+    ...request,
+    source: huddleCompletionSourceSchema,
+    page: runtimeNativeTurnPageSchema,
+  }),
+  z.strictObject({
+    t: z.literal('completion-unavailable'),
+    ...request,
+    source: huddleCompletionSourceSchema,
+    error: z.string().min(1).max(4096),
+  }),
   z.strictObject({ t: z.literal('session-sources'), ...request }),
   z.strictObject({
     t: z.literal('session-events'),
@@ -127,6 +146,7 @@ export const huddleOwnerRequestSchema = z.discriminatedUnion('t', [
   z.strictObject({
     t: z.literal('apply'),
     ...request,
+    completionBaselines: huddleCompletionBaselinesSchema.optional(),
     feedBaseline: huddleSessionFeedCursorSchema.optional(),
     activation: huddleActivationInputSchema,
     expectedGeneration: sequence,
@@ -134,6 +154,7 @@ export const huddleOwnerRequestSchema = z.discriminatedUnion('t', [
   z.strictObject({
     t: z.literal('arm'),
     ...request,
+    completionBaselines: huddleCompletionBaselinesSchema.optional(),
     feedBaseline: huddleSessionFeedCursorSchema.optional(),
     expectedGeneration: sequence,
     autoStart: z.boolean(),
@@ -160,6 +181,11 @@ export const huddleOwnerResponseSchema = z.discriminatedUnion('t', [
   z.strictObject({ t: z.literal('changed'), observation: sequence }),
   z.strictObject({ t: z.literal('state'), id: z.uuid(), state: huddleOwnerStateSchema }),
   z.strictObject({ t: z.literal('accepted'), id: z.uuid() }),
+  z.strictObject({
+    t: z.literal('completion-sources'),
+    id: z.uuid(),
+    sources: z.array(huddleCompletionSourceSchema).max(HUDDLE_COMPLETION_SOURCE_LIMIT),
+  }),
   z.strictObject({
     t: z.literal('session-sources'),
     id: z.uuid(),

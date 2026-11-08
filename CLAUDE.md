@@ -714,9 +714,14 @@ in shared `runtime/huddle/triggers/completions.ts` and binding resolution in own
 and conversation; commit contiguous durable pages and roots atomically. Never
 rebase a same-generation cursor or admit automated/unknown completions as fresh
 roots. Bounded native feedback needs same-execution causality and ask-result
-deduplication. The component is not in the creation catalogue and has no enabled
-capability/delivery request; finish host/provider admission and owner integration
-before enabling it. Oversized JSON envelopes fail without truncating replies.
+deduplication. Optional `completionEvents: 1` now gates private source/page/unavailable
+requests and Arm/Apply baselines. Validate baselines before changing intent; reject
+stale sources before failing a current subscription. Charge subscription and page
+workspace separately, release on Stop/Interrupt/failure, and fence asynchronous
+refresh continuations by lifecycle epoch. The scheduler and feature gate share
+`runtime/huddle/components/`. The public creation catalogue excludes completion
+nodes until host/provider admission and automatic dispatch are connected.
+Oversized JSON envelopes fail without truncating replies.
 Optional `git: 1` adds owner-local ref/HEAD observation under `triggers/git/`.
 Group refs and metadata watches by canonical common directory; retain distinct
 worktree HEAD targets and OIDs. `state/git.ts` uses bounded `git-sources` slots

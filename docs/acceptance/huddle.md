@@ -24,8 +24,50 @@ Migration 47 retains bounded host session observations. Optional `sessionEvents:
 now delivers them to independent owners through durable subscriptions; Session
 lifecycle nodes and stopped/archived session selectors are available in the IDE.
 Runtime protocol 1.2 now retains an independent native-turn source for hook-based
-interactive, structured Codex and command-correlated headless controls; completion-trigger delivery remains pending.
+interactive, structured Codex and command-correlated headless controls; automatic completion-trigger delivery remains pending.
 No user CLI command is enabled yet.
+
+## Implemented: owner completion subscription protocol
+
+Optional `completionEvents: 1` now exposes private `completion-sources`,
+`completion-events` and `completion-unavailable` controls. Arm and Apply accept
+optional bounded `completionBaselines`; completion graphs require one exact baseline
+per declared node before becoming armed. Baseline/resource validation runs before
+changing lifecycle intent, so a rejected Arm or armed Apply preserves the previous
+activation and subscriptions. Resume and armed Apply establish fresh generations.
+Old owners remain supported; candidates lacking the capability cannot adopt owners
+that require it. Application 28.4, ordinary runtime 1.2, remote 5, database 47 and
+huddle owner/ledger contract 1 are unchanged.
+
+Owner lifecycle and memory admission live in `triggers/completions/controller.ts`.
+Active subscriptions hold a 256 KiB managed allowance; each synchronous page admission
+separately reserves validation/encoding workspace based on the bounded request size.
+The existing transport owns queued request memory. Refusals retain cursor state,
+and Stop/Interrupt/failure release subscription capacity. Each page rechecks the
+definition location and canonical worktree. An exact current source is required
+before entering the failure-reporting path: stale activation/generation/cursor
+deliveries cannot poison newer subscriptions. A genuine current gap or unavailable
+source stops automatic admission visibly. Owner refresh continuations check their
+lifecycle epoch after asynchronous scans before enabling subscriptions.
+
+The scheduler and feature gate share the owner component catalogue in
+`runtime/huddle/components/`. This includes the completion contract, while the
+public creation catalogue still excludes it. A successful external completion now
+drives a captured script through an independently running owner when supplied by
+the private controller. This does **not** establish host-authorised target discovery
+or automatic native-source delivery: those, editor enablement and bounded native
+feedback opt-in remain unfinished. The host must verify exact live provider/runtime
+availability, capture durable baselines after queued review and never deliver pages
+whose persistence is pending. The existing ask-result feedback template is unchanged.
+
+Verification: **146 tests passed across 32 files**, including independent-process
+completion execution and controller replacement, invalid Arm/Apply preservation,
+fresh Resume/Apply cursors, stale failure rejection, visible retention gaps, old
+owner controls, managed memory refusal/release and capability adoption. Existing
+huddle owner, controller, scheduler, routing, session-trigger and shared-contract
+tests also passed. Shared/daemon/CLI TypeScript builds and repository ESLint,
+Prettier and diff checks passed. The first integration
+run exposed a missing scheduler catalogue entry; the passing run includes its fix.
 
 ## Implemented: completion subscription admission core
 
@@ -62,11 +104,11 @@ its existing single-admission semantics after a lost acknowledgement.
 
 This is an internal admission core, **not an enabled completion trigger**.
 `puddle.trigger.turn-completed@1` is exported for composition but excluded from
-the creation catalogue; existing feature validation rejects it. No owner capability
-or private/public request has been enabled and no protocol/database version changes.
-Host-authorised baseline capture, live target/provider availability checks, owner
-delivery/lifecycle/resource admission, editor settings and explicit bounded native
-feedback routing remain unfinished. Tests do not establish those missing paths.
+the creation catalogue. The subsequent owner protocol milestone above adds private
+delivery/lifecycle/resource admission without a protocol/database version change.
+Host-authorised baseline capture, live target/provider availability checks, automatic
+delivery, editor settings and explicit bounded native feedback routing remain unfinished.
+The admission-core tests do not establish those missing paths.
 
 Verification: **97 tests passed across 17 files**, including 16 new completion
 cases plus existing huddle revision, state, routing, scheduler, definition and

@@ -43,16 +43,23 @@ cancelled/unanswered asks cannot become external input. Source buffers are bound
 separately from essential asks, with gaps and unknown attribution on loss. Trusted
 in-process identity delivery preserves event/segment ordering inside native batches;
 legacy loopback delivery remains available but does not advertise this observation path.
-Huddle completion-node delivery and native-provider acceptance remain pending.
+Automatic huddle completion-node delivery and native-provider acceptance remain pending.
 
 Internal huddle completion subscription schemas now live in
 `runtime/huddle/triggers/completions.ts`. Eight sources pin exact runtime identity,
 selected session, native segment/conversation, activation/generation and cursor.
 The owner ledger core admits only contiguous durable pages and external successful
 completions, atomically with cursor advancement. Automated/unknown outcomes do not
-start new executions. These contracts are not yet added to private owner messages
-or capabilities, and the component is absent from the creation catalogue. No wire
-or persisted schema version changes; end-to-end delivery remains unfinished.
+start new executions. Optional `completionEvents: 1` now gates private
+`completion-sources`, `completion-events` and `completion-unavailable` messages,
+plus optional `completionBaselines` on Arm/Apply. Old owners remain supported and
+must not receive these messages/fields. Baselines are checked before intent changes;
+deliveries bind the complete retained source, including cursor. Stale replies cannot
+fail a newer subscription. Private source replies are bounded to eight entries,
+pages retain native limits, and gaps/pending persistence are never admitted.
+The component remains absent from the public creation catalogue; host baseline
+capture/automatic delivery and editor enablement remain unfinished. Existing
+application/runtime/remote and huddle owner/ledger versions remain unchanged.
 
 Database **47** retains bounded host session observations. Optional private huddle
 capability **`sessionEvents: 1`** enables `puddle.trigger.session@1`. Existing owners

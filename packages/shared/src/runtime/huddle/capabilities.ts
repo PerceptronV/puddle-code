@@ -13,6 +13,7 @@ export const huddleRuntimeCapabilitiesSchema = z.strictObject({
   filetree: version.optional(),
   git: version.optional(),
   sessionEvents: version.optional(),
+  completionEvents: version.optional(),
 });
 export type HuddleRuntimeCapabilities = z.infer<typeof huddleRuntimeCapabilitiesSchema>;
 export const HUDDLE_RUNTIME_CAPABILITIES: Readonly<HuddleRuntimeCapabilities> = Object.freeze({
@@ -26,6 +27,7 @@ export const HUDDLE_RUNTIME_CAPABILITIES: Readonly<HuddleRuntimeCapabilities> = 
   filetree: 1,
   git: 1,
   sessionEvents: 1,
+  completionEvents: 1,
 });
 
 export function supportsHuddleRuntime(value: unknown): value is HuddleRuntimeCapabilities {
@@ -40,6 +42,7 @@ export function supportsHuddleRuntime(value: unknown): value is HuddleRuntimeCap
     (parsed.data.calendar === undefined || parsed.data.calendar === 1) &&
     (parsed.data.filetree === undefined || parsed.data.filetree === 1) &&
     (parsed.data.git === undefined || parsed.data.git === 1) &&
-    (parsed.data.sessionEvents === undefined || parsed.data.sessionEvents === 1)
+    (parsed.data.sessionEvents === undefined || parsed.data.sessionEvents === 1) &&
+    (parsed.data.completionEvents === undefined || parsed.data.completionEvents === 1)
   );
 }

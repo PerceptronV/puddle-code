@@ -1,6 +1,6 @@
 import { huddleComponentSchema } from '../../api/huddle/components.js';
 
-/** Not in the creation catalogue until owner delivery and host admission are connected. */
+/** Not in the creation catalogue until host admission and dispatch are connected. */
 export const completionHuddleTrigger = huddleComponentSchema.parse({
   format: 1,
   id: 'puddle.trigger.turn-completed',
