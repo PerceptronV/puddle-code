@@ -1,3 +1,4 @@
+import { HuddleOperationOrigins } from './operation-origins.js';
 import {
   HUDDLE_LIMITS,
   huddleOperationRecordSchema,
@@ -5,6 +6,7 @@ import {
   huddleJsonSchema,
   type HuddleJson,
   type HuddleOperationRecord,
+  type RuntimeIdentity,
 } from '@puddle/shared';
 import { HuddleStateDatabase, stateJson } from './database.js';
 import { HuddleInvocations } from './invocations.js';
@@ -23,6 +25,7 @@ export class HuddleOperations {
   prepare(
     input: Pick<HuddleOperationRecord, 'id' | 'invocationId' | 'kind' | 'target' | 'input'>,
     now = Date.now(),
+    owner?: RuntimeIdentity,
   ) {
     return this.db.atomic(() => {
       const invocation = this.invocations.get(input.invocationId);
@@ -47,12 +50,17 @@ export class HuddleOperations {
           );
         if (intent(record) !== intent(operation))
           throw new Error('Operation id conflicts with retained intent');
+        const origin = new HuddleOperationOrigins(this.db).get(record);
+        if (origin && (!owner || canonicalHuddleJson(origin) !== canonicalHuddleJson(owner)))
+          throw new Error('Operation id conflicts with its retained owner origin');
+        // Legacy duplicate intents are never backfilled from a possibly newer caller.
         return { record, duplicate: true };
       }
       this.executions.requireRunning(invocation.executionId, now);
       if (invocation.state !== 'running')
         throw new Error('Operation requires a running node invocation');
       this.save(operation, OUTCOME_RESERVATION);
+      if (owner) new HuddleOperationOrigins(this.db).prepare(operation, owner);
       if (operation.kind === 'spawn')
         new HuddleSpawnCleanup(this.db).prepare(operation.id, operation.executionId);
       return { record: operation, duplicate: false };
@@ -77,6 +85,11 @@ export class HuddleOperations {
     const row = this.db.get('operations', id);
     if (!row) throw new Error('Huddle operation does not exist');
     return huddleOperationRecordSchema.parse(JSON.parse(row.body));
+  }
+
+  /** Null means legacy intent: callers must retain its original launch identity. */
+  origin(id: string): RuntimeIdentity | null {
+    return new HuddleOperationOrigins(this.db).get(this.get(id));
   }
 
   settle(id: string, state: 'completed' | 'failed', result: HuddleJson): HuddleOperationRecord {

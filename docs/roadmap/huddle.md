@@ -640,6 +640,16 @@ transitions. Arbitrary nodes require explicit user-directed recovery or a declar
 safe retry policy after their external effects are reconciled. Keep this visible
 in both node documentation and the run inspector.
 
+Recovery prerequisite now implemented: ask/spawn intent commits an immutable
+`operation-origins` record with its exact caller identity in the same ledger
+transaction. Mailbox observation, settlement and spawn cleanup preserve that
+origin across reconstruction; they do not relabel old work as a new incarnation.
+This alone does not permit replacement launch. Finish positive owner/descendant
+fencing, a durable single-consumption replacement hand-off, restored trigger
+subscriptions/queues and host receipt authority before enabling automatic recovery.
+Legacy rows without provenance must retain their verified original launch identity;
+never backfill them from a replacement's identity.
+
 Before each prompt, spawn, restart, file write or readout delivery, persist intent
 and an operation id. Retain exact resource identity, attempt state and outcome.
 Lost replies do not reset dispatch consumption. Record a node's completion and

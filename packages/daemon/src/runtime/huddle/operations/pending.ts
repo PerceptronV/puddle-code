@@ -1,4 +1,9 @@
-import { HUDDLE_WORKER_LIMITS, type HuddleJson, type HuddleOperationRecord } from '@puddle/shared';
+import {
+  HUDDLE_WORKER_LIMITS,
+  type HuddleJson,
+  type RuntimeIdentity,
+  type HuddleOperationRecord,
+} from '@puddle/shared';
 import { RuntimeBufferBudget, type RuntimeByteAllowance } from '../../resources/budget.js';
 import { runtimeJsonRetainedBytes } from '../../transport/encoding.js';
 import type { HuddleLedger } from '../state/ledger.js';
@@ -35,6 +40,7 @@ export class HuddlePendingOperations {
   async request(
     input: Pick<HuddleOperationRecord, 'id' | 'invocationId' | 'kind' | 'target' | 'input'>,
     signal: AbortSignal,
+    owner: RuntimeIdentity,
   ): Promise<HuddleJson> {
     signal.throwIfAborted();
     if (this.pending.size >= HUDDLE_WORKER_LIMITS.pending)
@@ -44,7 +50,7 @@ export class HuddlePendingOperations {
     if (!release) throw new Error('Host memory admission is unavailable for a huddle operation');
     let cancelled = () => {};
     try {
-      const intent = this.ledger.operations.prepare(input);
+      const intent = this.ledger.operations.prepare(input, Date.now(), owner);
       if (intent.duplicate)
         throw new Error('Observe the retained operation instead of repeating a worker request');
       return await new Promise<HuddleJson>((resolve, reject) => {

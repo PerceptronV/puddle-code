@@ -1,5 +1,15 @@
 # The puddle communication protocol
 
+Huddle ask/spawn intent now has an additive owner-private `operation-origins`
+collection in the existing ledger-1 generic records table. Format-1 rows retain
+caller `RuntimeIdentity` plus invocation id under the operation key and execution
+parent. They commit atomically with intent and share existing byte/count bounds.
+No public/owner message, capability, schema version or `operations` row shape
+changes; older readers ignore the separate collection. Legacy rows are not
+backfilled and continue to use their original immutable launch identity. Caller
+provenance is a prerequisite for future recovery, not restart authority or a
+claim that owner replacement is implemented.
+
 Application **28.13** adds local/SSH read-only `POST
 /api/huddle/:profile/sessions/:sid/revision/retained`. Input is
 `{owner, revision?, expected_digest?, entry?}`. `owner` names the exact recorded

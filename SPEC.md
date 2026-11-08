@@ -1617,6 +1617,21 @@ bound polling; stopped huddles do not poll and idle native heads omit page reads
 Maintenance fences and drains delivery before runtime observation stops. Host
 launch/Apply requires both completion capabilities; older event-only owners retain
 their existing private protocol. Explicit same-execution native feedback remains unfinished.
+Ask/spawn admission now stores the exact caller identity in private ledger
+`operation-origins`, atomically with operation intent and spawn cleanup reservation.
+Each immutable format-1 record binds the operation key, parent execution and
+invocation to the original runtime/incarnation/launch/profile/project/session/worktree.
+It shares the ledger's record/byte allowance; capacity or identity refusal rolls
+back all admission writes. Duplicate ids cannot substitute or discard recorded
+provenance. Mailbox pages, receipt settlement and spawn cleanup use the recorded
+caller even when a mailbox is reconstructed with a different current identity.
+Legacy rows remain unchanged and use their original immutable launch identity;
+future owner recovery must preserve that fallback rather than invent provenance.
+No application/private-owner wire shape, runtime capability or ledger version
+changes. This is a recovery prerequisite: replacement launch, old-child fencing,
+subscription restoration and recovery-specific host receipt authority remain
+unfinished, and no new restart/auto-start path is enabled.
+
 The runtime entry point selects a separate huddle owner from a strict private launch
 record. It reuses runtime/memory claims, host grants and lifetime checks; consumes
 launch intent once; and provides bounded authenticated controller commands.

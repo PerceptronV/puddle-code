@@ -55,6 +55,7 @@ export class HuddleOperationMailbox {
         input: JSON.parse(JSON.stringify(operation.request)),
       },
       signal,
+      this.identity,
     );
   }
 
@@ -91,7 +92,9 @@ export class HuddleOperationMailbox {
     const { activation } = this.revisions.forExecution(operation.executionId);
     return huddleAgentOperationSchema.parse({
       scope: {
-        owner: this.identity,
+        // Legacy rows still belong to the immutable original launch. A recovery
+        // path must preserve that identity, never infer it from a replacement.
+        owner: this.ledger.operations.origin(operation.id) ?? this.identity,
         executionId: execution.id,
         invocationId: invocation.id,
         operationId: operation.id,

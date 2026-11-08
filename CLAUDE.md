@@ -613,8 +613,16 @@ stop attempt. `spawns/service.ts` shares normal session creation, exact native-c
 inspection and queued runtime stopping. Persist readiness before returning it;
 historical results never imply a currently usable agent. Check exact runtime identity
 and placement before readiness/cleanup. Consume cleanup in the queued stop review,
-never resend an uncertain stop or follow a replacement placement. Owner spawn queues
-live under `runtime/huddle/operations/spawns/`; share bounded waits with asks through
+never resend an uncertain stop or follow a replacement placement.
+Ask/spawn caller provenance lives in `runtime/huddle/state/operation-origins.ts`.
+Commit it with operation intent, charge the ordinary ledger limits and never
+rewrite it from the current owner during observation or settlement. The existing
+`operations` row/wire shapes stay unchanged. Missing legacy provenance uses the
+original immutable launch identity, never an inferred replacement identity; recovery
+must preserve that evidence before rebinding. This does not enable owner recovery:
+retain positive descendant fencing, one-shot replacement admission and exact host
+receipt authority as unfinished gates.
+Owner spawn queues live under `runtime/huddle/operations/spawns/`; share bounded waits with asks through
 `operations/pending.ts`. Require declared resolved account/provider/project/worktree
 resources; save verified readiness before returning execution-scoped handles.
 A completed spawn can feed later attach/ask nodes only in the same execution and

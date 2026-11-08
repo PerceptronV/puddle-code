@@ -68,6 +68,7 @@ function fixture(admit = true) {
     target,
     activation,
     component: snapshot.components.coder,
+    snapshot,
     mailbox,
     request,
     release,
@@ -151,4 +152,34 @@ it('spends a turn once and rejects a second operation at the root budget', async
   expect(f.ledger.operations.get(second.id).state).toBe('cancelled');
   expect(f.ledger.executions.get(f.invocation.executionId).turns).toBe(1);
   expect(f.release).toHaveBeenCalledTimes(2);
+});
+
+it('retains the ask caller across mailbox reconstruction without granting a second dispatch', async () => {
+  const f = fixture();
+  const request = f.request();
+  const abort = new AbortController();
+  const rejected = expect(f.mailbox.request(request, f.invocation, abort.signal)).rejects.toThrow(
+    'owner lost',
+  );
+  const claimed = f.mailbox.claim(request.id);
+  const scope = claimed.operation.scope;
+  abort.abort(new Error('owner lost'));
+  await rejected;
+  const ledger = f.reopen();
+  ledger.recoverOwnerLoss();
+  const replacement = { ...scope.owner, incarnation: randomUUID(), launch_id: randomUUID() };
+  const mailbox = new HuddleOperationMailbox(
+    replacement,
+    ledger,
+    { forExecution: () => ({ activation: f.activation, snapshot: f.snapshot }) },
+    () => {},
+  );
+  expect(mailbox.describe(request.id).scope).toEqual(scope);
+  expect(mailbox.claim(request.id).dispatch).toBe(false);
+  expect(() => mailbox.unavailable({ ...scope, owner: replacement }, true, 'unadmitted')).toThrow(
+    'match',
+  );
+  mailbox.unavailable(scope, true, 'unadmitted');
+  expect(ledger.operations.get(request.id)).toMatchObject({ state: 'failed', consumed: true });
+  expect(ledger.executions.get(f.invocation.executionId).state).toBe('interrupted');
 });

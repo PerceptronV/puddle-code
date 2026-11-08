@@ -56,6 +56,7 @@ export type HuddleCollection =
   | 'revision-activations'
   | 'control'
   | 'operations'
+  | 'operation-origins'
   | 'spawn-cleanup'
   | 'emissions';
 

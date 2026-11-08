@@ -109,6 +109,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Retain exact huddle ask/spawn caller identities with durable intent, preserving receipt and cleanup scopes across mailbox reconstruction without replaying consumed operations; owner replacement remains unfinished.
+
 - Add a huddle completion-subscription ledger with exact native targets, atomic page/cursor admission and suppression of automated feedback echoes. Optional `completionEvents: 1` adds private owner delivery, lifecycle baselines and captured-script execution.
 - Retain exact hook-based interactive, structured Codex and command-correlated headless turn observations in a bounded independent stream across controller disconnection (runtime protocol 1.2), with explicit gaps, persistence status and originating ask/huddle identities. Headless completion requires native identity binding, a successful result and exit 0. Codex preserves RPC attribution through early events and cancellation, and keeps conversation scope ordered within native batches. Keep older controllers compatible.
 

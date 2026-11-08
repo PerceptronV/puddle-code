@@ -34,6 +34,47 @@ delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## Implemented: durable agent-operation caller provenance
+
+Ask and spawn mailboxes now pass their exact owner identity into intent admission.
+`runtime/huddle/state/operation-origins.ts` stores an immutable format-1 record in
+the existing ledger-1 generic records table, under the operation key and execution
+parent, with invocation id and full runtime identity. Intent, provenance and spawn
+cleanup reservation commit in one transaction. Identity/capacity failures roll back
+all writes; origins count against the existing byte/record limits. Duplicate intent
+cannot replace or discard an existing origin. Mutable caller objects cannot change
+the saved value.
+
+Observation and settlement resolve the original caller through the ledger. This
+preserves ask scope, spawn receipts and cleanup scope after mailbox reconstruction
+without granting another dispatch or completing an interrupted graph. Legacy rows
+have no origin; reads/duplicate attempts never backfill one. Production currently
+uses the original immutable launch identity for that fallback. Any future replacement
+path must retain the verified original launch for legacy requests and must not pass
+a replacement identity as their caller. No public/owner wire shape, capability,
+ledger or application database version changes.
+
+Focused tests cover durable identity after reopen, consumption and owner-loss ledger
+reconciliation, alias mutation, duplicate-origin substitution, cross-placement
+rejection, capacity rollback and untouched legacy rows. Reconstructed ask/spawn
+mailboxes retain the original scope, reject results relabelled with a new owner,
+accept original-scope settlement/receipts, retain pending spawned-agent cleanup
+and refuse a second dispatch. These tests simulate reconstruction around real
+private ledgers; they do not establish a replacement service's lifecycle.
+
+Verification passes **112/112 tests in 21 files** across operation state, ask/spawn
+mailboxes, exact host dispatch/receipts, owned-agent cleanup, two-agent feedback
+and isolated owner/worker integrations. The seven origin tests include corrupt
+format/execution/invocation/owner refusal without a legacy fallback. Shared/daemon
+TypeScript builds and scoped ESLint/formatting pass. These use temporary runtimes
+and fake provider adapters, not production services or real provider acceptance.
+
+This increment is a prerequisite, **not completed owner recovery**. Positive
+owner/child fencing, durable replacement acceptance/dispatch, subscription and
+queue restoration, legacy origin handling during replacement, recovery-specific
+host receipt/cancellation authority and native crash/reboot acceptance remain open.
+No new restart control or automatic recovery path is enabled.
+
 ## Implemented: recorded activation and historical source inspection
 
 Application **28.13** adds local/SSH read-only `POST

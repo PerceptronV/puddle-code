@@ -1,3 +1,5 @@
+import { HuddleSpawnMailbox } from '../../../../src/runtime/huddle/operations/spawns/mailbox.js';
+import { HuddlePendingOperations } from '../../../../src/runtime/huddle/operations/pending.js';
 import { randomUUID } from 'node:crypto';
 import { afterEach, expect, it, vi } from 'vitest';
 import { encodeHuddleAgentTarget, type HuddleSpawnOutcome } from '@puddle/shared';
@@ -359,4 +361,34 @@ it('retains a definite host rejection and never exposes its handle or regrants c
   expect(() => f.spawns.settle(operation.scope, outcome(f, waiting.message.id))).toThrow(
     /conflicts/,
   );
+});
+
+it('verifies the original spawn receipt and cleanup scope after mailbox reconstruction', async () => {
+  const f = fixture();
+  const pending = f.begin();
+  const claim = f.spawns.claim(pending.message.id);
+  const scope = claim.operation.scope;
+  const result = outcome(f, pending.message.id);
+  pending.abort.abort(new Error('owner lost'));
+  await expect(pending.waiting).rejects.toThrow('owner lost');
+  f.reopen();
+  f.ledger.recoverOwnerLoss();
+  const replacement = { ...f.identity, incarnation: randomUUID(), launch_id: randomUUID() };
+  const spawns = new HuddleSpawnMailbox(
+    replacement,
+    f.ledger,
+    f.controller,
+    () => {},
+    new HuddlePendingOperations(f.ledger, () => {}),
+  );
+  expect(spawns.describe(pending.message.id).scope).toEqual(scope);
+  expect(spawns.claim(pending.message.id).dispatch).toBe(false);
+  expect(() => spawns.settle({ ...scope, owner: replacement }, result)).toThrow('match');
+  expect(spawns.settle(scope, result)).toEqual(result);
+  expect(spawns.describe(pending.message.id)).toMatchObject({
+    scope,
+    cleanup: { state: 'pending' },
+    state: 'completed',
+  });
+  expect(f.ledger.executions.get(f.invocation.executionId).state).toBe('interrupted');
 });

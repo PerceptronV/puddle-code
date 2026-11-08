@@ -69,6 +69,7 @@ export class HuddleSpawnMailbox {
         input: request,
       },
       signal,
+      this.identity,
     );
   }
 
@@ -89,7 +90,9 @@ export class HuddleSpawnMailbox {
       throw new Error('Spawn target differs from its retained request');
     return huddleSpawnOperationSchema.parse({
       scope: {
-        owner: this.identity,
+        // Legacy rows still belong to the immutable original launch. A recovery
+        // path must preserve that identity, never infer it from a replacement.
+        owner: this.ledger.operations.origin(operation.id) ?? this.identity,
         executionId: execution.id,
         invocationId: invocation.id,
         operationId: operation.id,
