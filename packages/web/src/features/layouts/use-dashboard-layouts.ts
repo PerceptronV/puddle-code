@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { uiStateSnapshotSchema, type SavedLayout, type UiStateSnapshot } from '@puddle/shared';
 import { clientSettings, updateClientSettings } from '../../lib/settings/client-settings';
 import {
@@ -34,6 +34,8 @@ export function useDashboardLayouts(
   enabled: boolean,
 ): LayoutBridge | null {
   const [snap, setSnap] = useState<UiStateSnapshot | null>(null);
+  const active = useRef({ profileId, enabled });
+  active.current = { profileId, enabled };
   const sessions = useAllSessions(enabled).data;
   const projects = useProjects(profileId ?? undefined, enabled && profileId !== null).data;
 
@@ -68,15 +70,7 @@ export function useDashboardLayouts(
   return useMemo<LayoutBridge | null>(() => {
     if (!enabled || profileId === null || snap === null) return null;
 
-    const apply = (saved: SavedLayout): boolean => {
-      if (!sessions || !projects) return false;
-      const { patch, projectBased } = loadLayoutPatch(snap, saved, {
-        alive: new Set(sessions.filter((s) => s.status !== 'archived').map((s) => s.id)),
-        sessionProject: new Map(sessions.map((s) => [s.id, s.project_id])),
-        projectIds: projects.map((p) => p.id),
-        currentProject: null,
-      });
-      const next = { ...snap, ...patch };
+    const persist = (next: UiStateSnapshot) => {
       setSnap(next);
       // Same write pair as `useUiState.update`, without the debounce; the
       // server PUT first so a sessionStorage throw cannot skip it.
@@ -88,6 +82,18 @@ export function useDashboardLayouts(
       } catch (e) {
         console.warn(`ui-state write failed: ${(e as Error).message}`);
       }
+    };
+
+    const apply = (saved: SavedLayout): boolean => {
+      if (!sessions || !projects) return false;
+      const { patch, projectBased } = loadLayoutPatch(snap, saved, {
+        alive: new Set(sessions.filter((s) => s.status !== 'archived').map((s) => s.id)),
+        sessionProject: new Map(sessions.map((s) => [s.id, s.project_id])),
+        projectIds: projects.map((p) => p.id),
+        currentProject: null,
+      });
+      const next = { ...snap, ...patch };
+      persist(next);
       if (clientSettings().projectBasedLayout !== projectBased) {
         updateClientSettings({ projectBasedLayout: projectBased });
       }
@@ -122,6 +128,10 @@ export function useDashboardLayouts(
       signature: layoutSignature(snap.layout_tree),
       slices,
       capture: () => ({ layout_tree: snap.layout_tree, active_session: snap.active_session }),
+      adopt: (saved) => {
+        if (active.current.enabled && active.current.profileId === saved.profile_id)
+          persist({ ...snap, layout_ref: saved.id });
+      },
       apply,
     };
   }, [enabled, profileId, snap, sessions, projects]);

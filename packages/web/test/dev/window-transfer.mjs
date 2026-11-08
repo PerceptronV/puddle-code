@@ -8,6 +8,7 @@ import { join, resolve } from 'node:path';
 import { pathToFileURL, fileURLToPath } from 'node:url';
 import { build } from 'esbuild';
 import { chromium, expect } from '@playwright/test';
+import { checkCatalogueLayouts } from './windows/arrangements/catalogue.mjs';
 import { checkArrangementHandshake } from './windows/arrangements/handshake.mjs';
 import { checkArrangementApply, checkArrangementMode } from './windows/arrangements/apply.mjs';
 
@@ -16,7 +17,7 @@ const directory = await mkdtemp(join(tmpdir(), 'puddle-live-window-'));
 const implementation = join(directory, 'implementation.mjs');
 await build({
   stdin: {
-    contents: `export { DesktopWindowState } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/persistence/state.ts'))};\nexport { WindowTransfers } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers/coordinator.ts'))};\nexport { WindowCommands } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/lifecycle/commands.ts'))};\nexport { WindowDrags } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers/drags.ts'))};\nexport { ProjectWindows } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/projects.ts'))};\nexport { WindowLayoutApply } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/arrangements/apply.ts'))};`,
+    contents: `export { DesktopWindowState } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/persistence/state.ts'))};\nexport { WindowTransfers } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers/coordinator.ts'))};\nexport { WindowCommands } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/lifecycle/commands.ts'))};\nexport { WindowDrags } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers/drags.ts'))};\nexport { ProjectWindows } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/projects.ts'))};\nexport { WindowLayoutApply } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/arrangements/apply.ts'))};\nexport { WindowLayoutCapture } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/arrangements/capture.ts'))};`,
     resolveDir: root,
   },
   bundle: true,
@@ -32,6 +33,7 @@ const {
   WindowDrags,
   ProjectWindows,
   WindowLayoutApply,
+  WindowLayoutCapture,
 } = await import(pathToFileURL(implementation).href);
 const commands = new WindowCommands();
 const mode = process.env.WINDOW_TRANSFER_KIND ?? 'pane';
@@ -95,11 +97,27 @@ const projects = new ProjectWindows({
   },
 });
 
+let layoutQueue = Promise.resolve();
+const runLayout = (_target, _key, action) => {
+  const operation = layoutQueue.then(action);
+  layoutQueue = operation.catch(() => {});
+  return operation;
+};
+const captures = new WindowLayoutCapture({
+  state: () => state,
+  record: (id) => records.get(id),
+  run: runLayout,
+  validate: (ids) => {
+    for (const id of ids) if (!commands.available(id)) throw new Error('Renderer unavailable');
+  },
+  checkpoint: (id) => commands.request(id, 'checkpoint'),
+  resume: (ids) => Promise.all(ids.map((id) => commands.request(id, 'resume'))),
+});
 const layouts = new WindowLayoutApply({
   state: () => state,
   admit: (id) => records.get(id),
   record: (id) => ({ ...records.get(id), route: new URL(pages.get(id).url()).pathname }),
-  run: (_target, _key, action) => action(),
+  run: runLayout,
   validate: (ids) => {
     for (const id of ids) if (!commands.available(id)) throw new Error('Renderer unavailable');
   },
@@ -179,6 +197,7 @@ async function openPage(record) {
       if (request.error) trace.push([id, request.error]);
       return commands.reply(id, request);
     }
+    if (method === 'layout-capture') return captures.capture(id, request);
     if (method === 'layout-apply') return layouts.apply(id, request);
     if (method === 'layout-observe') return layouts.observe(id, request);
     if (method === 'beginPaneDrag') return drags.beginPane(id, request);
@@ -217,6 +236,12 @@ async function openPage(record) {
       isFullScreen: async () => false,
       windows: {
         version: 1,
+        layouts: Object.fromEntries(
+          ['capture', 'apply', 'observe'].map((method) => [
+            method,
+            (request) => window.windowRequest(`layout-${method}`, request),
+          ]),
+        ),
         ...(mode === 'project'
           ? {
               projects: Object.fromEntries(
@@ -401,6 +426,16 @@ try {
   }
   await expect(target.getByRole('group', { name: 'Workspace controls' })).toHaveCount(0);
   const profile = destination.window.profileId;
+  if (process.env.WINDOW_LAYOUT_CATALOGUE === '1')
+    await checkCatalogueLayouts({
+      state,
+      source,
+      pages,
+      records,
+      profileId: profile,
+      targetId: destination.window.id,
+      checkText,
+    });
   if (process.env.WINDOW_LAYOUT_HANDSHAKE === '1')
     await checkArrangementHandshake({
       state,

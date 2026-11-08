@@ -39,7 +39,7 @@ export function planWindowArrangement(
     const visibleProject =
       entry.identity.kind === 'host'
         ? request.scope === 'project'
-          ? originalProject
+          ? request.projectId
           : slot?.project_id
         : entry.identity.projectId;
     const dedicated = request.arrangement.windows.some(

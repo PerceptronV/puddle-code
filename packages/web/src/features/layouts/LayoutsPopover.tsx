@@ -1,12 +1,22 @@
 import { ExpandingContent } from '../../components/ui/expanding-content';
 import { compactAction, textAction } from '../../components/ui/recipes';
 import { ControlTray } from '../../components/ui/control-tray';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useNavigate } from 'react-router';
 import { Copy, LayoutTemplate, Pencil, Plus, Save, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import type { SavedLayout } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '../../components/ui/select';
+import { useCatalogueLayouts } from '../windows/arrangements/use-catalogue-layouts';
+import { desktopWindowContext } from '../windows/window-context';
+import type { LayoutCapture } from './layouts-store';
 import { Input } from '../../components/ui/input';
 import { Popover, PopoverContent, PopoverTrigger } from '../../components/ui/popover';
 import { Tooltip, TooltipContent, TooltipTrigger } from '../../components/ui/tooltip';
@@ -43,13 +53,14 @@ const EMPTY_SIGNATURE = layoutSignature(null);
  * current layout in the list. A project name under a row is what marks its
  * scope — profile-wide rows carry no label, since that is the absence of one.
  *
- * Everything saved from here takes the provenance the CLIENT SETTING implies
+ * Browser saves take the provenance the CLIENT SETTING implies
  * right now (project-scoped under project-based layout, profile-wide
  * otherwise), never the provenance of the row it was invoked from: scope is
  * fixed at creation (SPEC §11), so a cross-scope save-as writes the current
  * scope's namesake rather than moving a layout between scopes. Loading a layout
  * whose scope disagrees with the setting flips the setting through the bridge,
  * which suppresses the union/shard transition so the loaded layout survives it.
+ * Native hosts use an explicit scope selector and coordinated window capture/apply.
  */
 export function LayoutsPopover() {
   const open = useLayoutsOpen();
@@ -59,8 +70,29 @@ export function LayoutsPopover() {
   // Without a workspace the dashboard bridge drives the persisted snapshot
   // directly — loads work everywhere; it reads only while the popover is open
   // (and only when no workspace ui-state handle exists to race with).
-  const dashboard = useDashboardLayouts(profileId, open && workspaceBridge === null);
-  const bridge = workspaceBridge ?? dashboard;
+  const [saveScope, setSaveScope] = useState<string | null>(null);
+  const native = useCatalogueLayouts(profileId, open, workspaceBridge, saveScope);
+  const dashboard = useDashboardLayouts(
+    profileId,
+    !native.native && open && workspaceBridge === null,
+  );
+  const bridge = native.native ? native.bridge : (workspaceBridge ?? dashboard);
+  const [saving, setSaving] = useState(false);
+  const acting = useRef(false);
+  const busy = saving || native.busy;
+  const run = async (action: () => Promise<void>) => {
+    if (acting.current || native.busy) return;
+    acting.current = true;
+    setSaving(true);
+    try {
+      await action();
+    } catch (error) {
+      toastError(error);
+    } finally {
+      acting.current = false;
+      setSaving(false);
+    }
+  };
   const layouts = useLayouts(profileId ?? undefined, undefined).data ?? [];
   const projects = useProjects(profileId ?? undefined, open && profileId !== null).data ?? [];
   const create = useCreateLayout();
@@ -74,25 +106,38 @@ export function LayoutsPopover() {
   // 'profile' filters to profile-wide layouts; a project id to that project's.
   const [filterProject, setFilterProject] = useState<string | 'profile' | null>(null);
 
-  useEffect(() => registerHotkey('layouts.toggle', toggleLayouts), []);
+  useEffect(() => {
+    const kind = desktopWindowContext()?.identity.kind;
+    if (!kind || kind === 'host') return registerHotkey('layouts.toggle', toggleLayouts);
+  }, []);
   // A closed popover drops any in-progress naming/filter state.
   useEffect(() => {
     if (!open) {
       setNameDraft('');
       setComposing(false);
       setFilterProject(null);
+      setSaveScope(null);
     }
   }, [open]);
 
   const headless = bridge?.headless === true;
   const current =
-    bridge === null || headless ? null : (layouts.find((l) => l.id === bridge.layoutRef) ?? null);
+    bridge === null || headless
+      ? null
+      : (layouts.find(
+          (l) =>
+            l.id === bridge.layoutRef &&
+            (!bridge.native ||
+              (l.scope === bridge.scope &&
+                (l.scope === 'profile' || l.project_id === bridge.projectId))),
+        ) ?? null);
   const dirty =
     bridge !== null &&
     !headless &&
     (current === null
       ? bridge.signature !== EMPTY_SIGNATURE
-      : layoutSignature(current.layout_tree) !== bridge.signature);
+      : (bridge.savedSignature?.(current) ?? layoutSignature(current.layout_tree)) !==
+        bridge.signature);
 
   // A stored slice's own unsaved state: unnamed with content, or drifted from
   // the saved layout it derives from.
@@ -114,6 +159,12 @@ export function LayoutsPopover() {
   // under profile mode it additionally shards the live profile layout away.
   const discards = (layout: SavedLayout): boolean => {
     if (bridge === null) return false;
+    if (bridge.native)
+      return (
+        !inScope(layout) ||
+        !bridge.signature ||
+        bridge.savedSignature?.(layout) !== bridge.signature
+      );
     if (layout.scope === 'profile') return bridge.scope === 'profile' && dirty;
     if (layout.project_id === null) return false;
     if (bridge.scope === 'project') {
@@ -175,83 +226,60 @@ export function LayoutsPopover() {
    * whenever the tree being saved IS the live one and wrong when duplicating
    * somebody else's.
    */
-  const createUnder = (
-    name: string,
-    payload: ReturnType<NonNullable<typeof bridge>['capture']>,
-    adopt: boolean,
-  ) => {
+  const adopt = async (saved: SavedLayout) => {
+    if (bridge?.adopt) await bridge.adopt(saved);
+    else await bridge?.apply(saved);
+  };
+
+  const createUnder = async (name: string, payload: LayoutCapture, adoptName: boolean) => {
     if (!bridge || !profileId) return;
-    create.mutate(
-      {
-        profile_id: profileId,
-        scope: bridge.scope,
-        project_id: bridge.scope === 'project' ? bridge.projectId : undefined,
-        name,
-        ...payload,
-      },
-      {
-        onSuccess: (created) => {
-          if (adopt) bridge.apply(created);
-        },
-        onError: (e) => toastError(e),
-      },
-    );
-  };
-
-  /**
-   * Write the LIVE layout (unsaved changes included) into `layout`, and adopt it
-   * as the live layout's name. An in-scope row is patched — the row that was
-   * clicked, not one resolved by name, since nothing stops two layouts sharing a
-   * name. A row from another scope cannot be moved here, so the current scope's
-   * namesake takes the layout instead, created when it does not exist yet.
-   */
-  const saveAs = (layout: SavedLayout) => {
-    if (!bridge) return;
-    const target = inScope(layout)
-      ? layout
-      : layouts.find((l) => l.name === layout.name && inScope(l));
-    if (!target) {
-      createUnder(layout.name, bridge.capture(), true);
-      return;
-    }
-    patch.mutate(
-      { id: target.id, ...bridge.capture() },
-      { onSuccess: (saved) => bridge.apply(saved), onError: (e) => toastError(e) },
-    );
-  };
-
-  /**
-   * A copy of a row's SAVED tree under a new name — the same thing on every row,
-   * the current layout included: duplicating it copies what is stored, NOT the
-   * unsaved changes on top, and leaves the live layout where it was. (Saving the
-   * live layout under a fresh name is the `+` above, which is a different act
-   * and says so.) Provenance follows the current setting, so duplicating a
-   * profile-wide layout under project-based layout gives this project its copy.
-   */
-  const duplicate = (layout: SavedLayout, name: string) =>
-    createUnder(
+    const created = await create.mutateAsync({
+      profile_id: profileId,
+      scope: bridge.scope,
+      ...(bridge.scope === 'project' ? { project_id: bridge.projectId } : {}),
       name,
-      { layout_tree: layout.layout_tree, active_session: layout.active_session },
-      false,
-    );
-
-  const load = (layout: SavedLayout) => {
-    if (!bridge) return;
-    if (!bridge.apply(layout)) {
-      toast.error('Workspace is still loading — try again in a moment');
-      return;
-    }
-    // A project-scoped layout makes its project the active one (decision
-    // 2026-08-03). `apply` has already flipped the client setting to
-    // project-based layout if it was not, and that layout lives in ITS project's
-    // slice — so without following the URL there, loading it from profile-wide
-    // layout (or from the dashboard) would land the workspace in a project whose
-    // slice is not the one just loaded, and nothing visible would change.
-    if (layout.project_id !== null && layout.project_id !== bridge.projectId) {
-      void navigate(`/project/${layout.project_id}`);
-    }
-    setLayoutsOpen(false);
+      ...payload,
+    });
+    if (adoptName) await adopt(created);
   };
+
+  const saveAs = (layout: SavedLayout) =>
+    run(async () => {
+      if (!bridge) return;
+      const target = inScope(layout)
+        ? layout
+        : layouts.find((l) => l.name === layout.name && inScope(l));
+      const payload = await bridge.capture();
+      if (!target) await createUnder(layout.name, payload, true);
+      else await adopt(await patch.mutateAsync({ id: target.id, ...payload }));
+    });
+
+  const duplicate = (layout: SavedLayout, name: string) =>
+    run(async () => {
+      await createUnder(
+        name,
+        {
+          layout_tree: layout.layout_tree,
+          active_session: layout.active_session,
+          ...(inScope(layout) && layout.window_arrangement
+            ? { window_arrangement: layout.window_arrangement }
+            : {}),
+        },
+        false,
+      );
+    });
+
+  const load = (layout: SavedLayout) =>
+    run(async () => {
+      if (!bridge) return;
+      if (!(await bridge.apply(layout))) {
+        toast.error('Workspace is still loading — try again in a moment');
+        return;
+      }
+      if (!bridge.native && layout.project_id !== null && layout.project_id !== bridge.projectId)
+        void navigate(`/project/${layout.project_id}`);
+      setLayoutsOpen(false);
+    });
 
   return (
     <Popover open={open} onOpenChange={setLayoutsOpen}>
@@ -273,6 +301,7 @@ export function LayoutsPopover() {
           {bridge !== null && !headless && (
             <button
               type="button"
+              disabled={busy}
               onClick={() => setComposing((c) => !c)}
               className={cn(compactAction, 'ml-auto')}
             >
@@ -281,6 +310,33 @@ export function LayoutsPopover() {
             </button>
           )}
         </div>
+
+        {native.native && (
+          <div className="px-5 pb-3">
+            <Select
+              value={bridge?.scope === 'project' ? bridge.projectId : 'profile'}
+              onValueChange={setSaveScope}
+              disabled={busy}
+            >
+              <SelectTrigger aria-label="Save layout for" className="h-8 text-sm">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="profile">Profile-wide</SelectItem>
+                {projects.map((project) => (
+                  <SelectItem key={project.id} value={project.id}>
+                    {project.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            {native.error && (
+              <p role="status" className="pt-2 text-sm text-fg-muted">
+                {native.error}
+              </p>
+            )}
+          </div>
+        )}
 
         {/* Only what the list cannot say for itself: the live layout, when it has
             no row of its own (never saved) or is being saved under a new name. */}
@@ -312,9 +368,11 @@ export function LayoutsPopover() {
                     e.preventDefault();
                     const name = nameDraft.trim();
                     if (!name) return;
-                    createUnder(name, bridge.capture(), true);
-                    setNameDraft('');
-                    setComposing(false);
+                    void run(async () => {
+                      await createUnder(name, await bridge.capture(), true);
+                      setNameDraft('');
+                      setComposing(false);
+                    });
                   }}
                 >
                   <Input
@@ -329,7 +387,7 @@ export function LayoutsPopover() {
                     }}
                     className="h-8 flex-1 text-sm"
                   />
-                  <Button size="sm" type="submit" disabled={!nameDraft.trim()}>
+                  <Button size="sm" type="submit" disabled={busy || !nameDraft.trim()}>
                     Save
                   </Button>
                   {current !== null && (
@@ -357,7 +415,11 @@ export function LayoutsPopover() {
           </div>
         )}
 
-        <div className="no-scrollbar max-h-[60vh] overflow-y-auto px-2 pb-3">
+        <div
+          inert={busy || undefined}
+          aria-busy={busy}
+          className="no-scrollbar max-h-[60vh] overflow-y-auto px-2 pb-3"
+        >
           {visible.length === 0 && (
             <p className="px-3 py-3 text-sm text-fg-muted">
               {filterProject !== null
@@ -374,8 +436,8 @@ export function LayoutsPopover() {
                   projectLabel={layout.scope === 'profile' ? null : projectName(layout.project_id)}
                   isCurrent={isCurrent(layout)}
                   dirty={dirty}
-                  loadable={bridge !== null}
-                  savable={bridge !== null && !headless}
+                  loadable={bridge !== null && !busy}
+                  savable={bridge !== null && !headless && !busy}
                   confirmBeforeLoad={discards(layout)}
                   overwrites={inScope(layout)}
                   onLoad={() => load(layout)}

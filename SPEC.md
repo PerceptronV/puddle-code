@@ -2413,7 +2413,7 @@ local resources. Ordinary browser payloads and dragging retain their existing pa
 
 The shared workspace can render full host, headerless project, and pane-only
 presentations; detached windows use native title bars. Named window arrangements
-and native OS acceptance remain in progress. See
+use the host Layouts popover; native OS acceptance remains in progress. See
 `docs/roadmap/windows.md` for the full contract and `docs/acceptance/windows.md`
 for implemented behaviour and verified scope. These foundations do not yet
 constitute the complete detached-window feature.
@@ -2689,8 +2689,31 @@ cancellation. A new destination supplies its final sealed capture before dismiss
 late edits instead keep that window as an atomic, visible draft recovery record.
 Failed final recovery acknowledgement leaves its renderer available, never silently
 destroys it. Startup cancels unfinished preparation and retains committed/recovered
-windows. The coordinated Layouts popover save/load integration remains pending;
-these capabilities currently have automated and isolated-preview callers.
+windows.
+
+The host-only Layouts popover now uses coordinated capture/apply when the desktop
+bridge supports both and the host supports arrangement storage (application 26.17).
+Its save-scope selector defaults to the visible workspace scope, or profile-wide
+on the dashboard, and can select a project whose workspace is detached. Native
+dashboard actions use the desktop working set, never the browser sessionStorage
+fallback. Saved captures fold closed returned projects into the logical host;
+they do not reopen those projects as dedicated windows. Named records contain
+portable structure and the single-tree fallback, never drafts or native bounds.
+Saving adopts the name without reloading panes. Same-scope duplication preserves
+the arrangement; cross-scope duplication copies the ordinary tree into the selected
+scope. Structural comparison includes every window and stored slice, independent
+of native ids, window ordering and transient focus. Scope changes or uncertain
+captures require the existing inline replacement confirmation. Opening the popover,
+changing host layout state and returning focus refresh its observation; saving
+always captures again.
+
+Native loading runs through the durable coordinator. Legacy single-tree rows
+consolidate only their scope into one host presentation, retaining dirty work
+through recovery tabs. A project load opens that project in the host unless its
+saved arrangement has a dedicated project owner. The operation controller survives
+React remounts; a lost reply observes the same operation id without redispatch.
+An unresolved outcome blocks another load until its recorded result can be checked.
+Browser loading continues to use the ordinary tree and existing scope transitions.
 
 Saved layouts (12.2) are named snapshots of the centre tiling tree a profile can save and load. The **Layouts popover** is a top-bar popover between Settings and the Scratchpad, in the Scratchpad's mould (anchored panel, inline management, no modal). It is a LIST, not a dashboard (redesigned 2026-08-03): the live layout's own state is carried by its ROW, so nothing above the list repeats it. The current layout's **name reads green with `Active`** when it matches what is saved and **red with `Unsaved`** when the live tree has drifted. Drift is a structural comparison (`layoutSignature`): node ids, active/preview tab focus, and sub-0.1 resize noise are ignored — switching tabs is not a layout change — while tab identity, split structure, and pane proportions count. What sits above the list is only ever the name FIELD for the live layout: permanently while it has no row of its own — "Unnamed layout", the scope a save would capture (the current **project** under `projectBasedLayout` — the default — and **profile**-wide with it off), `Unsaved`, and the field that names it — and on demand from `+`. The captured payload is exactly the scoped slice — `{layout_tree, active_session}` — never shell chrome (sidebar modes and sizes stay live state). **Under project-based layout the catalogue narrows to the open project's layouts plus the profile-wide ones**; otherwise it is the whole profile's (the `?project=` filter on GET /api/layouts remains for other callers). Hiding other projects' rows is what leaves **exactly one current layout** in the list at any time — their slices carry their own `layout_ref` and are still restored on arrival, they simply are not shown or markable from a project they do not belong to. A project name under a row is what marks its scope: **profile-wide rows carry no label**, since that is the absence of one. The list stays **filterable by project** — chips in the Scratchpad's mould over what the catalogue actually holds, narrowing only, hidden when there is only one kind to show. **Every row carries four actions** — rename, save-as (save glyph), duplicate (copy glyph), delete — and everything they write takes the provenance the CLIENT SETTING implies right now, never the row's own: scope is fixed at creation, so a save-as invoked from another scope's row writes the current scope's namesake (created when absent) rather than moving a layout between scopes. **Save-as on the current layout is simply Save.** On any other row it asks first — "Overwrite “X” with the current layout?" for a row it can write in place, or "Save the current layout as “X” here?" when the row belongs to another scope — and then the live layout adopts the result as its name, exactly as Save As does elsewhere. **Duplicate means the same thing on every row**: a copy of what is SAVED there under a name asked for inline, leaving the live layout — and which layout is active — exactly as they were. Duplicating the current layout therefore copies its saved version WITHOUT the unsaved changes on top. Creating from the live layout is a different act with its own affordance: **`+` in the header** (the Scratchpad's composer gesture) opens the same name field an unnamed layout shows, saves the live layout under that name with the provenance the setting implies, and makes it the active layout. A save-as targets the row that was clicked, never one resolved by name — nothing stops two layouts sharing a name. **Loading a project-scoped layout makes its project the active one**: the load lands in that project's slice, flips `projectBasedLayout` on if it was off, and follows the URL to `/project/<id>` — without which the workspace would sit in a project whose slice is not the one just loaded and nothing visible would change. Rows load on click, and rename, naming a copy, and every confirm expand inline; the discard-confirm is computed against exactly the state a load replaces — the visible head for the open project's own layouts and profile-scoped loads under profile mode, the target project's slice for cross-project loads (its unnamed content or drift from its `layout_ref`), both for a project-scoped load under profile mode (the live profile layout shards away AND the target's preserved slice is replaced) — and a profile-scoped load under project mode confirms nothing, because it retains every slice. **The dashboard loads (and saves) too**: the layout state exists whether or not a workspace is mounted, so without one the popover drives the persisted snapshot directly (`useDashboardLayouts` — the working set over the profile row, written immediately rather than debounced; safe because no workspace `useUiState` handle is alive in that window to race with), and the next workspace open restores the result. Under the profile-wide mode the dashboard behaves as a workspace does (the profile layout is the current one, and its row says so); under project-based layout there is no single live layout at all — every project keeps its own — so the popover says that in place of any head, drops the row actions that would need one, and still loads, with the discard-confirm computed against the target project's slice. Loading prunes the stored tree against the daemon's full live-session list (untitled tabs always keep), and when it would discard unsaved changes an inline confirm warns first. The live layout keeps persisting exactly as before — closing and reopening the app never changes it; a saved layout is only a named restore point.
 

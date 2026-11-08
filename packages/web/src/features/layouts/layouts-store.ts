@@ -1,5 +1,11 @@
 import { useSyncExternalStore } from 'react';
-import type { LayoutNode, LayoutScope, SavedLayout } from '@puddle/shared';
+import type { LayoutNode, LayoutScope, SavedLayout, WindowArrangement } from '@puddle/shared';
+
+export interface LayoutCapture {
+  layout_tree: LayoutNode | null;
+  active_session: string | null;
+  window_arrangement?: WindowArrangement;
+}
 
 /**
  * Cross-feature plumbing for the top-bar Layouts popover (SPEC §11), the same
@@ -20,7 +26,7 @@ import type { LayoutNode, LayoutScope, SavedLayout } from '@puddle/shared';
  * directly — the same shape either way.
  */
 export interface LayoutBridge {
-  /** The scope a save captures right now (the client setting at this moment). */
+  /** The scope a save captures right now (the native selection or browser setting). */
   scope: LayoutScope;
   /** The project the workspace is open on (a project-scoped save binds to it). */
   projectId: string;
@@ -43,14 +49,19 @@ export interface LayoutBridge {
    */
   slices?: Record<string, { layoutRef: number | null; signature: string }>;
   /** The live scoped slice, as a saved layout would store it. */
-  capture(): { layout_tree: LayoutNode | null; active_session: string | null };
+  capture(): LayoutCapture | Promise<LayoutCapture>;
+  /** Saving adopts provenance without reloading editors or changing their focus. */
+  adopt?(layout: SavedLayout): void | Promise<void>;
+  /** Native coordination owns navigation and compares all windows in the selected scope. */
+  native?: boolean;
+  savedSignature?(layout: SavedLayout): string;
   /**
    * Load a saved layout into the live state, switching the
    * project-based-layout setting (with the union/shard transition suppressed)
    * when the layout's scope disagrees with it. False: not ready yet (data
    * still loading).
    */
-  apply(layout: SavedLayout): boolean;
+  apply(layout: SavedLayout): boolean | Promise<boolean>;
 }
 
 const listeners = new Set<() => void>();

@@ -217,9 +217,28 @@ verification; pending items are not support claims.
   during cancellation keep a durable recovery window instead of being discarded.
   Restored native layout mode survives remount/reload without changing client
   preferences; new seeds and explicit preference changes still use the existing
-  layout conversion. The Layouts popover has not yet adopted these capabilities.
+  layout conversion.
+- The host Layouts popover now uses coordinated capture/apply, gated on native
+  bridge support and host application 26.17 storage support. A native-only scope
+  selector can save the whole profile or a selected project from the dashboard,
+  including detached projects. Its native dashboard path uses the desktop owner;
+  it does not read or overwrite browser sessionStorage. Returned closed projects
+  are folded into logical host content. Saving updates the saved-name reference
+  without reloading panes; it does not reset editor models or selection.
+- Dirty comparison includes the full scoped arrangement, including inactive
+  slices and duplicate window presentations. Native ids, window ordering and
+  transient focus do not count as drift. Same-scope duplication retains the
+  arrangement; cross-scope duplication copies the ordinary fallback tree. Native
+  legacy loads consolidate their scope into one host presentation through the
+  same draft-preserving coordinator. Other project slices remain unaffected.
+- Apply state survives React remounts. Lost replies observe the same operation
+  id; an unresolved result never automatically dispatches another application.
+  Controls wait for capture/save/apply, and the existing inline confirmation
+  covers replacing a different or unobserved arrangement. Browser workspace
+  saves adopt the name without reapplying their tree; browser loading retains
+  its existing single-tree behaviour.
 
-Coordinated named window arrangements and native OS acceptance are still
+Native OS acceptance and the remaining full-roadmap audits are still
 pending. Pane/project detachment and menu return do not deliver the whole roadmap. Undo-stack transfer
 is not implemented; restored editors use
 new Monaco models with recovered text.
@@ -469,6 +488,29 @@ popover save/load and native OS acceptance remain pending.
 
 Native acceptance has not run. Use an isolated UI preview for desktop interaction;
 start any real daemon from a plain shell, never from a coding-agent session.
+
+### Layouts popover integration — 2026-11-07
+
+- 342 focused tests passed across 38 desktop/web/shared files, including native
+  capture/application, catalogue projection/signatures, lost-reply observation,
+  project routing and the existing workspace layout suite.
+- Web TypeScript, targeted ESLint, formatting and whitespace checks passed.
+- UI-only Chromium, real coordinators with synthetic native bridge:
+  `WINDOW_TRANSFER_KIND=project WINDOW_DOCK_BACK=drag WINDOW_LAYOUT_CATALOGUE=1
+  PREVIEW_URL=http://127.0.0.1:5186/ node test/dev/window-transfer.mjs` from
+  `packages/web` passed. The actual host popover saved profile/project arrangements
+  from the dashboard, preserved the detached editor instance, dirty text and
+  selection, duplicated the stored arrangement, and loaded it without creating
+  duplicate windows. Project drag-back and host reload then passed. Screenshot
+  `/tmp/puddle-live-layout-catalogue.png` was visually reviewed.
+- Ordinary browser preview: `node test/dev/layouts/catalogue.mjs` with the same
+  `PREVIEW_URL` passed saving without replacing the mounted dirty editor, storing
+  a single-tree payload and loading through the browser path. The existing
+  `test/dev/pane-drag.mjs` passed split, swap, tab retention, edge move and Escape
+  cancellation checks.
+- These checks do not establish Electron titlebar/focus behaviour, native OS
+  dragging, Command-Q/restart recovery, live PTY continuity or resource overhead.
+  Those checks and the remaining cross-window effects audit are still required.
 
 ## Required acceptance before completion
 

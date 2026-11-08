@@ -92,6 +92,21 @@ function fixture(): DesktopArrangementPlanCommand {
   };
 }
 
+it('opens a project layout loaded from the dashboard in the host when it has no dedicated owner', () => {
+  const command = fixture();
+  command.entries[0]!.route = '/';
+  command.request.scope = 'project';
+  command.request.projectId = project;
+  const host = command.request.arrangement.windows[0]!;
+  host.layout_mode = 'project';
+  host.layout_tree = null;
+  host.project_layouts = {
+    [project]: { layout_tree: makeLeaf([ref('file.ts')]), active_session: null },
+  };
+  const plan = planWindowArrangement(command, sessions);
+  expect(plan.changes.find((change) => change.id === 'host')!.route).toBe(`/project/${project}`);
+});
+
 it('moves dirty content into a saved destination, preserves live chrome and does not mutate captures', () => {
   const command = fixture();
   command.entries[0]!.version!.content.buffers = [draft('file.ts')];

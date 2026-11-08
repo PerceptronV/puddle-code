@@ -4,6 +4,7 @@ import { clientSettings, updateClientSettings } from '../../../lib/settings/clie
 import { warmEditorChunk } from '../../editor/lazy-editor-parts';
 import { warmTerminalChunk } from '../../terminal/LazyTerminal';
 import { setLayoutBridge } from '../../layouts/layouts-store';
+import { currentProfileId } from '../../profile/profile-store';
 import type { UiStateHandle } from '../use-ui-state';
 import { useLayoutTree } from './useLayoutTree';
 import { boundToLiveSession, findLeaf, flattenTabs, pruneTabs } from './layout-tree';
@@ -259,6 +260,22 @@ export function useWorkspaceLayout(
         return { layout_tree: cur.layout_tree, active_session: cur.active_session };
       },
       apply: applyLayout,
+      adopt: (saved) => {
+        if (currentProfileId() !== saved.profile_id) return;
+        const base = baseUiStateRef.current;
+        if (saved.scope === 'profile') base.update({ layout_ref: saved.id });
+        else if (saved.project_id) {
+          const slices = base.current().project_layouts;
+          const slice = slices[saved.project_id];
+          if (slice)
+            base.update({
+              project_layouts: {
+                ...slices,
+                [saved.project_id]: { ...slice, layout_ref: saved.id },
+              },
+            });
+        }
+      },
     });
   }, [
     baseUiState.loaded,
