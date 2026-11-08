@@ -12,6 +12,7 @@ import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { addGraphNode, nextGraphId } from '../documents/graph-edits';
 import { useHuddleTemplates } from '../documents/templates';
+import { connectGraph } from '../documents/graph-connections';
 import { Feedback } from './Feedback';
 
 export const graphActionClass =
@@ -194,13 +195,7 @@ export function Connections({ graph, edit }: { graph: HuddleDocument; edit: Edit
         disabled={!source || !target}
         onClick={() => {
           if (source && target)
-            edit((definition) => ({
-              ...definition,
-              edges: [
-                ...definition.edges,
-                { id: nextGraphId(definition.edges, 'connection'), from: source, to: target },
-              ],
-            }));
+            edit((definition) => connectGraph({ ...graph, definition }, source, target));
         }}
       >
         Connect

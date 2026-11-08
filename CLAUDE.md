@@ -650,9 +650,14 @@ mtime -1 uses exclusive creation; never silently overwrite a concurrent creator.
 Feature-gate absent-file creation on 28.4. Keep pointer previews local until commit,
 cancel stale-layout gestures and retain separate graph/layout undo histories.
 Save both documents through ordinary file guards without claiming atomicity.
-Full resource settings beyond worktree/session selection, external component
-observation, wire dragging, large-graph culling and retained graph camera/selection
-remain unfinished.
+Canvas connection gestures live under `canvas/connections/`; node islands own
+separate header and port buttons, never nested interactive controls. Socket and
+selector edits share `documents/graph-connections.ts`, manifest undo and normal
+source conflict handling. Reject stale gestures, duplicate routes and definitely
+incompatible ports; retain validation for cycles so users can configure bounded
+feedback. UI wiring must never execute a node. Full resource settings beyond
+worktree/session selection, external component observation, large-graph culling
+and retained graph camera/selection remain unfinished.
 Application 28.1 adds revision-checked `PUT /api/huddle/:profile/definitions/:id`:
 one manifest/layout publication per request, under the repository mutation lock.
 `huddle/definitions/save.ts` stages, rechecks captured source/authority and renames

@@ -15,6 +15,7 @@ import { NodeParameters } from './inspector/NodeParameters';
 import { ExecutionControls } from './execution/ExecutionControls';
 import { useLayoutBuffer } from './documents/use-layout-buffer';
 import { NodePosition } from './inspector/NodePosition';
+import { connectGraph } from './documents/graph-connections';
 import { defaultPosition } from './canvas/geometry';
 
 export function HuddlePane({ session, focused = true }: { session: Session; focused?: boolean }) {
@@ -282,6 +283,23 @@ function HuddleEditor({ session, focused }: { session: Session; focused: boolean
                   }}
                   canUndo={!!layout.buffer.model?.canUndo()}
                   canRedo={!!layout.buffer.model?.canRedo()}
+                  graphVersion={buffer.model?.getAlternativeVersionId() ?? 0}
+                  graphLocked={draft.locked}
+                  disconnect={(id) =>
+                    edit((definition) => ({
+                      ...definition,
+                      edges: definition.edges.filter((edge) => edge.id !== id),
+                    }))
+                  }
+                  connect={(from, to, expected) =>
+                    edit((definition) => {
+                      if (buffer.model?.getAlternativeVersionId() !== expected)
+                        throw new Error(
+                          'The graph changed while connecting. Choose the output again.',
+                        );
+                      return connectGraph({ ...graph, definition }, from, to);
+                    })
+                  }
                   onDelete={(id) => edit((definition) => removeGraphNode(definition, id))}
                 />
               )}

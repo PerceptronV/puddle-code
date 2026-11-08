@@ -5,7 +5,7 @@ Status: foundation in progress, 2026-11-08. The full objective remains the
 creation/opening through local/SSH HTTP. Application 28.0 adds the sidebar entry
 and graph panes. Manifest editing now shares ordinary editor drafts, undo and
 conflict review. Layout drafts now support pointer/touch and keyboard node movement,
-position fields, pan/fit and shared-source close/transfer handling. The IDE includes reviewed
+position fields, pan/fit, direct socket connections and shared-source close/transfer handling. The IDE includes reviewed
 manual execution controls and live history.
 Application 28.2 exposes local/SSH manual execution and live-owner history APIs.
 Application 28.3 adds editable agent templates and feedback settings.
@@ -17,6 +17,40 @@ with session kill/archive; migration 44 retains Stop intent. Migration 45 adds
 host-side agent-turn identities; the owner mailbox now has private transport,
 and production daemon dispatch now supports declared attach/ask scripts. Migration
 46 retains exact cancellation attempts. No user CLI command is enabled yet.
+
+## Implemented: direct canvas connections
+
+`canvas/connections/` owns transient output-to-input gestures and selectable wire
+rendering; `canvas/NodeIsland.tsx` separates movable headers from labelled socket
+buttons. Mouse and touch drags preview a wire without changing source. Releasing
+on an input adds one manifest edit. Clicking an output and then an input, or using
+Tab/Enter, provides the same connection path. Escape, pointer cancellation, lost
+capture and an off-socket drop cancel. A changed manifest model invalidates an
+in-progress gesture before commit. Failed edits cannot report successful connection.
+Sockets highlight admissible targets and report rejection text through a live region.
+
+`documents/graph-connections.ts` is shared with the selector inspector. It rejects
+missing endpoints, duplicate routes and definitely incompatible types. Unknown
+schema relationships retain runtime validation. Cycles and ambiguous joins remain
+editable drafts with existing validation diagnostics; the inspector can configure
+bounded feedback, and execution still requires a valid saved graph. Selecting a
+wire exposes Disconnect selected; a focused wire accepts Delete/Backspace. These
+changes use existing manifest Undo/Redo, drafts, save/conflict handling and never
+execute nodes. No application/runtime protocol or storage format changes are made.
+
+Verification: the dedicated headless wire check covers mouse/touch/keyboard creation,
+zoom, duplicate rejection, Escape, touch cancellation, off-socket drop, concurrent
+source edits, undo/redo, wire selection/removal and saved round-trip without execution.
+Existing canvas movement/conflict and graph/source editing browser checks pass.
+Unit coverage includes missing endpoints, duplicate and incompatible routes, unknown
+runtime-validated schemas and drafting a feedback cycle without bypassing validation.
+The focused web/shared huddle suite passes **39 tests in 11 files**. Web TypeScript,
+repository ESLint/Prettier, token contrast checks and `git diff --check` pass. Light
+and dark canvas screenshots were visually inspected; the authoring browser check
+also covers collapsed/narrow presentations. The agent-template browser regression
+passes, including unresolved component labels, resource/prompt settings, bounded
+feedback and script navigation. These five browser checks use isolated fixtures;
+they do not establish native-provider or supervisor acceptance.
 
 ## Implemented: movable nodes and shared layout drafts
 
@@ -67,7 +101,7 @@ window regressions pass: pane return, file menus and project layouts. Shared, da
 web and CLI TypeScript builds, repository ESLint/Prettier, token contrast checks and
 `git diff --check` pass. Light and dark canvas screenshots were visually reviewed.
 
-Wire dragging, retained camera/selection, viewport culling/large-graph measurement,
+Retained camera/selection, viewport culling/large-graph measurement,
 unified graph/layout undo and full native window gestures remain unfinished. These
 checks use the UI-only preview and isolated file-route fixtures, not native desktop
 input or production agents.
@@ -635,7 +669,7 @@ tab-entry animations; it passed unchanged in isolation, followed by
 no assertion was weakened. Light and dark huddle screenshots were inspected.
 
 Later manifest/layout editing, templates and execution controls are documented above.
-Still pending: wire dragging, complete generated settings and component-change
+Still pending: complete generated settings and component-change
 observation, retained graph camera/selection across transfers and authoring assistance.
 This remains partial IDE implementation,
 not acceptance of the complete IDE. Native OS focus/drag and packaged continuity
@@ -1477,8 +1511,8 @@ Phase 1 has retained revisions/activation, the ledger, routing, workers and a ma
 scheduler composed in an independent owner process, now exposed through local/SSH
 lifecycle and live-history APIs with IDE controls. Next complete retained/offline
 history, active-revision detail, the exact-operation
-bridge, host resource accounting and lifecycle fencing. Finish wire dragging,
-settings, actual trigger/readout adapters, provider-backed lifecycle nodes,
+bridge, host resource accounting and lifecycle fencing. Finish settings,
+actual trigger/readout adapters, provider-backed lifecycle nodes,
 authoring tools/docs/skills and packaged integration.
 
 All live provider, SSH, native window, supervisor, complete owner crash/reboot, trigger cadence,

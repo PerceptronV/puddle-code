@@ -1423,8 +1423,12 @@ an explicit Save uses `expected_mtime_ms: -1` for exclusive creation. Existing f
 still use ordinary conditional saves. Source and layout saves are independent;
 their combined save action does not promise a multi-file transaction. Huddle dirty
 markers, close review, retained models and transfer/arrangement capture hold both
-documents; archive retains both source tabs. Complete settings, wire dragging,
-camera/selection persistence and large-graph culling remain unfinished.
+documents; archive retains both source tabs. Canvas sockets support pointer/touch
+dragging and click/keyboard connection creation; selectable wires expose disconnect.
+These edits share manifest undo, reject duplicate/incompatible routes and cancel on
+concurrent source edits. Cycles remain editable drafts with normal bounded-feedback
+validation before execution. Complete settings, camera/selection persistence and
+large-graph culling remain unfinished.
 Application 28.3 adds editable Prompt agent and Review agent templates under
 `shared/huddle/templates/`, published by `daemon/huddle/templates/` as local
 `nodes/<component>/{node.json,run.ts,prompt.ts}` source. Template creation checks

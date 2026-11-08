@@ -52,7 +52,18 @@ the normal editor. Save or Cmd/Ctrl-S from the huddle saves both files, with sep
 conflict checks; this is not a single atomic write. A missing layout is created
 only on save, and a file created by someone else in the meantime causes a conflict.
 Both drafts follow pane/window transfers and last-view close review. Camera and
-selection persistence and dragging connections between sockets remain unfinished.
+selection persistence remain unfinished.
+
+Connect nodes by dragging an output socket onto an input, or click/focus the output
+then click/press Enter on the input. Escape cancels. Compatible destinations are
+highlighted; duplicate routes and definitely incompatible port types are refused.
+Unknown type relationships remain checked against actual values at runtime. Select
+a wire and choose **Disconnect selected**, or focus it and press Delete/Backspace.
+The **Connections** inspector provides the same actions through labelled selectors
+and includes feedback settings. Connections use the manifest's Undo/Redo history;
+they do not send prompts or run nodes. A source edit during a wire gesture cancels
+that gesture. Cycles can be drafted, but require explicit bounded feedback before
+validation permits execution.
 
 ## Prompt existing agents
 

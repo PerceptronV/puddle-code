@@ -1,14 +1,11 @@
 import { useState, useRef, useLayoutEffect } from 'react';
 import type { HuddleDocument } from '@puddle/shared';
-import { PuddleGlyph } from '../../../components/puddle-glyph';
 import { CanvasControls } from './CanvasControls';
-import {
-  appearanceColourClass,
-  appearanceColourStyle,
-} from '../../../lib/appearance/appearance-colours';
-import { PROFILE_ICON_BY_NAME } from '../../profile/profile-icons';
-import { cn } from '../../../lib/utils';
-import { defaultPosition, movePosition, type Position } from './geometry';
+import { WireLayer } from './connections/WireLayer';
+import { NodeIsland } from './NodeIsland';
+import { useWireGesture } from './connections/use-wire-gesture';
+import type { Endpoint } from '../documents/graph-connections';
+import { defaultPosition, type Position } from './geometry';
 import { useNodeDrag } from './use-node-drag';
 
 /** Interactive node islands; persisted positions live in the shared layout source buffer. */
@@ -24,6 +21,10 @@ export function GraphOverview({
   canUndo,
   canRedo,
   onDelete,
+  connect,
+  graphVersion,
+  graphLocked,
+  disconnect,
 }: {
   document: HuddleDocument;
   selected: string | null;
@@ -36,8 +37,21 @@ export function GraphOverview({
   canUndo: boolean;
   canRedo: boolean;
   onDelete(id: string): void;
+  connect(from: Endpoint, to: Endpoint, version: number): boolean;
+  graphVersion: number;
+  graphLocked: boolean;
+  disconnect(id: string): void;
 }) {
+  const [selectedEdge, setSelectedEdge] = useState<string | null>(null);
   const [zoom, setZoom] = useState(1);
+  const canvas = useRef<HTMLDivElement>(null);
+  const wire = useWireGesture({
+    graph: document,
+    version: graphVersion,
+    locked: graphLocked,
+    canvas,
+    connect,
+  });
   const viewport = useRef<HTMLDivElement>(null);
   const pan = useRef<{ pointer: number; x: number; y: number; left: number; top: number } | null>(
     null,
@@ -102,8 +116,34 @@ export function GraphOverview({
     });
   };
   return (
-    <div className="flex min-h-0 min-w-0 flex-1 flex-col">
+    <div
+      className="flex min-h-0 min-w-0 flex-1 flex-col"
+      onKeyDown={(event) => {
+        if (event.key === 'Escape') wire.cancel();
+      }}
+    >
       <CanvasControls {...{ locked, canUndo, canRedo, undo, redo, selected, fit, zoom, setZoom }} />
+      <div className="flex min-h-5 items-center gap-2 px-3 text-xs text-fg-muted">
+        {document.definition.edges.some((edge) => edge.id === selectedEdge) && (
+          <button
+            type="button"
+            disabled={graphLocked}
+            className="rounded px-2 hover:bg-elevated disabled:opacity-50"
+            onClick={() => {
+              disconnect(selectedEdge!);
+              setSelectedEdge(null);
+            }}
+          >
+            Disconnect selected
+          </button>
+        )}
+        <span role="status">{wire.message}</span>
+        {wire.pending && (
+          <button type="button" className="rounded px-2 hover:bg-elevated" onClick={wire.cancel}>
+            Cancel connection
+          </button>
+        )}
+      </div>
       <div
         ref={viewport}
         className="min-h-0 flex-1 cursor-grab overflow-auto touch-none"
@@ -148,125 +188,56 @@ export function GraphOverview({
       >
         <div style={{ width: width * zoom, height: height * zoom }}>
           <div
+            ref={canvas}
             className="relative origin-top-left"
             style={{ width, height, transform: `scale(${zoom})` }}
           >
-            <svg
-              className="pointer-events-none absolute inset-0 text-fg-muted"
-              width={width}
-              height={height}
-              aria-hidden="true"
-            >
-              {document.definition.edges.map((edge) => {
-                const from = byId.get(edge.from.node);
-                const to = byId.get(edge.to.node);
-                if (!from || !to) return null;
-                const fromPosition = displayPosition(from.node.id, from.position),
-                  toPosition = displayPosition(to.node.id, to.position);
-                const x = fromPosition.x - left + 240,
-                  y =
-                    fromPosition.y -
+            <WireLayer
+              edges={document.definition.edges}
+              {...{ width, height, wire }}
+              selected={selectedEdge}
+              select={setSelectedEdge}
+              locked={graphLocked}
+              disconnect={(id) => {
+                disconnect(id);
+                setSelectedEdge(null);
+              }}
+              socket={(endpoint, direction) => {
+                const item = byId.get(endpoint.node);
+                if (!item) return;
+                const position = displayPosition(endpoint.node, item.position);
+                return {
+                  x: position.x - left + (direction === 'outputs' ? 225 : 15),
+                  y:
+                    position.y -
                     top +
-                    61 +
-                    Math.max(0, from.outputs.indexOf(edge.from.port)) * 24;
-                const tx = toPosition.x - left,
-                  ty = toPosition.y - top + 61 + Math.max(0, to.inputs.indexOf(edge.to.port)) * 24;
-                return (
-                  <path
-                    key={edge.id}
-                    d={`M ${x} ${y} C ${x + 80} ${y}, ${tx - 80} ${ty}, ${tx} ${ty}`}
-                    fill="none"
-                    stroke="currentColor"
-                    strokeWidth={1.5}
-                    strokeDasharray={edge.feedback ? '5 4' : undefined}
-                  />
-                );
-              })}
-            </svg>
-            {nodes.map(({ node, contract, position, inputs, outputs }) => {
-              const appearance = node.appearance ?? contract?.appearance;
-              const Icon =
-                (appearance?.icon && PROFILE_ICON_BY_NAME[appearance.icon]) || PuddleGlyph;
+                    60 +
+                    Math.max(0, item[direction].indexOf(endpoint.port)) * 24,
+                };
+              }}
+            />
+            {nodes.map(({ node, contract, position }) => {
               const shown = displayPosition(node.id, position);
               return (
-                <button
-                  type="button"
+                <NodeIsland
                   key={node.id}
-                  aria-pressed={selected === node.id}
-                  onClick={() => onSelect(node.id)}
-                  {...drag.handlers(node.id, position)}
-                  onKeyDown={(event) => {
-                    if (event.key === 'Escape') {
-                      drag.cancel();
-                      return;
-                    }
-                    if ((event.metaKey || event.ctrlKey) && event.key.toLowerCase() === 'z') {
-                      event.preventDefault();
-                      if (event.shiftKey) redo();
-                      else undo();
-                      return;
-                    }
-                    if (event.key === 'Delete' || event.key === 'Backspace') {
-                      event.preventDefault();
-                      onDelete(node.id);
-                      return;
-                    }
-                    const delta = {
-                      ArrowLeft: [-1, 0],
-                      ArrowRight: [1, 0],
-                      ArrowUp: [0, -1],
-                      ArrowDown: [0, 1],
-                    }[event.key];
-                    if (!delta || locked) return;
-                    event.preventDefault();
-                    onSelect(node.id);
-                    const step = event.shiftKey ? 50 : 10;
-                    move(
-                      node.id,
-                      movePosition(position, delta[0]! * step, delta[1]! * step),
-                      version,
-                    );
+                  {...{
+                    node,
+                    contract,
+                    position,
+                    locked,
+                    version,
+                    drag,
+                    wire,
+                    onSelect,
+                    move,
+                    undo,
+                    redo,
+                    onDelete,
                   }}
-                  className={cn(
-                    'island-outline absolute w-60 touch-none select-none rounded-xl p-3 text-left transition-colors hover:bg-elevated focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
-                    !locked && (drag.preview?.id === node.id ? 'cursor-grabbing' : 'cursor-grab'),
-                    selected === node.id ? 'bg-elevated text-accent' : 'bg-surface text-fg',
-                  )}
-                  style={{ left: shown.x - left, top: shown.y - top }}
-                >
-                  <span className="mb-3 flex items-center gap-2">
-                    <span
-                      className={appearanceColourClass(appearance?.colour)}
-                      style={appearanceColourStyle(appearance?.colour)}
-                    >
-                      <Icon className="size-4" />
-                    </span>
-                    <span className="truncate text-sm">{contract?.title ?? node.id}</span>
-                  </span>
-                  <span className="flex justify-between gap-3 text-xs text-fg-muted">
-                    <span>
-                      {inputs.map((port) => (
-                        <span key={port} className="flex h-6 items-center gap-2">
-                          <span aria-hidden className="size-1.5 rounded-full bg-current" />
-                          {port}
-                        </span>
-                      ))}
-                    </span>
-                    <span>
-                      {outputs.map((port) => (
-                        <span key={port} className="flex h-6 items-center justify-end gap-2">
-                          {port}
-                          <span aria-hidden className="size-1.5 rounded-full bg-current" />
-                        </span>
-                      ))}
-                    </span>
-                  </span>
-                  {!inputs.length && !outputs.length && (
-                    <span className="text-xs text-fg-muted">
-                      {contract?.category ?? 'Unresolved component'}
-                    </span>
-                  )}
-                </button>
+                  selected={selected === node.id}
+                  shown={{ x: shown.x - left, y: shown.y - top }}
+                />
               );
             })}
           </div>

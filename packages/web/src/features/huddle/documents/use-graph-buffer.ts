@@ -59,7 +59,7 @@ export function useGraphBuffer(
   }, [parsed, captured, local]);
   const edit = (update: (definition: HuddleDefinition) => HuddleDefinition) => {
     const model = buffer.model;
-    if (!model || locked) return;
+    if (!model || locked) return false;
     // Read at the gesture, so a source edit in another pane cannot be overwritten
     // by a graph callback which captured an older render.
     try {
@@ -69,8 +69,10 @@ export function useGraphBuffer(
       model.pushStackElement();
       applyDraft(model, `${JSON.stringify(next, null, 2)}\n`);
       model.pushStackElement();
+      return true;
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Cannot edit this graph');
+      return false;
     }
   };
   return { path, buffer, graph, error: parsed.error, locked, edit };
