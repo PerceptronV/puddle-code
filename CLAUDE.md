@@ -628,8 +628,12 @@ Keep ask/spawn execution in `dispatch/turns.ts` and `dispatch/spawns.ts`; share 
 task and maintenance limits in `dispatch/service.ts`. Reobserve accepted creation
 after controller replacement, and read the owner ledger after a lost settlement.
 Only an ended call with no admitted or pending creation proves a definite refusal.
-Start/Apply resolution, lifecycle cleanup and authoring remain pending; do not
-advertise spawn support yet.
+Start/Apply resource resolution lives in `huddle/execution/resources.ts`. Require
+explicit account ids, current-profile login, matching declared scripted-turn
+providers and the source project; retain canonical registered worktrees. Recheck
+after asynchronous admission and before dispatch. Graphs declaring account/provider/
+project editors require `spawns: 1` at host and owner admission. Lifecycle cleanup
+and authoring remain pending; do not advertise spawn support yet.
 Migration 45 adds `huddle_runtime_turns`. Host-side exact asks live under
 `huddle/operations/turns/`, reusing `RuntimeProgrammeTurns.askFor` and the common
 busy gate. Shared ordered allocation/result reservation lives in

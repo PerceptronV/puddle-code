@@ -1451,8 +1451,16 @@ readiness, including after controller connection/reconciler replacement. Lost
 settlement replies require owner-ledger observation before another settlement.
 A definite refusal requires an ended host call with no admitted or pending creation;
 consumed claims with missing host evidence never authorise replay. Controller loss
-or maintenance does not stop accepted agents. Start/Apply resource resolution,
-lifecycle cleanup and user-facing spawn/resume/restart nodes remain unfinished.
+or maintenance does not stop accepted agents. Start/Apply now resolve declared
+account/provider/project resources alongside canonical registered worktrees.
+Accounts use explicit positive safe integer ids (numeric or canonical decimal
+strings), must be logged in in the current profile, and need a matching declared
+provider with scripted-turn support. Project bindings remain scoped to the huddle's
+project; account labels and implicit current/default selections are unavailable.
+Admission rechecks these choices after asynchronous preparation and before dispatch;
+Apply retains earlier activations' bindings. Launch, Apply and independent owner
+admission reject graphs declaring these resource editors without `spawns: 1`.
+Lifecycle cleanup and user-facing spawn/resume/restart nodes remain unfinished.
 No spawn capability is advertised until those pieces are connected.
 Private immutable revision documents and compare-and-swap activation records
 separate source publication from Apply/arming. Managed executions retain their

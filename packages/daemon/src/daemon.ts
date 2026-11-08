@@ -502,6 +502,8 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
     failedStartup.push(() => huddleCompletionDispatcher.close());
     const huddleExecution = new HuddleExecutionService({
       home: paths.home,
+      accounts,
+      adapters,
       profiles,
       projects,
       sessions,

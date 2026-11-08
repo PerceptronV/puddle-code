@@ -7,6 +7,8 @@ import {
   resolveHuddleVariables,
   type HuddleStart,
   type HuddleRevisionActivation,
+  type HuddleComponent,
+  type HuddleJson,
 } from '@puddle/shared';
 import type { HuddleDefinitionSnapshot } from '../definitions/capture.js';
 import { ApiError } from '../../http/errors.js';
@@ -18,6 +20,10 @@ export function huddleExecutionBindings(
   worktrees: string[],
   agent?: (reference: string, worktree: string) => string,
   observeSession?: (reference: string, worktree: string, kind: 'any' | 'agent') => string,
+  resources?: (
+    component: HuddleComponent,
+    values: Record<string, HuddleJson>,
+  ) => Record<string, string>,
 ) {
   resolveHuddleVariables(snapshot.definition, variables);
   const bindings: HuddleRevisionActivation['bindings'] = {};
@@ -42,12 +48,12 @@ export function huddleExecutionBindings(
     if (component.capabilities.includes('sessions') && !observing && !agent)
       unsupported('The huddle agent-operation bridge is not available yet');
     const values = resolveHuddleParameters(snapshot.definition, node, component, variables);
-    const resolved: Record<string, string> = {};
+    const resolved: Record<string, string> = resources?.(component, values) ?? {};
     for (const [name, parameter] of Object.entries(component.parameters)) {
       const value = values[name];
       if (value === undefined) continue;
-      if (['account', 'project', 'agent'].includes(parameter.editor))
-        unsupported('Account, agent and project resource bindings are not available yet');
+      if (['account', 'project', 'agent'].includes(parameter.editor) && !resources)
+        unsupported('Account, agent and project resource resolution is unavailable');
       if (parameter.editor !== 'worktree') continue;
       if (typeof value !== 'string' || !isAbsolute(value))
         throw ApiError.badRequest(

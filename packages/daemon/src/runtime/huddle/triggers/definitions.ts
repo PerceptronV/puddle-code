@@ -46,6 +46,13 @@ export function requireHuddleFeatures(
   for (const node of snapshot.definition.nodes) {
     const component = snapshot.components[node.id]!;
     if (
+      Object.values(component.parameters).some((parameter) =>
+        ['account', 'project', 'agent'].includes(parameter.editor),
+      ) &&
+      capabilities.spawns !== 1
+    )
+      throw new Error('This runtime does not support huddle spawn resource bindings');
+    if (
       node.source.kind === 'local' &&
       component.category === 'trigger' &&
       capabilities.customTriggers !== 1

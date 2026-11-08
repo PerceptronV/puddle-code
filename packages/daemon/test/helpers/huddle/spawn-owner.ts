@@ -14,6 +14,7 @@ import { launchOwner } from '../runtime-fixture.js';
 import type { HuddleOwnerClient } from '../../../src/runtime/huddle/transport/client.js';
 import { HuddleRevisionStore } from '../../../src/runtime/huddle/state/revisions.js';
 import { runtimeDirectory } from '../../../src/runtime/ownership/storage.js';
+import { huddleRevisionDigest } from '../../../src/huddle/definitions/revision.js';
 
 /** Real independent source/node/agent processes; the test is the explicit private spawn dispatcher. */
 export async function spawnOwnerFixture(enabled = true) {
@@ -21,6 +22,18 @@ export async function spawnOwnerFixture(enabled = true) {
   const f = huddleSpawnServiceFixture(120_000, capabilities);
   const binding = f.runtimes.get(f.scope.owner.runtime_id)!;
   const { snapshot, bindings } = spawnGraphSnapshot(binding.huddle_id!, f.request);
+  if (!enabled) {
+    // Older owners can run ordinary scripts, but cannot admit spawn resource declarations.
+    const worker = snapshot.definition.nodes.find((node) => node.id === 'worker')!;
+    for (const name of ['account', 'provider', 'project'] as const) {
+      delete snapshot.components.worker!.parameters[name];
+      delete worker.parameters[name];
+      delete (bindings.worker as Record<string, string>)[name];
+    }
+    snapshot.files['nodes/example/node.json'] = JSON.stringify(snapshot.components.worker);
+    snapshot.files['huddle.json'] = JSON.stringify(snapshot.definition);
+    snapshot.digest = huddleRevisionDigest(snapshot.files, snapshot.components);
+  }
   const launch = huddleOwnerLaunchSchema.parse({
     format: 1,
     role: 'huddle',

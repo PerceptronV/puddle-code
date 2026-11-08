@@ -39,9 +39,10 @@ import { ApiError } from '../../http/errors.js';
 import { huddleExecutionBindings } from './bindings.js';
 import { huddleHostIdentity } from './host.js';
 import { requireHuddleSource } from './source.js';
+import { huddleResourceBindings, type HuddleResourceStores } from './resources.js';
 
 type Authority = () => boolean;
-interface Dependencies {
+interface Dependencies extends HuddleResourceStores {
   home: string;
   profiles: Pick<ProfileStore, 'get'>;
   projects: Pick<ProjectStore, 'get'>;
@@ -213,6 +214,8 @@ export class HuddleExecutionService {
               ((reference, worktree) =>
                 this.deps.agentBinding!(profile, session.project_id, reference, worktree)),
             observeSession,
+            (component, values) =>
+              huddleResourceBindings(this.deps, profile, session.project_id, component, values),
           );
           prepared = prepareHuddleActivation(
             snapshot,
@@ -236,6 +239,8 @@ export class HuddleExecutionService {
               ((reference, worktree) =>
                 this.deps.agentBinding!(profile, session.project_id, reference, worktree)),
             observeSession,
+            (component, values) =>
+              huddleResourceBindings(this.deps, profile, session.project_id, component, values),
           );
           if (canonicalHuddleJson(current) !== canonicalHuddleJson(prepared.activation.bindings))
             throw ApiError.conflict(

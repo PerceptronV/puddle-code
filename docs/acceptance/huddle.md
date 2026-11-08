@@ -32,6 +32,42 @@ delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 No user CLI command is enabled yet.
 
+## Implemented: Start/Apply spawn resource admission
+
+`huddle/execution/resources.ts` resolves declared account, provider and project
+editors after literal/variable resolution. Account choices are positive safe integer
+ids or canonical decimal strings, retained as strings; labels, empty choices and
+implicit defaults do not select an account. Accounts must be logged in in the
+current profile and have a matching declared provider with scripted-turn support.
+Project choices must name the huddle's own active project. Existing worktree
+resolution still requires canonical registered absolute roots; source and target
+worktrees may differ within that project. This does not add cross-project authority.
+
+Start and Apply recompute resource bindings after storage admission and inside
+their later authority checks. A changed/unavailable choice rejects admission.
+Accepted activations retain their original bindings across Apply. Host launch and
+Apply, plus independent owner admission/arming, require `spawns: 1` for graphs
+declaring account/provider/project editors. An older owner remains inspectable and
+can execute ordinary scripts; rejected Apply leaves its current activation intact.
+
+The spawn capability remains **unadvertised** pending owned-agent cleanup on
+Interrupt/Stop/deadline. This change adds no public protocol or database version and
+does not enable spawn templates. Runtime-operation admission continues to recheck
+account/provider/placement authority before creating an agent.
+
+Automated checks use temporary repositories and isolated runtime processes. They
+cover malformed/ambiguous ids, account profile/login, unavailable and mismatched
+providers, logout during asynchronous admission, unsupported Start/Apply, numeric
+account variables, and changed account bindings across successful Apply. Fixture
+agents and owners are explicitly cleaned up; this is not real-provider or native
+supervisor acceptance.
+
+Verification: the regression run passed 166 of 167 checks across 26 files. The
+remaining new numeric-account fixture omitted its account editor declaration;
+after correction, both resource-admission tests passed on rerun. Shared/daemon/CLI
+TypeScript, scoped ESLint, formatting and diff checks passed. No production daemon,
+native desktop or real-provider session was used.
+
 ## Implemented: automatic daemon spawn dispatch
 
 The production daemon now composes `HuddleAgentSpawns` with the existing huddle
@@ -57,8 +93,8 @@ stopping an accepted agent; after release/replacement, the recorded operation is
 observed. Successful graph completion retains its agents. Ended invocations remain
 eligible for late result observation, without starting another script or agent.
 
-This is still gated by the **unadvertised** spawn contract. Start/Apply resource
-resolution, owned-agent cleanup on Interrupt/Stop/deadline and node templates remain
+This is still gated by the **unadvertised** spawn contract. Owned-agent cleanup
+on Interrupt/Stop/deadline and node templates remain
 required before user-facing spawn support is enabled. Automatic cleanup is not
 implied by the dispatcher; tests explicitly stop their fixture-owned agents. Native
 providers, supervisor replacement, SSH/reboot and packaged continuity still need
@@ -88,7 +124,7 @@ the owner is connected, without resuming cancelled script bodies.
 
 The proposed optional `spawns: 1` contract requires `operations: 2`. Schemas and
 owner/client gates understand it, but **default runtime and daemon metadata still
-omit it**: Start/Apply resource resolution and owned-agent cleanup must be completed before advertising spawn support. Older
+omit it**: owned-agent cleanup must be completed before advertising spawn support. Older
 owners retain their original capabilities and ask messages. The client refuses
 spawn commands locally when unsupported, preserving the connection; the server
 independently enforces its launch capability. Adoption metadata that lacks spawn
@@ -143,7 +179,7 @@ agent ask, then exact cleanup. The source owner is composed in the test process;
 the agent and node workers run as separate child processes. This proves the queue
 and host-service composition, **not** production owner IPC or native-provider
 acceptance. The private owner transport is now implemented as described above;
-resource resolution on Start/Apply and lifecycle cleanup remain required before advertising spawn support or enabling templates.
+Start/Apply resource resolution is also implemented above; lifecycle cleanup remains required before advertising spawn support or enabling templates.
 This earlier owner-local increment introduced no wire change.
 
 Verification, 2026-11-08: **112 tests in 18 files** passed across huddle operations,
