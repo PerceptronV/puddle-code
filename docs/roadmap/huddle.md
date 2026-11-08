@@ -26,6 +26,10 @@ ordinary owners.
 Revision-checked single-file source saves now reject detected concurrent edits;
 the graph UI currently shares ordinary editor conditional file saves. Full-capture
 digest save integration and retained graph view state remain unfinished.
+Internal queued Apply/Arm/Run/Interrupt now require the inspected owner and
+activation, preventing stale views from dispatching against a replacement.
+Bounded live-owner history reads validate execution/node/operation records;
+public history and lifecycle integration remain pending.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals except where explicitly documented
 in acceptance as implemented.

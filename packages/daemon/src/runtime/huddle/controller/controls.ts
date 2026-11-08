@@ -11,9 +11,20 @@ import type { RuntimeConnections } from '../../transport/connections.js';
 import { RuntimeConnectionLost } from '../../transport/client.js';
 import type { RuntimeReconciler } from '../../controller/reconcile.js';
 import type { HuddleOwnerClient } from '../transport/client.js';
+import {
+  requireHuddleControl,
+  type HuddleControlTarget,
+  type HuddleOwnerTarget,
+} from './observations.js';
+import {
+  huddleHistoryQuerySchema,
+  readHuddleHistoryPage,
+  type HuddleHistoryQuery,
+} from './history.js';
 
 interface Target {
   id: string;
+  incarnation: string;
   sessionId: string;
   client: HuddleOwnerClient;
 }
@@ -42,6 +53,7 @@ export class HuddleRuntimeControls {
     if (
       binding?.role !== 'huddle' ||
       binding.runtime_id !== target.id ||
+      binding.incarnation !== target.incarnation ||
       this.connections.getHuddle(target.id) !== target.client
     )
       throw unavailable();
@@ -50,13 +62,24 @@ export class HuddleRuntimeControls {
     sessionId: string,
     authorised: Authorised,
     action: (target: Target) => Promise<T>,
+    expected?: HuddleOwnerTarget,
   ): Promise<T> {
     return this.admission.run(async () => {
       const binding = this.runtimes.ownerOf(sessionId);
       if (binding?.role !== 'huddle') throw unavailable();
+      if (
+        expected &&
+        (binding.runtime_id !== expected.runtimeId || binding.incarnation !== expected.incarnation)
+      )
+        throw unavailable();
       const client = this.connections.getHuddle(binding.runtime_id);
       if (!client) throw unavailable();
-      const target = { id: binding.runtime_id, sessionId, client };
+      const target = {
+        id: binding.runtime_id,
+        incarnation: binding.incarnation,
+        sessionId,
+        client,
+      };
       this.check(target, authorised);
       let queue = this.queues.get(target.id);
       if (!queue) {
@@ -118,58 +141,117 @@ export class HuddleRuntimeControls {
   inspect(sessionId: string, authorised: Authorised) {
     return this.run(sessionId, authorised, (target) => this.inspectTarget(target, authorised));
   }
+  records(
+    sessionId: string,
+    expected: HuddleOwnerTarget,
+    input: HuddleHistoryQuery,
+    authorised: Authorised,
+  ) {
+    const query = huddleHistoryQuerySchema.parse(input);
+    return this.run(
+      sessionId,
+      authorised,
+      async (target) => {
+        const response = await target.client.request({ t: 'records', ...query });
+        this.check(target, authorised);
+        if (response.t !== 'records') throw unavailable();
+        return {
+          owner: { runtimeId: target.id, incarnation: target.incarnation },
+          ...readHuddleHistoryPage(query, response.rows),
+        };
+      },
+      { ...expected },
+    );
+  }
+  private async review(target: Target, expected: HuddleControlTarget, authorised: Authorised) {
+    requireHuddleControl(await this.inspectTarget(target, authorised), expected);
+  }
+  private requireDispatch(target: Target, authorised: Authorised) {
+    // Recheck synchronously at dispatch after every awaited review.
+    this.check(target, authorised);
+    if (this.runtimes.stopRequested(target.id))
+      throw ApiError.conflict('huddle_stopping', 'Stop has already been requested for this owner');
+  }
   private mutate(
     sessionId: string,
+    expected: HuddleControlTarget,
     request:
       | { t: 'arm'; expectedGeneration: number; autoStart: boolean }
       | { t: 'interrupt' }
       | { t: 'apply'; activation: HuddleActivationInput; expectedGeneration: number },
     authorised: Authorised,
   ) {
-    return this.run(sessionId, authorised, async (target) => {
-      if (this.runtimes.stopRequested(target.id))
-        throw ApiError.conflict(
-          'huddle_stopping',
-          'Stop has already been requested for this owner',
-        );
-      const response = await target.client.request(request);
-      if (response.t !== 'state') throw unavailable();
-      await this.observe(target, response.state, authorised);
-      return response.state;
-    });
+    const reviewed = { ...expected };
+    return this.run(
+      sessionId,
+      authorised,
+      async (target) => {
+        await this.review(target, reviewed, authorised);
+        this.requireDispatch(target, authorised);
+        const response = await target.client.request(request);
+        if (response.t !== 'state') throw unavailable();
+        await this.observe(target, response.state, authorised);
+        return response.state;
+      },
+      reviewed,
+    );
   }
-  arm(sessionId: string, expectedGeneration: number, autoStart: boolean, authorised: Authorised) {
-    return this.mutate(sessionId, { t: 'arm', expectedGeneration, autoStart }, authorised);
+  arm(
+    sessionId: string,
+    expected: HuddleControlTarget,
+    autoStart: boolean,
+    authorised: Authorised,
+  ) {
+    return this.mutate(
+      sessionId,
+      expected,
+      { t: 'arm', expectedGeneration: expected.generation, autoStart },
+      authorised,
+    );
   }
   apply(
     sessionId: string,
     activation: HuddleActivationInput,
-    expectedGeneration: number,
+    expected: HuddleControlTarget,
     authorised: Authorised,
   ) {
-    return this.mutate(sessionId, { t: 'apply', activation, expectedGeneration }, authorised);
+    return this.mutate(
+      sessionId,
+      expected,
+      {
+        t: 'apply',
+        activation: structuredClone(activation),
+        expectedGeneration: expected.generation,
+      },
+      authorised,
+    );
   }
-  interrupt(sessionId: string, authorised: Authorised) {
-    return this.mutate(sessionId, { t: 'interrupt' }, authorised);
+  interrupt(sessionId: string, expected: HuddleControlTarget, authorised: Authorised) {
+    return this.mutate(sessionId, expected, { t: 'interrupt' }, authorised);
   }
   trigger(
     sessionId: string,
+    expected: HuddleControlTarget,
     node: string,
     eventId: string,
     data: HuddleJson,
     authorised: Authorised,
   ) {
-    return this.run(sessionId, authorised, async (target) => {
-      if (this.runtimes.stopRequested(target.id))
-        throw ApiError.conflict(
-          'huddle_stopping',
-          'Stop has already been requested for this owner',
-        );
-      const response = await target.client.request({ t: 'run', node, eventId, data });
-      if (response.t !== 'run') throw unavailable();
-      await this.inspectTarget(target, authorised);
-      return { executionId: response.executionId, duplicate: response.duplicate };
-    });
+    const reviewed = { ...expected };
+    const input = structuredClone(data);
+    return this.run(
+      sessionId,
+      authorised,
+      async (target) => {
+        await this.review(target, reviewed, authorised);
+        this.requireDispatch(target, authorised);
+        const response = await target.client.request({ t: 'run', node, eventId, data: input });
+        if (response.t !== 'run') throw unavailable();
+        await this.inspectTarget(target, authorised);
+        return { executionId: response.executionId, duplicate: response.duplicate };
+      },
+      reviewed,
+    );
   }
   stop(
     sessionId: string,

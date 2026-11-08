@@ -1,3 +1,4 @@
+import { huddleControlTarget } from '../../../src/runtime/huddle/controller/observations.js';
 import { randomUUID } from 'node:crypto';
 import { existsSync, mkdirSync, readFileSync, symlinkSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
@@ -88,7 +89,7 @@ it('rechecks huddle activation inside the stop queue and retains uncertain Stop 
     const spy = vi
       .spyOn(controls.huddles, 'stop')
       .mockImplementationOnce(async (session, authority, check) => {
-        await controls.huddles.arm(session, f.client.state!.control.generation, false, authority);
+        await controls.huddles.arm(session, huddleControlTarget(f.client.state!), false, authority);
         return stop(session, authority, check);
       });
     await expect(removal.apply(review, 'stop', () => true)).rejects.toThrow('impact changed');

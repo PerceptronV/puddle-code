@@ -569,7 +569,13 @@ owners' inspection/recovery; it is not proof that they recovered.
 requires an installed capable release, validates captured activation before intent
 and observes uncertain dispatch without fallback. `runtime/huddle/lifecycle/` owns
 the role-specific preparation; `controller/controls.ts` serialises exact-owner
-Apply/Arm/Run/Interrupt/Stop. Migration 44 persists Stop consumption before sending
+Apply/Arm/Run/Interrupt/Stop. Apply/Arm/Run/Interrupt require an inspected owner and
+activation through `controller/observations.ts`; compare inside the queue and
+recheck authority/Stop synchronously at dispatch. Copy queued inputs. The internal
+`records` method binds one live owner and validates bounded history pages through
+`controller/history.ts`; ordinal cursors enumerate rows, not outcome updates.
+Refresh earlier pages for changed outcomes. Public lifecycle/history remains pending.
+Migration 44 persists Stop consumption before sending
 shutdown; repeat observation cannot send another Stop. The existing kill/archive
 paths delegate to these controls and refuse unresolved owner cleanup. Keep huddle
 controls in the common maintenance pause/drain. Automatic service cleanup excludes

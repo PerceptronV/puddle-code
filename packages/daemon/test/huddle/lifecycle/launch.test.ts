@@ -20,6 +20,7 @@ import { HuddlePlacements } from '../../../src/db/stores/huddle/placements.js';
 import { ProjectStore } from '../../../src/db/stores/projects.js';
 import { RuntimeLauncher } from '../../../src/runtime/lifecycle/launcher.js';
 import { RuntimeControls } from '../../../src/runtime/controller/controls.js';
+import { huddleControlTarget } from '../../../src/runtime/huddle/controller/observations.js';
 import { RuntimeConnections } from '../../../src/runtime/transport/connections.js';
 import { RuntimeConnectionLost } from '../../../src/runtime/transport/client.js';
 import { readRuntimeJson } from '../../../src/runtime/ownership/storage.js';
@@ -149,9 +150,15 @@ it('launches one pinned inactive owner, runs and interrupts it, then stops with 
     const client = f.connections.getHuddle(binding.runtime_id)!;
     expect(client.state).toMatchObject({ executing: false, control: { state: 'stopped' } });
     expect(existsSync(join(f.home, 'entered'))).toBe(false);
-    await f.controls.huddles.arm(f.session.id, client.state!.control.generation, false, () => true);
+    await f.controls.huddles.arm(
+      f.session.id,
+      huddleControlTarget(client.state!),
+      false,
+      () => true,
+    );
     const accepted = await f.controls.huddles.trigger(
       f.session.id,
+      huddleControlTarget(client.state!),
       'run',
       'one',
       f.home,
@@ -159,9 +166,20 @@ it('launches one pinned inactive owner, runs and interrupts it, then stops with 
     );
     await until(() => existsSync(join(f.home, 'entered')));
     expect(
-      await f.controls.huddles.trigger(f.session.id, 'run', 'one', f.home, () => true),
+      await f.controls.huddles.trigger(
+        f.session.id,
+        huddleControlTarget(client.state!),
+        'run',
+        'one',
+        f.home,
+        () => true,
+      ),
     ).toEqual({ ...accepted, duplicate: true });
-    await f.controls.huddles.interrupt(f.session.id, () => true);
+    await f.controls.huddles.interrupt(
+      f.session.id,
+      huddleControlTarget(client.state!),
+      () => true,
+    );
     expect(f.sessions.get(f.session.id).status).toBe('interrupted');
     expect(readFileSync(join(f.home, 'entered'), 'utf8')).toBe('x');
     runtimeRelease(f.home, '1.0.0').select();
@@ -231,7 +249,7 @@ it('preserves consumed Stop and refuses queued work after authority revocation',
     let authorised = true;
     const arm = f.controls.huddles.arm(
       f.session.id,
-      client.state!.control.generation,
+      huddleControlTarget(client.state!),
       false,
       () => authorised,
     );

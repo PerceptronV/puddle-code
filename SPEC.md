@@ -1433,7 +1433,13 @@ installed capable release, validates the retained activation before intent, pins
 the complete runtime and rechecks selection/authority before dispatch. Lost
 supervisor replies are observed without retry. A newly launched owner is stopped
 until an explicit Arm. Exact-owner queues provide Apply/Arm/Run/Interrupt/Stop and
-participate in common maintenance pause/drain. Migration 44 adds
+participate in common maintenance pause/drain. Apply/Arm/Run/Interrupt require the
+inspected runtime/incarnation and activation/generation, checked inside the queue
+before dispatch; stale commands cannot follow a replacement activation. Internal
+history reads bind one live owner and validate bounded execution/node/operation
+pages. Their ordinal cursors enumerate retained rows, so mutable outcomes require
+refreshing earlier pages. Public lifecycle/history projection remains pending.
+Migration 44 adds
 `huddle_stop_requests(runtime_id, session_id, requested_at)`; consumed Stop is
 observed after a lost reply. Existing session kill/archive delegates to huddle Stop
 and cannot archive unresolved ownership. Automatic service cleanup retains

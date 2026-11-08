@@ -11,6 +11,44 @@ placements/owner roles. The daemon launcher and lifecycle controls now integrate
 with session kill/archive; migration 44 retains Stop intent. No user CLI command
 is enabled yet.
 
+## Implemented: reviewed-owner commands and bounded history reads
+
+The internal daemon controller now requires an inspected runtime id, incarnation,
+control generation and activation id for Apply, Arm, Run and Interrupt. Activation
+identity binds both the captured revision and its resolved settings. The controller
+pins the owner before queueing, inspects and compares the activation inside the
+queue, then rechecks authority and consumed Stop immediately before dispatch.
+A queued Run cannot silently follow an earlier Apply to another activation.
+Request values are copied before queueing; callers cannot replace reviewed input
+by mutating their objects. Existing session kill/archive and reviewed host removal
+retain their exact-owner Stop policy and durable consumption.
+
+`HuddleRuntimeControls.records` reads executions, invocations and operations from
+one explicitly selected live owner, with query/record validation in
+`runtime/huddle/controller/history.ts`. Invocation/operation queries require an
+execution id; execution queries may filter by revision. Pages retain the ledger's
+256-row/1 MiB bounds and validate row ordering, identities, schemas and parent
+filters. Responses are discarded after authority loss or owner replacement.
+These are retained-row cursors, not a stream of updates: refresh a previous page
+to observe its mutable outcomes. An empty page retains the requested cursor.
+Unknown operations remain unknown.
+
+This increment adds no HTTP routes or UI controls, does not read stopped owners'
+ledgers, and does not change application 28.1, private owner contracts, ordinary
+runtime 1.1, or remote protocol 5. Public lifecycle admission, retained/offline
+history projection and the IDE's Start/Run/history integration remain pending.
+
+Verification: **184 tests in 31 files** passed across shared/huddle and
+daemon/huddle, including five new real isolated-owner controller tests and four
+history validation tests. They cover stale owner/incarnation/activation/generation,
+Apply before queued Run, observable results and mutable-page refresh, lost Run
+acknowledgement without redispatch, authority loss, Stop during inspection, and
+copied queued activation inputs. The existing pinned-launch, archive/removal,
+daemon replacement and host-update tests passed. Shared/daemon TypeScript and
+scoped ESLint passed. The first restricted run could not create temporary sockets;
+the successful run used isolated test processes with socket permission. No
+production daemon or native desktop was launched.
+
 ## Implemented: editable manifest graph and shared source drafts
 
 Graph views now edit the same Monaco text model as their `huddle.json` source tab.
