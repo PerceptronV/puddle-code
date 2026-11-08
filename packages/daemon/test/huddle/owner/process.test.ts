@@ -15,6 +15,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import {
   huddleOwnerLaunchSchema,
   HUDDLE_RUNTIME_CAPABILITIES,
+  dateHuddleTrigger,
   type HuddleOwnerLaunch,
 } from '@puddle/shared';
 import { atomicPrivateJson, ipcPath } from '@puddle/shared/node';
@@ -29,6 +30,7 @@ import {
 } from '../../../src/runtime/ownership/storage.js';
 import { acquireHostClaim } from '../../../src/security/claims.js';
 import { withInterval } from '../../helpers/huddle/interval.js';
+import { withSchedule } from '../../helpers/huddle/calendar.js';
 import { schedulerSnapshot } from '../../helpers/huddle/scheduler.js';
 import {
   prepare,
@@ -52,7 +54,7 @@ async function until(check: () => boolean | Promise<boolean>) {
     await sleep(20);
   }
 }
-function fixture(source: string, concurrency = 1, interval = false) {
+function fixture(source: string, concurrency = 1, interval: boolean | 'date' = false) {
   const base = prepare();
   if (interval) {
     base.home = realpathSync(base.home);
@@ -65,7 +67,9 @@ function fixture(source: string, concurrency = 1, interval = false) {
   snapshot.files['huddle.json'] = JSON.stringify(snapshot.definition);
   snapshot.digest = huddleRevisionDigest(snapshot.files, snapshot.components);
   if (interval) {
-    withInterval(snapshot);
+    if (interval === 'date')
+      withSchedule(snapshot, dateHuddleTrigger, { at: new Date(Date.now() + 1500).toISOString() });
+    else withInterval(snapshot);
     const root = join(base.home, '.puddle', 'huddle', huddleId);
     mkdirSync(root, { recursive: true });
     writeFileSync(join(root, 'huddle.json'), snapshot.files['huddle.json']!);
@@ -138,6 +142,38 @@ const wrap = (source: string) =>
   `import {HuddleNode} from 'puddlang/huddle'; import fs from 'node:fs'; export default HuddleNode({contract:'./node.json', async run({inputs}) { ${source} }});`;
 
 describe('independent huddle owner process', () => {
+  it('fires a one-off without a controller and does not fire it again after Resume', async () => {
+    const f = fixture(wrap('return {completed: inputs.value};'), 1, 'date');
+    const { client, child } = await start(f);
+    await arm(client);
+    client.close();
+    f.controller.release();
+    await sleep(1800);
+    const replacement = await acquireRuntimeControllerWhenAvailable(f.home);
+    controllers.push(replacement);
+    const observer = await connect(f, f.launch, replacement.record);
+    const records = () => observer.request({ t: 'records', collection: 'executions', after: 0 });
+    await until(async () => {
+      const response = await records();
+      return (
+        response.t === 'records' &&
+        response.rows.length === 1 &&
+        JSON.parse(response.rows[0]!.body).state === 'completed'
+      );
+    });
+    await observer.request({ t: 'interrupt' });
+    await arm(observer);
+    await sleep(200);
+    expect(await records()).toMatchObject({ t: 'records', rows: [expect.anything()] });
+    expect(await observer.request({ t: 'inspect' })).toMatchObject({
+      t: 'state',
+      state: { failure: null, control: { state: 'armed' } },
+    });
+    await observer.request({ t: 'shutdown' });
+    await until(() => child.exitCode !== null);
+    expect(child.exitCode).toBe(0);
+  });
+
   it('admits interval events without a controller, then interrupts and rearms future occurrences', async () => {
     const f = fixture(wrap('return {completed: inputs.value};'), 1, true);
     const { client, child } = await start(f);

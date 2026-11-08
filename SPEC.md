@@ -1386,8 +1386,17 @@ live in `intervals/current`; event/cursor/schedule progress commit together. Sta
 Resume and armed Apply start fresh schedules. Interrupt/Stop disarm; missing source
 or exhausted admission stops the timer and reports owner failure. Coalesce, skip
 and bounded catch-up describe missed timer occurrences, independently of graph queue
-policy. Timers share host memory admission and execution/storage budgets. Calendar,
-Filetree/Git/Puddle subscriptions and custom adapters remain unfinished.
+policy. Timers share host memory admission and execution/storage budgets.
+Optional `calendar: 1` adds daily/selected-weekday IANA-timezone schedules and exact
+one-off date/time nodes. `triggers/calendar/` uses daemon-only Temporal conversion:
+skip nonexistent local times and choose the earlier repeated time. Calendar/date
+state lives in `schedules/current`; progress/disposition and event admission commit
+atomically. Calendar Resume excludes paused time and preserves the consumed instant
+through clock rollback. One-off consumption persists within an activation; Apply
+and a new Start create fresh activation intent and can fire a past date again.
+A single timer serves all time sources, with bounded plans and a 366-day calendar
+lookback; larger gaps fail visibly. Filetree/Git/Puddle subscriptions and custom
+adapters remain unfinished.
 The runtime entry point selects a separate huddle owner from a strict private launch
 record. It reuses runtime/memory claims, host grants and lifetime checks; consumes
 launch intent once; and provides bounded authenticated controller commands.

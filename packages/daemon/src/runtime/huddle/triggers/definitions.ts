@@ -2,6 +2,8 @@ import {
   canonicalHuddleJson,
   coreHuddleComponents,
   intervalHuddleTrigger,
+  calendarHuddleTrigger,
+  dateHuddleTrigger,
   HUDDLE_INTERVAL_LIMIT,
   huddleIntervalSettingsSchema,
   resolveHuddleParameters,
@@ -49,5 +51,10 @@ export function requireHuddleFeatures(
       throw new Error('Unsupported captured built-in component');
     if (component.id === intervalHuddleTrigger.id && capabilities.timers !== 1)
       throw new Error('This runtime does not support huddle interval triggers');
+    if (
+      [calendarHuddleTrigger.id, dateHuddleTrigger.id].includes(component.id) &&
+      capabilities.calendar !== 1
+    )
+      throw new Error('This runtime does not support huddle calendar/date triggers');
   }
 }

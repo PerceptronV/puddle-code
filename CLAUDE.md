@@ -667,6 +667,18 @@ share graph budgets. Stop timers before lifecycle waits and on persistence failu
 Validate selected/live timer support before launch/Apply, preserving old owners.
 New arming generations reset anchors; never catch up stopped time or replay an
 admitted occurrence. Reuse the source-location check before autonomous admission.
+Optional `calendar: 1` adds one-off dates and daily/weekday timezone schedules.
+Keep civil-time conversion under `triggers/calendar/` with daemon-only Temporal;
+never use the renderer's timezone or hand-roll DST offsets. Skip missing local
+times and select the earlier overlap. `state/schedules.ts` commits admitted instants
+and one-off dispositions atomically with events. Preserve consumed dates across
+Resume; only a new activation resets them. Calendar Resume skips paused time and
+cannot move its cursor backwards. Bound lookback to 366 days, plans to 64 events
+per source and 32 calendar/date sources; share the single timer and 64-admission
+wake limit with intervals. Reserve calendar plan memory, release after the last
+one-off, and cache deadlines between progress changes. Validate named zones and
+exact date offsets before activation. Keep old owner capabilities supported and
+require the new capability before launch/Apply. Do not claim reboot recovery.
 Application 28.1 adds revision-checked `PUT /api/huddle/:profile/definitions/:id`:
 one manifest/layout publication per request, under the repository mutation lock.
 `huddle/definitions/save.ts` stages, rechecks captured source/authority and renames

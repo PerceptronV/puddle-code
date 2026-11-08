@@ -17,7 +17,79 @@ with session kill/archive; migration 44 retains Stop intent. Migration 45 adds
 host-side agent-turn identities; the owner mailbox now has private transport,
 and production daemon dispatch now supports declared attach/ask scripts. Migration
 46 retains exact cancellation attempts. Optional runtime `timers: 1` now admits
-interval events without a controller. No user CLI command is enabled yet.
+interval events without a controller. Optional `calendar: 1` adds timezone calendar
+and one-off date triggers. No user CLI command is enabled yet.
+
+## Implemented: calendar and one-off date triggers
+
+`puddle.trigger.calendar@1` exposes `timeZone` (named IANA zone, default UTC),
+`time` (24-hour HH:mm, default 09:00), unique ISO `weekdays` (1–7, default every
+day), `missed` and `maxCatchUp`. Calendar has the same coalesce/skip/bounded
+catch-up policy and event payload as Interval. Counts cover actual scheduled
+instants, excluding nonexistent civil times. The initial recurrence surface is
+daily or selected weekdays, not arbitrary cron/monthly/yearly rules.
+
+`puddle.trigger.date@1` takes required ISO `at` with seconds, optional milliseconds
+and an explicit Z/offset, on or after the Unix epoch. `past` defaults to `fire`;
+`skip` records a consumed skip if the date is already past when armed. A date
+that was future when armed still fires after a delayed wake. Its event uses the
+same four fields, with occurrences 1 and skipped 0. Node settings and the execution
+review explain activation behaviour. Creating/editing/saving never arms a trigger.
+
+Civil-time logic lives under `daemon/runtime/huddle/triggers/calendar/` using
+`@js-temporal/polyfill@0.5.1`, a daemon-only dependency. It picks the earlier
+ambiguous instant and compares the resulting local time to the requested time;
+nonexistent times are skipped rather than shifted. This follows the
+[Temporal disambiguation contract](https://tc39.es/proposal-temporal/docs/zoneddatetime.html#static-methods).
+Timezone conversion uses the pinned Node runtime's timezone database, not the
+renderer or the host's default timezone. Settings are validated before activation,
+including independent-owner requests. Existing active captured code is unaffected
+by source edits until Apply.
+
+`state/schedules.ts` retains one bounded `schedules/current` record under ledger
+format 1: exact activation/generation, calendar `through` instant, or date
+pending/admitted/skipped disposition. Source identity plus activation/scheduled
+instant deduplicates events. Admission, inbox/execution/source cursor and schedule
+progress commit together. Queue refusal preserves both durable progress and the
+prepared plan. Reopen retains consumption. Calendar Resume excludes paused time
+without moving an already-consumed instant backwards. Date Resume retains admitted
+or skipped disposition. **Apply, including unchanged source, or Start after Stop
+creates a new activation and may fire a past date again.** Stopped-owner recovery
+and reboot are not inferred from ledger persistence.
+
+One owner timer serves intervals and up to 32 calendar/date nodes. Calendar owners
+reserve 1 MiB from the common allowance for bounded plans; interval-only owners
+retain their 64 KiB reservation. Deadlines cache by consumed progress, so interval
+wake-ups do not repeatedly convert future calendar dates. Each source plan has at
+most 64 events; each wake admits at most 64 total. There is no timer after the last
+one-off is consumed. Long future deadlines are rechecked at most once per day.
+Calendar lookback is limited to 366 elapsed days, with a bounded civil-date scan;
+a larger observation gap reports a fault without advancing progress. Inspect
+accepted work, then explicitly Stop/Start to schedule from now. Missing source,
+resource exhaustion and persistence failure retain the existing visible-fault path.
+
+Optional **`calendar: 1`** gates launch/Apply and independent owner admission.
+Existing owners without calendar support remain supported. Older candidate daemons
+cannot adopt calendar-capable owners. No public protocol, ordinary runtime, ledger
+SQLite version, application migration or desktop persistence change is needed.
+
+Verification: deterministic tests cover New York spring/fall DST,
+Lord Howe's half-hour shift, Apia's skipped date, local weekdays, bounded catch-up,
+coalesced counts, rollback and excessive gaps. Ledger tests cover reopen/Resume,
+past-date dispositions, real queue refusal, stale plans and validation before
+activation. An isolated owner fires and completes a date without a controller,
+then preserves it through reconnect/Resume. Headless authoring tests verify calendar
+and date settings, saved source and absence of execution requests; light/dark
+screenshots were visually reviewed after shared theme transitions settled.
+The final huddle, shared installation and host-update regression suite passed
+**631 tests in 98 files**, with **4 tests skipped in 2 files**. Public API tests
+refuse an unsupported date runtime before launch intent and verify schedule
+replacement on Apply. A deterministic owner-timer test admits once across a
+repeated hour. Existing execution-review and interval browser checks pass.
+Shared/daemon/CLI TypeScript builds, web typechecking, repository ESLint/Prettier,
+70 contrast pairs in each theme, semantic-colour checks and `git diff --check` pass.
+Native sleep, supervisor/SSH continuity, owner-crash/reboot recovery, real-provider
+completion and full packaged release acceptance remain open.
 
 ## Implemented: independent interval triggers
 
@@ -34,7 +106,7 @@ and releases it when disarmed. No renderer or controller timer is involved. The
 next wake-up is the nearest occurrence (capped at one day), not idle polling.
 Schedule calculation uses UTC instants; clock rollback never repeats an ordinal.
 Clock jumps are reconciled at the next wake-up. Calendar/timezone/DST schedules
-and one-off dates remain pending.
+and one-off dates are described in the newer implementation section above.
 
 `state/intervals.ts` stores one bounded `intervals/current` record in ledger
 format 1. Activation/generation, anchor and last admitted ordinal are retained.

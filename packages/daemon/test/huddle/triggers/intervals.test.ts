@@ -175,7 +175,7 @@ it('turns a timer-state read failure into a reported fault instead of an uncaugh
   });
   await vi.advanceTimersByTimeAsync(1000);
   expect(failed).toHaveBeenCalledExactlyOnceWith(
-    expect.objectContaining({ message: 'Interval triggers: state unreadable' }),
+    expect.objectContaining({ message: 'Time triggers: state unreadable' }),
   );
   expect(vi.getTimerCount()).toBe(0);
   read.mockRestore();

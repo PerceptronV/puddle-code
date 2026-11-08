@@ -38,6 +38,7 @@ interface RecordFilter {
 }
 export type HuddleCollection =
   | 'intervals'
+  | 'schedules'
   | 'inbox'
   | 'cursors'
   | 'executions'

@@ -1,5 +1,24 @@
 # The puddle communication protocol
 
+Optional private huddle capability **`calendar: 1`** enables the version-1
+`puddle.trigger.calendar` and `puddle.trigger.date` built-ins. Older owners without
+this capability remain supported; older candidates cannot adopt owners requiring
+it. Launch/Apply and independent owner validation check the exact capability.
+Application 28.4, ordinary runtime 1.1, ledger format 1 and database schema 46 are
+unchanged. Components use existing parameter/event shapes; no public message changes.
+
+The bounded `schedules/current` ledger record holds calendar progress and one-off
+pending/admitted/skipped disposition. Admission, source cursor and schedule progress
+commit together. Event identity includes source, activation and scheduled instant;
+it excludes control generation so Resume cannot replay a consumed occurrence.
+Calendar Resume excludes paused time without moving progress backwards. One-offs
+retain consumption within an activation. New Apply/Start intent creates a fresh
+activation and can fire a past one-off again. Calendar conversion uses an explicit
+IANA timezone, skips missing civil times and selects the earlier repeated time;
+coalesce/skip/catch-up count actual instants. Observation gaps over 366 days block
+until explicit lifecycle recovery. These records do not enable automatic reboot
+or owner-crash recovery.
+
 Optional private huddle capability **`timers: 1`** enables the version-1
 `puddle.trigger.interval` built-in. Launch/Apply and owner validation require this
 capability before arming interval graphs. Existing owners without timers remain

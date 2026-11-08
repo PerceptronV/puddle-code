@@ -2,9 +2,9 @@
 
 Huddles are project orchestration graphs powered by puddlang. This guide describes
 the implemented local/SSH workflow. The [roadmap](roadmap/huddle.md) covers the full
-design; [acceptance](acceptance/huddle.md) records verified behavior and remaining
-work. Interval triggers are available on supporting runtimes. File/Git/session
-subscriptions, calendar triggers, agent spawn/resume nodes and authoring CLI/skills
+design; [acceptance](acceptance/huddle.md) records verified behaviour and remaining
+work. Interval, calendar and one-off date triggers are available on supporting
+runtimes. File/Git/session subscriptions, agent spawn/resume nodes and authoring CLI/skills
 remain unfinished. Native provider, supervisor and reboot acceptance is pending.
 
 ## Create and edit
@@ -28,7 +28,8 @@ Several huddles can live in the same worktree. The directory id is stable; the
 display name can change. Source files are ordinary project files, suitable for Git
 and agent editing. Runtime records are kept separately in private Puddle storage.
 
-Use **Add node** to add Run, Result, an agent template or a local contract path.
+Use **Add node** to add Run, Result, a time trigger, an agent template or a local
+contract path.
 Agent templates require application 28.3. They immediately publish editable source
 files, then add a reference to the graph draft. **Undo** removes that reference;
 it leaves the published files intact. After a failed reply, inspect the files
@@ -70,8 +71,8 @@ validation permits execution.
 
 Add **Interval**, connect its `event` output, and configure the interval in
 milliseconds (1 second to 24 hours; default 1 minute). This is a fixed-duration
-schedule, independent of timezones or daylight-saving rules. Calendar schedules
-and one-off dates are still pending. A huddle can have at most 32 interval nodes.
+schedule, independent of timezones or daylight-saving rules. A huddle can have
+at most 32 interval nodes.
 
 The first occurrence is one interval after arming. **Start** and **Resume** arm
 automatic triggers; **Apply** starts fresh schedules for the new revision when
@@ -98,6 +99,41 @@ source, exhausted admission limit or persistence failure stops timer admission
 and appears in runtime inspection. Inspect accepted executions, restore the
 resource, then explicitly Stop/Start; failed occurrences are not silently consumed.
 Retained timer state does not yet establish automatic owner-crash or reboot recovery.
+
+## Run on a calendar or a one-off date
+
+**Calendar** runs at a local `HH:mm` time on selected weekdays in an explicit
+IANA timezone. Defaults are `09:00`, `UTC` and every day. Weekdays are a JSON list
+from 1 (Monday) to 7 (Sunday), for example `[1,2,3,4,5]` for weekdays.
+Nonexistent clock times during a daylight-saving gap are skipped. Repeated clock
+times fire once, at the earlier occurrence. The owner uses its installed Node
+runtime's timezone database; changing the computer's default timezone has no effect.
+
+Calendar uses the same coalesce/skip/catch-up settings and event fields as Interval.
+Counts include actual scheduled instants, excluding skipped civil times. Resume
+starts from now and does not catch up paused time. It preserves the last admitted
+instant if the clock moved backwards. A running owner's observation gap longer
+than 366 days reports a fault instead of attempting unbounded catch-up. Inspect
+accepted work and explicitly Stop/Start to start a new schedule from now.
+
+**Date and time** takes an exact ISO timestamp with seconds and `Z` or an offset,
+for example `2027-03-01T09:00:00+01:00`; optional milliseconds are supported.
+Dates before 1970 are rejected. Choose what to do if the date is already past
+when armed: **fire** (default) or **skip**. A future date that passes while the
+running owner is asleep still fires once on waking. Once admitted or skipped,
+it stays consumed through Interrupt/Resume and ledger reopening for that activation.
+
+**Apply**, even for unchanged source, creates a new activation. **Start** after
+Stop creates a new owner/activation. Both reset one-off consumption: a past date
+set to **fire** may run again. Choose **skip** or change/remove the date when
+that is not intended. Saving alone does not reset or execute anything.
+
+These nodes require runtime capability `calendar: 1`; old runtimes remain usable
+for their supported graphs. Up to 32 calendar/date nodes can coexist with 32
+interval nodes. All use one owner timer, existing execution/storage budgets and
+explicit memory admission. Completed one-offs leave no idle timer. Closing the
+frontend does not stop an armed owner. Host sleep/reboot and owner-crash recovery
+still require separate native acceptance; retained state alone is not that promise.
 
 ## Prompt existing agents
 

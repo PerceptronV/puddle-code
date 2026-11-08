@@ -9,6 +9,7 @@ import type { HuddleDefinitionSnapshot } from '../../../huddle/definitions/captu
 import { restoreHuddleDefinition } from '../../../huddle/definitions/restore.js';
 import { HuddleLedger } from '../state/ledger.js';
 import { intervalDefinitions } from '../triggers/definitions.js';
+import { scheduleDefinitions } from '../triggers/calendar/definitions.js';
 import { HuddleRevisionStore } from '../state/revisions.js';
 
 /** Pure source/binding validation shared by daemon admission and the independent owner. */
@@ -66,6 +67,7 @@ export function prepareHuddleActivation(
     }
   }
   intervalDefinitions(restored, activation);
+  scheduleDefinitions(restored, activation);
   return { snapshot: restored, activation };
 }
 

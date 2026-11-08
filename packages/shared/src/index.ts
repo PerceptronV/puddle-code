@@ -72,6 +72,7 @@ export * from './runtime/huddle/routing.js';
 export * from './runtime/huddle/worker.js';
 export * from './runtime/huddle/revisions.js';
 export * from './runtime/huddle/triggers/interval.js';
+export * from './runtime/huddle/triggers/calendar.js';
 export * from './runtime/huddle/owner.js';
 export * from './runtime/huddle/capabilities.js';
 export * from './runtime/huddle/operations/agents.js';
@@ -116,3 +117,4 @@ export {
 
 export * from './huddle/components/core.js';
 export * from './huddle/components/interval.js';
+export * from './huddle/components/calendar.js';

@@ -1,4 +1,5 @@
 import { intervalHuddleTrigger } from './interval.js';
+import { calendarHuddleTrigger, dateHuddleTrigger } from './calendar.js';
 import { huddleComponentSchema } from '../../api/huddle/components.js';
 
 export const manualHuddleTrigger = huddleComponentSchema.parse({
@@ -19,8 +20,11 @@ export const huddleResultReadout = huddleComponentSchema.parse({
 });
 /** Built-ins use the same portable contracts as project-local components. */
 export const coreHuddleComponents = new Map(
-  [manualHuddleTrigger, huddleResultReadout, intervalHuddleTrigger].map((component) => [
-    `${component.id}@${component.version}`,
-    component,
-  ]),
+  [
+    manualHuddleTrigger,
+    huddleResultReadout,
+    intervalHuddleTrigger,
+    calendarHuddleTrigger,
+    dateHuddleTrigger,
+  ].map((component) => [`${component.id}@${component.version}`, component]),
 );

@@ -44,10 +44,11 @@ agent templates now materialise project-local source, with worktree/session sele
 prompt substitution and bounded feedback settings. An isolated two-agent test verifies
 reply exchange and approval exit; spawn/resume and native-provider acceptance remain
 pending. The [usage guide](../huddle.md) describes the implemented slice.
-Phase 4 now has the first autonomous built-in: runtime-owned interval triggers,
-durable occurrence admission, coalesce/skip/bounded catch-up, and explicit timer
-capability gating. Calendar, Filetree, Git, Puddle lifecycle subscriptions and
-custom trigger/readout workers remain unfinished.
+Phase 4 now has runtime-owned interval, one-off date/time and daily/selected-weekday
+calendar triggers, durable occurrence admission, coalesce/skip/bounded catch-up,
+explicit timezone/DST semantics and capability gating. Calendar lookback is bounded
+to 366 days; broader recurrence rules, Filetree, Git, Puddle lifecycle subscriptions
+and custom trigger/readout workers remain unfinished.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals except where explicitly documented
 in acceptance as implemented.
