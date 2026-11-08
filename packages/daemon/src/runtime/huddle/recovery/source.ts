@@ -1,4 +1,5 @@
 import { join } from 'node:path';
+import { requireHuddleDescendantsEnded } from './containment.js';
 import { canonicalHuddleJson, runtimeRetiredSchema } from '@puddle/shared';
 import { atomicPrivateJson } from '@puddle/shared/node';
 import type { RuntimeBinding } from '../../../db/stores/runtimes.js';
@@ -14,12 +15,13 @@ import {
 } from '../state/readers/activation.js';
 import { readRetainedHuddleRevision } from '../state/revisions.js';
 
-/** A different verified boot fences every old descendant, including detached script children. */
+/** Fence old descendants through verified boot change or recorded kernel containment. */
 export function acquireHuddleRecoverySource(
   home: string,
   binding: RuntimeBinding,
   boot: string | null,
   autoStartOnly = false,
+  allowSameBoot = false,
 ) {
   const claims = acquireRuntimeRetirementClaims(home, binding.runtime_id);
   const extra: Array<{ release(): void }> = [];
@@ -27,8 +29,12 @@ export function acquireHuddleRecoverySource(
     extra.push(acquireHostClaim(home, `huddle-state:${binding.runtime_id}`));
     extra.push(acquireHostClaim(home, `huddle-revisions:${binding.runtime_id}`));
     const source = huddleBindingLaunch(home, binding);
-    if (!boot || !source.boot_id || boot === source.boot_id || binding.state === 'exited')
+    if (!boot || !source.boot_id || binding.state === 'exited')
       throw new Error('Recovery requires an unresolved owner from a verified earlier host boot');
+    const sameBoot = boot === source.boot_id;
+    if (sameBoot && (!allowSameBoot || autoStartOnly))
+      throw new Error('Recovery requires an unresolved owner from a verified earlier host boot');
+    const containment = sameBoot ? requireHuddleDescendantsEnded(home, source) : undefined;
     if (autoStartOnly) {
       const control = readRecordedHuddleControl(home, source.scope);
       if (source.capabilities.autoStart !== 1 || control.state !== 'armed' || !control.autoStart)
@@ -57,6 +63,7 @@ export function acquireHuddleRecoverySource(
     retireRuntimeMemoryGrant(home, source.identity, claims);
     return {
       source,
+      containment,
       activation,
       snapshot,
       release() {

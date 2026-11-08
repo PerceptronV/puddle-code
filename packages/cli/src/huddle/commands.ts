@@ -52,7 +52,9 @@ auto_start boolean as expected. This changes only the current run's reboot polic
 not its schedules/cursors. Only armed runs recover automatically; fresh Start defaults off.
 Recover requires {owner} from runtime recovery inspection (host 28.15+). It restores
 the last active graph after a verified reboot, preserving queued work/cursors and
-interrupting running scripts without replay. Same-boot recovery is unavailable.
+interrupting running scripts without replay. To recover a crashed owner on Linux
+cgroup v2, add after: "owner-crash" (host 28.18+ and supporting owner). This requires
+recorded containment and confirmed descendant exit; omitting after stays reboot-only.
 Pass the existing HTTP request body as JSON; no targets, variables or event ids
 are filled automatically. Start/Apply/Resume arm triggers and may execute code.
 Never retry a failed mutation automatically: inspect runtime/history first.

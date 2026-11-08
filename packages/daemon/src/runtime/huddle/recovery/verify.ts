@@ -1,3 +1,4 @@
+import { requireHuddleDescendantsEnded } from './containment.js';
 import { createHash } from 'node:crypto';
 import { closeSync, constants, fstatSync, openSync, readSync, existsSync } from 'node:fs';
 import { join } from 'node:path';
@@ -34,6 +35,7 @@ export function verifyHuddleRecoverySeed(home: string, launch: HuddleOwnerLaunch
       )
   )
     throw new Error('Huddle recovery provenance changed');
+  if (recovery.containment) requireHuddleDescendantsEnded(home, source, recovery.containment);
   const directory = retainedHuddleDirectory(home, launch.identity.runtime_id);
   const file = join(directory, 'huddle.sqlite');
   if (existsSync(file + '-wal') || existsSync(file + '-journal'))

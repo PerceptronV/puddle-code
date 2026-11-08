@@ -125,6 +125,7 @@ export class RuntimeLauncher {
     target: { runtimeId: string; incarnation: string },
     authorised: () => boolean,
     autoStartOnly = false,
+    allowSameBoot = false,
   ): Promise<void> {
     return this.admit(async () => {
       const lifetime = await this.lifetime();
@@ -150,6 +151,7 @@ export class RuntimeLauncher {
         binding,
         lifetime.bootId,
         autoStartOnly,
+        allowSameBoot && selected.huddle.crashRecovery === 1,
       );
       try {
         await launchHuddleOwner(
@@ -160,6 +162,7 @@ export class RuntimeLauncher {
           {
             snapshot: recovery.snapshot,
             recoverySource: recovery.source,
+            recoveryContainment: recovery.containment,
             hostId: recovery.source.scope.hostId,
             variables: recovery.activation.variables,
             bindings: recovery.activation.bindings,

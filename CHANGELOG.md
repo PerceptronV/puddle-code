@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Recover a crashed Linux systemd/cgroup-v2 huddle explicitly after its recorded script scope is confirmed empty, reusing existing queued-work recovery without replaying agent actions (application 28.18).
+
 - Inspect huddle trigger health and accepted backlog from the IDE or CLI/MCP, including timer coalescing/skipping and one-off date disposition; reuse existing subscriptions and lifecycle feeds (application 28.17).
 
 - Add an opt-in Auto-start after reboot setting for huddle runs, restoring only armed runs through existing recovery while preserving schedules/cursors; expose the same setting in CLI/MCP (application 28.16).

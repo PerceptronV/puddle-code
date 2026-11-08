@@ -88,6 +88,10 @@ it('recovers one recorded owner after reboot, resumes queued work and subscripti
     await expect(f.launcher.recoverHuddle(f.session.id, target, () => true)).rejects.toThrow(
       /earlier host boot/,
     );
+    await expect(
+      f.launcher.recoverHuddle(f.session.id, target, () => true, false, true),
+    ).rejects.toThrow(/containment proof/);
+    expect(f.run).not.toHaveBeenCalled();
     // Model a previous boot's durable state without killing or rebooting this host.
     launch.boot_id = randomUUID();
     atomicPrivateJson(join(directory, 'launch.json'), launch);

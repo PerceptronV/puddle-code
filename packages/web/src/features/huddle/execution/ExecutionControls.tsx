@@ -203,6 +203,22 @@ export function ExecutionControls({
               Recover after reboot
             </button>
           )}
+          {runtime.data?.recovery?.crash_recovery && (
+            <button
+              type="button"
+              className={graphActionClass}
+              title="Recover a crashed Linux cgroup-v2 owner after its script descendants are confirmed stopped. Queued events resume; interrupted scripts are not replayed."
+              disabled={busy || commands.status.review || session.status === 'archived' || locked}
+              onClick={() =>
+                void send({
+                  action: 'recover',
+                  input: { owner: runtime.data!.recovery!.owner, after: 'owner-crash' },
+                }).catch(() => {})
+              }
+            >
+              Recover after crash
+            </button>
+          )}
           {!owner && !runtime.data?.recovery && (
             <button
               type="button"

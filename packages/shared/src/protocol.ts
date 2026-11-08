@@ -369,7 +369,8 @@
 // 28.15: explicit huddle reboot recovery and opt-in recorded recovery target.
 // 28.16: explicit huddle auto-start setting and armed reboot recovery at host startup.
 // 28.17: optional read-only huddle trigger health and accepted backlog inspection.
-export const PROTOCOL_VERSION = { major: 28, minor: 17 } as const;
+// 28.18: explicit huddle crash recovery using retained Linux cgroup-v2 descendant proof.
+export const PROTOCOL_VERSION = { major: 28, minor: 18 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

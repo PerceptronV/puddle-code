@@ -8,6 +8,7 @@ import {
   huddleOwnerLaunchSchema,
   type HuddleRevisionActivation,
   type HuddleOwnerLaunch,
+  type HuddleContainment,
   type RuntimeSupervisor,
 } from '@puddle/shared';
 import { atomicPrivateJson } from '@puddle/shared/node';
@@ -33,6 +34,7 @@ import { requireHuddleRuntimeSelection, type HuddleRuntimeRelease } from '../con
 export interface HuddleLaunchOptions {
   snapshot: HuddleDefinitionSnapshot;
   recoverySource?: HuddleOwnerLaunch;
+  recoveryContainment?: HuddleContainment;
   hostId: string;
   variables: HuddleRevisionActivation['variables'];
   bindings: HuddleRevisionActivation['bindings'];
@@ -122,6 +124,7 @@ export async function launchHuddleOwner(
           identity,
           lifetime.bootId!,
           selected.huddle,
+          options.recoveryContainment,
         )
       : prepareHuddleActivation(
           options.snapshot,

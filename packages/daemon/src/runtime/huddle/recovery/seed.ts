@@ -1,3 +1,4 @@
+import { requireHuddleDescendantsEnded } from './containment.js';
 import { closeSync, constants, fsyncSync, openSync, readdirSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
@@ -9,6 +10,7 @@ import {
   huddleOperationRecordSchema,
   HUDDLE_REVISION_LIMITS,
   type HuddleOwnerLaunch,
+  type HuddleContainment,
   type RuntimeIdentity,
   type HuddleRuntimeCapabilities,
 } from '@puddle/shared';
@@ -24,20 +26,25 @@ import {
 } from '../state/readers/database.js';
 import { HuddleRevisionStore, readRetainedHuddleRevision } from '../state/revisions.js';
 
-/** Caller holds source retirement/state claims and has verified a later host boot. */
+/** Caller holds source retirement/state claims and has positively fenced old descendants. */
 export function copyHuddleRecoverySeed(
   home: string,
   source: HuddleOwnerLaunch,
   identity: RuntimeIdentity,
   boot: string,
   capabilities: HuddleRuntimeCapabilities,
+  containment?: HuddleContainment,
 ) {
   if (
     !source.boot_id ||
-    source.boot_id === boot ||
+    (source.boot_id === boot && (!containment || capabilities.crashRecovery !== 1)) ||
     identity.runtime_id === source.identity.runtime_id
   )
-    throw new Error('Recovery needs a new runtime after a verified host reboot');
+    throw new Error('Recovery needs a new runtime and verified descendant fencing');
+  if (containment) {
+    if (source.boot_id !== boot) throw new Error('Unexpected same-boot containment proof');
+    requireHuddleDescendantsEnded(home, source, containment);
+  }
   if (
     identity.profile_id !== source.identity.profile_id ||
     identity.project_id !== source.identity.project_id ||
@@ -167,6 +174,7 @@ export function copyHuddleRecoverySeed(
     sourceBoot: source.boot_id,
     boot,
     seed: createHash('sha256').update(bytes).digest('hex'),
+    ...(containment ? { containment } : {}),
   });
   return { recovery, snapshot, activation, scope };
 }

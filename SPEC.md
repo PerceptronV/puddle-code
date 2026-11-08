@@ -2037,6 +2037,16 @@ global backlog includes older activations. Ready means installed, not external
 reachability. Missing source or owner failure does not prevent inspection, and
 stale targets cannot follow replacements. Public capability projection is opt-in;
 no ledger/database migration or agent runtime protocol change is needed.
+Application 28.18 adds explicit same-boot recovery for Linux systemd/cgroup-v2
+huddle owners. The owner records its exact kernel containment before project code
+starts. Under existing retirement/state claims, recovery requires the recorded
+group to be empty or removed on the unchanged boot/hierarchy/namespace. The seed
+and replacement recheck the same provenance. No PID absence or marker substitutes,
+and recovery never signals unconfirmed processes. Existing copied-ledger recovery
+preserves queued work/cursors and never replays historical agent operations.
+`after: "owner-crash"` is explicit; omitted mode remains reboot-only. The opt-in
+UI offer is metadata, not exit proof. Automatic crash recovery and macOS/detached
+containment remain unfinished.
 
 ### Puddlang runs
 

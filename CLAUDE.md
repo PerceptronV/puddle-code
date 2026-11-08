@@ -977,6 +977,14 @@ unresolved owners in `runtime/huddle/recovery/startup.ts`, skips same-boot/stopp
 interrupted/archived/Stop-requested runs, and rechecks the opted-in armed intent under
 recovery claims. It reuses the recovery launcher and never retries accepted dispatch.
 Apply and Interrupt/Resume preserve the setting; fresh Start defaults off.
+Application 28.18 adds explicit `after: "owner-crash"` recovery for Linux
+systemd/cgroup-v2 owners with crashRecovery-1. Keep kernel containment capture and
+proof under `runtime/huddle/recovery/containment.ts`; record before project code,
+verify the same namespace/device/inode and an empty or removed cgroup under source
+claims, then recheck in seed copying and replacement startup. Missing PID/service
+state never proves child exit. Do not signal stored PIDs or substitute reboot-only
+recovery automatically. Metadata offers are opt-in and never dispatch authority.
+Automatic crash recovery and macOS/detached fencing remain unfinished.
 Application 28.17 and optional triggerInspection-1 expose installed source health
 and retained accepted backlog through owner `inspection/`, the existing exact
 control queue and web `execution/triggers/`. Reuse existing lifecycle/status feeds;

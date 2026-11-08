@@ -34,6 +34,52 @@ delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## Implemented: explicit Linux owner-crash recovery
+
+Application **28.18** adds `after: "owner-crash"` to the existing recovery request.
+Omitting `after` (including requests from older clients) remains reboot-only.
+Optional runtime **`crashRecovery: 1`** requires `recovery: 1`. A supporting owner
+running in its independent systemd service on Linux cgroup v2 records its kernel
+scope before any project code starts. The private immutable
+`huddle-containment.json` binds full owner identity, boot, exact service cgroup path,
+filesystem device/inode and cgroup namespace. Legacy, launchd, detached and v1
+owners have no such evidence and retain reboot recovery.
+
+The existing recovery launcher holds launch/dispatch/owner/memory/state/revision
+claims, then requires that exact cgroup to report `populated 0` or be removed from
+the same verified kernel hierarchy. A missing PID, lost connection, service marker,
+changed namespace, replaced group or permission error does not establish this.
+Recovery does not kill processes or restart a service to manufacture evidence.
+It keeps the permanent old-owner fence and existing single predecessor/successor
+mapping. Both seed copying and the replacement owner recheck the retained proof.
+The existing copied-ledger recovery interrupts in-flight scripts, retains pending
+roots and trigger cursors, and observes historical agent operations without replay.
+No database/ledger migration or new agent lifecycle implementation is needed.
+
+The IDE offers **Recover after crash** only when opt-in runtime inspection
+(`include_recovery=true&include_crash_recovery=true`) returns
+`recovery.crash_recovery: true` from matching retained Linux containment metadata.
+The offer is not proof of descendant exit; dispatch rechecks under claims.
+CLI/MCP use `{owner, after: "owner-crash"}` and require host 28.18 for explicit modes.
+Old runtime inspection replies omit the new field. Source and recovery logic stay
+under `runtime/huddle/recovery/`, sharing existing scope and lifetime controls.
+
+Focused checks exercise capture, refusal while a descendant remains populated,
+empty/removed acceptance, identity/boot/namespace rejection and missing-proof
+refusal, alongside the existing reboot/queued-work/no-replay and CLI paths.
+All **three focused checks passed**, alongside shared/daemon/CLI type builds,
+web type checking, scoped lint and generated SDK drift verification. Kernel
+observations are simulated by bounded filesystem fixtures on this macOS host. Real systemd/cgroup-v2 crash acceptance remains required: run a node with a
+child process in an isolated installed service, kill only that huddle owner, verify
+recovery refuses until its cgroup is empty, then observe exactly one replacement,
+unchanged queued roots and no second agent dispatch. Also test lost recovery replies.
+Automatic crash detection/recovery and macOS/detached descendant fencing remain
+unfinished. Arbitrary external service requests are external effects; cgroup
+containment is not a sandbox against deliberate process migration.
+
+Kernel semantics: [cgroup-v2 populated state](https://docs.kernel.org/admin-guide/cgroup-v2.html)
+and [systemd control-group termination](https://www.freedesktop.org/software/systemd/man/262/systemd.kill.html).
+
 ## Implemented: trigger health and accepted backlog
 
 Application **28.17** and optional owner **`triggerInspection: 1`** add **Triggers**

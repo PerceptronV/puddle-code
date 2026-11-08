@@ -23,6 +23,7 @@ export class HuddleExecutionClient {
   readonly retainedHistory: boolean;
   readonly retainedRevision: boolean;
   readonly recovery: boolean;
+  readonly crashRecovery: boolean;
   readonly autoStart: boolean;
   readonly triggerInspection: boolean;
   constructor(
@@ -31,6 +32,7 @@ export class HuddleExecutionClient {
   ) {
     this.triggerInspection = supportsApplicationFeature(protocol, { major: 28, minor: 17 });
     this.autoStart = supportsApplicationFeature(protocol, { major: 28, minor: 16 });
+    this.crashRecovery = supportsApplicationFeature(protocol, { major: 28, minor: 18 });
     this.recovery = supportsApplicationFeature(protocol, { major: 28, minor: 15 });
     this.supported = supportsApplicationFeature(protocol, { major: 28, minor: 2 });
     this.readoutObservation = supportsApplicationFeature(protocol, { major: 28, minor: 6 });
@@ -87,6 +89,7 @@ export class HuddleExecutionClient {
       if (this.recovery) query.set('include_recovery', 'true');
       if (this.autoStart) query.set('include_auto_start', 'true');
       if (this.triggerInspection) query.set('include_trigger_inspection', 'true');
+      if (this.crashRecovery) query.set('include_crash_recovery', 'true');
       return huddleRuntimeInspectionSchema.parse(
         await this.request(`${path}/runtime${query.size ? '?' + query.toString() : ''}`),
       );
@@ -98,6 +101,8 @@ export class HuddleExecutionClient {
     }
     if (command.action === 'auto-start' && !this.autoStart)
       throw new Error('Huddle auto-start settings require daemon protocol 28.16 or newer');
+    if (command.action === 'recover' && command.request.after !== undefined && !this.crashRecovery)
+      throw new Error('Explicit recovery modes require daemon protocol 28.18 or newer');
     if (command.action === 'recover' && !this.recovery)
       throw new Error('Huddle recovery requires daemon protocol 28.15 or newer');
     if (command.action === 'observe-readout' && !this.readoutObservation)

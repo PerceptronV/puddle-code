@@ -121,7 +121,10 @@ scripts are interrupted and historical agent operations remain observation-only.
 The IDE and CLI/MCP expose this action. Application 28.16 adds a per-run auto-start
 switch and a paginated host-startup pass through the same recovery launcher. Only
 armed, opted-in predecessors from an earlier boot are recovered. Native reboot
-acceptance and same-boot recovery remain pending.
+acceptance remains pending. Application 28.18 adds explicit same-boot recovery
+for systemd/cgroup-v2 owners with retained containment and positive empty-scope
+evidence. Automatic crash recovery and macOS/detached descendant fencing remain
+pending.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals except where explicitly documented
 in acceptance as implemented.
@@ -672,8 +675,10 @@ origin across reconstruction; they do not relabel old work as a new incarnation.
 Explicit reboot recovery now uses verified boot change and retirement claims to
 fence descendants, one atomic predecessor/successor mapping, a copied ledger and
 restored subscriptions/queues. Old operations retain observation-only host authority.
-Explicit per-run auto-start is implemented in 28.16; same-boot descendant fencing
-and native reboot acceptance remain unfinished.
+Explicit per-run auto-start is implemented in 28.16. Application 28.18 adds
+explicit same-boot recovery with retained Linux systemd/cgroup-v2 containment;
+automatic crash recovery, macOS/detached descendant fencing and native platform
+acceptance remain unfinished.
 Legacy rows without provenance must retain their verified original launch identity;
 never backfill them from a replacement's identity.
 

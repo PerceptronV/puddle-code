@@ -53,6 +53,7 @@ export function huddleExecutionRoutes(service: HuddleExecutionService): Hono {
             c.req.query('include_recovery') === 'true',
             c.req.query('include_auto_start') === 'true',
             c.req.query('include_trigger_inspection') === 'true',
+            c.req.query('include_crash_recovery') === 'true',
           ),
         ),
       ),

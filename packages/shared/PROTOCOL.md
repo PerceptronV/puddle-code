@@ -1,5 +1,22 @@
 # The puddle communication protocol
 
+Application **28.18** adds optional `after: "reboot" | "owner-crash"` to the
+existing huddle recovery request; absent means reboot-only. CLI/MCP gate explicit
+modes on 28.18. Opt-in `include_crash_recovery=true` alongside `include_recovery=true`
+adds optional `recovery.crash_recovery: true` only when retained Linux containment
+metadata matches the host. This offer is not proof of exit or replacement authority.
+
+Optional owner **`crashRecovery: 1`**, requiring recovery-1, records a private
+format-1 cgroup-v2 containment record before project execution. The existing private
+recovery provenance may carry `containment` only for a same-boot recovery; a launch
+with it requires crashRecovery-1. It binds full original identity, boot, kernel
+cgroup path/device/inode and namespace. Source claims, seed copying and replacement
+startup require unchanged proof of an empty/removed cgroup. Ordinary reboot recovery
+keeps its existing provenance shape. Older owners/clients retain their previous
+contracts. No application database, owner ledger or agent runtime protocol change.
+The implementation is explicit Linux systemd/cgroup-v2 recovery; automatic crash
+recovery and other platform descendant fencing remain unfinished.
+
 Application **28.17** adds read-only local/SSH `POST
 /api/huddle/:profile/sessions/:sid/triggers` with `{target}`. Optional owner
 **`triggerInspection: 1`** accepts private `trigger-inspect` with exact generation
@@ -49,7 +66,8 @@ in-flight scripts before scheduler construction. Pending roots, captured revisio
 trigger cursors, budgets and receipts survive. Historical operations retain their
 original callers and are observation-only through descendants. No agent runtime
 protocol or ledger format bump is needed. Application 28.16 adds explicit auto-start
-as described above. Same-boot recovery and native reboot acceptance remain unfinished.
+as described above. Application 28.18 adds explicit Linux same-boot recovery;
+automatic crash recovery and native platform acceptance remain unfinished.
 
 Application **28.14** adds `resume-agent`/`restart-agent` source templates and an
 optional component `lifecycle: "resume" | "restart"` declaration. The declared

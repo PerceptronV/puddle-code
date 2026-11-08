@@ -1,3 +1,5 @@
+import { hasHuddleContainment } from '../../runtime/huddle/recovery/containment.js';
+import { huddleBindingLaunch } from '../../runtime/huddle/ownership/binding.js';
 import { realpathSync } from 'node:fs';
 import { readRetainedHuddleHistory } from './history/retained.js';
 import { projectHuddleHistory } from './history/projection.js';
@@ -141,15 +143,28 @@ export class HuddleExecutionService {
     includeRecovery = false,
     includeAutoStart = false,
     includeTriggerInspection = false,
+    includeCrashRecovery = false,
   ): Promise<HuddleRuntimeInspection> {
     const scope = this.scope(profile, id, authority);
     const recovery = () => {
       if (!includeRecovery || !this.deps.launcher?.recoverHuddle) return {};
       const candidate = this.deps.runtimes.unresolvedHuddle(id);
+      let crashRecovery = false;
+      if (candidate && includeCrashRecovery) {
+        try {
+          crashRecovery = hasHuddleContainment(
+            this.deps.home,
+            huddleBindingLaunch(this.deps.home, candidate),
+          );
+        } catch {
+          /* Missing retained metadata cannot offer same-boot recovery. */
+        }
+      }
       return candidate
         ? {
             recovery: {
               owner: { runtimeId: candidate.runtime_id, incarnation: candidate.incarnation },
+              ...(crashRecovery ? { crash_recovery: true as const } : {}),
             },
           }
         : {};
@@ -344,7 +359,13 @@ export class HuddleExecutionService {
     await this.deps.storage?.assertAdmission([this.deps.home, scope.session.worktree_path]);
     scope.check();
     try {
-      await this.deps.launcher.recoverHuddle(id, input.owner, scope.valid);
+      await this.deps.launcher.recoverHuddle(
+        id,
+        input.owner,
+        scope.valid,
+        false,
+        input.after === 'owner-crash',
+      );
     } catch (error) {
       scope.check();
       if (error instanceof ApiError) throw error;

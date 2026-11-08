@@ -78,7 +78,7 @@ const definitions = [
   ],
   [
     'recover',
-    'Recover the exact recorded huddle owner after a verified host reboot (host 28.15+). Supply request {owner: {runtimeId, incarnation}} from runtime recovery inspection. Restores the last active source, queued events and trigger cursors; interrupted scripts are not replayed. May resume automatic triggers. Same-boot recovery is unavailable. Never retry after a lost reply; inspect runtime/history.',
+    'Recover the exact recorded huddle owner after a verified host reboot (host 28.15+). Supply request {owner: {runtimeId, incarnation}} from runtime recovery inspection. Restores the last active source, queued events and trigger cursors; interrupted scripts are not replayed. May resume automatic triggers. For same-boot owner crashes on Linux cgroup v2, supply after: "owner-crash" (host 28.18+ and a supporting owner); recovery requires recorded containment and positive descendant-exit evidence. Omitting after retains reboot-only behaviour. Never retry after a lost reply; inspect runtime/history.',
     false,
   ],
   [

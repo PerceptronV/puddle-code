@@ -1,3 +1,4 @@
+import { recordHuddleContainment } from './recovery/containment.js';
 import { inspectHuddleTriggers } from './inspection/triggers.js';
 import { verifyHuddleRecoverySeed } from './recovery/verify.js';
 import { HuddleLifecycleMailbox } from './operations/lifecycle/mailbox.js';
@@ -251,6 +252,7 @@ export class HuddleOwner {
       if (!supportsHuddleRuntime(memory.launch.capabilities))
         throw new Error('Huddle launch requires unsupported runtime capabilities');
       releaseLifetime = await prepareRuntimeLifetime(home, memory.launch);
+      recordHuddleContainment(home, memory.launch);
       verifyHuddleRecoverySeed(home, memory.launch);
       owner = new HuddleOwner(home, memory, workerEntry);
       owner.releaseLifetime = releaseLifetime;
