@@ -1,5 +1,6 @@
 import type { RuntimeProgrammeTurns } from '../../../runtime/controller/programme-turns.js';
-import type { HuddleTurnScope, HuddleTurnAuthority } from './scope.js';
+import type { HuddleTurnScope } from '@puddle/shared';
+import type { HuddleTurnAuthority } from './authority.js';
 import type { HuddleTurnStore } from './store.js';
 
 /** The private owner bridge supplies authority; no browser lease or synthetic programme is used. */

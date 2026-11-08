@@ -12,7 +12,8 @@ import { reserveRuntimeTurn } from '../../../db/stores/runtime-results/admission
 import type { ResultCapacityLimits } from '../../../db/stores/runtime-results/limits.js';
 import { ApiError } from '../../../http/errors.js';
 import type { RuntimeTurnCaller } from '../../../runtime/controller/turns/caller.js';
-import { huddleTurnScopeSchema, type HuddleTurnScope, type HuddleTurnAuthority } from './scope.js';
+import { huddleTurnScopeSchema, type HuddleTurnScope } from '@puddle/shared';
+import type { HuddleTurnAuthority } from './authority.js';
 import { HUDDLE_TURN_BINDING_LIMITS, type HuddleTurnBindingLimits } from './limits.js';
 import { requireHuddleTurnScope, requireHuddleTurnAuthority } from './authority.js';
 

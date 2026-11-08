@@ -593,8 +593,13 @@ invocation, declared worktree/agent and request before using this adapter. Read
 huddle outcomes without marking them consumed; acknowledge only after the owner
 has durably stored the exact result. Preserve operation identity after rejection,
 revocation, acknowledgement and reclamation. Observation/cancellation of admitted
-work must not imply new-dispatch authority. The private owner bridge is not wired
-and `sessions` capabilities remain rejected at source admission.
+work must not imply new-dispatch authority. `runtime/huddle/operations/` owns the
+durable script ask queue and declared session/worktree resolution. Optional
+`operations: 1` enables private page/claim/settle commands; preserve legacy owner
+metadata and never claim twice after a lost reply. Store exact outcome/receipt
+before replying, and retain late results without routing interrupted graph output.
+The production daemon dispatch loop remains pending; `sessions` capabilities
+remain rejected at source admission.
 Migration 44 persists Stop consumption before sending
 shutdown; repeat observation cannot send another Stop. The existing kill/archive
 paths delegate to these controls and refuse unresolved owner cleanup. Keep huddle

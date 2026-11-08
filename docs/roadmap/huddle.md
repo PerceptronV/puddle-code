@@ -33,8 +33,10 @@ Bounded live-owner history reads validate execution/node/operation records;
 application 28.2 exposes explicit public projections. Stopped-owner history, active
 revision detail remain pending. Host-side exact agent-turn admission now shares
 the ordinary dispatcher, with schema-45 huddle caller identities and owner receipt
-retention. The private owner operation bridge and production agent nodes remain
-pending; agent-capable graphs are still rejected at Start/Apply.
+retention. The private owner mailbox now connects script attach/ask calls to
+durable intent, single-consumption claims and exact-result settlement, with an
+optional runtime capability. The production daemon dispatch loop and agent nodes
+remain pending; agent-capable graphs are still rejected at Start/Apply.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals except where explicitly documented
 in acceptance as implemented.
@@ -521,7 +523,9 @@ Revalidate scope and exact targets after asynchronous work and at dispatch.
 This requires a new host operation bridge. The host-side exact-turn adapter is
 now implemented under `huddle/operations/turns/`, sharing the ordinary dispatcher
 with separate durable huddle identities and result receipts. Private owner
-transport/composition and spawn/attach/resume integration remain pending. Ordinary
+transport and script attach/ask queueing now live under `runtime/huddle/operations/`;
+production daemon dispatch/resource admission and spawn/resume integration remain
+pending. Ordinary
 puddlang runner operations still depend on a daemon-owned run record. Extract/reuse their agent
 semantics with an explicit owner caller type and durable invocation keys. During
 daemon absence, owner-local triggers and scripts can continue; operations needing

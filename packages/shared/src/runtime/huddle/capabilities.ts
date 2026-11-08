@@ -7,6 +7,7 @@ export const huddleRuntimeCapabilitiesSchema = z.strictObject({
   definition: version,
   component: version,
   ledger: version,
+  operations: version.optional(),
 });
 export type HuddleRuntimeCapabilities = z.infer<typeof huddleRuntimeCapabilitiesSchema>;
 export const HUDDLE_RUNTIME_CAPABILITIES: Readonly<HuddleRuntimeCapabilities> = Object.freeze({
@@ -14,14 +15,16 @@ export const HUDDLE_RUNTIME_CAPABILITIES: Readonly<HuddleRuntimeCapabilities> = 
   definition: 1,
   component: 1,
   ledger: 1,
+  operations: 1,
 });
 
 export function supportsHuddleRuntime(value: unknown): value is HuddleRuntimeCapabilities {
   const parsed = huddleRuntimeCapabilitiesSchema.safeParse(value);
   return (
     parsed.success &&
-    Object.entries(HUDDLE_RUNTIME_CAPABILITIES).every(
-      ([key, version]) => parsed.data[key as keyof HuddleRuntimeCapabilities] === version,
-    )
+    (['owner', 'definition', 'component', 'ledger'] as const).every(
+      (key) => parsed.data[key] === HUDDLE_RUNTIME_CAPABILITIES[key],
+    ) &&
+    (parsed.data.operations === undefined || parsed.data.operations === 1)
   );
 }

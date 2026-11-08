@@ -3,7 +3,6 @@ import { join } from 'node:path';
 import {
   huddleOwnerLaunchSchema,
   huddleOwnerStateSchema,
-  HUDDLE_RUNTIME_CAPABILITIES,
   supportsHuddleRuntime,
   type HuddleOwnerLaunch,
   type HuddleOwnerRequest,
@@ -19,6 +18,7 @@ import { HuddleRevisionController } from './control/revisions.js';
 import { admitManualHuddle } from './control/manual.js';
 import { HuddleScheduler } from './execution/scheduler.js';
 import { HuddleOwnerServer } from './transport/server.js';
+import { HuddleOperationMailbox } from './operations/mailbox.js';
 
 /** One independent graph owner. It never opens the application's database or creates a PTY. */
 export class HuddleOwner {
@@ -27,6 +27,7 @@ export class HuddleOwner {
   private readonly revisions: HuddleRevisionController;
   private readonly scheduler: HuddleScheduler;
   private readonly transport: HuddleOwnerServer;
+  private readonly operations: HuddleOperationMailbox;
   private status: HuddleOwnerState['state'] = 'running';
   private failure: string | null = null;
   private observation = 0;
@@ -52,10 +53,22 @@ export class HuddleOwner {
         memory.allowance,
       );
       this.revisions = new HuddleRevisionController(this.ledger, this.store);
+      this.operations = new HuddleOperationMailbox(
+        launch.identity,
+        this.ledger,
+        this.revisions,
+        () => this.persist(),
+        memory.allowance,
+      );
       this.scheduler = new HuddleScheduler(this.ledger, this.revisions, {
         nodePath: process.execPath,
         entryPath: realpathSync(workerEntry),
         allowance: memory.allowance,
+        operation: (request, invocation, signal) => {
+          if (launch.capabilities.operations !== 1)
+            throw new Error('Owner has no host-operation capability');
+          return this.operations.request(request, invocation, signal);
+        },
       });
       this.transport = new HuddleOwnerServer(home, launch, memory.allowance, (request) =>
         this.execute(request),
@@ -110,7 +123,7 @@ export class HuddleOwner {
       format: 1,
       role: 'huddle',
       contract: launch.contract,
-      capabilities: HUDDLE_RUNTIME_CAPABILITIES,
+      capabilities: launch.capabilities,
       identity: launch.identity,
       scope: launch.scope,
       build: launch.build,
@@ -161,6 +174,31 @@ export class HuddleOwner {
   private async execute(request: HuddleOwnerRequest): Promise<HuddleOwnerResponse> {
     const state = (): HuddleOwnerResponse => ({ t: 'state', id: request.id, state: this.state() });
     if (request.t === 'hello' || request.t === 'inspect') return state();
+    if (
+      request.t === 'operation-page' ||
+      request.t === 'operation-claim' ||
+      request.t === 'operation-settle'
+    ) {
+      if (this.memory.launch.capabilities.operations !== 1)
+        throw new Error('Owner has no host-operation capability');
+      if (request.t === 'operation-page')
+        return { t: 'operation-page', id: request.id, page: this.operations.page(request.after) };
+      if (request.t === 'operation-claim') {
+        if (this.stopping || this.interrupting || this.failure)
+          throw new Error('Huddle cannot dispatch operations during a lifecycle change');
+        return {
+          t: 'operation-claim',
+          id: request.id,
+          ...this.operations.claim(request.operationId),
+        };
+      }
+      return {
+        t: 'operation-settled',
+        id: request.id,
+        operationId: request.scope.operationId,
+        result: this.operations.settle(request.scope, request.result),
+      };
+    }
     if (request.t === 'records') {
       return {
         t: 'records',

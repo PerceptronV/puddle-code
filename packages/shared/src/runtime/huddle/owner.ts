@@ -4,6 +4,12 @@ import { huddleJsonSchema, huddleKeySchema } from '../../api/huddle/values.js';
 import { huddleLedgerIdentitySchema } from './state.js';
 import { huddleControlStateSchema, huddleRevisionActivationSchema } from './revisions.js';
 import { huddleRuntimeCapabilitiesSchema } from './capabilities.js';
+import {
+  huddleAgentOutcomeSchema,
+  huddleAgentOperationSchema,
+  huddleOperationPageSchema,
+} from './operations/mailbox.js';
+import { huddleTurnScopeSchema } from './operations/agents.js';
 
 /** Unshipped role contract. No agent/terminal message or retained record changes. */
 export const HUDDLE_OWNER_CONTRACT = 1 as const;
@@ -85,6 +91,14 @@ export const huddleOwnerRequestSchema = z.discriminatedUnion('t', [
     controllerEpoch: sequence,
   }),
   z.strictObject({ t: z.literal('inspect'), ...request }),
+  z.strictObject({ t: z.literal('operation-page'), ...request, after: sequence }),
+  z.strictObject({ t: z.literal('operation-claim'), ...request, operationId: z.uuid() }),
+  z.strictObject({
+    t: z.literal('operation-settle'),
+    ...request,
+    scope: huddleTurnScopeSchema,
+    result: huddleAgentOutcomeSchema,
+  }),
   z.strictObject({
     t: z.literal('apply'),
     ...request,
@@ -119,6 +133,19 @@ export const huddleOwnerResponseSchema = z.discriminatedUnion('t', [
   z.strictObject({ t: z.literal('changed'), observation: sequence }),
   z.strictObject({ t: z.literal('state'), id: z.uuid(), state: huddleOwnerStateSchema }),
   z.strictObject({ t: z.literal('accepted'), id: z.uuid() }),
+  z.strictObject({ t: z.literal('operation-page'), id: z.uuid(), page: huddleOperationPageSchema }),
+  z.strictObject({
+    t: z.literal('operation-claim'),
+    id: z.uuid(),
+    dispatch: z.boolean(),
+    operation: huddleAgentOperationSchema,
+  }),
+  z.strictObject({
+    t: z.literal('operation-settled'),
+    id: z.uuid(),
+    operationId: z.uuid(),
+    result: huddleAgentOutcomeSchema,
+  }),
   z.strictObject({
     t: z.literal('run'),
     id: z.uuid(),

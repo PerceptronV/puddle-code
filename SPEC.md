@@ -1452,8 +1452,18 @@ agent placement, canonical worktree and native turn. Both caller types allocate
 from the same ordered identity space and existing host result allowance. Huddle
 reads retain results until an exact private owner receipt confirms durable ledger
 storage; acknowledgement permits reclamation without reusing the operation id.
-The private owner transport and production agent-node composition remain pending,
-so this adapter does not yet enable agent-capable graphs. No agent IPC changes.
+The private owner mailbox under `runtime/huddle/operations/` now accepts script
+attach/ask calls against retained session/worktree bindings. Optional huddle
+capability `operations: 1` enables bounded operation pages, single-consumption
+claims and exact-result settlement. Intent and turn-budget consumption precede
+external dispatch; a lost claim reply cannot grant another send. Worker requests
+wait through controller loss within their existing cancellation/deadline limits.
+Settlement retains the agent outcome/receipt before worker/controller replies;
+late results cannot complete interrupted graphs. Pending requests share owner
+memory admission; result envelopes must fit the huddle JSON value limit.
+Legacy owners without the capability remain adoptable. The production daemon
+dispatch loop and agent-node admission remain pending, so application graphs still
+cannot use agent operations. No ordinary agent IPC changes.
 Node worktrees resolve to registered roots in the placement's project and are
 rechecked after asynchronous admission. Unsupported agent bridges and local
 trigger/readout adapters fail before launch. Missing source blocks new work but

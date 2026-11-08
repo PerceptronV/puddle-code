@@ -72,7 +72,7 @@ export const puddlangEventsSchema = z.object({ events: z.array(puddlangEventSche
 /** Private runner IPC uses the same validated shapes as public operations. */
 export const puddlangOperationSchema = z.discriminatedUnion('op', [
   z.object({ op: z.literal('spawn'), options: puddlangSpawnSchema }),
-  z.object({ op: z.literal('attach'), reference: z.string().min(1).max(100) }),
+  z.object({ op: z.literal('attach'), reference: z.string().min(1).max(4096) }),
   z.object({ op: z.literal('ask'), handle: puddlangHandleSchema, request: puddlangAskSchema }),
   z.object({ op: z.literal('stop'), handle: puddlangHandleSchema }),
 ]);

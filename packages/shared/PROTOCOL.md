@@ -27,9 +27,21 @@ huddle contracts, database schema and remote protocol 5 are unchanged.
 
 Private database migration **45** adds host-side huddle caller/agent-turn mappings
 and exact owner-result receipts. The internal dispatcher shares ordinary agent
-runtime 1.1 without new IPC or public routes; the private owner operation bridge
-and production agent-capable graphs remain pending. Release capability metadata
+runtime 1.1 without new agent IPC or public routes. Release capability metadata
 advertises the new database requirement through the existing schema boundary.
+
+The optional private huddle **`operations: 1`** capability now enables
+`operation-page`, `operation-claim` and `operation-settle` in owner contract 1.
+Pages bound agent-operation scope, request, state and outcome to 16 records/1 MiB.
+Claims consume intent before external dispatch and never grant a second send.
+Settlement stores the exact terminal result/receipt before confirmation; lost
+replies require observation. Legacy owners without this capability retain their
+original metadata and refuse these commands; adoption metadata must cover every
+required capability. Shared contracts live in `runtime/huddle/operations/`.
+Puddlang attach references now accept 4,096 characters for resolved huddle agent
+bindings; references alone grant no authority. Application, ordinary runtime,
+ledger and database versions are unchanged. Production daemon dispatch and
+agent-capable source admission remain pending.
 
 Application **28.1** adds local/SSH `PUT /api/huddle/:profile/definitions/:id`.
 The body contains an explicit project/worktree, `expected_digest` from inspection,

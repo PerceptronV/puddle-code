@@ -11,14 +11,73 @@ Runtime archives declare their internal huddle-role contracts;
 application 27.0 now includes huddle session identity and migration 43 records
 placements/owner roles. The daemon launcher and lifecycle controls now integrate
 with session kill/archive; migration 44 retains Stop intent. Migration 45 adds
-host-side agent-turn identities; the owner operation bridge remains pending. No user CLI command
+host-side agent-turn identities; the owner mailbox now has private transport,
+while its production daemon dispatcher remains pending. No user CLI command
 is enabled yet.
 
-## Implemented: host-side exact agent-turn admission (owner bridge pending)
+## Implemented: private owner agent-operation mailbox
+
+`runtime/huddle/operations/` connects captured script workers to an owner-local,
+durable ask queue. Attach resolves only explicitly declared session resources in
+the node's declared absolute worktree; an arbitrary worker handle cannot select
+another agent. Resolved activation references retain the exact target runtime,
+incarnation, placement, project and canonical worktree as bounded, inspectable
+`huddle-agent:` JSON strings. These strings grant no host authority. The shared
+puddlang attach field now permits up to 4,096 characters for these references;
+ordinary puddlang attach resolution is unchanged.
+
+The optional **`operations: 1`** huddle capability enables private
+`operation-page`, `operation-claim` and `operation-settle` commands. Existing
+owners without it remain adoptable and retain their original handshake metadata;
+they refuse mailbox commands. Candidate daemons lacking the capability cannot
+adopt owners that require it. Application 28.2, ordinary runtime 1.1, private owner
+contract 1, ledger format 1 and database schema 45 remain unchanged.
+
+Ask intent enters the ledger before the controller can claim it. A claim consumes
+the operation and root turn budget before any external send. Repeated claims only
+observe; a lost reply never permits redispatch, even when no agent turn was sent.
+The worker waits across controller disconnect within its existing deadline and
+cancellation policy. Unclaimed cancellation is positively unsent; cancellation
+after consumption preserves an unknown outcome. Owner crash still interrupts
+arbitrary TypeScript rather than reconstructing its stack.
+
+Settlement binds the exact retained operation scope and stores the complete agent
+outcome and host receipt before replying to the worker or controller. Repeated
+equal settlement observes the saved result; conflicting scope, outcome or receipt
+is refused. Late results can settle an interrupted operation without restarting
+the graph or emitting its outputs. Only confirmed durable settlement permits the
+host adapter to acknowledge and reclaim the corresponding agent result.
+
+Pages contain at most 16 records and 1 MiB of JSON, with ordered unique ordinals.
+Cursors enumerate rows; refresh earlier pages to observe outcome changes. Pending
+asks reserve shared owner memory within a 16 MiB/64-request local allowance before
+recording intent. Agent outcomes must fit the existing 256 KiB huddle JSON value
+limit, including JSON escaping and receipt overhead. A reply fitting the agent's
+raw-text limit may exceed this envelope; it is rejected without truncation or host
+acknowledgement. Production handling of this retained failure remains integration
+work.
+
+Tests drive a private controller explicitly against real isolated huddle/script
+and test-provider agent processes. They cover durable settlement before host
+acknowledgement, controller reconnect, consumed claims after a lost reply,
+conflicting/late settlement and legacy capability adoption. Unit checks cover
+binding scope, memory refusal, cancellation, single-spend root budgets and bounded
+wire contracts. This is not native-provider or production application acceptance.
+The daemon dispatch loop, resource resolution/admission, spawn/resume operations
+and shipped agent nodes remain pending. Start/Apply still reject `sessions`
+capabilities, so application graphs cannot yet use agent asks.
+
+Verification for this increment: 340 automated tests across 50 files passed
+(shared huddle/installation, daemon huddle/puddlang/startup/checkpoints and ordinary
+programme turns). Shared, daemon and CLI TypeScript builds, repository ESLint and
+Prettier checks passed. Native-provider and packaged continuity acceptance remain
+outstanding.
+
+## Implemented: host-side exact agent-turn admission
 
 `huddle/operations/turns/` now supplies a host-side ask/observe/acknowledge adapter
 for huddle callers. It is an internal building block: the private huddle-owner
-operation transport, source capability admission, spawn/attach/resume nodes and
+transport is implemented above, while source capability admission, spawn/attach/resume nodes and
 production composition are still pending. Start/Apply continue rejecting
 `sessions` capabilities; no graph can use this adapter through the application yet.
 

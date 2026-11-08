@@ -1,6 +1,9 @@
 import type { Db } from '../../../db/db.js';
 import { ApiError } from '../../../http/errors.js';
-import type { HuddleTurnAuthority, HuddleTurnScope } from './scope.js';
+import type { HuddleTurnScope } from '@puddle/shared';
+
+/** Observation includes exact admitted-turn cancellation, never a fresh prompt. */
+export type HuddleTurnAuthority = (mode: 'dispatch' | 'observe') => boolean;
 
 export function requireHuddleTurnAuthority(
   authorised: HuddleTurnAuthority,

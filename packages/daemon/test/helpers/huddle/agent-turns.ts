@@ -1,11 +1,14 @@
 import { randomUUID } from 'node:crypto';
 import { HUDDLE_RUNTIME_CAPABILITIES, RUNTIME_PROTOCOL_VERSION } from '@puddle/shared';
 import { HuddlePlacements } from '../../../src/db/stores/huddle/placements.js';
-import type { HuddleTurnScope } from '../../../src/huddle/operations/turns/scope.js';
+import type { HuddleTurnScope, HuddleRuntimeCapabilities } from '@puddle/shared';
 import type { runtimeDatabase } from '../runtime-database.js';
 
 /** Synthetic source owner authority; agent-owner process tests exercise the real destination. */
-export function huddleTurnScope(f: ReturnType<typeof runtimeDatabase>): HuddleTurnScope {
+export function huddleTurnScope(
+  f: ReturnType<typeof runtimeDatabase>,
+  capabilities: HuddleRuntimeCapabilities = HUDDLE_RUNTIME_CAPABILITIES,
+): HuddleTurnScope {
   const session = new HuddlePlacements(f.db).open({
     projectId: f.project.id,
     worktree: f.home,
@@ -25,7 +28,7 @@ export function huddleTurnScope(f: ReturnType<typeof runtimeDatabase>): HuddleTu
     build: 'runtime-test',
     protocol: RUNTIME_PROTOCOL_VERSION,
     releasePath: f.directory,
-    huddle: { id: session.huddle_id!, capabilities: HUDDLE_RUNTIME_CAPABILITIES },
+    huddle: { id: session.huddle_id!, capabilities },
   });
   f.db
     .prepare("UPDATE runtime_bindings SET state = 'running' WHERE runtime_id = ?")
