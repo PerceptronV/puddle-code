@@ -623,8 +623,13 @@ explicit worktree. Preserve captured choices across Apply. The independent owner
 now serves separate `spawn-*` IPC through its existing authenticated queue. Both
 client and owner gate it on optional `spawns: 1` (requires `operations: 2`), which
 remains absent from default build metadata. Keep older ask messages unchanged.
-Production dispatch, Start/Apply resolution, lifecycle cleanup and authoring remain
-pending; do not advertise spawn support yet.
+The production daemon now supplies the host spawn service to the shared dispatcher.
+Keep ask/spawn execution in `dispatch/turns.ts` and `dispatch/spawns.ts`; share scan,
+task and maintenance limits in `dispatch/service.ts`. Reobserve accepted creation
+after controller replacement, and read the owner ledger after a lost settlement.
+Only an ended call with no admitted or pending creation proves a definite refusal.
+Start/Apply resolution, lifecycle cleanup and authoring remain pending; do not
+advertise spawn support yet.
 Migration 45 adds `huddle_runtime_turns`. Host-side exact asks live under
 `huddle/operations/turns/`, reusing `RuntimeProgrammeTurns.askFor` and the common
 busy gate. Shared ordered allocation/result reservation lives in

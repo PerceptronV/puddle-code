@@ -39,6 +39,7 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Automatically dispatch huddle spawns and subsequent agent prompts through one bounded daemon queue, recovering accepted creation across controller replacement without replay. Preserve agents during maintenance/controller loss and distinguish definite admission refusal from uncertain outcomes. Spawn capability remains unadvertised pending Start/Apply admission and lifecycle cleanup.
 - Connect the independent huddle owner to bounded private spawn messages, preserving claims and readiness across controller reconnection. Keep the optional spawn contract unadvertised pending automatic dispatch and cleanup, and reject unsupported commands without dropping older-owner connections.
 - Add an owner-local huddle spawn outbox with retained claims/readiness, declared resource checks and execution-scoped handles for subsequent agent prompts. Share bounded worker waits with attach/ask and verify an isolated node-to-agent round trip after a lost spawn reply. Production spawn transport, dispatch and lifecycle cleanup remain pending.
 - Add host-side huddle agent creation, retained readiness receipts and exact-runtime cleanup through existing session/runtime services. Database schema 49 preserves readiness and consumed stop attempts across lost replies; cleanup leaves replacement agents untouched. Owner mailbox, lifecycle policy and node UI integration remain pending.

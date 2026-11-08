@@ -1,28 +1,25 @@
-import { setTimeout as delay } from 'node:timers/promises';
-import {
-  canonicalHuddleJson,
-  huddleJsonSchema,
-  huddleAgentOutcomeSchema,
-  type HuddleAgentOperation,
-  type HuddleAgentOutcome,
-} from '@puddle/shared';
+import type { HuddleAgentOperation, HuddleSpawnOperation } from '@puddle/shared';
 import type { RuntimeStore } from '../../../db/stores/runtimes.js';
 import type { RuntimeConnections } from '../../../runtime/transport/connections.js';
 import type { RuntimeReconciler } from '../../../runtime/controller/reconcile.js';
 import type { HuddleOwnerClient } from '../../../runtime/huddle/transport/client.js';
 import { HostAdmission } from '../../../host/lifecycle/admission.js';
 import type { HuddleAgentTurns } from '../turns/service.js';
-import { validateHuddleOperation } from './authority.js';
+import { validateHuddleOperation, validateHuddleSpawn } from './authority.js';
+import type { HuddleAgentSpawns } from '../spawns/service.js';
+import type { HuddleDispatchTask } from './context.js';
+import { executeHuddleAsk } from './turns.js';
+import { executeHuddleSpawn } from './spawns.js';
 
-interface Task {
-  operation: HuddleAgentOperation;
-  abort: AbortController;
-}
+type Task =
+  | ({ kind: 'ask' } & HuddleDispatchTask<HuddleAgentOperation>)
+  | ({ kind: 'spawn' } & HuddleDispatchTask<HuddleSpawnOperation>);
 interface Entry {
   id: string;
   client: HuddleOwnerClient;
   changed: () => void;
   cursor: number;
+  lane: Task['kind'];
   dirty: boolean;
   scanning: boolean;
   timer: NodeJS.Timeout | null;
@@ -44,6 +41,7 @@ export class HuddleAgentDispatcher {
       connections: RuntimeConnections;
       reconciler: RuntimeReconciler;
       turns: HuddleAgentTurns;
+      spawns?: HuddleAgentSpawns;
     },
   ) {}
 
@@ -67,6 +65,7 @@ export class HuddleAgentDispatcher {
       id,
       client,
       cursor: 0,
+      lane: 'ask',
       dirty: true,
       scanning: false,
       timer: null,
@@ -109,26 +108,53 @@ export class HuddleAgentDispatcher {
     let again = false;
     try {
       await this.admission.run(async () => {
-        if (!entry.cursor) entry.dirty = false;
-        // Yield after four bounded pages; never retain a whole owner's history.
+        if (!entry.cursor && entry.lane === 'ask') entry.dirty = false;
+        // Both lanes share four page passes and the host-wide task bound.
         for (let pass = 0; pass < 4 && this.current(entry); pass++) {
-          const response = await entry.client.request({ t: 'operation-page', after: entry.cursor });
-          if (!this.current(entry) || response.t !== 'operation-page') return;
+          const response = await entry.client.request({
+            t: entry.lane === 'ask' ? 'operation-page' : 'spawn-page',
+            after: entry.cursor,
+          });
+          if (!this.current(entry)) return;
+          if (
+            (entry.lane === 'ask' && response.t !== 'operation-page') ||
+            (entry.lane === 'spawn' && response.t !== 'spawn-page')
+          )
+            return;
+          if (response.t !== 'operation-page' && response.t !== 'spawn-page') return;
           if (
             response.page.next < entry.cursor ||
             response.page.records.some((row) => row.ordinal <= entry.cursor)
           )
             throw new Error('Owner operation page moved behind its requested cursor');
-          for (const { operation } of response.page.records) {
+          const candidates: Task[] =
+            response.t === 'operation-page'
+              ? response.page.records.map(({ operation }) => ({
+                  kind: 'ask',
+                  operation,
+                  abort: new AbortController(),
+                }))
+              : response.page.records.map(({ operation }) => ({
+                  kind: 'spawn',
+                  operation,
+                  abort: new AbortController(),
+                }));
+          for (const task of candidates) {
+            const operation = task.operation;
             const existing = entry.tasks.get(operation.scope.operationId);
             if (existing) {
-              existing.operation = operation;
+              if (existing.kind === 'ask' && task.kind === 'ask')
+                existing.operation = task.operation;
+              else if (existing.kind === 'spawn' && task.kind === 'spawn')
+                existing.operation = task.operation;
+              else throw new Error('Owner operation changed kind');
               if (!operation.active) existing.abort.abort(new Error('Huddle invocation ended'));
               continue;
             }
             if (
               operation.state === 'cancelled' ||
-              (operation.result && 'rejected' in operation.result)
+              (operation.result && 'rejected' in operation.result) ||
+              (task.kind === 'spawn' && operation.state === 'completed')
             )
               continue;
             if (this.tasks >= 64) {
@@ -137,8 +163,9 @@ export class HuddleAgentDispatcher {
             }
             const binding = this.deps.runtimes.get(entry.id);
             if (!binding) return;
-            validateHuddleOperation(this.deps.home, binding, entry.client, operation);
-            const task = { operation, abort: new AbortController() };
+            if (task.kind === 'ask')
+              validateHuddleOperation(this.deps.home, binding, entry.client, task.operation);
+            else validateHuddleSpawn(this.deps.home, binding, entry.client, task.operation);
             entry.tasks.set(operation.scope.operationId, task);
             this.tasks++;
             void this.admission
@@ -151,6 +178,15 @@ export class HuddleAgentDispatcher {
           }
           if (response.page.next === entry.cursor) {
             entry.cursor = 0;
+            if (
+              entry.lane === 'ask' &&
+              this.deps.spawns &&
+              entry.client.state?.capabilities.spawns === 1
+            ) {
+              entry.lane = 'spawn';
+              continue;
+            }
+            entry.lane = 'ask';
             again = entry.dirty;
             return;
           }
@@ -167,8 +203,6 @@ export class HuddleAgentDispatcher {
     }
   }
   private async execute(entry: Entry, task: Task) {
-    const { scope, request } = task.operation;
-    const turns = this.deps.turns;
     const authority = (mode: 'dispatch' | 'observe') => {
       const connected = this.current(entry);
       const stopping = this.deps.runtimes.stopRequested(entry.id);
@@ -187,107 +221,19 @@ export class HuddleAgentDispatcher {
       Math.max(1, Math.min(2_147_483_647, task.operation.deadline - Date.now())),
     );
     timer.unref();
-    let invoked = false;
-    let outcomeObserved = false;
-    let settlementAttempted = false;
-    const settle = async (result: HuddleAgentOutcome) => {
-      if (!huddleAgentOutcomeSchema.safeParse(result).success)
-        throw new Error('Agent reply exceeds huddle outcome limits');
-      settlementAttempted = true;
-      const saved = await entry.client.request({ t: 'operation-settle', scope, result });
-      if (!this.current(entry)) return;
-      if (
-        saved.t !== 'operation-settled' ||
-        saved.operationId !== scope.operationId ||
-        canonicalHuddleJson(saved.result) !== canonicalHuddleJson(result)
-      )
-        throw new Error('Owner did not confirm its exact retained outcome');
-      turns.acknowledge(scope, request, result.receipt, authority);
-    };
-    try {
-      if (task.operation.result && 'turn' in task.operation.result) {
-        turns.acknowledge(scope, request, task.operation.result.receipt, authority);
-        return;
-      }
-      if (task.operation.state === 'prepared') {
-        if (!authority('dispatch')) return;
-        const claimed = await entry.client.request({
-          t: 'operation-claim',
-          operationId: scope.operationId,
-        });
-        if (!this.current(entry) || claimed.t !== 'operation-claim') return;
-        if (
-          canonicalHuddleJson(claimed.operation.scope) !== canonicalHuddleJson(scope) ||
-          canonicalHuddleJson(huddleJsonSchema.parse(claimed.operation.request)) !==
-            canonicalHuddleJson(huddleJsonSchema.parse(request))
-        )
-          throw new Error('Claim changed the retained operation');
-        task.operation = claimed.operation;
-        if (claimed.dispatch) {
-          invoked = true;
-          await turns.ask(scope, request, task.abort.signal, authority, () => true);
-        }
-      }
-      for (;;) {
-        if (!this.current(entry)) return;
-        const observed = turns.observe(scope, request, authority);
-        if (observed.result && observed.receipt) {
-          outcomeObserved = true;
-          await settle({ turn: observed.result, receipt: observed.receipt });
-          return;
-        }
-        task.abort.signal.throwIfAborted();
-        if (!task.operation.active) {
-          task.abort.abort(new Error('Huddle invocation ended'));
-          task.abort.signal.throwIfAborted();
-        }
-        await delay(250, undefined, { signal: task.abort.signal });
-      }
-    } catch (error) {
-      if (
-        task.abort.signal.aborted &&
+    const context = {
+      client: entry.client,
+      current: () => this.current(entry),
+      authority,
+      changed: entry.changed,
+      canCancel: () =>
         !this.closed &&
         !this.paused &&
-        (this.current(entry) || this.deps.runtimes.stopRequested(entry.id))
-      ) {
-        try {
-          await turns.cancel(scope, request, authority);
-        } catch {
-          /* Exact intent prevents a second cancellation send. */
-        }
-      }
-      if (!this.current(entry)) return;
-      if (settlementAttempted) {
-        entry.changed(); // Re-read the owner ledger before another settlement attempt.
-        return;
-      }
-      if (!invoked && !outcomeObserved) return;
-      // A terminal agent failure still has a result requiring durable settlement.
-      try {
-        const observed = turns.observe(scope, request, authority);
-        if (observed.result && observed.receipt) {
-          await settle({ turn: observed.result, receipt: observed.receipt });
-          return;
-        }
-      } catch {
-        /* Keep retained host results unacknowledged when settlement is unavailable. */
-      }
-      if (settlementAttempted) {
-        entry.changed();
-        return;
-      }
-      try {
-        await entry.client.request({
-          t: 'operation-unavailable',
-          scope,
-          unsent: turns.unused(scope, request, authority),
-          error:
-            (error instanceof Error ? error.message : String(error)).slice(0, 4096) ||
-            'Agent operation failed',
-        });
-      } catch {
-        /* Lost replies remain observation-only. */
-      }
+        (this.current(entry) || this.deps.runtimes.stopRequested(entry.id)),
+    };
+    try {
+      if (task.kind === 'ask') await executeHuddleAsk({ ...context, task }, this.deps.turns);
+      else if (this.deps.spawns) await executeHuddleSpawn({ ...context, task }, this.deps.spawns);
     } finally {
       clearTimeout(timer);
     }
@@ -306,6 +252,7 @@ export class HuddleAgentDispatcher {
         this.paused = false;
         for (const entry of this.entries.values()) {
           entry.cursor = 0;
+          entry.lane = 'ask';
           entry.changed();
         }
       },

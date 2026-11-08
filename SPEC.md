@@ -1443,9 +1443,17 @@ requires `operations: 2`; default runtime/daemon metadata still omit it. Existin
 ask messages and older-owner capabilities are unchanged. Lifecycle changes fence
 new claims while retained late results remain settleable without continuing scripts.
 Real owner/node/agent process tests cover disconnect/reconnect and lost replies.
-Automatic spawn dispatch, Start/Apply resource resolution, lifecycle cleanup and
-user-facing spawn/resume/restart nodes remain unfinished. No spawn capability is
-advertised until those pieces are connected.
+The daemon now composes automatic spawn dispatch with the existing ask queue.
+Both lanes share the four-scan/four-page-pass/64-task limits and maintenance gate;
+`dispatch/turns.ts` and `dispatch/spawns.ts` own their separate operation semantics.
+Only a fresh exact owner claim permits creation. Later observation reconciles retained
+readiness, including after controller connection/reconciler replacement. Lost
+settlement replies require owner-ledger observation before another settlement.
+A definite refusal requires an ended host call with no admitted or pending creation;
+consumed claims with missing host evidence never authorise replay. Controller loss
+or maintenance does not stop accepted agents. Start/Apply resource resolution,
+lifecycle cleanup and user-facing spawn/resume/restart nodes remain unfinished.
+No spawn capability is advertised until those pieces are connected.
 Private immutable revision documents and compare-and-swap activation records
 separate source publication from Apply/arming. Managed executions retain their
 accepted revision, variable values and resource bindings across later Apply.

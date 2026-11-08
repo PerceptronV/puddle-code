@@ -139,6 +139,16 @@ export class HuddleAgentSpawns {
     return bound.ready(identity);
   }
 
+  /** Only an attempted call that has ended may turn this absence into a definite refusal. */
+  unused(scope: HuddleSpawnScope, request: HuddleSpawnRequest, authorised: HuddleSpawnAuthority) {
+    const bound = this.deps.store.bind(scope, request, authorised);
+    const admitted = bound.observe();
+    const pending = this.pending.get(this.key(scope));
+    if (pending && pending.intent !== bound.caller.identity)
+      throw new Error('Pending huddle spawn intent changed');
+    return !pending && !admitted;
+  }
+
   /** Fence creation first; one queued exact-owner stop attempt, then observation only. */
   async cancel(
     scope: HuddleSpawnScope,

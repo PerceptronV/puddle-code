@@ -32,6 +32,49 @@ delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 No user CLI command is enabled yet.
 
+## Implemented: automatic daemon spawn dispatch
+
+The production daemon now composes `HuddleAgentSpawns` with the existing huddle
+operation dispatcher. On an owner declaring `spawns: 1`, the dispatcher scans
+separate ask/spawn pages through one admission gate, sharing the existing four-scan,
+four-page-pass and 64-task bounds. It validates the authenticated owner and captured
+node declarations before accepting work. Prompt and spawn execution live separately
+under `huddle/operations/dispatch/turns.ts` and `spawns.ts`; scheduling, maintenance
+and connection ownership remain in `service.ts`.
+
+Only a fresh matching owner claim calls SessionService creation. Reconnection,
+dispatcher replacement and later scans observe the retained host mapping/readiness;
+missing host state after a consumed claim never grants another creation. The owner
+stores readiness before the script receives its handle, and its next attach/ask
+uses the same retained execution-owned target. Host prompt admission continues to
+check the live profile/project/worktree, runtime incarnation and placement. A lost
+settlement reply causes a ledger read before any further settlement attempt.
+
+A host call that has ended without an admitted or still-pending creation can report
+a definite refusal. An accepted or unresolved creation stays unknown until readiness
+can be observed. Maintenance/controller loss aborts dispatcher waiting without
+stopping an accepted agent; after release/replacement, the recorded operation is
+observed. Successful graph completion retains its agents. Ended invocations remain
+eligible for late result observation, without starting another script or agent.
+
+This is still gated by the **unadvertised** spawn contract. Start/Apply resource
+resolution, owned-agent cleanup on Interrupt/Stop/deadline and node templates remain
+required before user-facing spawn support is enabled. Automatic cleanup is not
+implied by the dispatcher; tests explicitly stop their fixture-owned agents. Native
+providers, supervisor replacement, SSH/reboot and packaged continuity still need
+acceptance.
+
+Verification, 2026-11-08: **204 tests in 29 files** passed across huddle operations,
+execution/routing/feedback, owner controllers and update preflight. The seven new
+automatic-spawn cases cover graph completion, dispatcher replacement, full controller
+connection/reconciler replacement, lost claim and settlement replies, maintenance
+pause and account refusal. Pending creation cannot be misreported as a definite
+refusal. The replacement fixture includes production exit/retirement callbacks,
+so explicit teardown checks positive shutdown rather than assuming disconnected
+means stopped. Shared/daemon/CLI TypeScript, scoped ESLint, formatting and diff
+checks passed. All owners/providers were isolated test processes; no production
+daemon or native UI was used.
+
 ## Implemented: private spawn transport in the independent owner
 
 The independent huddle process now composes the spawn outbox and shares pending
@@ -45,8 +88,7 @@ the owner is connected, without resuming cancelled script bodies.
 
 The proposed optional `spawns: 1` contract requires `operations: 2`. Schemas and
 owner/client gates understand it, but **default runtime and daemon metadata still
-omit it**: production automatic dispatch, Start/Apply resource resolution and
-owned-agent cleanup must be completed before advertising spawn support. Older
+omit it**: Start/Apply resource resolution and owned-agent cleanup must be completed before advertising spawn support. Older
 owners retain their original capabilities and ask messages. The client refuses
 spawn commands locally when unsupported, preserving the connection; the server
 independently enforces its launch capability. Adoption metadata that lacks spawn
@@ -101,8 +143,7 @@ agent ask, then exact cleanup. The source owner is composed in the test process;
 the agent and node workers run as separate child processes. This proves the queue
 and host-service composition, **not** production owner IPC or native-provider
 acceptance. The private owner transport is now implemented as described above;
-automatic production dispatch, resource resolution on Start/Apply and lifecycle
-cleanup remain required before advertising spawn support or enabling templates.
+resource resolution on Start/Apply and lifecycle cleanup remain required before advertising spawn support or enabling templates.
 This earlier owner-local increment introduced no wire change.
 
 Verification, 2026-11-08: **112 tests in 18 files** passed across huddle operations,
@@ -143,12 +184,12 @@ rechecks private authority and consumes the huddle stop attempt immediately befo
 its stop request. Lost/uncertain replies never grant another stop send. Positive
 clean-exit evidence can subsequently confirm completion; an unrelated replacement
 in the original placement remains untouched. A readiness timeout or controller
-loss alone does not issue cleanup; the future owner dispatcher must apply the
+loss alone does not issue cleanup; lifecycle integration must still apply the
 execution's explicit cancellation/retention policy.
 
 The service now has owner-local queue, dynamic handle and private transport
-composition verified above; automatic
-dispatch, lifecycle cleanup policy and node templates remain pending before spawn
+and automatic dispatch composition verified above; lifecycle cleanup policy and
+node templates remain pending before spawn
 support can be advertised. There is no new network message, capability or
 application protocol bump in this slice; application 28.7, ordinary runtime 1.2,
 remote 5 and huddle owner/ledger contracts are unchanged.

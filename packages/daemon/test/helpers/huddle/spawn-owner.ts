@@ -11,7 +11,7 @@ import { huddleSpawnServiceFixture } from './spawn-service.js';
 import { spawnGraphSnapshot } from './spawn-graph.js';
 import { until } from './controller.js';
 import { launchOwner } from '../runtime-fixture.js';
-import { HuddleOwnerClient } from '../../../src/runtime/huddle/transport/client.js';
+import type { HuddleOwnerClient } from '../../../src/runtime/huddle/transport/client.js';
 import { HuddleRevisionStore } from '../../../src/runtime/huddle/state/revisions.js';
 import { runtimeDirectory } from '../../../src/runtime/ownership/storage.js';
 
@@ -72,8 +72,13 @@ export async function spawnOwnerFixture(enabled = true) {
       );
     });
     const connect = async () => {
-      client = await HuddleOwnerClient.open(f.home, launch, f.controller.record);
-      return client;
+      await until(async () => {
+        await f.connections.connectOwner(binding.runtime_id);
+        client = f.connections.getHuddle(binding.runtime_id) ?? undefined;
+        return !!client;
+      });
+      await f.reconciler.attachHuddle(binding.runtime_id, client!);
+      return client!;
     };
     await connect();
     const admit = async () => {

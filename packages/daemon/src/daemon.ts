@@ -114,6 +114,8 @@ import { HuddleCompletionDispatcher } from './huddle/triggers/completions/dispat
 import { HuddleAgentDispatcher } from './huddle/operations/dispatch/service.js';
 import { HuddleAgentTurns } from './huddle/operations/turns/service.js';
 import { HuddleTurnStore } from './huddle/operations/turns/store.js';
+import { HuddleAgentSpawns } from './huddle/operations/spawns/service.js';
+import { HuddleSpawnStore } from './huddle/operations/spawns/store.js';
 import { HuddlePlacements } from './db/stores/huddle/placements.js';
 import type { HostUpdateCheckpointReference } from '@puddle/shared';
 import { HostUpdateCheckpointWriter } from './updates/checkpoints/store.js';
@@ -470,6 +472,15 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       connections: runtimeConnections,
       reconciler: runtimeReconciler,
       turns: new HuddleAgentTurns(runtimeProgrammeTurns, new HuddleTurnStore(db)),
+      spawns: new HuddleAgentSpawns({
+        store: new HuddleSpawnStore(db),
+        service,
+        adapters,
+        runtimes,
+        turns: runtimeProgrammeTurns,
+        connections: runtimeConnections,
+        controls: runtimeControls,
+      }),
     });
     failedStartup.push(() => huddleDispatcher.close());
     const huddleSessionDispatcher = new HuddleSessionDispatcher({

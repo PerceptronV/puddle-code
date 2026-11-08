@@ -179,9 +179,12 @@ it('fences cancellation before asynchronous creation returns and does not launch
     const pending = f.spawns.spawn(f.scope, f.request, new AbortController().signal, () => true);
     const rejected = expect(pending).rejects.toThrow('authority expired');
     await until(() => entered.mock.calls.length === 1);
+    expect(f.spawns.unused(f.scope, f.request, () => true)).toBe(false);
     expect(await f.spawns.cancel(f.scope, f.request, () => true)).toEqual({ state: 'pending' });
     release();
     await rejected;
+    expect(f.spawns.unused(f.scope, f.request, () => true)).toBe(true);
+    expect(() => f.spawns.unused(f.scope, f.request, () => false)).toThrow('authority expired');
     expect(f.store.bind(f.scope, f.request, () => true).observe()).toBeNull();
     expect(f.run).not.toHaveBeenCalled();
   } finally {

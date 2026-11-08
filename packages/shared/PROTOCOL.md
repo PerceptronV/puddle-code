@@ -5,8 +5,8 @@ Private owner IPC now carries the bounded spawn outbox contracts through separat
 `spawn-page`, `spawn-claim`, `spawn-settled` replies. Existing ask schemas are unchanged.
 Both client and owner require optional `spawns: 1`, which requires `operations: 2`.
 This contract is understood but remains **unadvertised in default runtime/daemon
-metadata** until automatic host dispatch, resource admission and lifecycle cleanup
-are connected. Unsupported owners are rejected locally before writing a spawn
+metadata** until resource admission and lifecycle cleanup are connected. The daemon
+now composes automatic host dispatch under this gate. Unsupported owners are rejected locally before writing a spawn
 command; the owner independently checks its launch capability. Existing strict
 older-owner state/launch shapes remain unchanged when the optional capability is
 absent. No public HTTP/WS addition: application 28.7, ordinary runtime 1.2, remote 5,
@@ -22,8 +22,8 @@ Database **48** adds private host huddle spawn mappings. Internal
 `runtime/huddle/operations/spawns.ts` defines exact owner/execution/invocation
 scope and resolved creation settings for the host admission foundation. These
 schemas now also participate in the gated private owner protocol above. The
-original admission slice changed no wire shapes; production spawn dispatch remains
-unavailable pending automatic dispatch, resource admission and cleanup integration.
+original admission slice changed no wire shapes. The automatic dispatcher is now
+composed, while resource admission and cleanup integration still gate availability.
 Selected-daemon database compatibility uses the existing migration-version gate.
 
 Application **28.7** adds optional local trigger manifest policy
