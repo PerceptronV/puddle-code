@@ -1676,7 +1676,13 @@ failure retains in-memory navigation. Restore validates the private format and
 ignores invalid/obsolete state. Resize/hidden-pane clamping does not overwrite the
 desired camera; callbacks are disposed before remount and cannot write into a
 different host/profile. Navigation never changes graph/layout source or runtime
-state. Complete settings and large-graph culling remain unfinished.
+state. `canvas/visibility/` culls off-screen islands and wires using the actual
+clamped viewport with 200 screen pixels of overscan. Scroll observation coalesces
+into one animation frame and disposes its pending callback/resize observer on
+unmount. Selected/focused objects and active drag/connection sources stay mounted;
+wire control-point hulls retain crossing and backward curves even with both nodes
+off screen. Fit graph can render the whole graph; Node list and the connection
+inspector still address all objects. Complete settings remain unfinished.
 Application 28.3 adds editable Prompt agent and Review agent templates under
 `shared/huddle/templates/`, published by `daemon/huddle/templates/` as local
 `nodes/<component>/{node.json,run.ts,prompt.ts}` source. Template creation checks

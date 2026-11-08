@@ -15,8 +15,9 @@ editing, shared source/layout drafts, settings, undo and file-conflict review.
 Pointer/touch and keyboard node movement, position settings, pan and fit controls
 and direct socket connections are implemented. Graph camera, node/edge selection
 and graph/list mode now use scoped private view persistence through browser reload,
-same-window tab moves and desktop recovery/transfer snapshots. Large-graph culling
-remains unfinished. The IDE now exposes saved-source
+same-window tab moves and desktop recovery/transfer snapshots. Viewport culling now
+preserves crossing wires, selection, focus and gestures, with a measured 256-node/
+1,024-edge browser fixture. The IDE now exposes saved-source
 Start/Apply, manual Run, Interrupt/Resume/Stop and live execution history. Daemon
 adoption/projection now observes independent huddle owners alongside ordinary
 runtimes, including across isolated daemon replacement. Pinned production launch

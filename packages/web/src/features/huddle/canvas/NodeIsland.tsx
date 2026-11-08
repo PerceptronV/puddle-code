@@ -49,6 +49,7 @@ export function NodeIsland({
     'flex h-6 max-w-full items-center gap-2 rounded-sm text-xs hover:bg-explorer-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring';
   return (
     <div
+      data-huddle-node={node.id}
       className={cn(
         'island-outline absolute w-60 select-none rounded-xl p-3',
         selected ? 'bg-elevated text-accent' : 'bg-surface text-fg',

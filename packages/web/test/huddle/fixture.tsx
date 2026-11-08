@@ -15,6 +15,7 @@ import {
 } from '@puddle/shared';
 import { profile, project, sessions } from '../../src/dev/preview/data';
 import { huddleRuntimeFixture } from './runtime';
+import { largeGraph } from './canvas/large-graph';
 
 const fixture = mountWorkspaceFixture({
   restore: new URLSearchParams(location.search).has('view-state'),
@@ -118,6 +119,8 @@ const saved = sessionSchema.parse({
   account_id: null,
   agent_type: null,
 });
+if (new URLSearchParams(location.search).has('large-graph'))
+  Object.assign(document, largeGraph(document));
 const reviewer = huddleComponentSchema.parse({
   format: 1,
   id: 'example.reviewer',
@@ -146,6 +149,16 @@ const components = new Map<string, { content: string; mtime: number }>([
     { content: JSON.stringify(reviewer), mtime: 1 },
   ],
 ]);
+if (document.layout)
+  components.set(`.puddle/huddle/${savedId}/layout.json`, {
+    content: JSON.stringify(document.layout),
+    mtime: 1,
+  });
+if (new URLSearchParams(location.search).has('large-graph'))
+  components.set(`.puddle/huddle/${savedId}/nodes/fixture/node.json`, {
+    content: JSON.stringify(document.components.n0),
+    mtime: 1,
+  });
 let available = true;
 const runtime = huddleRuntimeFixture(() => document);
 let executionSupported = !new URLSearchParams(location.search).has('old-execution');

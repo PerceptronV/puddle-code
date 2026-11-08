@@ -64,6 +64,10 @@ On application 28.4, drag nodes with a mouse or touch, or focus a node and use
 arrow keys (10 units, or 50 with Shift). Its inspector also offers X/Y position
 fields. Escape or pointer cancellation abandons a drag. Drag the empty background
 to pan, and use **Fit graph**, **Fit selected** or the zoom controls to navigate.
+Large graphs draw nearby nodes and connections while retaining selected/focused
+items and active gestures. **Node list** shows every node; choose one, switch back
+to **Graph**, then **Fit selected** to reveal it. Crossing wires remain visible
+even when their endpoint nodes are outside the pane.
 
 Positions use a separate `layout.json` draft. **Undo move** / **Redo move** and
 Cmd/Ctrl-Z while a node is focused operate on that layout history; the main

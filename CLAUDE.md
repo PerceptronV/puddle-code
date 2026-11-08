@@ -766,9 +766,12 @@ separate header and port buttons, never nested interactive controls. Socket and
 selector edits share `documents/graph-connections.ts`, manifest undo and normal
 source conflict handling. Reject stale gestures, duplicate routes and definitely
 incompatible ports; retain validation for cycles so users can configure bounded
-feedback. UI wiring must never execute a node. Full resource settings beyond
-worktree/session selection, external component observation and large-graph culling
-remain unfinished. Huddle private view state lives under `huddle/view/`, with the
+feedback. UI wiring must never execute a node. Canvas culling lives under
+`canvas/visibility/`; observe actual viewport geometry, preserve selected/focused
+objects and active gestures, and retain crossing wires by their control-point
+hulls. Keep the full list/inspector accessible and dispose queued frame work.
+Full resource settings beyond worktree/session selection and external component
+observation remain unfinished. Huddle private view state lives under `huddle/view/`, with the
 ordinary TabViewStateContext and named ViewStateStore. Keep camera coordinates in
 graph space; resize/clamping/hidden views must not erase the desired position.
 Scope selection/mode/camera by host/profile/layout/pane/tab and immutable placement,

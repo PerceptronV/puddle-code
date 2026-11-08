@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Cull off-screen huddle nodes and connections while preserving crossing wires, selection, keyboard focus and active gestures; retain full graph access through Node list and fit controls.
+
 - Restore huddle pan/zoom, node and connection selection, and graph/list mode across tab reopening, browser reload and pane/window transfers. Keep duplicate views independent and navigation out of tracked source files.
 
 - Read a packaged huddle authoring kit through CLI/MCP: structural JSON Schemas, generated wrapper types, editable script/trigger/readout examples and fake fixtures, without connecting to a host or changing project files.

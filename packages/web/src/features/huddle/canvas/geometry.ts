@@ -3,6 +3,7 @@ export interface Position {
   y: number;
 }
 export const NODE_WIDTH = 240;
+export const WIRE_BEND = 80;
 export function defaultPosition(index: number): Position {
   return { x: (index % 3) * 320, y: Math.floor(index / 3) * 220 };
 }

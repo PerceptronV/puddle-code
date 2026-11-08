@@ -34,6 +34,51 @@ delivery and the Turn completed node's editor settings are implemented; explicit
 bounded native feedback remains pending.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## Implemented: large-graph viewport culling
+
+`web/features/huddle/canvas/visibility/` observes the actual clamped viewport,
+independently of the retained desired camera. Nodes use conservative island/port
+bounds; wires use their cubic control-point hulls, so backward curves and routes
+crossing the pane remain present even with both endpoint nodes off screen. The
+200-pixel screen-space margin also covers island outlines and non-scaling wire hit
+areas at every supported zoom. Selected/focused nodes and wires, drag sources and
+pending connection sources stay mounted. Focus leaves that exception when it moves
+elsewhere. Hidden viewports have no visible region. Scroll events schedule at most
+one frame, resize/zoom/source geometry update the region, and teardown disconnects
+observers/listeners and cancels pending frame work. There is no idle animation loop.
+
+Node list and the Connections inspector retain every graph object. Fit graph may
+draw all objects when all are in view; culling does not impose a new graph limit or
+discard source data. The graph's accessible description points to Node list and
+Fit selected for nodes outside the current view. No graph library, protocol,
+runtime or persistence format change is required.
+
+The isolated `test/huddle/canvas/large-graph.browser.mjs` fixture contains the
+maximum 256 nodes and 1,024 edges, with eight ports per direction, spread over a
+16×16 layout. At 1600×1000, the pre-change graph mounted 256 nodes/1,024 wires and
+19,971 DOM elements; the culled initial view mounted 9 nodes/82 wires and 889
+elements. A sampled distant viewport mounted 16 nodes/102 wires and 1,403 elements.
+These are repeatable DOM measurements, not a production latency guarantee. The
+initial baseline took 1,215 ms to open, with a 128 ms p95 two-frame pan sample;
+initial post-change samples were 1,153–1,219 ms and 132–137 ms respectively. Vite/
+headless timing is noisy and does not establish a latency improvement. The script
+prints fresh timings/counts; `--measure-only` skips interaction assertions for
+comparison against an unculled canvas. The completed interaction run measured
+1,066 ms to open and 121 ms for the same p95 sample; DOM reductions are the stable
+result across these runs.
+
+Coverage includes partial/tall 64-port node bounds, negative/backward wire bounds,
+hidden viewport and extreme zoom; headless checks cover actual crossing geometry,
+off-screen focused sockets/wires, selected wires/nodes, pending connections,
+pointer capture through scrolling, cancellation without source edits, full-list
+selection/reveal, fit-all, resize, dark theme and reduced motion. All 20 huddle
+unit tests in seven files pass, as do the new large-graph browser check and the
+existing canvas, wire and view-persistence browser checks. Web TypeScript,
+changed-source ESLint/formatting, semantic token/contrast checks and production
+web/CLI builds pass; the dark reduced-motion screenshot was visually reviewed. The UI-only
+fixture neither starts a daemon nor contacts a provider. Native/SSH/reboot and
+real-provider acceptance remain separate outstanding gates.
+
 ## Implemented: private graph view persistence
 
 Huddle panes now receive the existing tab view context. `web/features/huddle/view/`
@@ -75,7 +120,7 @@ Web TypeScript, changed-source ESLint/formatting and production web/CLI builds p
 No production daemon or interactive native window was started.
 Native interactive window/reboot acceptance remains pending; headless/unit evidence
 does not substitute for it. Remaining overall: offline history/recovery, agent
-restart/native feedback, full digest-save integration and large-graph culling,
+restart/native feedback, full digest-save integration,
 managed integration secrets, and provider/platform/packaged acceptance. Earlier
 camera/selection remaining-work notes below are superseded by this increment.
 
@@ -1871,8 +1916,8 @@ window regressions pass: pane return, file menus and project layouts. Shared, da
 web and CLI TypeScript builds, repository ESLint/Prettier, token contrast checks and
 `git diff --check` pass. Light and dark canvas screenshots were visually reviewed.
 
-Retained camera/selection, viewport culling/large-graph measurement,
-unified graph/layout undo and full native window gestures remain unfinished. These
+Retained camera/selection and viewport culling/large-graph measurement are now
+implemented as described above. Unified graph/layout undo and full native window gestures remain unfinished. These
 checks use the UI-only preview and isolated file-route fixtures, not native desktop
 input or production agents.
 

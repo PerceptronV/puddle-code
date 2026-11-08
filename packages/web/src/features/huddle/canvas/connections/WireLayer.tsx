@@ -1,10 +1,12 @@
 import type { HuddleEdge } from '@puddle/shared';
 import type { Endpoint } from '../../documents/graph-connections';
-import type { Position } from '../geometry';
+import { WIRE_BEND, type Position } from '../geometry';
 import type { WireGesture } from './use-wire-gesture';
+import type { HuddleBounds } from '../../view/camera';
+import { intersects, wireBounds } from '../visibility/bounds';
 
 function curve(from: Position, to: Position) {
-  return `M ${from.x} ${from.y} C ${from.x + 80} ${from.y}, ${to.x - 80} ${to.y}, ${to.x} ${to.y}`;
+  return `M ${from.x} ${from.y} C ${from.x + WIRE_BEND} ${from.y}, ${to.x - WIRE_BEND} ${to.y}, ${to.x} ${to.y}`;
 }
 export function WireLayer({
   edges,
@@ -16,7 +18,11 @@ export function WireLayer({
   locked,
   disconnect,
   wire,
+  visible,
+  focused,
 }: {
+  visible: HuddleBounds | null;
+  focused?: string;
   edges: HuddleEdge[];
   width: number;
   height: number;
@@ -38,9 +44,15 @@ export function WireLayer({
         const from = socket(edge.from, 'outputs'),
           to = socket(edge.to, 'inputs');
         if (!from || !to) return null;
+        if (
+          edge.id !== selected &&
+          edge.id !== focused &&
+          !intersects(wireBounds(from, to), visible)
+        )
+          return null;
         const path = curve(from, to);
         return (
-          <g key={edge.id}>
+          <g key={edge.id} data-huddle-edge={edge.id}>
             <path
               d={path}
               fill="none"

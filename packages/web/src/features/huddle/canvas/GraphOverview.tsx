@@ -9,6 +9,9 @@ import { defaultPosition, type Position } from './geometry';
 import { useNodeDrag } from './use-node-drag';
 import { bindHuddleCamera, type HuddleCameraBinding } from '../view/camera';
 import type { HuddleCamera } from '../view/state';
+import { useGraphViewport } from './visibility/use-viewport';
+import { useCanvasFocus } from './visibility/use-canvas-focus';
+import { intersects, nodeBounds } from './visibility/bounds';
 
 /** Interactive node islands; persisted positions live in the shared layout source buffer. */
 export function GraphOverview({
@@ -56,6 +59,7 @@ export function GraphOverview({
   const [zoom, setZoom] = useState(camera?.zoom ?? 1);
   const cameraBinding = useRef<HuddleCameraBinding | null>(null);
   const canvas = useRef<HTMLDivElement>(null);
+  const focus = useCanvasFocus();
   const wire = useWireGesture({
     graph: document,
     version: graphVersion,
@@ -106,6 +110,7 @@ export function GraphOverview({
   useLayoutEffect(() => {
     cameraBinding.current?.geometry({ left, top, width, height });
   }, [left, top, width, height, zoom]);
+  const visible = useGraphViewport(viewport, zoom, { left, top, width, height });
   const byId = new Map(nodes.map((node) => [node.node.id, node]));
   const displayPosition = (id: string, position: Position) =>
     drag.preview?.id === id ? drag.preview.position : position;
@@ -159,6 +164,7 @@ export function GraphOverview({
         ref={viewport}
         className="min-h-0 flex-1 cursor-grab overflow-auto touch-none"
         aria-label="Huddle graph"
+        aria-description="Only nearby nodes and connections are drawn. Use Node list to browse all nodes, then Fit selected to reveal one."
         tabIndex={0}
         onPointerDown={(event) => {
           if (
@@ -200,12 +206,14 @@ export function GraphOverview({
         <div style={{ width: width * zoom, height: height * zoom }}>
           <div
             ref={canvas}
+            {...focus.handlers}
             className="relative origin-top-left"
             style={{ width, height, transform: `scale(${zoom})` }}
           >
             <WireLayer
               edges={document.definition.edges}
-              {...{ width, height, wire }}
+              {...{ width, height, wire, visible }}
+              focused={focus.focused.edge}
               selected={selectedEdge}
               select={setSelectedEdge}
               locked={graphLocked}
@@ -227,8 +235,17 @@ export function GraphOverview({
                 };
               }}
             />
-            {nodes.map(({ node, contract, position }) => {
+            {nodes.map(({ node, contract, position, inputs, outputs }) => {
               const shown = displayPosition(node.id, position);
+              const local = { x: shown.x - left, y: shown.y - top };
+              if (
+                node.id !== selected &&
+                node.id !== focus.focused.node &&
+                node.id !== drag.preview?.id &&
+                node.id !== wire.pending?.from.node &&
+                !intersects(nodeBounds(local, inputs.length, outputs.length), visible)
+              )
+                return null;
               return (
                 <NodeIsland
                   key={node.id}
@@ -247,7 +264,7 @@ export function GraphOverview({
                     onDelete,
                   }}
                   selected={selected === node.id}
-                  shown={{ x: shown.x - left, y: shown.y - top }}
+                  shown={local}
                 />
               );
             })}
