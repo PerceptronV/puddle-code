@@ -41,7 +41,13 @@ try {
     });
     await page.clock.runFor(100);
     if (active) {
-      await expect.poll(() => page.evaluate((id) => window.state(id).live, active)).toBe(true);
+      await expect
+        .poll(async () => {
+          assert.deepEqual(errors, [], 'terminal fixture page errors');
+          await page.clock.runFor(100);
+          return page.evaluate((id) => window.state(id).live, active);
+        })
+        .toBe(true);
       await page.evaluate((id) => window.drain(id), active);
     }
   };

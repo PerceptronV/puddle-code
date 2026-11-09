@@ -71,6 +71,8 @@ let socket: Socket;
 installBrowserTransport({
   scope: 'synthetic-host',
   async request(_method, path) {
+    if (new URL(path, 'https://terminal.test').pathname.endsWith('/sessions'))
+      return Response.json([]);
     return Response.json(path.endsWith('/version') ? { protocol: { major: 26, minor: 0 } } : {});
   },
   socket() {
