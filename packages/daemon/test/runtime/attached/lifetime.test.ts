@@ -300,8 +300,10 @@ it.each([
       if (reap) {
         // Deterministic external reaper, not a claim about this host's SSH/PAM policy.
         // Kill exactly the fixture's known shell and owner after the channel closes.
-        await signalExact(originalShell.pid!, 'SIGKILL');
+        // End the owner first so it cannot record a normal shell exit while the
+        // external reaper is still working; this case exercises owner loss.
         await signalExact(originalOwner, 'SIGKILL');
+        await signalExact(originalShell.pid!, 'SIGKILL');
         await wait(() => !alive(originalOwner) && !alive(originalShell.pid!), 'Reaped owner');
       }
       await attached.ensureRunning();

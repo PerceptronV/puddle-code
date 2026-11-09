@@ -14,7 +14,7 @@ import { RuntimeConnections } from '../../../src/runtime/transport/connections.j
 import { runtimeDirectory } from '../../../src/runtime/ownership/storage.js';
 import { HuddleRevisionStore } from '../../../src/runtime/huddle/state/revisions.js';
 import { runtimeDatabase } from '../runtime-database.js';
-import { launchOwner, waitForOwner } from '../runtime-fixture.js';
+import { launchOwner, launchOwnerWhenAvailable, waitForOwner } from '../runtime-fixture.js';
 import { schedulerSnapshot } from './scheduler.js';
 const delay = (ms: number) => new Promise<void>((resolve) => setTimeout(resolve, ms));
 export async function until(check: () => boolean | Promise<boolean>) {
@@ -103,7 +103,7 @@ export async function huddleControllerFixture(
       releasePath: directory,
       huddle: { id: huddleId, capabilities: launch.capabilities },
     });
-    const owner = launchOwner(base.home, identity.runtime_id);
+    const owner = await launchOwnerWhenAvailable(base.home, identity.runtime_id);
     await until(() => {
       if (owner.child.exitCode !== null) throw new Error(owner.errors());
       return existsSync(join(directory, 'huddle-owner.json'));

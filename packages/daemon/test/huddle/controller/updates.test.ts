@@ -30,8 +30,8 @@ async function fixture() {
   const accepted = acceptedCheckpointUpdate(f.home, 'daemon', PROTOCOL_VERSION);
   const stage = accepted.operation.stages[0]!;
   const root = join(f.home, 'bin', 'versions', stage.record.generation);
-  mkdirSync(join(root, 'bin'), { recursive: true });
-  mkdirSync(join(root, 'daemon'));
+  mkdirSync(join(root, 'bin'), { recursive: true, mode: 0o700 });
+  mkdirSync(join(root, 'daemon'), { mode: 0o700 });
   // Metadata only; no candidate executable or service is started by these tests.
   const nodePath = join(root, 'bin', 'node');
   const entryPath = join(root, 'daemon', 'puddled.mjs');

@@ -63,7 +63,7 @@ export async function completionDispatcherFixture(maxRecords = 128) {
     canonical_worktree_path: owner.home,
   } as RuntimeBinding;
   const directory = join(owner.home, 'native-source');
-  mkdirSync(directory);
+  mkdirSync(directory, { mode: 0o700 });
   const journal = new RuntimeNativeTurnJournal(directory, native.state.identity, undefined, {
     maxRecords,
   });

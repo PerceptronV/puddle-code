@@ -27,10 +27,19 @@ export async function packageDesktop(args, run = runBuilder, wait = setTimeout) 
 
 function runBuilder(args) {
   return new Promise((resolve, reject) => {
-    const child = spawn(process.execPath, [require.resolve('electron-builder/cli.js'), ...args], {
-      cwd: fileURLToPath(new URL('../', import.meta.url)),
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
+    const child = spawn(
+      process.execPath,
+      [
+        require.resolve('electron-builder/cli.js'),
+        '--config',
+        fileURLToPath(new URL('../electron-builder.cjs', import.meta.url)),
+        ...args,
+      ],
+      {
+        cwd: fileURLToPath(new URL('../', import.meta.url)),
+        stdio: ['ignore', 'pipe', 'pipe'],
+      },
+    );
     let output = '';
     for (const [stream, destination] of [
       [child.stdout, process.stdout],

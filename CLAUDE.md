@@ -1235,6 +1235,10 @@ attempts for transient download failures, with 10/20-second backoff. It forces
 `--publish never`, preserves signing/checksum validation and never retries permanent
 packaging errors. Keep measured resource regression fixtures under daemon tests,
 with their original report commit recorded, independent of removable reports.
+The wrapper loads `packages/desktop/electron-builder.cjs`, extending the YAML
+configuration with the locked Electron package's version and official checksums.
+Keep `force: false` to select electron-builder's modern download options branch;
+the legacy branch discards the supplied checksums. Never disable verification.
 
 CI and release jobs install dependencies through `scripts/install-ci.mjs`, which
 uses the running Node installation's bundled headers for native source builds.
