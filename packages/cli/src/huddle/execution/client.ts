@@ -7,6 +7,7 @@ import {
   huddleHistoryPageSchema,
   huddleHistoryOwnersSchema,
   parseHuddleRetainedHistory,
+  parseHuddleTriggerInput,
   huddleReadoutObserveAcceptedSchema,
   parseHuddleReview,
   parseHuddleRetainedRevision,
@@ -28,11 +29,13 @@ export class HuddleExecutionClient {
   readonly autoStart: boolean;
   readonly triggerInspection: boolean;
   readonly historyAgents: boolean;
+  readonly triggerInput: boolean;
   constructor(
     private readonly request: (path: string, body?: unknown) => Promise<unknown>,
     protocol?: { major: number; minor: number },
   ) {
     this.historyAgents = supportsApplicationFeature(protocol, { major: 28, minor: 32 });
+    this.triggerInput = supportsApplicationFeature(protocol, { major: 28, minor: 33 });
     this.retainedReadoutObservation = supportsApplicationFeature(protocol, {
       major: 28,
       minor: 21,
@@ -59,6 +62,14 @@ export class HuddleExecutionClient {
     )
       throw new Error('Recorded agent history requires daemon protocol 28.32 or newer');
     const path = `/sessions/${command.session_id}`;
+    if (command.action === 'trigger-input') {
+      if (!this.triggerInput)
+        throw new Error('Trigger input inspection requires daemon protocol 28.33 or newer');
+      return parseHuddleTriggerInput(
+        command.request,
+        await this.request(`${path}/history/input`, command.request),
+      );
+    }
     if (command.action === 'retained-revision') {
       if (!this.retainedRevision)
         throw new Error('Retained revision review requires daemon protocol 28.13 or newer');

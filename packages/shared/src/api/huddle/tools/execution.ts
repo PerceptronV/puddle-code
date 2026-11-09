@@ -3,6 +3,7 @@ import {
   huddleHistoryOwnersRequestSchema,
   huddleRetainedReadoutObserveSchema,
   huddleRetainedHistoryRequestSchema,
+  huddleTriggerInputRequestSchema,
 } from '../history.js';
 import { sessionId } from '../../common.js';
 import { huddleJsonSchema, HUDDLE_LIMITS } from '../values.js';
@@ -32,6 +33,7 @@ export const huddleExecutionToolSchemas = {
   'retained-revision': z.strictObject({ ...session, request: huddleRetainedRevisionRequestSchema }),
   'history-owners': z.strictObject({ ...session, request: huddleHistoryOwnersRequestSchema }),
   'retained-history': z.strictObject({ ...session, request: huddleRetainedHistoryRequestSchema }),
+  'trigger-input': z.strictObject({ ...session, request: huddleTriggerInputRequestSchema }),
   revision: z.strictObject({ ...session, request: huddleRevisionReviewSchema }),
   diff: z.strictObject({ ...session, request: huddleDiffReviewSchema }),
   start: z.strictObject({ ...session, request: huddleStartSchema }),
@@ -57,6 +59,7 @@ export const huddleToolExecutionCommandSchema = z.discriminatedUnion('action', [
   }),
   huddleExecutionToolSchemas['history-owners'].extend({ action: z.literal('history-owners') }),
   huddleExecutionToolSchemas['retained-history'].extend({ action: z.literal('retained-history') }),
+  huddleExecutionToolSchemas['trigger-input'].extend({ action: z.literal('trigger-input') }),
   huddleExecutionToolSchemas.revision.extend({ action: z.literal('revision') }),
   huddleExecutionToolSchemas.diff.extend({ action: z.literal('diff') }),
   huddleExecutionToolSchemas.start.extend({ action: z.literal('start') }),
@@ -102,6 +105,11 @@ const definitions = [
   [
     'history-owners',
     'List a bounded page of recorded runtime identities for this huddle placement, including stopped and older owners. Supply request {} for the first page or its after cursor. Recorded states do not prove liveness. No owner is started.',
+    true,
+  ],
+  [
+    'trigger-input',
+    'Read the original trigger event for one execution from the exact retained owner ledger. Supply owner and execution_id. Works after Stop without project source. Does not start an owner, replay input or contact the trigger source.',
     true,
   ],
   [

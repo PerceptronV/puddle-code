@@ -6,6 +6,13 @@ const page = await browser.newPage({ viewport: { width: 1440, height: 1000 } });
 page.setDefaultTimeout(20_000);
 const errors = [];
 page.on('pageerror', (error) => errors.push(error.message));
+page.on('console', (message) => {
+  if (
+    message.type() === 'error' &&
+    message.text().includes('Encountered two children with the same key')
+  )
+    errors.push(message.text());
+});
 try {
   await page.goto(
     new URL(
@@ -24,6 +31,12 @@ try {
   await page.getByText('Recorded ledger history.', { exact: false }).waitFor();
   await page.getByRole('button').filter({ hasText: 'completed · 33333333' }).click();
   await page.getByText('Retained after Stop', { exact: false }).waitFor();
+  await page.getByRole('button', { name: 'Trigger input', exact: true }).click();
+  await page
+    .getByLabel('Recorded trigger input', { exact: true })
+    .getByText('Original trigger input', { exact: false })
+    .waitFor();
+  await page.getByText('Event fixture-original-event', { exact: true }).waitFor();
   await page.getByRole('button', { name: 'Execution source', exact: true }).click();
   await page.getByRole('heading', { name: 'Recorded huddle revision' }).waitFor();
   await page

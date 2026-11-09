@@ -33,6 +33,16 @@ it('reads results after Stop and source removal without relaunch, adoption or pu
       async () =>
         (await f.request('history', query)).body.records?.[0]?.record.state === 'completed',
     );
+    const inputRequest = { owner, execution_id: run.body.executionId };
+    const originalInput = await f.request('history/input', inputRequest);
+    expect(originalInput.status, JSON.stringify(originalInput.body)).toBe(200);
+    expect(originalInput.body).toMatchObject({
+      source: 'retained-trigger',
+      owner,
+      event: { executionId: run.body.executionId, data: f.home },
+    });
+    expect(originalInput.body.event).not.toHaveProperty('scope');
+    expect(originalInput.body.event).not.toHaveProperty('nextCursor');
     expect((await f.request('stop', { target })).status).toBe(200);
     rmSync(f.root, { recursive: true });
     expect((await f.request('runtime')).body.owner).toBeNull();
@@ -65,6 +75,23 @@ it('reads results after Stop and source removal without relaunch, adoption or pu
     expect(readFileSync(join(directory, 'huddle.sqlite'))).toEqual(bytes);
     expect(readdirSync(directory)).toEqual(names);
     expect(inspect).not.toHaveBeenCalled();
+    const retainedInput = await f.request('history/input', inputRequest);
+    expect(retainedInput.status).toBe(200);
+    expect(retainedInput.body.event).toEqual(originalInput.body.event);
+    expect(
+      (await f.request('history/input', { ...inputRequest, execution_id: randomUUID() })).status,
+    ).toBe(409);
+    expect(
+      (
+        await f.request('history/input', {
+          ...inputRequest,
+          owner: { ...owner, incarnation: randomUUID() },
+        })
+      ).status,
+    ).toBe(409);
+    expect(readFileSync(join(directory, 'huddle.sqlite'))).toEqual(bytes);
+    expect(readdirSync(directory)).toEqual(names);
+    expect(inspect).not.toHaveBeenCalled();
     expect(f.run).toHaveBeenCalledTimes(1);
     expect(
       (await f.request('history/retained', { ...query, include_readout_observation: true })).status,
@@ -86,6 +113,7 @@ it('reads results after Stop and source removal without relaunch, adoption or pu
       ).status,
     ).toBe(409);
     f.remote();
+    expect((await f.request('history/input', inputRequest)).status).toBe(403);
     expect((await f.request('history/owners', {})).status).toBe(403);
     expect((await f.request('history/retained', query)).status).toBe(403);
   } finally {

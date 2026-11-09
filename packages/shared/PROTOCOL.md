@@ -1,5 +1,21 @@
 # The puddle communication protocol
 
+Application **28.33** adds local/SSH `POST
+/api/huddle/:profile/sessions/:sid/history/input` with `{owner, execution_id}`.
+The reply is `{source: "retained-trigger", observed_at, owner, event}`. Its
+explicit event projection includes id, source, port, observation/occurrence times,
+revision, executionId and bounded JSON data, excluding private scope, causation,
+resource/native references and subscription cursors. Clients match the returned
+owner and execution to their request. `pudl huddle trigger-input` and MCP
+`huddle_trigger_input` use the same read; older hosts reject/omit this feature.
+
+This reads the exact recorded ledger without owner IPC, discovery, migrations or
+trigger evaluation. Existing ledger-1 archives remain readable. Execution and
+inbox records must agree in one bounded snapshot; event scope must match the
+placement and a current or verified ancestor runtime. Missing/changing history
+is an explicit error, never a reason to start/recover an owner. No runtime,
+database or ledger format change is introduced.
+
 Application **28.32** adds optional `include_agent: true` to live and retained
 huddle history requests. Supporting replies can add `agent: {sessionId, projectId,
 worktree, runtimeId?}` to operation records. The projection uses validated ask

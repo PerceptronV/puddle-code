@@ -10,6 +10,10 @@ On application 28.32+, history's **Operations** view offers **Open agent session
 for recorded agent actions, including retained history after Stop. It shows the
 recorded worktree and runtime; the session may now have a different runtime or
 conversation. Opening it does not resume, restart or resend anything.
+On 28.33+, choose **Trigger input** inside an execution to inspect its original
+event, source and timestamps. This reads retained history even after Stop or
+source deletion; it does not run the trigger again. Large input previews are
+truncated in the IDE; CLI/MCP return the full bounded JSON value.
 
 Huddles are project orchestration graphs powered by puddlang. This guide describes
 the implemented local/SSH workflow. The [roadmap](roadmap/huddle.md) covers the full

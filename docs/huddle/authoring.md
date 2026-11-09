@@ -6,6 +6,13 @@ project, worktree and optional runtime identities on operation records (28.32+).
 Older hosts reject this explicit option before a request is sent. These identities
 describe the recorded operation, not proof of a currently running agent.
 
+On 28.33+, `pudl huddle trigger-input SESSION_ID --request
+'{"owner":{"runtimeId":"UUID","incarnation":"UUID"},"execution_id":"UUID"}'`
+reads one execution's original trigger event. Use owner/execution identities from
+history; MCP `huddle_trigger_input` takes `{session_id, request}` with the same
+body. It works with a stopped owner and missing source. Missing/pruned or changing
+history produces an error; reading never replays an event or contacts its source.
+
 ## Packaged authoring kit
 
 `pudl huddle authoring` lists bundled schemas, TypeScript declarations, editable

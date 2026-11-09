@@ -47,8 +47,54 @@ the roadmap's real-provider and packaged-platform exit requirements.
 | Trigger admission policies | `runtime/huddle/state/executions.ts` applies graph defaults/per-trigger overrides in the durable admission transaction; `inspector/settings/` exposes policies and limits. | Implemented with retained dispositions, capability gates and focused ledger/editor checks; native platform acceptance remains separate. Timer missed-occurrence coalescing is a different policy. |
 | Calendar recurrence | `runtime/huddle/triggers/calendar/` implements daily/selected-weekday and monthly/yearly schedules, timezone handling and skipped missing dates. | Implementation now includes the broader recurrence; native sleep/reboot acceptance remains open. |
 | Module and fixture validation | Application 28.31 adds static module/wrapper/captured-import checking and JSON contract samples through IDE/CLI/MCP. The client kit also supplies a standalone executable component runner using real wrappers and fake I/O. | Provider-authored component acceptance remains; static samples do not execute scripts, and executable fixtures do not establish live provider/runtime behavior. |
-| Session/IDE/window integration | Sidebar, lifecycle, source editing, Start and run, history, transfers and retained-draft recovery have individual evidence below. | Complete the integration audit against the full phase-2/5 requirements, including real agent authoring and native interaction acceptance. |
+| Session/IDE/window integration | The phase-2/5 source/fixture audit below maps the existing seams and exposed two history gaps, now implemented in 28.32–28.33. | Complete actual cross-window/agent conflict and native interaction acceptance; source/fixture coverage alone does not establish those flows. |
 | Provider/runtime/platform acceptance | Independent-owner, operation, trigger, feedback and recovery checks are recorded below, including isolated macOS crash recovery. | Complete real coder/reviewer and native-feedback checks in same/distinct worktrees, provider authoring, SSH disconnection, packaged update/removal and mixed-version continuity, reboot, and resource/battery measurements. Do not substitute fixture results for these exit gates. |
+
+## Phase-2/5 source and fixture audit
+
+This audit distinguishes implemented seams from end-to-end native/provider proof.
+The individual evidence sections below retain their original verification scope.
+
+| Requirement | Implementation and existing evidence | Outstanding scope |
+| --- | --- | --- |
+| Third session kind, tray/rail creation, worktree binding and runtime gate | `documents/NewHuddleDialog.tsx`, shared placement/tab identities and normal session lifecycle policy; `huddle/authoring.browser.mjs` and `huddle/navigation.test.ts` cover creation, unsupported runtime, labels and no terminal attachment. | Packaged mixed-version admission remains a platform gate. |
+| Canvas, accessible editing, settings, colours/icons and source | `canvas/`, `inspector/`, shared editor-backed graph/layout buffers; existing canvas/wire/editing/template/browser checks cover touch/keyboard/list editing, undo, source and appearance. | Native pointer/keyboard interaction remains separate. |
+| Manual controls and execution inspection | `execution/` uses exact reviewed host controls; existing execution/review/retained checks cover start/run, revision, nodes, results and unknown delivery. Agent links and original trigger input were missing and are now supplied by 28.32/28.33. | Real agents, permissions/takeover and external services remain provider gates. |
+| Panes, previews, transfers, project/named layouts and view restoration | Kind-aware shared/window contracts, normal transfer composition and `view/` persistence; `navigation.test.ts` covers huddle tab/pane/project content and dirty-buffer ownership, while `view.browser.mjs` exercises two panes, drag, independent camera and reload. Generic headless transfers exercise shared coordinators. | An actual huddle handoff between renderer windows, including conflicts and lost transfer replies, still needs end-to-end acceptance; native desktop acceptance remains pending. |
+| Dirty close, external changes and missing resources | Shared Monaco source/digest/conflict machinery, `HuddleTabClose`, window recovery; `source/saves.browser.mjs` and the headless `huddle-recovery` case cover captured saves, external dependency changes, retained drafts and missing placement/project recovery. | Two real windows editing alongside a coding agent remain unverified. |
+| Account-selected authoring and portable extension workflow | `authoring/` starts a normal managed session with an explicit account/worktree and bundled skill; source/runtime CLI/MCP tools and client kit include schemas, types, examples and executable fixtures. Existing authoring checks cover selection, dirty-source gating and no automatic activation. | A real selected-account agent must create/modify and validate a custom component from these shipped instructions. |
+
+Local read-only readiness inspection found Codex 0.166.0 and Claude Code 2.1.319
+on PATH; Gemini CLI and OpenCode were not found there (configured alternate paths
+were not inspected). The installed `pudl --help` advertises application major 26,
+so it cannot establish this branch's huddle acceptance. No agent was started or
+account credential copied during that inspection.
+
+## Implemented: original trigger-input inspection
+
+Application 28.33 adds `history/input`, CLI `trigger-input` and MCP
+`huddle_trigger_input` for an exact owner/execution. The existing retained snapshot
+reader reads the execution and its inbox event together, checking execution id,
+revision, placement scope and current/launch-verified ancestor runtime. Recovery
+keeps original event identities; it does not rewrite them to the replacement.
+The projection excludes private scope, cursors, causation and native references.
+The existing review queue bounds reads and rechecks authority. No owner IPC,
+source capture, migration, recovery action or trigger evaluation is introduced.
+
+History's **Trigger input** action reads on expansion and shows original event id,
+source/port, timestamps and bounded data. It does not poll; an error has explicit
+Refresh input. Both connected and stopped-owner history use the same recorded
+read. Old hosts omit the action and CLI/MCP gate requests before dispatch.
+
+Thirty-four focused existing history/CLI checks pass after extending them with
+input inspection: the same original value is available with a live owner and after
+Stop/source removal, wrong execution/incarnation and remote access are rejected,
+and reads leave retained files unchanged without owner inspection/relaunch. CLI
+checks cover feature gating and reply identity. The headless retained-history flow
+displays original data/event identity while preserving its no-mutation assertions.
+Shared/daemon/CLI builds, web type checking, scoped lint/formatting, generated-kit
+drift and semantic token checks pass. Recovery-ancestry handling is implemented;
+full recovered-owner input inspection remains part of native recovery acceptance.
 
 ## Implemented: recorded agent-session links
 

@@ -4,6 +4,9 @@ import {
   huddleHistoryOwnersRequestSchema,
   parseHuddleRetainedHistory,
   huddleRetainedHistoryRequestSchema,
+  huddleTriggerInputRequestSchema,
+  parseHuddleTriggerInput,
+  type HuddleTriggerInputRequest,
   type HuddleHistoryOwnersRequest,
   type HuddleRetainedHistoryRequest,
 } from '@puddle/shared';
@@ -34,6 +37,18 @@ export async function huddleHistoryOwners(
       huddleHistoryOwnersRequestSchema.parse(input),
       signal,
     ),
+  );
+}
+export async function huddleTriggerInput(
+  profile: string,
+  session: string,
+  input: HuddleTriggerInputRequest,
+  signal?: AbortSignal,
+) {
+  const request = huddleTriggerInputRequestSchema.parse(input);
+  return parseHuddleTriggerInput(
+    request,
+    await api('POST', `${path(profile, session)}/input`, request, signal),
   );
 }
 export async function huddleRetainedHistory(

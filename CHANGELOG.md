@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Inspect an execution's original trigger event from huddle history, CLI or MCP, including after Stop and source removal, without contacting the trigger source (application 28.33).
+
 - Link huddle operation history to its exact recorded agent session, with worktree/runtime details and retained-history support; keep older-host history compatible (application 28.32).
 
 - Ship a standalone huddle component fixture runner with real SDK contracts, fake fetch/agent replies, per-case deadlines and executable script/trigger/readout examples.

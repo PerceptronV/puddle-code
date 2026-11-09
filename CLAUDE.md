@@ -810,6 +810,12 @@ operation targets/receipts, never scan arbitrary outputs for session-shaped data
 Strip `include_agent` before private owner/ledger reads and omit new fields for
 older callers. Web history links use normal session routing and do not start or
 reconcile agents; display recorded worktree/runtime separately from current state.
+Application 28.33 adds explicit `history/input` inspection and `trigger-input`
+CLI/MCP. Reuse `runtime/huddle/state/readers/` snapshots and the existing bounded
+review queue; join execution/inbox identity and retain launch-verified recovery
+ancestry. Project only public event fields. Do not add an owner observer or poll
+the ledger to show trigger inputs. The IDE reads on expansion, with explicit
+refresh after an error; source files and trigger availability are not required.
 Application 28.30 adds built-in local copies through the existing template installer.
 Keep generation in shared `huddle/templates/builtins.ts`, host source resolution in
 `huddle/components/host.ts` and the inspector in `huddle/inspector/BuiltinSource.tsx`.

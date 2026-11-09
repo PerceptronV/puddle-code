@@ -32,6 +32,7 @@ export const huddleHelp = `  pudl huddle list --project ID --worktree /absolute/
   pudl huddle triggers <session-id> --request JSON
   pudl huddle history-owners <session-id> --request JSON
   pudl huddle retained-history <session-id> --request JSON
+  pudl huddle trigger-input <session-id> --request JSON
   pudl huddle retained-revision <session-id> --request JSON
   pudl huddle runtime <session-id>
   pudl huddle session|archive|unarchive <session-id>

@@ -18,6 +18,8 @@ import {
   huddleLifecycleCommandSchema,
   huddleRuntimeInspectionSchema,
   huddleHistoryRequestSchema,
+  huddleTriggerInputRequestSchema,
+  huddleTriggerInputSchema,
   huddleHistoryOwnersRequestSchema,
   huddleHistoryOwnersSchema,
   huddleRetainedHistoryRequestSchema,
@@ -198,6 +200,18 @@ export function huddleExecutionRoutes(service: HuddleExecutionService): Hono {
             hexIdParam(c, 'profile'),
             c.req.param('sid'),
             await parseBody(c, huddleRetainedRevisionRequestSchema),
+            requestAuthority(c),
+          ),
+        ),
+      ),
+    )
+    .post('/:profile/sessions/:sid/history/input', async (c) =>
+      c.json(
+        huddleTriggerInputSchema.parse(
+          await service.triggerInput(
+            hexIdParam(c, 'profile'),
+            c.req.param('sid'),
+            await parseBody(c, huddleTriggerInputRequestSchema),
             requestAuthority(c),
           ),
         ),

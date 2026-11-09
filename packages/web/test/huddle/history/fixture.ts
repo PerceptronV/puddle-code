@@ -64,6 +64,21 @@ export function retainedHistoryFixture(agent: HuddleHistoryAgent) {
           ],
           next: null,
         });
+      if (action === 'input')
+        return Response.json({
+          source: 'retained-trigger',
+          owner,
+          observed_at: '2026-11-08T11:00:00.000Z',
+          event: {
+            id: 'fixture-original-event',
+            source: { node: 'run', component: 'puddle.trigger.manual', version: 1 },
+            port: 'event',
+            observedAt: '2026-11-08T10:00:00.000Z',
+            executionId,
+            revision: 'a'.repeat(64),
+            data: { message: 'Original trigger input' },
+          },
+        });
       if (failed)
         return Response.json(
           {

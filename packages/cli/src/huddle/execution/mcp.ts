@@ -12,6 +12,7 @@ export function executionTools(client?: HuddleExecutionClient) {
       (tool) => tool.action !== 'observe-retained-readout' || client.retainedReadoutObservation,
     )
     .filter((tool) => tool.action !== 'triggers' || client.triggerInspection)
+    .filter((tool) => tool.action !== 'trigger-input' || client.triggerInput)
     .filter((tool) => tool.action !== 'auto-start' || client.autoStart)
     .filter((tool) => tool.action !== 'recover' || client.recovery)
     .filter((tool) => tool.action !== 'retained-revision' || client.retainedRevision)

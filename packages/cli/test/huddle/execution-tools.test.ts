@@ -19,6 +19,41 @@ const target = {
 const owner = { runtimeId: target.runtimeId, incarnation: target.incarnation };
 const event = '00000000-0000-4000-8000-000000000005';
 const digest = 'a'.repeat(64);
+it('reads trigger input only on supporting hosts and rejects mismatched execution replies', async () => {
+  const body = { owner, execution_id: event };
+  const reply = {
+    source: 'retained-trigger',
+    owner,
+    observed_at: '2026-11-08T12:00:00Z',
+    event: {
+      id: 'source-event',
+      source: { node: 'run', component: 'puddle.trigger.manual', version: 1 },
+      port: 'event',
+      observedAt: '2026-11-08T11:00:00Z',
+      revision: digest,
+      executionId: event,
+      data: { message: 'original' },
+    },
+  };
+  const request = vi.fn(async () => reply);
+  const command = { action: 'trigger-input' as const, session_id: session, request: body };
+  const old = new HuddleClient(request, { major: 28, minor: 32 });
+  expect(executionTools(old.execution).some((tool) => tool.name === 'huddle_trigger_input')).toBe(
+    false,
+  );
+  await expect(old.execution.execute(command)).rejects.toThrow('28.33');
+  expect(request).not.toHaveBeenCalled();
+  const current = new HuddleClient(request, PROTOCOL_VERSION);
+  expect(
+    executionTools(current.execution).some((tool) => tool.name === 'huddle_trigger_input'),
+  ).toBe(true);
+  await expect(current.execution.execute(command)).resolves.toEqual(reply);
+  expect(request).toHaveBeenLastCalledWith(`/sessions/${session}/history/input`, body);
+  reply.event.executionId = session;
+  await expect(current.execution.execute(command)).rejects.toThrow(
+    'differs from the requested execution',
+  );
+});
 it('refuses explicit recorded-agent history on older hosts before sending a request', async () => {
   const request = vi.fn();
   const client = new HuddleClient(request, { major: 28, minor: 31 });

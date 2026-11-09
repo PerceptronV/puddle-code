@@ -292,7 +292,7 @@ window.fetch = async (input, init) => {
     if (path === `${prefix}/sessions/${saved.id}/revision/retained`)
       return retainedHistory.revision(body);
     const action = path.match(
-      new RegExp(`^${prefix}/sessions/${saved.id}/history/(owners|retained)$`),
+      new RegExp(`^${prefix}/sessions/${saved.id}/history/(owners|retained|input)$`),
     );
     if (action) return retainedHistory.request(action[1]!, body);
   }

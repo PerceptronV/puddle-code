@@ -833,6 +833,8 @@ The initial IDE contains:
   Definition selection and viewing a historical execution are separate modes.
   Application 28.32 adds exact recorded agent-session links to live/retained
   operation history, with worktree/runtime details and no lifecycle mutation.
+  Application 28.33 adds explicit original trigger-input inspection from retained
+  execution/inbox records, shared with CLI/MCP and available after Stop.
 - Keyboard-accessible add/connect/disconnect/select/move/delete operations,
   undo/redo for graph edits, and a list/inspector alternative to precise wire
   dragging. Graph undo never undoes an external action already executed.

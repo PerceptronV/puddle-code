@@ -2059,6 +2059,16 @@ identity separately from current runtime/conversation state. Opening a link neve
 dispatches an agent operation. Older clients receive unchanged projections;
 new clients request the field only on supporting hosts. No owner/ledger changes.
 
+Application 28.33 exposes the original root trigger event through explicit
+`history/input` inspection, shared with CLI/MCP `trigger-input`. The existing
+retained reader checks execution/inbox agreement in one bounded snapshot and
+validates event placement/runtime against the recorded launch and recovery ancestry.
+The public projection contains source/port, event id, timestamps, revision,
+execution identity and bounded JSON input, not private scope/cursors/native refs.
+The history inspector reads this on expansion; it does not poll, contact sources,
+start an owner or replay input. It works after Stop or source deletion without
+changing owner, ledger or database formats.
+
 The IDE's **Edit with agent** action under `web/features/huddle/authoring/` uses
 ordinary session creation with an explicitly selected current-profile account,
 the huddle's exact joined worktree, an initial task/context prompt and permission

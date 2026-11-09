@@ -6,6 +6,7 @@ import { huddleBindingLaunch } from '../../runtime/huddle/ownership/binding.js';
 import { realpathSync } from 'node:fs';
 import { readRetainedHuddleHistory } from './history/retained.js';
 import { projectHuddleHistory } from './history/projection.js';
+import { retainedTriggerInput } from './history/trigger-input.js';
 import { requireHuddleHostFeatures } from '../../runtime/huddle/triggers/definitions.js';
 import { randomUUID } from 'node:crypto';
 import {
@@ -22,6 +23,8 @@ import {
   huddleRunSchema,
   huddleLifecycleCommandSchema,
   huddleHistoryRequestSchema,
+  huddleTriggerInputRequestSchema,
+  type HuddleTriggerInputRequest,
   huddleHistoryOwnersRequestSchema,
   huddleRetainedHistoryRequestSchema,
   type HuddleHistoryOwnersRequest,
@@ -593,6 +596,30 @@ export class HuddleExecutionService {
           ? { created_at: last.created_at, runtime_id: last.runtime_id }
           : null,
     };
+  }
+
+  triggerInput(profile: string, id: string, raw: HuddleTriggerInputRequest, authority: Authority) {
+    const input = huddleTriggerInputRequestSchema.parse(raw);
+    const scope = this.scope(profile, id, authority);
+    if (this.pendingReviews >= 8)
+      throw ApiError.conflict('huddle_review_busy', 'Too many pending history or revision reads');
+    this.pendingReviews++;
+    return this.reviewQueue
+      .run('source', async () => {
+        scope.check();
+        const result = retainedTriggerInput(
+          this.deps.home,
+          profile,
+          scope.session,
+          this.deps.runtimes.get(input.owner.runtimeId),
+          input,
+        );
+        scope.check();
+        return result;
+      })
+      .finally(() => {
+        this.pendingReviews--;
+      });
   }
 
   retainedHistory(

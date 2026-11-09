@@ -21,6 +21,7 @@ import { useDaemonVersion } from '../../../lib/queries/queries';
 import { ReadoutObservation } from './ReadoutObservation';
 import { graphActionClass } from '../inspector/GraphEditing';
 import { AgentLink } from './history/AgentLink';
+import { TriggerInput } from './history/TriggerInput';
 
 type Owner = HuddleHistoryRequest['owner'];
 function usePage(profile: string, session: string, input: HuddleHistoryRequest, retained = false) {
@@ -60,6 +61,10 @@ export function HistoryDialog({
   onClose(): void;
 }) {
   const revisionSupported = useRetainedRevisionSupported();
+  const inputSupported = supportsApplicationFeature(useDaemonVersion().data?.protocol, {
+    major: 28,
+    minor: 33,
+  });
   const [revision, setRevision] = useState<{ digest?: string } | null>(null);
   const [cursors, setCursors] = useState([0]);
   const [selected, select] = useState<string | null>(initialExecution ?? null);
@@ -168,6 +173,14 @@ export function HistoryDialog({
           {selected ? (
             <div className="min-w-0 space-y-3">
               <p className="break-all text-xs">Execution {selected}</p>
+              {inputSupported && (
+                <TriggerInput
+                  key={`trigger-input:${selected}`}
+                  profile={profile}
+                  session={session}
+                  request={{ owner, execution_id: selected }}
+                />
+              )}
               {selectedRecord && (
                 <div className="space-y-1 text-xs text-fg-muted">
                   <p>
