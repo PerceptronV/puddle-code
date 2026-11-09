@@ -9,9 +9,14 @@ import { canAdoptHuddle, daemonRuntimeCapabilities } from '../../src/installatio
 it('adopts interval-only owners but blocks a calendar owner on an older candidate', () => {
   const { calendar: _, ...old } = HUDDLE_RUNTIME_CAPABILITIES;
   expect(supportsHuddleRuntime(old)).toBe(true);
-  expect(supportsHuddleRuntime({ ...old, calendar: 2 })).toBe(false);
+  expect(supportsHuddleRuntime({ ...old, calendar: 1 })).toBe(true);
+  expect(supportsHuddleRuntime({ ...old, calendar: 2 })).toBe(true);
+  expect(supportsHuddleRuntime({ ...old, calendar: 3 })).toBe(false);
   const candidate = daemonRuntimeCapabilities('fixture');
   expect(canAdoptHuddle(candidate, old)).toBe(true);
+  expect(canAdoptHuddle(candidate, { ...old, calendar: 1 })).toBe(true);
+  candidate.roles.huddle = { ...old, calendar: 1 };
+  expect(canAdoptHuddle(candidate, HUDDLE_RUNTIME_CAPABILITIES)).toBe(false);
   candidate.roles.huddle = old;
   expect(canAdoptHuddle(candidate, HUDDLE_RUNTIME_CAPABILITIES)).toBe(false);
 });

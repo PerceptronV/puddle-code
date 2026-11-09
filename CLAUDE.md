@@ -1012,6 +1012,14 @@ wake limit with intervals. Reserve calendar plan memory, release after the last
 one-off, and cache deadlines between progress changes. Validate named zones and
 exact date offsets before activation. Keep old owner capabilities supported and
 require the new capability before launch/Apply. Native reboot acceptance remains open.
+Application 28.28 and `calendar: 2` add `puddle.trigger.calendar-date` for
+monthly/yearly recurrence. Keep calendar-1 components unchanged and adopt old
+calendar-1 owners. Reject calendar-2 owners on older candidates. Selected months
+and a day-of-month skip missing dates; reject selections that can never occur.
+The monthly search visits at most 109 month slots, with a nine-year observation
+bound to cover leap days across non-leap centuries. Reuse the same civil-time,
+ledger, missed-occurrence and timer machinery; never scan each day of a multiyear
+gap or create another timer. Daily/weekday schedules retain their 366-day bound.
 Application 28.1 adds revision-checked `PUT /api/huddle/:profile/definitions/:id`:
 one manifest/layout publication per request, under the repository mutation lock.
 `huddle/definitions/save.ts` stages, rechecks captured source/authority and renames

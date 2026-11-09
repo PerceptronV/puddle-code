@@ -187,6 +187,17 @@ instant if the clock moved backwards. A running owner's observation gap longer
 than 366 days reports a fault instead of attempting unbounded catch-up. Inspect
 accepted work and explicitly Stop/Start to start a new schedule from now.
 
+On host 28.28+ with runtime `calendar: 2`, **Monthly / yearly** selects a day
+of the month and a JSON **Months** list. Use `[1,2,3,4,5,6,7,8,9,10,11,12]` for
+monthly, `[1,4,7,10]` for quarterly, or one month for yearly. **Day of month**
+defaults to 1. Missing dates are skipped: day 31 skips shorter months, and
+months `[2]` with day 29 fires only in leap years. A selection with no possible
+date, such as February 30, fails activation. Timezone, local time, repeated/missing
+clock times, missed-occurrence policy and Resume behavior match Calendar.
+Its bounded month search covers nine years, including the eight-year leap-day gap
+across 2100; larger observation gaps fail visibly. Old daily/weekly schedules
+retain their 366-day observation bound.
+
 **Date and time** takes an exact ISO timestamp with seconds and `Z` or an offset,
 for example `2027-03-01T09:00:00+01:00`; optional milliseconds are supported.
 Dates before 1970 are rejected. Choose what to do if the date is already past
@@ -199,7 +210,8 @@ Stop creates a new owner/activation. Both reset one-off consumption: a past date
 set to **fire** may run again. Choose **skip** or change/remove the date when
 that is not intended. Saving alone does not reset or execute anything.
 
-These nodes require runtime capability `calendar: 1`; old runtimes remain usable
+Calendar and Date and time require runtime capability `calendar: 1` or `2`;
+Monthly / yearly requires `2`. Old runtimes remain usable
 for their supported graphs. Up to 32 calendar/date nodes can coexist with 32
 interval nodes. All use one owner timer, existing execution/storage budgets and
 explicit memory admission. Completed one-offs leave no idle timer. Closing the

@@ -1,6 +1,8 @@
 import { useId, useState, useRef, useLayoutEffect } from 'react';
 import {
   coreHuddleComponents,
+  calendarDateHuddleTrigger,
+  supportsApplicationFeature,
   huddleNodeTemplates,
   huddleNodeSchema,
   type Session,
@@ -9,6 +11,7 @@ import {
   type HuddleDocument,
 } from '@puddle/shared';
 import { Input } from '../../../components/ui/input';
+import { useDaemonVersion } from '../../../lib/queries/queries';
 import { Label } from '../../../components/ui/label';
 import { addGraphNode, nextGraphId } from '../documents/graph-edits';
 import { useHuddleTemplates } from '../documents/templates';
@@ -34,6 +37,7 @@ export function AddNode({
   const [manifest, setManifest] = useState('');
   const local = huddleRelativePathSchema.safeParse(manifest);
   const template = useHuddleTemplates(profile, session);
+  const protocol = useDaemonVersion().data?.protocol;
   const latestEdit = useRef(edit);
   useLayoutEffect(() => {
     latestEdit.current = edit;
@@ -48,6 +52,11 @@ export function AddNode({
         placeholder="Search nodes"
       />
       {[...coreHuddleComponents.values()]
+        .filter(
+          (component) =>
+            component.id !== calendarDateHuddleTrigger.id ||
+            supportsApplicationFeature(protocol, { major: 28, minor: 28 }),
+        )
         .filter((component) =>
           `${component.title} ${component.category}`.toLowerCase().includes(search.toLowerCase()),
         )

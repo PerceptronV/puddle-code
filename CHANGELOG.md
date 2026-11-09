@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Add Monthly / yearly huddle schedules with explicit month/day selection, skipped missing dates and durable catch-up, requiring runtime calendar-2 (application 28.28).
+
 - Preview resolved huddle node settings with local sample variables, including missing/type errors, without saving samples or activating resources.
 
 - Expose retained huddle graph/layout drafts when their placement is missing, and preserve discard review for tab-button and Close tab actions without a session row.

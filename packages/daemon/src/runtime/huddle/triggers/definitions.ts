@@ -3,6 +3,7 @@ import {
   coreHuddleComponents,
   intervalHuddleTrigger,
   calendarHuddleTrigger,
+  calendarDateHuddleTrigger,
   dateHuddleTrigger,
   filetreeHuddleTrigger,
   gitHuddleTrigger,
@@ -102,9 +103,11 @@ export function requireHuddleFeatures(
       throw new Error('This runtime does not support huddle interval triggers');
     if (
       [calendarHuddleTrigger.id, dateHuddleTrigger.id].includes(component.id) &&
-      capabilities.calendar !== 1
+      ![1, 2].includes(capabilities.calendar ?? 0)
     )
       throw new Error('This runtime does not support huddle calendar/date triggers');
+    if (component.id === calendarDateHuddleTrigger.id && capabilities.calendar !== 2)
+      throw new Error('This runtime does not support monthly/yearly huddle triggers');
   }
 }
 

@@ -82,3 +82,44 @@ it('rejects unknown and offset-only zones and treats UTC explicitly', () => {
   expect(() => requireCalendarTimezone('Invalid/Zone')).toThrow();
   expect(() => requireCalendarTimezone('+02:00')).toThrow('named IANA');
 });
+
+it('skips missing month dates and bounds real monthly catch-up without shifting dates', () => {
+  const { weekdays: _, ...base } = schedule('UTC', '09:00', '2026-01-31T12:00:00Z');
+  const record: HuddleScheduleRecord = {
+    ...base,
+    kind: 'calendar-date',
+    day: 31,
+    months: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+  };
+  expect(iso(nextScheduleDeadline(record))).toBe('2026-03-31T09:00:00.000Z');
+  const now = Date.parse('2026-08-31T12:00:00Z');
+  expect(dueScheduleOccurrences(record, now)[0]!.data).toMatchObject({
+    firstScheduledAt: '2026-03-31T09:00:00.000Z',
+    scheduledAt: '2026-08-31T09:00:00.000Z',
+    occurrences: 4,
+    skipped: 0,
+  });
+  record.missed = 'catch-up';
+  expect(dueScheduleOccurrences(record, now).map((event) => event.data.skipped)).toEqual([1, 0, 0]);
+  expect(dueScheduleOccurrences(record, record.through - 1)).toEqual([]);
+});
+
+it('supports leap-day years across a non-leap century and skips monthly DST gaps', () => {
+  const { weekdays: _, ...base } = schedule('UTC', '09:00', '2096-02-29T12:00:00Z');
+  const record: HuddleScheduleRecord = { ...base, kind: 'calendar-date', day: 29, months: [2] };
+  expect(iso(nextScheduleDeadline(record))).toBe('2104-02-29T09:00:00.000Z');
+  expect(
+    dueScheduleOccurrences(record, Date.parse('2104-02-29T12:00:00Z'))[0]!.data.occurrences,
+  ).toBe(1);
+  expect(() => dueScheduleOccurrences(record, Date.parse('2106-01-01T00:00:00Z'))).toThrow(
+    'observation gap',
+  );
+  Object.assign(record, {
+    timeZone: 'America/New_York',
+    time: '02:30',
+    day: 8,
+    months: [3, 4],
+    through: Date.parse('2026-03-01T00:00:00Z'),
+  });
+  expect(iso(nextScheduleDeadline(record))).toBe('2026-04-08T06:30:00.000Z');
+});

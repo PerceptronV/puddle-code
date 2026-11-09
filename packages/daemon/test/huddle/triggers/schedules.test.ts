@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { afterEach, expect, it, vi } from 'vitest';
 import {
   calendarHuddleTrigger,
+  calendarDateHuddleTrigger,
   dateHuddleTrigger,
   HUDDLE_RUNTIME_CAPABILITIES,
   type HuddleComponent,
@@ -192,10 +193,17 @@ it('validates calendar/date settings before activation and gates old runtimes', 
   const f = fixture();
   const { calendar: _, ...old } = HUDDLE_RUNTIME_CAPABILITIES;
   expect(() => requireHuddleFeatures(f.snapshot, old)).toThrow('calendar/date');
+  expect(() => requireHuddleFeatures(f.snapshot, { ...old, calendar: 1 })).not.toThrow();
+  const monthly = withTrigger(structuredClone(f.snapshot), calendarDateHuddleTrigger, { day: 31 });
+  expect(() => requireHuddleFeatures(monthly, { ...old, calendar: 1 })).toThrow('monthly/yearly');
+  expect(() => requireHuddleFeatures(monthly, HUDDLE_RUNTIME_CAPABILITIES)).not.toThrow();
   const invalid: Array<[HuddleComponent, Record<string, HuddleJson>]> = [
     [calendarHuddleTrigger, { timeZone: 'Invalid/Zone' }],
     [calendarHuddleTrigger, { time: '24:30' }],
     [calendarHuddleTrigger, { weekdays: [1, 1] }],
+    [calendarDateHuddleTrigger, { months: [2], day: 30 }],
+    [calendarDateHuddleTrigger, { months: [1, 1], day: 1 }],
+    [calendarDateHuddleTrigger, { months: [13], day: 1 }],
     [dateHuddleTrigger, { at: '2026-01-01T00:00:00' }],
     [dateHuddleTrigger, { at: '2026-02-30T00:00:00Z' }],
   ];
@@ -210,4 +218,23 @@ it('validates calendar/date settings before activation and gates old runtimes', 
     ).toThrow();
     expect(f.ledger.activations.current().generation).toBe(2);
   }
+});
+
+it('retains monthly source identity and cursor across ledger reopen and Resume', () => {
+  const f = fixture(calendarDateHuddleTrigger, { months: [1, 3], day: 31 });
+  const at = Date.parse('2026-01-31T09:00:00Z');
+  const plan = f.ledger.schedules.plan(at)[0]!;
+  expect(f.ledger.schedules.admit(plan, f.settings, at)!.duplicate).toBe(false);
+  const ledger = f.base.reopen();
+  expect(JSON.parse(ledger.page('inbox')[0]!.body).event.source).toMatchObject({
+    component: calendarDateHuddleTrigger.id,
+    version: 1,
+  });
+  expect(ledger.schedules.plan(at)[0]!.occurrences).toEqual([]);
+  ledger.activations.setIntent(2, 'interrupted', false);
+  ledger.activations.setIntent(3, 'armed', false);
+  ledger.schedules.synchronise(f.activation, f.definitions, Date.parse('2026-02-01T00:00:00Z'));
+  const march = ledger.schedules.plan(Date.parse('2026-03-31T09:00:00Z'))[0]!;
+  expect(march.occurrences).toHaveLength(1);
+  expect(march.occurrences[0]!.data.occurrences).toBe(1);
 });

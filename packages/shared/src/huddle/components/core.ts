@@ -1,5 +1,5 @@
 import { intervalHuddleTrigger } from './interval.js';
-import { calendarHuddleTrigger, dateHuddleTrigger } from './calendar.js';
+import { calendarDateHuddleTrigger, calendarHuddleTrigger, dateHuddleTrigger } from './calendar.js';
 import { filetreeHuddleTrigger } from './filetree.js';
 import { sessionHuddleTrigger } from './session.js';
 import { completionHuddleTrigger } from './completion.js';
@@ -29,6 +29,7 @@ export const coreHuddleComponents = new Map(
     huddleResultReadout,
     intervalHuddleTrigger,
     calendarHuddleTrigger,
+    calendarDateHuddleTrigger,
     dateHuddleTrigger,
     filetreeHuddleTrigger,
     gitHuddleTrigger,

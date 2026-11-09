@@ -47,7 +47,7 @@ export const HUDDLE_RUNTIME_CAPABILITIES: Readonly<HuddleRuntimeCapabilities> = 
   triggerInspection: 1,
   executionInputs: 1,
   timers: 1,
-  calendar: 1,
+  calendar: 2,
   filetree: 1,
   git: 1,
   sessionEvents: 1,
@@ -84,7 +84,7 @@ export function supportsHuddleRuntime(value: unknown): value is HuddleRuntimeCap
       (parsed.data.autoStart === 1 && parsed.data.recovery === 1)) &&
     (parsed.data.executionInputs === undefined || parsed.data.executionInputs === 1) &&
     (parsed.data.timers === undefined || parsed.data.timers === 1) &&
-    (parsed.data.calendar === undefined || parsed.data.calendar === 1) &&
+    (parsed.data.calendar === undefined || [1, 2].includes(parsed.data.calendar)) &&
     (parsed.data.filetree === undefined || parsed.data.filetree === 1) &&
     (parsed.data.git === undefined || parsed.data.git === 1) &&
     (parsed.data.sessionEvents === undefined || parsed.data.sessionEvents === 1) &&

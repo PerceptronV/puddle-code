@@ -1663,6 +1663,15 @@ through clock rollback. One-off consumption persists within an activation; Apply
 and a new Start create fresh activation intent and can fire a past date again.
 A single timer serves all time sources, with bounded plans and a 366-day calendar
 lookback; larger gaps fail visibly.
+Application 28.28 exposes **Monthly / yearly** (`puddle.trigger.calendar-date`),
+requiring private runtime `calendar: 2`. Choose months 1–12 and day 1–31; missing
+dates are skipped, including February 29 in non-leap years. Impossible month/day
+selections are rejected before activation. This source shares timezone/DST,
+coalesce/skip/catch-up and atomic cursor admission with Calendar. Search visits
+at most 109 month slots across a nine-year bound, covering the eight-year leap-day
+gap at a non-leap century. No daily scan across those years or extra timer is added.
+Calendar-1 graphs and retained owners remain supported; older candidates cannot
+adopt calendar-2 owners. The IDE omits this new node on pre-28.28 hosts.
 Optional `filetree: 1` adds owner-managed directory watches and bounded metadata
 reconciliation under `triggers/filetree/`. Explicit registered worktree bindings,
 relative directories, glob filters and declared output exclusions scope observation.

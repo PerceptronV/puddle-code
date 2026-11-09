@@ -35,7 +35,8 @@ export function canAdoptHuddle(
     Object.entries(required).every(
       ([key, version]) =>
         supported[key as keyof HuddleRuntimeCapabilities] === version ||
-        (key === 'operations' && supported.operations === 2 && version === 1),
+        (key === 'operations' && supported.operations === 2 && version === 1) ||
+        (key === 'calendar' && supported.calendar === 2 && version === 1),
     )
   );
 }

@@ -1,5 +1,15 @@
 # The puddle communication protocol
 
+Application **28.28** adds the version-1 `puddle.trigger.calendar-date` built-in
+and gates its IDE catalogue entry. Private huddle **`calendar: 2`** supports it
+alongside unchanged calendar-1 daily/weekday and one-off sources. Updated daemons
+can adopt calendar-1 owners; older candidates cannot adopt calendar-2 owners.
+The existing private schedule union adds `kind: "calendar-date"`, with months,
+day, timezone, local time, missed policy, catch-up limit and retained `through`.
+Event shape and source/activation/instant identity remain unchanged. Progress
+commits atomically with event admission. Source settings use existing parameter
+contracts; no REST shape, database migration or ordinary runtime version changes.
+
 Node binding previews use existing shared parameter resolution in the frontend.
 Sample variables are local and add no API fields or capability/version change.
 Previewed resource selectors are not host-authorised bindings; Start/Apply and

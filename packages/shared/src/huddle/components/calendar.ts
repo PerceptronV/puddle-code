@@ -65,3 +65,39 @@ export const dateHuddleTrigger = huddleComponentSchema.parse({
   },
   outputs: intervalHuddleTrigger.outputs,
 });
+
+export const calendarDateHuddleTrigger = huddleComponentSchema.parse({
+  format: 1,
+  id: 'puddle.trigger.calendar-date',
+  version: 1,
+  category: 'trigger',
+  title: 'Monthly / yearly',
+  parameters: {
+    timeZone: calendarHuddleTrigger.parameters.timeZone!,
+    time: calendarHuddleTrigger.parameters.time!,
+    months: {
+      title: 'Months',
+      description:
+        'JSON list: January is 1, December is 12. All months repeats monthly; one month repeats yearly.',
+      schema: {
+        type: 'array',
+        items: { type: 'integer', minimum: 1, maximum: 12 },
+        minItems: 1,
+        maxItems: 12,
+      },
+      editor: 'json',
+      default: [1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12],
+    },
+    day: {
+      title: 'Day of month',
+      description:
+        'Missing dates are skipped, not moved. February 29 fires only in leap years; day 31 skips shorter months.',
+      schema: { type: 'integer', minimum: 1, maximum: 31 },
+      editor: 'number',
+      default: 1,
+    },
+    missed: intervalHuddleTrigger.parameters.missed!,
+    maxCatchUp: intervalHuddleTrigger.parameters.maxCatchUp!,
+  },
+  outputs: intervalHuddleTrigger.outputs,
+});

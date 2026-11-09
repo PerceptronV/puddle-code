@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import {
   calendarHuddleTrigger,
+  calendarDateHuddleTrigger,
   dateHuddleTrigger,
   huddleScheduleStateSchema,
   canonicalHuddleJson,
@@ -55,11 +56,11 @@ export class HuddleSchedules {
             existing?.activationId === activation.id
               ? existing.schedules.find((item) => item.node === definition.node)
               : undefined;
-          if (definition.kind === 'calendar')
+          if (definition.kind !== 'date')
             return {
               ...definition,
               // Pause excludes new missed occurrences, but a clock rollback never replays old ones.
-              through: Math.max(now, previous?.kind === 'calendar' ? previous.through : 0),
+              through: Math.max(now, previous && previous.kind !== 'date' ? previous.through : 0),
             };
           return {
             ...definition,
@@ -108,7 +109,12 @@ export class HuddleSchedules {
       if (!schedule || canonicalHuddleJson(schedule) !== canonicalHuddleJson(plan.schedule))
         throw new Error('Huddle schedule progress changed');
       const activation = this.activations.get(state.activationId);
-      const component = schedule.kind === 'calendar' ? calendarHuddleTrigger : dateHuddleTrigger;
+      const component =
+        schedule.kind === 'calendar'
+          ? calendarHuddleTrigger
+          : schedule.kind === 'calendar-date'
+            ? calendarDateHuddleTrigger
+            : dateHuddleTrigger;
       const event = {
         format: 1 as const,
         // Generation is deliberately absent: the same instant cannot re-fire after Resume.
@@ -130,7 +136,7 @@ export class HuddleSchedules {
         now,
         activation.id,
       );
-      if (schedule.kind === 'calendar') schedule.through = occurrence.at;
+      if (schedule.kind !== 'date') schedule.through = occurrence.at;
       else schedule.disposition = 'admitted';
       this.db.put('schedules', 'current', activation.id, 'current', state, { bytes: 4096 });
       return { accepted, schedule };

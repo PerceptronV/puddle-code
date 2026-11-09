@@ -11,10 +11,10 @@ export function triggerActivity(db: Database.Database, activationId: string | nu
       SUM(e.state = 'pending') AS queued, SUM(e.state = 'running') AS running,
       MAX(json_extract(i.body, '$.event.observedAt')) AS last_event_at,
       SUM(CASE WHEN json_extract(i.body, '$.event.source.component') IN
-        ('puddle.trigger.interval', 'puddle.trigger.calendar')
+        ('puddle.trigger.interval', 'puddle.trigger.calendar', 'puddle.trigger.calendar-date')
         THEN MAX(0, json_extract(i.body, '$.event.data.occurrences') - 1) ELSE 0 END) AS coalesced,
       SUM(CASE WHEN json_extract(i.body, '$.event.source.component') IN
-        ('puddle.trigger.interval', 'puddle.trigger.calendar')
+        ('puddle.trigger.interval', 'puddle.trigger.calendar', 'puddle.trigger.calendar-date')
         THEN MAX(0, json_extract(i.body, '$.event.data.skipped')) ELSE 0 END) AS skipped
     FROM records e JOIN records i ON i.collection = 'inbox' AND i.id = json_extract(e.body, '$.eventKey')
     WHERE e.collection = 'executions' AND json_extract(e.body, '$.activationId') = ?

@@ -45,10 +45,35 @@ the roadmap's real-provider and packaged-platform exit requirements.
 | Node binding preview | `web/features/huddle/inspector/BindingPreview.tsx` shares `resolveHuddleParameters`; exact captured runtime resources remain in `execution/review/RevisionDetails.tsx`. Existing template browser check verifies local resolution and sample isolation. | Implemented for draft parameter resolution; host resource admission remains part of Start/Apply. |
 | Built-in source and local copies | Editable agent/flow/readout templates install through `daemon/huddle/templates/install.ts`; `inspector/GraphEditing.tsx` adds core built-ins by catalogue reference. | Add readable built-in source and **Make local copy**, preserving the behavior of host-backed triggers. Copying a manifest alone is insufficient. |
 | Trigger admission policies | `shared/api/huddle/definitions.ts` declares queue/coalesce/drop, but `daemon/huddle/execution/bindings.ts` rejects non-queue policies and `ExecutionSettings.tsx` exposes Queue only. | Implement and expose per-trigger queue/coalesce/drop admission with finite bounds and durable event dispositions. Timer missed-occurrence coalescing is a separate feature. |
-| Calendar recurrence | `runtime/huddle/triggers/calendar/` implements daily/selected-weekday recurrence and timezone occurrence handling. | Finish the broader recurrence support recorded as open in the roadmap, including defined missing-date behavior. |
+| Calendar recurrence | `runtime/huddle/triggers/calendar/` implements daily/selected-weekday and monthly/yearly schedules, timezone handling and skipped missing dates. | Implementation now includes the broader recurrence; native sleep/reboot acceptance remains in the platform matrix. |
 | Module and fixture validation | Shared graph/binding validation, authoring-kit fixtures and runtime wrapper checks exist. | Audit the promised build/validate module-contract agreement and fixture-based authoring workflow; current evidence here does not prove the whole requirement. |
 | Session/IDE/window integration | Sidebar, lifecycle, source editing, Start and run, history, transfers and retained-draft recovery have individual evidence below. | Complete the integration audit against the full phase-2/5 requirements, including real agent authoring and native interaction acceptance. |
 | Provider/runtime/platform acceptance | Independent-owner, operation, trigger, feedback and recovery checks are recorded below, including isolated macOS crash recovery. | Complete real coder/reviewer and native-feedback checks in same/distinct worktrees, provider authoring, SSH disconnection, packaged update/removal and mixed-version continuity, reboot, and resource/battery measurements. Do not substitute fixture results for these exit gates. |
+
+## Implemented: monthly/yearly recurrence
+
+Application 28.28 adds **Monthly / yearly** to the node catalogue, with generated
+month/day/timezone/time settings. `calendar: 2` enables the new version-1 built-in
+`puddle.trigger.calendar-date`; calendar-1 components remain byte-for-byte unchanged.
+Updated capability/adoption checks accept calendar-1 owners and reject new sources
+on calendar-1 runtimes, including independent owner admission. Older host catalogues
+omit the new node.
+
+The runtime reuses `triggers/calendar/`, `state/schedules.ts` and the single owner
+timer. Selected months and a day-of-month skip missing dates; impossible selections
+are rejected. A bounded search over at most 109 month slots handles February 29
+across non-leap centuries without a daily multiyear scan. Monthly/yearly observation
+has a nine-year bound; daily/weekday calendars retain 366 days. Timezone/DST rules,
+coalesce/skip/catch-up, atomic source cursor/event admission, Resume and retained
+source identity use the existing machinery. Trigger inspection counts this source's
+coalesced/skipped occurrences too. Ordinary runtime and database versions are unchanged.
+
+Verification: 19 checks in the existing shared capability, calendar occurrence and
+schedule-ledger suites pass. Added cases cover skipped month dates, monthly catch-up,
+the 2096–2104 leap-day gap, monthly DST gaps, invalid settings, capability/adoption
+gates and retained event/cursor identity after reopen/Resume. The existing calendar
+browser fixture also covers monthly/yearly settings and old-host catalogue gating.
+These checks do not establish native sleep/reboot or packaged mixed-version acceptance.
 
 ## Implemented: local node binding preview
 

@@ -16,6 +16,14 @@ Review-loop leaves agent bindings unset: choose both existing sessions before
 validation/Start. It uses five rounds/ten turns and sends only approval to Result.
 Creation never launches a runtime or selects an account/agent.
 
+On host 28.28+ and runtime calendar: 2, the version-1 built-in
+puddle.trigger.calendar-date supplies monthly/yearly events. Bind months to a
+JSON array of numbers 1–12 and day to 1–31; all months means monthly, one means
+yearly. Missing dates are skipped, including February 29 in non-leap years.
+Use explicit timeZone and local HH:mm time. It shares Calendar's missed policy
+and bounded catch-up. Daily/weekday Calendar and Date and time still support
+calendar: 1; inspect the selected runtime before using the new source.
+
 ## Files and examples
 
 schemas/ contains JSON Schema draft 2020-12 for format-1 huddle.json, component

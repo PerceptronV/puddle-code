@@ -27,6 +27,12 @@ try {
     await group.getByRole('textbox').fill(value);
     await group.getByRole('button', { name: 'Apply setting' }).click();
   };
+  await editor.getByRole('button', { name: 'Add node', exact: true }).click();
+  assert.equal(
+    await editor.getByRole('button', { name: 'Add Monthly / yearly', exact: true }).count(),
+    0,
+  );
+  await editor.getByRole('button', { name: 'Add node', exact: true }).click();
   await add('Calendar');
   assert.equal(
     await inspector
@@ -96,7 +102,47 @@ try {
     false,
   );
   assert.deepEqual(errors, []);
-  console.log('Calendar/date nodes expose explicit settings and save without arming.');
+  await page.goto(
+    new URL(
+      '/test/huddle/fixture.html?source-saves',
+      process.env.PREVIEW_URL ?? 'http://localhost:5174/',
+    ).href,
+  );
+  await page.waitForFunction(() => !!window.huddleFixture);
+  await page.evaluate(() => window.huddleFixture.releaseProjects());
+  await page.getByRole('button', { name: 'New huddle', exact: true }).click();
+  await page.getByRole('button', { name: 'Review graph', exact: true }).click();
+  await add('Monthly / yearly');
+  await setText('Months', '[2]');
+  const day = inspector.getByRole('group', { name: 'Day of month', exact: true });
+  await day.getByRole('spinbutton').fill('29');
+  await day.getByRole('button', { name: 'Apply setting' }).click();
+  await editor.getByRole('button', { name: 'Save', exact: true }).click();
+  await page.waitForFunction(() =>
+    window.huddleFixture.source().nodes.some((node) => node.id === 'calendar-date'),
+  );
+  assert.deepEqual(
+    await page.evaluate(
+      () =>
+        window.huddleFixture.source().nodes.find((node) => node.id === 'calendar-date').parameters,
+    ),
+    {
+      months: { kind: 'literal', value: [2] },
+      day: { kind: 'literal', value: 29 },
+    },
+  );
+  assert.equal(
+    await page.evaluate(() =>
+      window.huddleFixture.requests.some((request) =>
+        /\/(start|apply|run|rearm)$/.test(request.path),
+      ),
+    ),
+    false,
+  );
+  assert.deepEqual(errors, []);
+  console.log(
+    'Calendar/date and monthly/yearly settings save without arming; older hosts omit the new node.',
+  );
 } catch (error) {
   console.error(await page.locator('body').innerText());
   await page.screenshot({ path: '/tmp/puddle-huddle-calendar-failure.png' });

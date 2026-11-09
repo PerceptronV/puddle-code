@@ -61,7 +61,7 @@ export class HuddleTimerController {
     this.deadlines.clear();
   }
   private deadline(record: HuddleScheduleRecord) {
-    const progress = record.kind === 'calendar' ? record.through : record.disposition;
+    const progress = record.kind !== 'date' ? record.through : record.disposition;
     let cached = this.deadlines.get(record.node);
     if (!cached || cached.progress !== progress) {
       cached = { progress, at: nextScheduleDeadline(record) };

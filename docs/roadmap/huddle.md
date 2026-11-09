@@ -125,7 +125,10 @@ workers with atomic event/cursor admission, explicit resume policy and source-lo
 health. Their subscriptions survive frontend/controller disconnection, and the IDE
 shows custom-source gaps. Application 28.17 adds a unified read-only trigger health
 and accepted-backlog inspector in the IDE and CLI/MCP, including retained timer
-coalescing/skipping and date disposition. Broader recurrence rules remain unfinished. Local readouts now execute
+coalescing/skipping and date disposition. Application 28.28 and runtime calendar-2
+add monthly/yearly selection by month and day, skipping missing dates with a
+bounded month search that handles non-leap centuries. Daily/weekday calendars
+retain their existing contracts. Local readouts now execute
 captured HuddleReadout adapters with durable intent, bounded receipts and explicit
 unknown outcomes. Explicit owner/API observation and the history panel's Check
 delivery action now reconcile uncertain deliveries through their captured adapters,
