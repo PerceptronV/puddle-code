@@ -9,8 +9,10 @@ import { digest } from '@puddle/shared/node';
 import { findFreePort } from '../src/lib/transport/net.js';
 import { root, stop, until } from './helpers.js';
 import { packagedHuddle } from './helpers/huddle.js';
+import { checkHuddleSsh } from './helpers/huddle-ssh.js';
 
 const archive = process.env.PUDDLE_TEST_RUNTIME_ARCHIVE;
+const ssh = process.env.PUDDLE_TEST_HUDDLE_SSH === '1';
 const enabled =
   process.platform === 'darwin' && process.env.PUDDLE_TEST_RUNTIME_SUPERVISOR === '1' && !!archive;
 
@@ -98,7 +100,7 @@ it.runIf(enabled)(
       const worktree = join(temporary, 'project');
       await execute('/usr/bin/git', ['init', '-b', 'main', worktree]);
       retainHome = true;
-      huddle = await packagedHuddle(home, port, worktree);
+      huddle = await packagedHuddle(home, port, worktree, ssh);
       await huddle.run('Before runtime selection');
       const cli = join(root, 'packages/cli/dist/index.js');
       const result = await execute(process.execPath, [
@@ -122,6 +124,7 @@ it.runIf(enabled)(
       expect(daemon.exitCode).toBeNull();
       expect(() => process.kill(pid!, 0)).not.toThrow();
       await huddle.run('After runtime selection');
+      if (ssh) await checkHuddleSsh(home, port, huddle);
       const job = hostUpdateWorkerSchema.parse(
         JSON.parse(readFileSync(join(home, 'updates/jobs', operation.id, 'worker.json'), 'utf8')),
       );

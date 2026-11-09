@@ -48,7 +48,7 @@ the roadmap's real-provider and packaged-platform exit requirements.
 | Calendar recurrence | `runtime/huddle/triggers/calendar/` implements daily/selected-weekday and monthly/yearly schedules, timezone handling and skipped missing dates. | Implementation now includes the broader recurrence; native sleep/reboot acceptance remains open. |
 | Module and fixture validation | Application 28.31 adds static module/wrapper/captured-import checking and JSON contract samples through IDE/CLI/MCP. The client kit also supplies a standalone executable component runner using real wrappers and fake I/O. | Provider-authored component acceptance remains; static samples do not execute scripts, and executable fixtures do not establish live provider/runtime behavior. |
 | Session/IDE/window integration | The phase-2/5 source/fixture audit below maps the existing seams and exposed two history gaps, now implemented in 28.32–28.33. | Headless huddle transfer and peer/external source conflict checks pass as recorded below. Real-agent edits, renderer-crash and native interaction acceptance remain. |
-| Provider/runtime/platform acceptance | Independent-owner, operation, trigger, feedback and recovery checks are recorded below, including isolated macOS crash recovery and a packaged runtime-default update retaining an armed huddle. | Complete real coder/reviewer and native-feedback checks in same/distinct worktrees, provider authoring, SSH disconnection, packaged update/removal and mixed-version continuity, reboot, and resource/battery measurements. Do not substitute fixture results for these exit gates. |
+| Provider/runtime/platform acceptance | Independent-owner, operation, trigger, feedback and recovery checks are recorded below, including isolated macOS crash recovery, a packaged runtime-default update retaining an armed huddle, and loopback SSH disconnect/reconnect with autonomous timer execution. | Complete real coder/reviewer and native-feedback checks in same/distinct worktrees, provider authoring, remote-host/network-loss acceptance, packaged update/removal and mixed-version continuity, reboot, and resource/battery measurements. Do not substitute fixture results for these exit gates. |
 
 ## Phase-2/5 source and fixture audit
 
@@ -110,6 +110,28 @@ real packaged workers. It does not establish daemon/combined replacement during
 an active invocation, old-version coexistence, removal with live owners, SSH,
 reboot, real-agent feedback or resource/battery behaviour. Those remain explicit
 platform/provider gates. Existing user installations were not changed.
+
+## Verified: packaged huddle across an SSH disconnect
+
+The packaged runtime-update check also passes with `PUDDLE_TEST_HUDDLE_SSH=1`
+added to the command above. It reuses the existing loopback OpenSSH fixture,
+with temporary keys, isolated client configuration and a disposable host home.
+The shared fixture's three existing SSH control checks also pass.
+
+An independent interval-to-Transform-to-Result branch runs alongside Manual flow.
+The check submits a manual execution through an authenticated SSH forward, closes
+the authority channel, forward and actual SSH control master, and observes a new
+completed timer execution accepted after disconnection. That observation is a
+read-only host request; admission and script execution belong to the huddle owner.
+A fresh SSH connection sees the same runtime/incarnation/activation target, one
+completed record for the original manual submission, and the exact retained timer
+execution and its original interval-trigger input. No execution is resubmitted.
+
+The packaged check, scoped TypeScript/lint/format checks pass. This establishes
+deliberate client disconnect/reconnect with real OpenSSH and packaged workers on
+one macOS host. It does not establish an unplanned network failure, remote-host
+logout/supervision, reboot or real-provider continuity. No production code or user
+installation changed; fixture services are cleaned up by the existing native check.
 
 ## Verified: huddle renderer transfer and concurrent source edits
 
