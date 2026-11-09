@@ -19,6 +19,9 @@ import { huddleRuntimeFixture } from './runtime';
 import { largeGraph } from './canvas/large-graph';
 import { retainedHistoryFixture } from './history/fixture';
 import { sourceFixture } from './source/fixture';
+import { previewGraph } from './preview/graph';
+
+const preview = new URLSearchParams(location.search).has('preview');
 
 const fixture = mountWorkspaceFixture({
   restore: new URLSearchParams(location.search).has('view-state'),
@@ -36,7 +39,7 @@ if (new URLSearchParams(location.search).has('session-triggers')) {
     }),
   );
 }
-if (new URLSearchParams(location.search).has('agent-templates')) {
+if (preview || new URLSearchParams(location.search).has('agent-templates')) {
   for (const [index, title] of ['Coder', 'Reviewer'].entries())
     fixture.addSession(
       sessionSchema.parse({
@@ -169,6 +172,14 @@ components.set(`.puddle/huddle/${savedId}/nodes/review/run.ts`, {
   content: '// initial script',
   mtime: 1,
 });
+if (preview) {
+  const files = previewGraph(document, saved.worktree_path);
+  saved.title = document.definition.name;
+  disk.set(savedId, { content: files['huddle.json']!, mtime: 1 });
+  for (const [name, content] of Object.entries(files))
+    if (name !== 'huddle.json')
+      components.set(`.puddle/huddle/${savedId}/${name}`, { content, mtime: 1 });
+}
 const source = sourceFixture(document, disk, components);
 const retainedHistory = retainedHistoryFixture({
   sessionId: '00000000-0000-4000-8000-000000000005',
@@ -178,7 +189,7 @@ const retainedHistory = retainedHistoryFixture({
 });
 // Existing fixture scripts retain explicit pre-source-save host coverage.
 // Modern captured saves use ?source-saves and real computed capture hashes.
-const capturedSaves = ['source-saves', 'copy-source'].some((flag) =>
+const capturedSaves = ['source-saves', 'copy-source', 'preview'].some((flag) =>
   new URLSearchParams(location.search).has(flag),
 );
 let available = true;
@@ -560,3 +571,13 @@ Object.assign(window, {
     },
   },
 });
+
+if (preview) {
+  globalThis.document.title = 'Huddle IDE preview';
+  fixture.releaseProjects();
+  const open = () => {
+    if (!fixture.bridge()) return requestAnimationFrame(open);
+    fixture.visit(project.id, saved.id);
+  };
+  requestAnimationFrame(open);
+}

@@ -63,6 +63,21 @@ The existing headless template/preview and revision-review browser flows pass
 against the UI-only preview. Web TypeScript, scoped ESLint and formatting pass.
 No new tests or native windows were added for this change.
 
+## Interactive UI-only preview
+
+With `pnpm --filter @puddle/web dev:preview` running, open
+`http://localhost:5174/test/huddle/fixture.html?preview`. This directly opens the
+real workspace and Huddle IDE with the shipped Two-agent review starter, editable
+script/contract files, a compact five-node layout and synthetic Coder/Reviewer
+sessions. The starter's missing agent selections remain explicit settings.
+`test/huddle/preview/graph.ts` only seeds in-memory fixture data; existing source
+and runtime fixtures handle interactions. No daemon, agent or project script runs.
+
+The page was opened in headless Chromium and in the local browser; the real graph,
+sidebar and controls render without page errors, and Fit graph works. This is a
+visual/interaction preview, not real-agent execution evidence. It is served only
+by the UI-only development setup and is not a production entry point.
+
 ## Implemented: huddle-aware removal wording
 
 The coordinated daemon-removal CLI and help now explicitly include independent
