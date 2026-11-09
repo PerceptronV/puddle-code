@@ -20,6 +20,15 @@ export function validateHuddleGraph(
       diagnostics.push({ severity: 'error', code, path, message, ...extra });
   };
   const nodes = new Map(definition.nodes.map((node) => [node.id, node]));
+  for (const node of Object.keys(definition.execution.triggerAdmission ?? {})) {
+    if (!nodes.has(node) || components.get(node)?.category !== 'trigger')
+      add(
+        'trigger_admission',
+        `/execution/triggerAdmission/${node}`,
+        'Admission settings require an existing trigger node',
+        { node },
+      );
+  }
   const incoming = new Map<string, number>();
   const forward = new Map<string, string[]>();
   const indegrees = new Map(definition.nodes.map((node) => [node.id, 0]));

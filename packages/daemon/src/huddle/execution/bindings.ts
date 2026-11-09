@@ -30,8 +30,6 @@ export function huddleExecutionBindings(
   const unsupported = (message: string): never => {
     throw ApiError.conflict('huddle_execution_unsupported', message);
   };
-  if (snapshot.definition.execution.queue !== 'queue')
-    unsupported('This runtime supports queued trigger inputs only');
   for (const node of snapshot.definition.nodes) {
     const component = snapshot.components[node.id]!;
     const completion =

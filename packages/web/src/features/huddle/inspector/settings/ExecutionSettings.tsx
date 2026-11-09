@@ -1,7 +1,12 @@
 import { useId, useState } from 'react';
-import { huddleDefinitionSchema, type HuddleDefinition } from '@puddle/shared';
+import {
+  huddleDefinitionSchema,
+  supportsApplicationFeature,
+  type HuddleDefinition,
+} from '@puddle/shared';
 import { Input } from '../../../../components/ui/input';
 import { Label } from '../../../../components/ui/label';
+import { useDaemonVersion } from '../../../../lib/queries/queries';
 import { graphActionClass, type EditGraph } from '../GraphEditing';
 
 type Execution = HuddleDefinition['execution'];
@@ -39,6 +44,10 @@ function SettingsForm({
   locked: boolean;
 }) {
   const id = useId();
+  const admissionSupported = supportsApplicationFeature(useDaemonVersion().data?.protocol, {
+    major: 28,
+    minor: 29,
+  });
   const [values, setValues] = useState(() =>
     Object.fromEntries(limits.map(([key]) => [key, String(execution[key])])),
   );
@@ -93,21 +102,31 @@ function SettingsForm({
             </div>
           ))}
           <div className="flex flex-col gap-2">
-            <Label htmlFor={`${id}-queue`}>Event admission</Label>
+            <Label htmlFor={`${id}-queue`}>Default event admission</Label>
             <select
               id={`${id}-queue`}
               className="rounded-md bg-surface px-2 py-1 text-sm text-fg"
               value={queue}
-              onChange={() => setQueue('queue')}
+              onChange={(event) => setQueue(event.target.value as Execution['queue'])}
             >
               <option value="queue">Queue</option>
-              {execution.queue !== 'queue' && (
+              {admissionSupported && (
+                <>
+                  <option value="coalesce">Coalesce waiting events</option>
+                  <option value="drop">Drop while busy</option>
+                </>
+              )}
+              {!admissionSupported && execution.queue !== 'queue' && (
                 <option value={execution.queue} disabled>
                   {execution.queue} · unavailable
                 </option>
               )}
             </select>
-            <p className="text-xs text-fg-muted">Coalescing and dropping are not yet supported.</p>
+            <p className="text-xs text-fg-muted">
+              {admissionSupported
+                ? 'Triggers inherit this policy unless overridden in their inspector. Coalesce replaces waiting work only; Drop skips busy sources or full queues. Running work is never interrupted.'
+                : 'This host supports queued events only.'}
+            </p>
           </div>
           <div className="flex flex-col gap-2">
             <Label htmlFor={`${id}-cleanup`}>Owned agent cleanup</Label>

@@ -25,6 +25,9 @@ try {
   assert.equal(await updateSettings.isDisabled(), true);
   await settings.getByLabel('Agent turns per execution', { exact: true }).fill('12');
   await settings.getByLabel('Owned agent cleanup').selectOption('retain-owned');
+  if (process.env.HUDDLE_CAPTURED_SOURCE)
+    await settings.getByLabel('Default event admission', { exact: true }).selectOption('coalesce');
+  else assert.equal(await settings.locator('option[value="coalesce"]').count(), 0);
   await updateSettings.click();
   await editor.getByText('Unsaved changes', { exact: true }).waitFor();
   assert.notEqual(await page.evaluate(() => window.huddleFixture.source().execution?.maxTurns), 12);
@@ -45,6 +48,30 @@ try {
     'retain-owned',
   );
   await editor.getByRole('button', { name: 'Settings', exact: true }).click();
+  await editor.getByRole('button', { name: 'Run event', exact: true }).click();
+  const admission = editor.getByRole('group', { name: 'Trigger admission', exact: true });
+  if (process.env.HUDDLE_CAPTURED_SOURCE) {
+    assert.equal(
+      await page.evaluate(() => window.huddleFixture.source().execution.queue),
+      'coalesce',
+    );
+    await admission.getByLabel('Event policy', { exact: true }).selectOption('drop');
+    await admission.getByLabel('Queued events for this trigger', { exact: true }).fill('2');
+    await admission.getByRole('button', { name: 'Update trigger draft' }).click();
+    await editor.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.waitForFunction(
+      () => window.huddleFixture.source().execution.triggerAdmission?.run?.policy === 'drop',
+    );
+    assert.deepEqual(
+      await page.evaluate(() => window.huddleFixture.source().execution.triggerAdmission),
+      { run: { policy: 'drop', maxQueuedEvents: 2 } },
+    );
+    await admission.getByLabel('Event policy', { exact: true }).selectOption('inherit');
+    await admission.getByRole('button', { name: 'Update trigger draft' }).click();
+    await editor.getByRole('button', { name: 'Undo', exact: true }).click();
+    assert.equal(await admission.getByLabel('Event policy', { exact: true }).inputValue(), 'drop');
+  } else
+    assert.equal(await admission.getByLabel('Event policy', { exact: true }).isDisabled(), true);
   await editor.getByRole('button', { name: 'Add node', exact: true }).click();
   await editor.getByRole('button', { name: 'Add Result', exact: true }).click();
   await editor.getByText('Unsaved changes', { exact: true }).waitFor();

@@ -22,6 +22,7 @@ import { useViewStateKey } from '../editor/tabs/view-state-context';
 import { useHuddleView } from './view/use-huddle-view';
 import { ExecutionSettings } from './inspector/settings/ExecutionSettings';
 import { NodeConcurrency } from './inspector/settings/NodeConcurrency';
+import { TriggerAdmission } from './inspector/settings/TriggerAdmission';
 
 export function HuddlePane({ session, focused = true }: { session: Session; focused?: boolean }) {
   const supported = useHuddleSupported();
@@ -417,6 +418,15 @@ function HuddleEditor({
                     edit={edit}
                   />
                   <NodeAppearance node={node} component={component} edit={edit} />
+                  {component?.category === 'trigger' && (
+                    <TriggerAdmission
+                      key={`${node.id}:${JSON.stringify(graph.definition.execution)}`}
+                      node={node.id}
+                      execution={graph.definition.execution}
+                      edit={edit}
+                      locked={draft.locked || !!buffer.conflict}
+                    />
+                  )}
                   <NodeConcurrency
                     key={`${node.id}:${node.concurrency}`}
                     node={node}

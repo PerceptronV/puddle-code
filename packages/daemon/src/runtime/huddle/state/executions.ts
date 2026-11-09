@@ -93,19 +93,41 @@ export class HuddleExecutions {
       }
       if (this.db.get('executions', event.executionId))
         throw new Error('Execution id is already in use');
-      if (this.db.count('executions', { state: 'pending' }) >= limits.maxQueuedEvents)
-        throw new Error('Huddle event queue is full');
+      const admission = limits.triggerAdmission?.[event.source.node];
+      const policy = admission?.policy ?? limits.queue;
+      const work =
+        policy === 'queue' && !admission
+          ? { busy: 0, pending: 0, latest: undefined }
+          : this.db.triggerAdmissionWork(source, event.port, event.revision, activationId);
+      const replacement = policy === 'coalesce' ? work.latest : undefined;
+      const removed = replacement ? 1 : 0;
+      const full =
+        this.db.count('executions', { state: 'pending' }) - removed >= limits.maxQueuedEvents ||
+        work.pending - removed >= (admission?.maxQueuedEvents ?? limits.maxQueuedEvents);
+      const dropped = policy === 'drop' && (work.busy > 0 || full);
+      if (full && !dropped) throw new Error('Huddle event queue is full');
       const day = new Date(now).toISOString().slice(0, 10);
       const budget = this.budget(day);
-      if (budget.executions >= limits.maxDailyExecutions)
+      if (!dropped && budget.executions >= limits.maxDailyExecutions)
         throw new Error('Huddle daily execution limit reached');
-      const record = huddleInboxRecordSchema.parse({ event, nextCursor: next, state: 'pending' });
+      const record = huddleInboxRecordSchema.parse({
+        event,
+        nextCursor: next,
+        state: dropped ? 'cancelled' : 'pending',
+      });
       const execution = huddleExecutionRecordSchema.parse({
         id: event.executionId,
         eventKey: key,
         revision: event.revision,
         ...(activationId === undefined ? {} : { activationId }),
-        state: 'pending',
+        state: dropped ? 'cancelled' : 'pending',
+        ...(dropped
+          ? {
+              admission: { disposition: 'dropped' },
+              error:
+                'Dropped by trigger admission policy: source busy or queue full; no nodes ran.',
+            }
+          : {}),
         limits,
         acceptedAt: now,
         deadline: now + limits.timeoutMs,
@@ -113,10 +135,25 @@ export class HuddleExecutions {
         spawns: 0,
         invocations: 0,
       });
+      if (replacement) {
+        const replaced = this.finish(
+          replacement,
+          'cancelled',
+          `Coalesced by trigger admission policy into execution ${execution.id}; no nodes ran.`,
+        );
+        this.save({
+          ...replaced,
+          admission: { disposition: 'superseded', replacement: execution.id },
+        });
+      }
       this.db.put('inbox', key, source, record.state, record);
       this.save(execution);
       this.db.put('cursors', source, '', 'current', { cursor: next });
-      this.db.put('budgets', day, '', 'current', { ...budget, executions: budget.executions + 1 });
+      if (!dropped)
+        this.db.put('budgets', day, '', 'current', {
+          ...budget,
+          executions: budget.executions + 1,
+        });
       return { sequence: this.db.get('inbox', key)!.ordinal, duplicate: false, execution };
     });
   }

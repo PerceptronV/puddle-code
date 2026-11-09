@@ -44,11 +44,43 @@ the roadmap's real-provider and packaged-platform exit requirements.
 | --- | --- | --- |
 | Node binding preview | `web/features/huddle/inspector/BindingPreview.tsx` shares `resolveHuddleParameters`; exact captured runtime resources remain in `execution/review/RevisionDetails.tsx`. Existing template browser check verifies local resolution and sample isolation. | Implemented for draft parameter resolution; host resource admission remains part of Start/Apply. |
 | Built-in source and local copies | Editable agent/flow/readout templates install through `daemon/huddle/templates/install.ts`; `inspector/GraphEditing.tsx` adds core built-ins by catalogue reference. | Add readable built-in source and **Make local copy**, preserving the behavior of host-backed triggers. Copying a manifest alone is insufficient. |
-| Trigger admission policies | `shared/api/huddle/definitions.ts` declares queue/coalesce/drop, but `daemon/huddle/execution/bindings.ts` rejects non-queue policies and `ExecutionSettings.tsx` exposes Queue only. | Implement and expose per-trigger queue/coalesce/drop admission with finite bounds and durable event dispositions. Timer missed-occurrence coalescing is a separate feature. |
+| Trigger admission policies | `runtime/huddle/state/executions.ts` applies graph defaults/per-trigger overrides in the durable admission transaction; `inspector/settings/` exposes policies and limits. | Implemented with retained dispositions, capability gates and focused ledger/editor checks; native platform acceptance remains separate. Timer missed-occurrence coalescing is a different policy. |
 | Calendar recurrence | `runtime/huddle/triggers/calendar/` implements daily/selected-weekday and monthly/yearly schedules, timezone handling and skipped missing dates. | Implementation now includes the broader recurrence; native sleep/reboot acceptance remains in the platform matrix. |
 | Module and fixture validation | Shared graph/binding validation, authoring-kit fixtures and runtime wrapper checks exist. | Audit the promised build/validate module-contract agreement and fixture-based authoring workflow; current evidence here does not prove the whole requirement. |
 | Session/IDE/window integration | Sidebar, lifecycle, source editing, Start and run, history, transfers and retained-draft recovery have individual evidence below. | Complete the integration audit against the full phase-2/5 requirements, including real agent authoring and native interaction acceptance. |
 | Provider/runtime/platform acceptance | Independent-owner, operation, trigger, feedback and recovery checks are recorded below, including isolated macOS crash recovery. | Complete real coder/reviewer and native-feedback checks in same/distinct worktrees, provider authoring, SSH disconnection, packaged update/removal and mixed-version continuity, reboot, and resource/battery measurements. Do not substitute fixture results for these exit gates. |
+
+## Implemented: per-trigger admission policies
+
+Application 28.29 and runtime `admission: 1` enable graph-default queue/coalesce/drop
+and optional `execution.triggerAdmission[node]` overrides with finite source limits.
+All trigger families already call `HuddleExecutions.accept`; the new policy lives
+in that common transaction, with SQL inspection under `state/admission.ts`.
+Coalesce cancels only the latest pending input with the same source, port, revision
+and activation. Drop creates a cancelled root when that source is pending/running
+or a queue is full. Running work and existing agent lifecycle are untouched.
+
+Each original event and execution identity stays retained, including a private
+disposition and a public cancellation reason. Coalescence records the replacement
+id without editing the original input. Deduplication returns the retained outcome
+after reopen, and cursor progress commits with the policy decision. Storage or
+budget refusal rolls back the replacement and cursor. Superseded admissions keep
+their daily-budget cost; dropped roots use history capacity but no daily execution
+budget. Public history continues to use its existing cancelled/error shape.
+
+The graph settings expose the default and each trigger inspector exposes an override
+and source queue bound. They share ordinary drafts, Save/Undo and activation; node
+deletion removes its override. Graph validation rejects overrides for non-triggers.
+Old hosts gate the editor controls, and old runtimes reject new settings before
+launch/Apply and independent activation. Old queue-only definitions and owners remain
+supported. Timer missed-occurrence policies remain independent.
+
+Verification uses the existing inbox, execution-binding and graph-edit suites,
+covering durable coalescence/drop, duplicates/reopen, running-work preservation,
+port/revision/activation separation, bounds, capacity rollback, capability gates
+and override removal. The existing editing browser fixture passes in modern and
+older-host modes, including settings, source save/undo and no execution requests.
+This does not replace native crash/reboot, real-provider or packaged acceptance.
 
 ## Implemented: monthly/yearly recurrence
 

@@ -1,5 +1,21 @@
 # The puddle communication protocol
 
+Application **28.29** enables the existing `execution.queue` coalesce/drop values
+and adds optional `execution.triggerAdmission: { [node]: {policy, maxQueuedEvents} }`
+to format-1 definitions. Keys must resolve to triggers; limits remain 1–4096 with
+the graph's total queue bound still enforced. Runtime **`admission: 1`** gates
+non-queue defaults and presence of the new map before launch/Apply/owner activation.
+Old definitions omit the map; supporting daemons still adopt old owners.
+
+Private execution records gain optional admission disposition (`dropped`, or
+`superseded` with replacement execution id). They retain terminal `cancelled` state
+and a bounded explanatory error, so public history/Run shapes and state enums do
+not change. Public projections deliberately omit the private disposition object.
+Coalescence matches source, port, revision and activation, superseding pending
+work only. Drop and supersession preserve event identities and atomic source cursor
+progress; refusal rolls back the entire decision. No database migration or ordinary
+agent/terminal runtime version changes are introduced.
+
 Application **28.28** adds the version-1 `puddle.trigger.calendar-date` built-in
 and gates its IDE catalogue entry. Private huddle **`calendar: 2`** supports it
 alongside unchanged calendar-1 daily/weekday and one-off sources. Updated daemons

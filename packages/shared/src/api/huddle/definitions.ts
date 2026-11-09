@@ -51,6 +51,11 @@ export const huddleEdgeSchema = z.strictObject({
 });
 export type HuddleEdge = z.infer<typeof huddleEdgeSchema>;
 
+export const huddleTriggerAdmissionSchema = z.strictObject({
+  policy: z.enum(['queue', 'coalesce', 'drop']),
+  maxQueuedEvents: z.number().int().min(1).max(4096),
+});
+
 export const huddleDefinitionSchema = z.strictObject({
   format: z.literal(1),
   id: huddleIdSchema,
@@ -70,6 +75,10 @@ export const huddleDefinitionSchema = z.strictObject({
       maxDailyAgentSpawns: z.number().int().min(1).max(1000).default(32),
       maxInvocations: z.number().int().min(1).max(4096).default(512),
       queue: z.enum(['queue', 'coalesce', 'drop']).default('queue'),
+      triggerAdmission: z
+        .record(huddleKeySchema, huddleTriggerAdmissionSchema)
+        .refine((value) => Object.keys(value).length <= HUDDLE_LIMITS.nodes)
+        .optional(),
       cleanup: z.enum(['stop-owned', 'retain-owned']).default('stop-owned'),
     })
     .prefault({}),

@@ -408,6 +408,11 @@ Graph execution rules must be explicit before building the canvas:
 4. Default graph concurrency is one execution; default node concurrency is one.
    Queue/coalesce/drop policies are visible per trigger, with finite queue limits.
    An agent still rejects concurrent asks. Do not silently interrupt a busy agent.
+   Application 28.29/runtime admission-1 implement graph defaults and per-trigger
+   overrides. Coalesce supersedes only waiting input from the same source, port,
+   revision and activation; Drop records skipped events for busy sources/full
+   queues. History and source cursor progress remain durable and running work
+   continues unchanged. Timer missed-occurrence policies remain separate.
 5. Errors stop dependent nodes and appear in the execution inspector. Recovery
    paths require an explicit error port/policy; ordinary success wires receive no
    fabricated result. Retry defaults to off for operations with side effects.

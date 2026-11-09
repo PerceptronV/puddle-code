@@ -44,6 +44,12 @@ export function requireHuddleFeatures(
   snapshot: HuddleDefinitionSnapshot,
   capabilities: HuddleRuntimeCapabilities,
 ) {
+  if (
+    (snapshot.definition.execution.queue !== 'queue' ||
+      snapshot.definition.execution.triggerAdmission !== undefined) &&
+    capabilities.admission !== 1
+  )
+    throw new Error('This runtime does not support huddle trigger admission policies');
   for (const node of snapshot.definition.nodes) {
     const component = snapshot.components[node.id]!;
     if (

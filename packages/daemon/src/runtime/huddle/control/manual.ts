@@ -16,8 +16,6 @@ export function admitManualHuddle(
   if (control.state !== 'armed' || !control.activationId) throw new Error('Huddle is not armed');
   const activation = ledger.activations.get(control.activationId);
   const snapshot = revisions.read(activation.revision);
-  if (snapshot.definition.execution.queue !== 'queue')
-    throw new Error('This owner does not yet support coalescing/drop admission');
   const definition = snapshot.definition.nodes.find((candidate) => candidate.id === node);
   if (
     definition?.source.kind !== 'builtin' ||

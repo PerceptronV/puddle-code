@@ -134,6 +134,28 @@ authoring skill; it never activates edits automatically. See
 [agent-assisted authoring](huddle/authoring.md) for account selection, source
 review and lost-reply handling.
 
+## Choose event admission
+
+On host 28.29+ and runtime `admission: 1`, **Settings → Default event admission**
+chooses the graph default. Each trigger's **Trigger admission** inspector can
+override it and set its own queued-event limit. Save, then Start or Apply to
+activate changes. Deleting a trigger removes its override; Undo restores both.
+
+- **Queue** keeps every event until execution, within the graph and trigger bounds.
+- **Coalesce waiting events** replaces the latest waiting input from the same
+  trigger port and active revision/activation. Running work continues. If no such
+  waiting input exists, the new event is queued normally.
+- **Drop while busy** records a skipped event when that trigger already has
+  pending/running work or a graph/trigger queue limit has been reached.
+
+History shows policy decisions as cancelled executions with a reason; coalesced
+entries identify their replacement execution. Original events remain retained,
+and redelivery does not run them later. No running agent is interrupted. Queue or
+coalesce refusal preserves the source cursor and waiting work; storage exhaustion
+also refuses drops rather than silently discarding history. Superseded admissions
+still count toward the daily execution limit. Dropped events do not, but still use
+bounded history storage. Timer missed-occurrence policies below are separate.
+
 ## Run on an interval
 
 Add **Interval**, connect its `event` output, and configure the interval in

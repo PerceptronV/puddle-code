@@ -1335,6 +1335,27 @@ All timestamps are ISO 8601 UTC. Git operations against a given repository (work
 
 ### Huddle orchestration (implementation in progress)
 
+Application 28.29 and private runtime `admission: 1` enable queue/coalesce/drop
+event admission. `execution.queue` supplies the default; optional
+`execution.triggerAdmission` maps trigger node ids to `{policy, maxQueuedEvents}`.
+Graph and per-source pending limits both apply. Queue retains each event. Coalesce
+replaces only the latest waiting execution for the same pinned source, port,
+revision and activation; the original input remains immutable in retained history.
+Drop records a skipped event if that source already has pending/running work or
+a queue bound is reached. Running executions and ordinary agent lifecycle are
+untouched. Default behavior remains queueing.
+
+Every root event retains an execution identity, including policy cancellations.
+Cancelled records keep a private dropped/superseded disposition, a replacement
+execution id for coalescence, and a public error explaining why no nodes ran.
+Event, cancellation/replacement, cursor and budgets commit in one transaction;
+storage/budget refusal preserves the original waiting work and cursor. Duplicate
+source ids return the retained outcome without another decision. Superseded
+admissions retain their daily budget consumption; dropped events consume history
+capacity but no daily execution budget. These policies are separate from a timer's
+missed-occurrence policy. Existing history shapes remain unchanged, and capability
+checks reject new policies on older runtimes before owner launch or activation.
+
 Application 28.23 adds integration-secret references through parameter editor
 `secret` and runtime `integrationSecrets: 1`. Private `huddle-integrations.json`
 in the installation home grants exact profile/project/huddle/canonical-worktree

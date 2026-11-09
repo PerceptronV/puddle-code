@@ -27,6 +27,12 @@ export const huddleExecutionRecordSchema = z.strictObject({
   spawns: z.number().int().nonnegative(),
   invocations: z.number().int().nonnegative(),
   error: z.string().max(4096).optional(),
+  admission: z
+    .discriminatedUnion('disposition', [
+      z.strictObject({ disposition: z.literal('dropped') }),
+      z.strictObject({ disposition: z.literal('superseded'), replacement: z.uuid() }),
+    ])
+    .optional(),
 });
 export type HuddleExecutionRecord = z.infer<typeof huddleExecutionRecordSchema>;
 

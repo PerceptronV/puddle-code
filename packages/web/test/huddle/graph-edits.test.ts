@@ -17,6 +17,13 @@ it('adds stable distinct node ids and removes only the selected node and its inc
   expect(three.nodes.map((node) => node.id)).toEqual(['run', 'run-2', 'run-3']);
   const graph = {
     ...three,
+    execution: {
+      ...three.execution,
+      triggerAdmission: {
+        'run-2': { policy: 'drop' as const, maxQueuedEvents: 1 },
+        'run-3': { policy: 'queue' as const, maxQueuedEvents: 2 },
+      },
+    },
     edges: [
       { id: 'first', from: { node: 'run', port: 'event' }, to: { node: 'run-2', port: 'input' } },
       {
@@ -30,6 +37,10 @@ it('adds stable distinct node ids and removes only the selected node and its inc
   const result = removeGraphNode(graph, 'run-2');
   expect(result.edges.map((edge) => edge.id)).toEqual(['third']);
   expect(result.nodes.map((node) => node.id)).toEqual(['run', 'run-3']);
+  expect(result.execution.triggerAdmission).toEqual({
+    'run-3': { policy: 'queue', maxQueuedEvents: 2 },
+  });
+  expect(removeGraphNode(result, 'run-3').execution.triggerAdmission).toBeUndefined();
   expect(graph.nodes).toHaveLength(3);
   expect(blank.nodes).toEqual([]);
 });

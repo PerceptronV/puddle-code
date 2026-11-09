@@ -380,7 +380,8 @@
 // 28.26: duplicate reviewed saved huddle source into a fresh inactive placement.
 // 28.27: optional manual/review-loop starters on inactive huddle creation.
 // 28.28: monthly/yearly calendar-date built-in (requires runtime calendar-2).
-export const PROTOCOL_VERSION = { major: 28, minor: 28 } as const;
+// 28.29: per-trigger queue/coalesce/drop policies (runtime admission-1).
+export const PROTOCOL_VERSION = { major: 28, minor: 29 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

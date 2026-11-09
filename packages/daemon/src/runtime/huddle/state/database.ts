@@ -2,6 +2,7 @@ import { closeSync, constants, openSync } from 'node:fs';
 import { join } from 'node:path';
 import Database from 'better-sqlite3';
 import { triggerActivity } from './inspection.js';
+import { triggerAdmissionWork } from './admission.js';
 import {
   canonicalHuddleJson,
   huddleLedgerIdentitySchema,
@@ -273,6 +274,10 @@ export class HuddleStateDatabase {
 
   triggerActivity(activationId: string | null) {
     return triggerActivity(this.db, activationId);
+  }
+
+  triggerAdmissionWork(source: string, port: string, revision: string, activationId?: string) {
+    return triggerAdmissionWork(this.db, source, port, revision, activationId);
   }
 
   close(): void {

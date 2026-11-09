@@ -26,6 +26,16 @@ calendar: 1; inspect the selected runtime before using the new source.
 
 ## Files and examples
 
+Host 28.29+ and runtime admission: 1 support execution.queue values queue,
+coalesce and drop. Optional execution.triggerAdmission maps trigger node ids to
+{policy, maxQueuedEvents}; graph and per-trigger queue limits both apply. Coalesce
+supersedes waiting input only for the same source/port/revision/activation. Drop
+records a cancelled root while the source is busy or a queue is full. Neither
+interrupts running work. History retains input identities and explanatory reasons;
+source cursors advance atomically with each decision. Superseded admissions still
+consume daily execution budget; dropped roots only consume bounded history capacity.
+Remove an override when deleting its trigger. Timer missed policies are independent.
+
 schemas/ contains JSON Schema draft 2020-12 for format-1 huddle.json, component
 manifests and layout.json, plus the supported port/parameter schema subset.
 Keep all four files together. Associate them using your editor's JSON-schema

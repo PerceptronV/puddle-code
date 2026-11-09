@@ -8,10 +8,34 @@ import { schedulerSnapshot } from '../../helpers/huddle/scheduler.js';
 import { initialisePrivateHome } from '@puddle/shared/node';
 import { agentGraphSnapshot } from '../../helpers/huddle/agent-graph.js';
 import { randomUUID } from 'node:crypto';
-import { completionHuddleTrigger, encodeHuddleAgentTarget } from '@puddle/shared';
+import {
+  completionHuddleTrigger,
+  encodeHuddleAgentTarget,
+  HUDDLE_RUNTIME_CAPABILITIES,
+  validateHuddleGraph,
+} from '@puddle/shared';
+import { requireHuddleFeatures } from '../../../src/runtime/huddle/triggers/definitions.js';
 import { withTrigger } from '../../helpers/huddle/trigger.js';
 
 const homes: string[] = [];
+it('gates admission policies before activation and validates trigger overrides', () => {
+  const snapshot = schedulerSnapshot('a'.repeat(32), '');
+  const { admission: _, ...old } = HUDDLE_RUNTIME_CAPABILITIES;
+  expect(() => requireHuddleFeatures(snapshot, old)).not.toThrow();
+  snapshot.definition.execution.queue = 'drop';
+  expect(() => requireHuddleFeatures(snapshot, old)).toThrow('admission policies');
+  expect(() => requireHuddleFeatures(snapshot, HUDDLE_RUNTIME_CAPABILITIES)).not.toThrow();
+  expect(huddleExecutionBindings(snapshot, {}, [])).toEqual({});
+  snapshot.definition.execution.queue = 'queue';
+  snapshot.definition.execution.triggerAdmission = {};
+  expect(() => requireHuddleFeatures(snapshot, old)).toThrow('admission policies');
+  snapshot.definition.execution.triggerAdmission = {
+    worker: { policy: 'drop', maxQueuedEvents: 1 },
+  };
+  expect(
+    validateHuddleGraph(snapshot.definition, new Map(Object.entries(snapshot.components))),
+  ).toContainEqual(expect.objectContaining({ code: 'trigger_admission', node: 'worker' }));
+});
 afterEach(() => {
   for (const home of homes.splice(0)) rmSync(home, { recursive: true, force: true });
 });

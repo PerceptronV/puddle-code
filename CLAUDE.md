@@ -945,6 +945,20 @@ variables stay local; defaults and validation match Start/Apply. Resource select
 are not host resolution evidence: actual captured bindings remain in Active
 revision. Never execute project modules or retrieve private host values for preview.
 
+Application 28.29 and runtime `admission: 1` enable graph-default queue/coalesce/drop
+plus `execution.triggerAdmission[node]` overrides and per-source queue limits.
+Keep policy decisions in `runtime/huddle/state/executions.ts`, with SQL source-work
+inspection in `state/admission.ts`; every trigger uses this same transaction.
+Coalesce supersedes only pending work matching pinned source, port, revision and
+activation, never running work or agent turns. Drop records a cancelled root when
+that source is busy or a queue bound is reached. Preserve each event and its
+dedup identity, persist disposition/cancellation reason, and advance the source
+cursor atomically. Capacity/budget refusal rolls back replacement too. Superseded
+admissions still consume daily budget; dropped events do not, but retain bounded
+history. Public history keeps its existing cancelled/error projection. Gate new
+source settings before launch/Apply and independent owner activation. Editor
+overrides live under `inspector/settings/` and are removed with their trigger node.
+
 Application 28.27 adds manual/review-loop creation starters in
 `shared/huddle/templates/graphs/`, composed from existing node template source.
 Publish them through normal inactive creation gates, with layout/docs/input fixtures
