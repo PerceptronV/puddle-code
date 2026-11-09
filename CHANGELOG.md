@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Frontend
 
+- Keep single-tab pane controls above floating editor trays, including huddle lifecycle controls.
+
 #### Added
 
 - Rework the huddle IDE into icon trays and one floating editing island, with nested settings, Puddle dropdowns, a grouped coloured node catalogue and fixed search. Add whole-node dragging, inline name/icon editing, full-node colour accents, matching catalogue defaults and a dedicated 64-choice icon picker, bottom-left canvas navigation and right-aligned recovery notices. Display-name edits require application 28.34.

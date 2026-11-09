@@ -307,7 +307,7 @@ export function PaneLeaf({
         data-pane-drop-target={leaf.id}
         data-pane-view={activeRef ? tabRefKey(activeRef) : undefined}
         className={cn(
-          'relative min-h-0 flex-1',
+          'relative isolate min-h-0 flex-1',
           leaf.tabs.length === 1 && 'mt-1',
           activeRef && 'mx-1 mb-1 overflow-hidden rounded-[var(--ui-radius)] bg-ground',
         )}
