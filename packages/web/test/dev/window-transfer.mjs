@@ -13,13 +13,14 @@ import { checkCatalogueLayouts } from './windows/arrangements/catalogue.mjs';
 import { checkArrangementHandshake } from './windows/arrangements/handshake.mjs';
 import { checkArrangementApply, checkArrangementMode } from './windows/arrangements/apply.mjs';
 import { checkHuddleRecovery } from './windows/recovery/huddle.mjs';
+import { checkHuddleTransfer } from './windows/huddle/transfer.mjs';
 
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
 const directory = await mkdtemp(join(tmpdir(), 'puddle-live-window-'));
 const implementation = join(directory, 'implementation.mjs');
 await build({
   stdin: {
-    contents: `export { DesktopWindowState } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/persistence/state.ts'))};\nexport { WindowTransfers } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers/coordinator.ts'))};\nexport { WindowCommands } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/lifecycle/commands.ts'))};\nexport { WindowDrags } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers/drags.ts'))};\nexport { ProjectWindows } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/projects.ts'))};\nexport { WindowLayoutApply } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/arrangements/apply.ts'))};\nexport { WindowLayoutCapture } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/arrangements/capture.ts'))};\nexport { WindowEffects } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/effects/coordination.ts'))};`,
+    contents: `export { huddleWindowBackend } from ${JSON.stringify(resolve(root, 'packages/web/test/huddle/windows/backend.ts'))};\nexport { DesktopWindowState } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/persistence/state.ts'))};\nexport { WindowTransfers } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers/coordinator.ts'))};\nexport { WindowCommands } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/lifecycle/commands.ts'))};\nexport { WindowDrags } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/transfers/drags.ts'))};\nexport { ProjectWindows } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/projects.ts'))};\nexport { WindowLayoutApply } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/arrangements/apply.ts'))};\nexport { WindowLayoutCapture } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/arrangements/capture.ts'))};\nexport { WindowEffects } from ${JSON.stringify(resolve(root, 'packages/desktop/src/windows/effects/coordination.ts'))};`,
     resolveDir: root,
   },
   bundle: true,
@@ -29,6 +30,7 @@ await build({
   alias: { '@puddle/shared': resolve(root, 'packages/shared/src/index.ts') },
 });
 const {
+  huddleWindowBackend,
   DesktopWindowState,
   WindowTransfers,
   WindowCommands,
@@ -40,6 +42,7 @@ const {
 } = await import(pathToFileURL(implementation).href);
 const commands = new WindowCommands();
 const mode = process.env.WINDOW_TRANSFER_KIND ?? 'pane';
+const huddleBackend = process.env.WINDOW_HUDDLE_TRANSFER === '1' ? huddleWindowBackend() : null;
 const dragBack = process.env.WINDOW_DOCK_BACK === 'drag';
 const dockBack = process.env.WINDOW_DOCK_BACK === '1' || dragBack;
 const addTab = process.env.WINDOW_ADD_TAB;
@@ -195,6 +198,10 @@ async function openPage(record) {
     effects.publish();
   });
   page.on('pageerror', (error) => errors.push(error.message));
+  if (huddleBackend)
+    await page.exposeBinding('huddleWindowRequest', (_source, ...args) =>
+      huddleBackend.request(...args),
+    );
   await page.exposeBinding('windowRequest', async (_source, method, request) => {
     if (method === 'effects-status') return effects.status(id);
     if (method === 'effects-claim') return effects.claimNotification(id, request);
@@ -269,7 +276,7 @@ async function openPage(record) {
     return coordinator[method](id, request);
   });
   await page.addInitScript(
-    ({ mode, effectsCheck }) => {
+    ({ mode, effectsCheck, huddles }) => {
       window.notificationDeliveries = [];
       window.notificationSounds = 0;
       const Audio = window.AudioContext;
@@ -305,6 +312,7 @@ async function openPage(record) {
         isFullScreen: async () => false,
         windows: {
           version: 1,
+          ...(huddles ? { huddles: true } : {}),
           effects: {
             status: () => window.windowRequest('effects-status'),
             claimNotification: (request) => window.windowRequest('effects-claim', request),
@@ -334,7 +342,10 @@ async function openPage(record) {
             },
             reply: (request) => window.windowRequest('reply', request),
           },
-          context: () => window.windowRequest('context'),
+          context: async () => {
+            if (huddles) (await import('/test/huddle/windows/install.ts')).installHuddleWindows();
+            return window.windowRequest('context');
+          },
           reload: () => window.windowRequest('reload'),
           read: async (profileId) => {
             const existing = await window.windowRequest('read', profileId);
@@ -401,7 +412,7 @@ async function openPage(record) {
         },
       };
     },
-    { mode, effectsCheck: process.env.WINDOW_EFFECTS === '1' },
+    { mode, effectsCheck: process.env.WINDOW_EFFECTS === '1', huddles: !!huddleBackend },
   );
   await page.goto(new URL(record.route ?? '/', preview).href);
 }
@@ -849,9 +860,12 @@ try {
       `Live ${mode} ${dragBack ? 'drag' : 'menu'} return to an existing host, source retirement, and destination reload pass.`,
     );
   } else {
-    records.delete('host');
-    state.syncOpenWindows([...records.values()]);
-    await source.close();
+    // Keep the host as the huddle detachment source and the existing pane as its peer.
+    if (!huddleBackend) {
+      records.delete('host');
+      state.syncOpenWindows([...records.values()]);
+      await source.close();
+    }
     if (process.env.WINDOW_EFFECTS === '1') await checkDetachedEffectOwner(target);
     // Exercise the native reload capability immediately after an edit, before
     // its ordinary 250ms persistence timer can provide accidental coverage.
@@ -885,12 +899,25 @@ try {
   }
   if (process.env.WINDOW_LAYOUT_APPLY === '1' && mode === 'project' && dockBack)
     await checkArrangementMode({ state, source, profileId: profile, checkText });
+  if (huddleBackend) {
+    await checkHuddleTransfer({
+      source,
+      target,
+      profile,
+      backend: huddleBackend,
+      records,
+      pages,
+      state,
+    });
+    assert.deepEqual(errors, []);
+  }
   if (process.env.WINDOW_HUDDLE_RECOVERY === '1') {
     await checkHuddleRecovery(target, profile);
     assert.deepEqual(errors, []);
   }
 } catch (error) {
   console.error('Transfer diagnostics', trace, errors);
+  if (huddleBackend) console.error('Huddle fixture requests', huddleBackend.requests.slice(-25));
   for (const [id, page] of pages) {
     if (page.isClosed()) continue;
     console.error(id, await page.locator('[data-sonner-toast]').allTextContents());

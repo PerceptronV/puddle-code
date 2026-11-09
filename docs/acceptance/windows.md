@@ -1182,5 +1182,9 @@ arrangement distribution, orphan recovery and pane-close review; explicit source
 tabs or duplicate graph views retain their shared copy. Unit tests cover these
 projections and capture. All 13 existing headless cases passed after this change;
 the huddle editing browser fixture covers duplicate-view/final-view close review.
-An actual huddle transfer through the synthetic native bridge and native OS
-acceptance remain pending; ordinary-file transfer checks do not establish them.
+The `huddle-transfer` headless case now passes through the real renderer and
+transfer coordinator with a synthetic native bridge. It preserves dirty manifest
+text, captured baseline, zoom and node selection, and rejects stale peer/external
+source saves until fresh conflict review. See [huddle acceptance](huddle.md) for
+the exact scope. Native OS acceptance and huddle-specific lost transfer replies
+remain pending.

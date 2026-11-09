@@ -5,6 +5,10 @@ import { fileURLToPath } from 'node:url';
 // These fixtures use chromium.launch({ headless: true }) and the UI-only preview.
 // They never launch Electron, move the OS pointer, or start a daemon.
 const cases = {
+  'huddle-transfer': [
+    'test/dev/window-transfer.mjs',
+    { WINDOW_TRANSFER_KIND: 'file', WINDOW_HUDDLE_TRANSFER: '1' },
+  ],
   'huddle-recovery': [
     'test/dev/window-transfer.mjs',
     { WINDOW_TRANSFER_KIND: 'file', WINDOW_HUDDLE_RECOVERY: '1' },
