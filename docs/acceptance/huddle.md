@@ -34,6 +34,41 @@ delivery and the Turn completed node's editor settings are implemented. Applicat
 28.20 adds explicit native-confirmed asks within bounded feedback executions.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## Current implementation audit
+
+This is a working checklist against roadmap §§4, 8–11, not a completion claim.
+The implementation evidence below records individual checks; it does not replace
+the roadmap's real-provider and packaged-platform exit requirements.
+
+| Area | Current evidence | Remaining work |
+| --- | --- | --- |
+| Node binding preview | `web/features/huddle/inspector/BindingPreview.tsx` shares `resolveHuddleParameters`; exact captured runtime resources remain in `execution/review/RevisionDetails.tsx`. Existing template browser check verifies local resolution and sample isolation. | Implemented for draft parameter resolution; host resource admission remains part of Start/Apply. |
+| Built-in source and local copies | Editable agent/flow/readout templates install through `daemon/huddle/templates/install.ts`; `inspector/GraphEditing.tsx` adds core built-ins by catalogue reference. | Add readable built-in source and **Make local copy**, preserving the behavior of host-backed triggers. Copying a manifest alone is insufficient. |
+| Trigger admission policies | `shared/api/huddle/definitions.ts` declares queue/coalesce/drop, but `daemon/huddle/execution/bindings.ts` rejects non-queue policies and `ExecutionSettings.tsx` exposes Queue only. | Implement and expose per-trigger queue/coalesce/drop admission with finite bounds and durable event dispositions. Timer missed-occurrence coalescing is a separate feature. |
+| Calendar recurrence | `runtime/huddle/triggers/calendar/` implements daily/selected-weekday recurrence and timezone occurrence handling. | Finish the broader recurrence support recorded as open in the roadmap, including defined missing-date behavior. |
+| Module and fixture validation | Shared graph/binding validation, authoring-kit fixtures and runtime wrapper checks exist. | Audit the promised build/validate module-contract agreement and fixture-based authoring workflow; current evidence here does not prove the whole requirement. |
+| Session/IDE/window integration | Sidebar, lifecycle, source editing, Start and run, history, transfers and retained-draft recovery have individual evidence below. | Complete the integration audit against the full phase-2/5 requirements, including real agent authoring and native interaction acceptance. |
+| Provider/runtime/platform acceptance | Independent-owner, operation, trigger, feedback and recovery checks are recorded below, including isolated macOS crash recovery. | Complete real coder/reviewer and native-feedback checks in same/distinct worktrees, provider authoring, SSH disconnection, packaged update/removal and mixed-version continuity, reboot, and resource/battery measurements. Do not substitute fixture results for these exit gates. |
+
+## Implemented: local node binding preview
+
+**Preview bindings** in the node inspector resolves the current graph draft after
+Apply setting using shared `resolveHuddleParameters`. Sample variables initially
+show declared defaults; required/missing variables, schema mismatches and invalid
+parameters use the same validation as activation. The bounded JSON input and
+output remain local to the open inspector. Closing the preview discards its sample;
+no source write, owner request, module execution or private host read occurs.
+The UI distinguishes requested resource selectors from actual host resolution;
+**Active revision** remains the place to inspect captured runtime bindings.
+
+Verification: the existing editable-template browser check binds Prompt agent's
+worktree to a variable and verifies missing-variable, malformed JSON and type
+errors, plus resolved worktree/session/prompt settings. Saving retains the tagged
+variable binding but not the sample value. The fixture also confirms no
+Start/Run/Resume request. Headless Chromium uses only the UI fixture. Web TypeScript,
+scoped lint, formatting and semantic-token checks accompany the change; no host or
+runtime protocol changes are needed.
+
 ## Implemented: missing-placement draft recovery
 
 A huddle tab whose placement is absent from an otherwise available project now

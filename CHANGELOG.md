@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Preview resolved huddle node settings with local sample variables, including missing/type errors, without saving samples or activating resources.
+
 - Expose retained huddle graph/layout drafts when their placement is missing, and preserve discard review for tab-button and Close tab actions without a session row.
 
 - Recover retained huddle graph/layout drafts when their project is unavailable, with downloads and grouped close review; label huddles correctly in CLI status and tab tooltips.

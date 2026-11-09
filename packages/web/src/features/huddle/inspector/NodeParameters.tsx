@@ -13,24 +13,24 @@ import {
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { PromptPreview } from './PromptPreview';
+import { BindingPreview } from './BindingPreview';
 import { graphActionClass, type EditGraph } from './GraphEditing';
 import { useNodeResourceOptions, type NodeResourceOptions } from './resources';
 
 export function NodeParameters({
   node,
   component,
-  variables,
-  nodes,
+  definition,
   edit,
   session,
 }: {
   node: HuddleNodeDefinition;
   component?: HuddleComponent;
-  variables: HuddleDefinition['variables'];
-  nodes: HuddleDefinition['nodes'];
+  definition: HuddleDefinition;
   edit: EditGraph;
   session: Session;
 }) {
+  const { variables, nodes } = definition;
   const resources = useNodeResourceOptions(
     session,
     node,
@@ -84,6 +84,9 @@ export function NodeParameters({
       )}
       {component && Object.keys(component.parameters).length === 0 && (
         <p className="text-xs text-fg-muted">No settings for this node.</p>
+      )}
+      {component && Object.keys(component.parameters).length > 0 && (
+        <BindingPreview definition={definition} node={node} component={component} />
       )}
     </div>
   );

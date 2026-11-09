@@ -72,6 +72,27 @@ try {
       await prompt.getByText('Preview prompt', { exact: true }).click();
       await prompt.getByRole('textbox').fill('Implement the requested changes:\n{{input}}');
       await prompt.getByRole('button', { name: 'Apply setting' }).click();
+      await worktree.getByLabel('worktree binding', { exact: true }).selectOption('variable');
+      await worktree.getByLabel('Worktree *', { exact: true }).selectOption('targetWorktree');
+      await worktree.getByRole('button', { name: 'Apply setting' }).click();
+      await inspector.getByText('Preview bindings', { exact: true }).click();
+      const bindings = inspector.locator('details').filter({
+        has: page.getByText('Preview bindings', { exact: true }),
+      });
+      await bindings.getByRole('status').filter({ hasText: 'Missing huddle variable' }).waitFor();
+      const variables = bindings.getByLabel('Sample variables (JSON)', { exact: true });
+      await variables.fill('{"targetWorktree":"/preview/sample-only"}');
+      const resolved = bindings.getByRole('region', { name: 'Resolved node settings' });
+      const settings = JSON.parse(await resolved.innerText());
+      assert.equal(settings.worktree, '/preview/sample-only');
+      assert.equal(settings.agent, id);
+      assert.equal(settings.prompt, 'Implement the requested changes:\n{{input}}');
+      await variables.fill('{"targetWorktree":42}');
+      await bindings.getByRole('status').filter({ hasText: 'Invalid huddle variable' }).waitFor();
+      assert.equal(await resolved.count(), 0);
+      await variables.fill('{');
+      await bindings.getByRole('status').waitFor();
+      await inspector.getByText('Preview bindings', { exact: true }).click();
     }
   }
   await editor.getByRole('button', { name: 'Add node', exact: true }).click();
@@ -102,6 +123,11 @@ try {
     window.huddleFixture.source().edges.some((edge) => edge.feedback?.maxRounds === 3),
   );
   const source = await page.evaluate(() => window.huddleFixture.source());
+  assert.deepEqual(source.nodes.find((node) => node.id === 'prompt-agent').parameters.worktree, {
+    kind: 'variable',
+    name: 'targetWorktree',
+  });
+  assert.equal(JSON.stringify(source).includes('/preview/sample-only'), false);
   assert.deepEqual(source.edges.at(-1).feedback, {
     maxRounds: 3,
     while: { path: ['complete'], equals: false },

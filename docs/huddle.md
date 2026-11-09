@@ -82,6 +82,13 @@ the same manifest draft, undo history and save-conflict handling. Local contract
 settings come from saved files. Save contract edits to update the inspector;
 unsaved contract drafts are not used as execution contracts.
 
+In a node's inspector, **Preview bindings** resolves its settings using sample
+variables. Apply pending field edits first; the preview uses the current graph
+draft, parameter defaults and declared variable types. It reports missing values
+and type errors. Samples remain local and are not saved or reused for Start.
+Worktree/session/account values are selectors until the host verifies them at
+Start or Apply; **Active revision** shows the actual captured resource bindings.
+
 On application 28.4, drag nodes with a mouse or touch, or focus a node and use
 arrow keys (10 units, or 50 with Shift). Its inspector also offers X/Y position
 fields. Escape or pointer cancellation abandons a drag. Drag the empty background

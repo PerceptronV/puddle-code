@@ -1,5 +1,10 @@
 # The puddle communication protocol
 
+Node binding previews use existing shared parameter resolution in the frontend.
+Sample variables are local and add no API fields or capability/version change.
+Previewed resource selectors are not host-authorised bindings; Start/Apply and
+exact active-revision inspection retain their existing contracts.
+
 Missing-placement huddle recovery uses the existing native retained-buffer and tab
 contracts. It adds no host request, schema, runtime capability or protocol version.
 

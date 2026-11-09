@@ -939,6 +939,12 @@ node templates. Keep sample data local and separate from saved bindings or Run
 input. Preview standard substitutions only; never evaluate custom project scripts.
 No wire or runtime version change is needed for this editor feature.
 
+Node binding previews live beside them in `BindingPreview.tsx` and use shared
+`resolveHuddleParameters` against the graph draft after Apply setting. Sample
+variables stay local; defaults and validation match Start/Apply. Resource selectors
+are not host resolution evidence: actual captured bindings remain in Active
+revision. Never execute project modules or retrieve private host values for preview.
+
 Application 28.27 adds manual/review-loop creation starters in
 `shared/huddle/templates/graphs/`, composed from existing node template source.
 Publish them through normal inactive creation gates, with layout/docs/input fixtures

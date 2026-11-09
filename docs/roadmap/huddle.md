@@ -808,6 +808,11 @@ The initial IDE contains:
   resolved-binding previews and an **Open script** action. Bundled nodes expose
   readable source; **Make local copy** creates an editable project component.
   Editing source uses Monaco and the existing draft/conflict system.
+  The local binding preview is implemented: sample variables resolve current draft
+  settings through the shared validator without executing modules. Resource selectors
+  still require host activation; Active revision shows captured runtime bindings.
+  Make local copy for built-ins remains open (editable templates already install
+  project-local source).
 - An execution inspector for trigger input, node state, bounded input/output,
   exact agent/session links, errors, delivery receipts and recovery choices.
   Definition selection and viewing a historical execution are separate modes.

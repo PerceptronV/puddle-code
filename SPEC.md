@@ -1428,6 +1428,13 @@ host bindings are never fetched for preview. Samples are not persisted or sent.
 Custom script formatters remain editable and may differ from this standard preview.
 No protocol change is required.
 
+The node inspector also previews resolved settings from the current graph draft
+and local sample variables, sharing Start/Apply's parameter resolver. Missing or
+invalid variables and parameter values are shown before execution. Samples are
+not saved or used as Start input. Worktree/account/session values in this preview
+are requested selectors; host activation still resolves and admits the actual
+resources. Active revision shows the captured runtime bindings.
+
 Application 28.27 adds optional `template: "manual" | "review-loop"` to inactive
 huddle creation. Omission creates the existing blank graph. Shared data-only starter
 builders under `shared/huddle/templates/graphs/` compose the existing editable node
