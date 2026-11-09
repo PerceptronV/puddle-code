@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Add an editable Write report huddle node with explicit worktree/path settings, atomic creation that preserves existing files, and delivery observation through the existing readout machinery (application 28.22).
+
 - Check uncertain readout deliveries after a huddle stops, using recorded History or CLI/MCP. Reuse the captured observation adapter without restarting the graph or sending another delivery (application 28.21).
 
 - Add editable native-confirmed Prompt/Review agent nodes with a completion-trigger selector. Reuse existing agent lifecycle and native turn observation, continuing once within the original execution and feedback limits (application 28.20).

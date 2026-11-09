@@ -10,7 +10,7 @@ it('lists bounded portable assets and reads only exact names without filesystem 
   const files = huddleAuthoringFiles();
   const listing = readHuddleAuthoring();
   expect(listing.source).toBe('bundled-client');
-  expect(listing.files).toHaveLength(20);
+  expect(listing.files).toHaveLength(23);
   for (const [path, content] of Object.entries(files)) {
     expect(Buffer.byteLength(content)).toBeLessThan(256 * 1024);
     expect(readHuddleAuthoring(path)).toMatchObject({ path, content });

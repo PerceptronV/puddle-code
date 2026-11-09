@@ -1,3 +1,4 @@
+import { fileReportFiles } from '../templates/readouts/file.js';
 import { PROTOCOL_VERSION } from '../../protocol.js';
 import { huddleDefinitionSchema } from '../../api/huddle/definitions.js';
 import { huddleAuthoringSchemas } from './schemas.js';
@@ -26,6 +27,12 @@ const edge = (id: string, from: string, port: string, to: string) => ({
 export function huddleAuthoringFiles(): Record<string, string> {
   const files: Record<string, string> = {
     'README.md': huddleAuthoringGuide,
+    ...Object.fromEntries(
+      Object.entries(fileReportFiles).map(([name, contents]) => [
+        `templates/file-report/${name}`,
+        contents,
+      ]),
+    ),
     'types/puddlang-huddle.d.ts': huddleSdkTypes,
     ...Object.fromEntries(
       Object.entries(huddleAuthoringSchemas()).map(([path, schema]) => [path, json(schema)]),

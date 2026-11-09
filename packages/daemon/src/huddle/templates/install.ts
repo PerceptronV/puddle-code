@@ -10,11 +10,7 @@ import {
   writeFileSync,
 } from 'node:fs';
 import { join } from 'node:path';
-import {
-  huddleAgentTemplateFiles,
-  HUDDLE_LIMITS,
-  type HuddleInstallTemplate,
-} from '@puddle/shared';
+import { huddleTemplateFiles, HUDDLE_LIMITS, type HuddleInstallTemplate } from '@puddle/shared';
 import { ApiError } from '../../http/errors.js';
 
 /** Materialise a source component only; graph edits and activation are separate actions. */
@@ -34,7 +30,7 @@ export function installHuddleTemplate(
     root = join(root, part);
     directory(root);
   }
-  const { component, files } = huddleAgentTemplateFiles(input.template);
+  const { component, files } = huddleTemplateFiles(input.template);
   check();
   const nodes = join(root, 'nodes');
   try {

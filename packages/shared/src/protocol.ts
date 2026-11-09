@@ -373,7 +373,8 @@
 // 28.19: bounded automatic huddle recovery following authoritative owner-loss reconciliation.
 // 28.20: opt-in native confirmation of huddle asks within their original execution.
 // 28.21: explicit readout observation from a cleanly stopped retained huddle.
-export const PROTOCOL_VERSION = { major: 28, minor: 21 } as const;
+// 28.22: editable worktree report readout with no-overwrite publication and observation.
+export const PROTOCOL_VERSION = { major: 28, minor: 22 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

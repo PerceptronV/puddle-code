@@ -899,6 +899,13 @@ runtime observation closes. Completion nodes are in the public catalogue; host
 launch/Apply requires both event and plan capabilities. Resolve targets as observed
 live agents with explicit worktrees, without requiring an automated ask bridge.
 Oversized JSON envelopes fail without truncating replies.
+Application 28.22 adds Write report through the shared node-template catalogue;
+keep editable file readouts under `shared/huddle/templates/readouts/` and reuse
+existing template installation, worktree binding and durable readout observation.
+Publish bounded complete files without replacing an existing path. Preserve unknown
+outcomes after publication uncertainty; matching-content observation proves desired
+state, not writer identity. Document explicit Filetree output exclusions. Keep kit
+assets identical to the installed template; Node-based examples need Node typings.
 Application 28.21 adds explicit retained readout observation under
 `huddle/execution/readouts/`. Require exact launch/placement, clean stopped-owner
 state, consumed launch and runtime retirement/revision/ledger claims. Reuse the

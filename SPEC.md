@@ -1417,6 +1417,16 @@ observation. Source preparation rechecks the revision digest; imports use the
 declared component closure and the pinned HuddleNode/puddlang/zod helpers.
 The existing single-file runner shares its provider-neutral agent client with
 these workers. Archive builds bundle and smoke-test the new helper entries.
+Application 28.22 adds the editable Write report template to the existing node
+catalogue. It requires an explicit worktree and relative path, writes at most
+256 KiB of text/JSON, and publishes a synced temporary file through an exclusive
+hard link. Existing destinations are preserved; no overwrite/append is implied.
+The existing durable readout operation retains intent before evaluation. An
+uncertain result can be observed by comparing exact intended contents; this proves
+desired state, not writer identity. Observation never creates directories or files.
+Metadata paths, traversal and symlink parents are rejected. Custom code remains
+trusted host code, not a filesystem sandbox. Filetree output exclusions must cover
+the report directory explicitly. The authoring kit ships the same editable source.
 Application 28.5 adds local readout delivery declarations; optional `readouts: 1`
 gates supporting owners. `HuddleReadout` accepts immutable joined inputs and the
 exact scoped source event, revision, invocation and idempotency key. Delivery policy

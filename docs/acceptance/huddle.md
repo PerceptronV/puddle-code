@@ -34,6 +34,42 @@ delivery and the Turn completed node's editor settings are implemented. Applicat
 28.20 adds explicit native-confirmed asks within bounded feedback executions.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## Implemented: worktree report readout
+
+Application **28.22** adds **Write report** to Add node and the existing component
+installation API. `shared/huddle/templates/readouts/` owns its editable manifest,
+wrapper and file helper; the authoring kit includes identical files under
+`templates/file-report/`. The shared catalogue preserves existing agent templates.
+
+The component requires explicit worktree binding and a relative path. Text/JSON
+outputs are bounded to 256 KiB; huddle/execution/invocation placeholders support
+unique report paths. A synced temporary file is published through an exclusive
+hard link and the directory is synced. Existing files are never replaced. Parent
+symlinks, traversal and metadata paths are rejected. This remains trusted project
+code, not a security sandbox; hard-link support is required. A crash can leave a
+staging file. Filetree output exclusions must explicitly include report directories.
+
+Delivery uses existing durable readout intent and receipts. Observation reads
+bounded exact contents without writes; matching content proves desired state,
+not writer attribution. Unknown outcomes remain inspectable, including through
+cleanly stopped owner observation. No new lifecycle/status detector or owner
+capability was introduced.
+
+Verification: the focused real-worker case confirms concurrent publication yields
+one success, preserves existing/human-edited contents, observes without creating
+missing paths, rejects traversal/symlink parents and expands path placeholders.
+Existing authoring-kit checks validate bounded assets and compile every shipped
+script against the generated SDK plus Node declarations. **13 focused cases pass**
+across those three files (the corrected compilation case was rerun separately).
+Shared/daemon/CLI and web TypeScript checks and scoped lint pass.
+
+Manual acceptance: wire Run through a text-producing node to Write report, select
+a worktree, save and Start/Run. Inspect its completed receipt and created file.
+Repeat against the same path and confirm a visible failure with preserved contents.
+Check an uncertain delivery before and after human edits; verify it never rewrites
+the report. Exercise distinct worktrees and Filetree output exclusions on local
+and SSH hosts. These platform checks remain pending.
+
 ## Implemented: delivery checks after clean owner shutdown
 
 Application **28.21** adds explicit local/SSH `POST

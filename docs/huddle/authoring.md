@@ -119,6 +119,13 @@ are advertised only on a supporting connection. Validation errors appear in the
 normal report with `valid: false`; malformed calls and unavailable source are MCP
 tool errors. This does not automatically configure MCP for authoring accounts.
 
+The kit also includes `templates/file-report/{node.json,run.ts,file.ts}`, the same
+editable Write report component offered by Add node on application 28.22+. Copy
+all three files together, select an explicit worktree, and configure the report
+path and text/JSON format. Install `@types/node` for Node 22 in the authoring
+project and enable `allowImportingTsExtensions` for no-emit checks. See
+[Write report](readouts.md#write-report) for conflict and observation behavior.
+
 For custom extensions, see [triggers](triggers.md) and [readouts](readouts.md).
 Standalone JSON Schema/type bundles and component fixtures remain pending. The originally proposed directory-only validation command is superseded by the explicit scope above.
 

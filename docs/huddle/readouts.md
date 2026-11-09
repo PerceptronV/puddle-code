@@ -153,3 +153,32 @@ Read `history-owners` and `retained-history` to select the exact recorded owner 
 operation. Retained history accepts `include_readout_observation: true` to request
 eligible offers. After a failed or lost reply, inspect retained history before any
 new explicit action; reconnect never repeats a check automatically.
+
+## Write report
+
+On application 28.22+, choose **Add node → Write report**. Select the worktree,
+connect a value to its input and configure a path relative to that worktree.
+The default is `reports/{{huddleId}}/{{invocationId}}.md`; paths also support
+`{{executionId}}`. Text preserves a string input exactly. JSON formats any input
+with indentation and a trailing newline. Reports are limited to 256 KiB.
+
+The node creates missing parent directories and publishes a complete file without
+replacing an existing destination. An existing file fails delivery and is preserved,
+even if its contents match. Choose a new path for a new delivery. The completed
+output contains worktree, relative path, SHA-256 and byte count. Inspect/edit the
+ordinary `node.json`, `run.ts` and `file.ts` files to customize the component.
+
+The runtime records intent through its normal readout operation. A lost reply or
+interruption after publication can leave an unknown outcome. **Check delivery**
+compares the intended contents without creating or changing files. Matching bytes
+confirm the desired state, not which process wrote them; missing or edited files
+remain unknown. Checking delivery never resumes an ended graph or retries a write.
+It also works after clean Stop through the retained-observation path above.
+
+Paths cannot traverse outside the worktree, pass through symlink parents, or include
+Git/Puddle metadata directories. These checks are not a sandbox for trusted custom
+scripts or a guarantee against hostile filesystem mutation. Atomic publication
+requires a filesystem supporting hard links; failure is reported without falling
+back to an overwrite. A process crash may leave a `.puddle-report-*` staging file.
+Add the report directory to every relevant Filetree trigger's **Output paths**
+exclusions, including staging files, to prevent output-triggered feedback.

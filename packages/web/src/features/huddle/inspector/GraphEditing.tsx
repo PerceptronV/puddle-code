@@ -1,7 +1,7 @@
 import { useId, useState, useRef, useLayoutEffect } from 'react';
 import {
   coreHuddleComponents,
-  huddleAgentTemplates,
+  huddleNodeTemplates,
   huddleNodeSchema,
   type Session,
   huddleRelativePathSchema,
@@ -72,7 +72,7 @@ export function AddNode({
           </button>
         ))}
       {template.supported &&
-        huddleAgentTemplates
+        huddleNodeTemplates
           .filter((item) => template.supportsTemplate(item.template))
           .filter(({ component }) =>
             `${component.title} ${component.category}`.toLowerCase().includes(search.toLowerCase()),
@@ -139,8 +139,7 @@ export function AddNode({
         Add local node
       </button>
       <p className="text-xs text-fg-muted">
-        Paths are relative to this huddle directory. Agent-node templates create editable source
-        files.
+        Paths are relative to this huddle directory. Node templates create editable source files.
       </p>
     </div>
   );

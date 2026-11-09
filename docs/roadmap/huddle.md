@@ -119,6 +119,10 @@ unknown outcomes. Explicit owner/API observation and the history panel's Check
 delivery action now reconcile uncertain deliveries through their captured adapters,
 without resending or continuing ended graphs. Application 28.21 adds readout observation from cleanly stopped retained owners,
 reusing captured adapters and the original ledger without restarting a graph.
+Application 28.22 adds an editable Write report readout with explicit worktree,
+relative path, text/JSON formatting and content-based delivery observation. It
+creates complete files without overwriting conflicts; the authoring kit includes
+the same source. Filetree output exclusions remain explicit.
 Interrupted owners still require recovery first. Same-boot recovery on
 macOS/detached lifetimes remains unfinished. Explicit reboot recovery
 now restores the recorded activation, queued work and trigger cursors in one

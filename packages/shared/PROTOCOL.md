@@ -1,5 +1,13 @@
 # The puddle communication protocol
 
+Application **28.22** adds `write-report` to the existing component-template
+installation request. The IDE gates this choice on 28.22; earlier template names
+and response shapes are unchanged. The editable `puddle.readout.file` component
+uses existing `readouts: 1` and `readoutObservation: 1` contracts, explicit worktree
+binding, captured dependencies and durable delivery intent. It creates bounded
+text/JSON reports without replacing existing paths and observes exact intended
+contents. No new owner capability, database migration or agent protocol is needed.
+
 Application **28.21** adds explicit local/SSH `POST
 /api/huddle/:profile/sessions/:sid/readouts/observe-retained` with
 `{owner: {runtimeId, incarnation}, operation_id}`. It uses the original captured

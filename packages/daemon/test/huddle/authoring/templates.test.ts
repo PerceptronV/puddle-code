@@ -105,12 +105,13 @@ type Context = Assert<Equivalent<Omit<Kit.HuddleNodeContext, 'puddlang'>, Omit<A
     target: ts.ScriptTarget.ES2023,
     module: ts.ModuleKind.ESNext,
     moduleResolution: ts.ModuleResolutionKind.Bundler,
-    types: [],
+    types: ['node'],
+    typeRoots: [join(root, 'packages/daemon/node_modules/@types')],
+    allowImportingTsExtensions: true,
   });
   const errors = ts.getPreEmitDiagnostics(program);
-  expect(errors.map((error) => ts.flattenDiagnosticMessageText(error.messageText, '\n'))).toEqual(
-    [],
-  );
+  const messages = errors.map((error) => ts.flattenDiagnosticMessageText(error.messageText, '\n'));
+  expect(messages, messages.join('\n')).toEqual([]);
 });
 
 it.each(['manual', 'feed-report'])(

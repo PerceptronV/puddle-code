@@ -38,6 +38,16 @@ idempotent false and never automatically retries or observes uncertain delivery.
 Adapt both adapters to a real service's documented semantics before activation.
 Credentials and managed secret references are not provided by this kit.
 
+templates/file-report/ is the editable Write report readout (host catalogue 28.22+).
+It requires an explicit canonical worktree and relative path, creates missing parent
+directories and publishes at most 256 KiB without overwriting existing files.
+Text preserves string inputs; JSON adds indentation and a newline. Path placeholders
+are {{huddleId}}, {{executionId}} and {{invocationId}}. Include Node 22 typings
+(@types/node) and enable allowImportingTsExtensions for no-emit TypeScript checks.
+Unknown outcomes can be observed through readoutObservation:1: matching bytes prove
+the desired state, not writer identity. Observation never writes. Add report output
+directories to Filetree outputPaths explicitly; a crash may leave a staging file.
+
 examples/manual.json wires Run -> transform -> Result without external services.
 examples/feed-report.json wires feed -> transform -> report and requires explicit
 feedUrl/reportUrl variables. Replace the example id with the chosen directory's
