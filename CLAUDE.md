@@ -828,7 +828,9 @@ derive their health from custom-subscription records. Copies change graph drafts
 Save/Apply remain explicit, and Undo leaves published source files intact.
 Manifest graph editing uses the shared `huddle.json` editor model, existing conditional file
 saves/drafts/conflicts and undo history. `tabHoldsFile` recognises manifest ownership
-for window transfers, close review, arrangements and model retention. Keep source
+for window transfers, close review, arrangements and model retention. Huddle inspectors,
+previews, validation notes and execution/source review use the shared `Disclosure`
+primitive, preserving native toggle semantics and Puddle's chevron styling. Keep source
 holders when a graph closes, and retain both source tabs when its session is archived.
 The save registry retains every mounted holder. Application 28.4 makes `layout.json`
 a second shared editor buffer: huddle tab dirty/close/transfer/arrangement ownership

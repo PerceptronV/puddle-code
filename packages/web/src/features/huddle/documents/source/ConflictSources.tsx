@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Disclosure } from '../../../../components/ui/disclosure';
 import type { ComparedDiskConflict } from '../../../editor/conflicts/conflict-store';
 
 /** Review the captured dependencies as well as the edited file; never fetch a newer revision here. */
@@ -18,11 +19,10 @@ export function ConflictSources({ conflict }: { conflict: ComparedDiskConflict }
     .filter((node) => before?.components[node] !== current.components[node])
     .sort();
   return (
-    <details className="shrink-0 px-3 py-2 text-xs text-fg-secondary">
-      <summary className="cursor-pointer hover:text-fg">
-        Huddle source review · {files.length} {files.length === 1 ? 'file' : 'files'} ·{' '}
-        {contracts.length} {contracts.length === 1 ? 'contract' : 'contracts'}
-      </summary>
+    <Disclosure
+      className="shrink-0 px-3 py-2 text-xs text-fg-secondary"
+      summary={`Huddle source review · ${files.length} ${files.length === 1 ? 'file' : 'files'} · ${contracts.length} ${contracts.length === 1 ? 'contract' : 'contracts'}`}
+    >
       {!before && (
         <p className="py-2">
           This draft has no captured baseline. Review the current source before saving.
@@ -69,6 +69,6 @@ export function ConflictSources({ conflict }: { conflict: ComparedDiskConflict }
           </pre>
         </div>
       )}
-    </details>
+    </Disclosure>
   );
 }

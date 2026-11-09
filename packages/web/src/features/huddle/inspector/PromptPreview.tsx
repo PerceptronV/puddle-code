@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import { formatHuddleInputPrompt, isHuddleJson } from '@puddle/shared';
 import { Label } from '../../../components/ui/label';
+import { Disclosure } from '../../../components/ui/disclosure';
 
 /** Preview data stays in this inspector; it is never a setting or execution input. */
 export function PromptPreview({ template }: { template?: string }) {
@@ -22,10 +23,11 @@ export function PromptPreview({ template }: { template?: string }) {
   const fieldClass =
     'w-full resize-y rounded-md bg-surface p-2 text-sm text-fg outline-none focus-visible:ring-1 focus-visible:ring-ring';
   return (
-    <details onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary className="cursor-pointer rounded-md px-2 py-1 text-xs hover:bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-        Preview prompt
-      </summary>
+    <Disclosure
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+      summary="Preview prompt"
+      summaryClassName="rounded-md px-2 py-1 text-xs hover:bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+    >
       {open && (
         <div className="flex flex-col gap-2 pt-2">
           <p className="text-xs text-fg-muted">
@@ -73,6 +75,6 @@ export function PromptPreview({ template }: { template?: string }) {
           )}
         </div>
       )}
-    </details>
+    </Disclosure>
   );
 }

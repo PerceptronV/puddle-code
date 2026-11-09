@@ -50,6 +50,19 @@ the roadmap's real-provider and packaged-platform exit requirements.
 | Session/IDE/window integration | The phase-2/5 source/fixture audit below maps the existing seams and exposed two history gaps, now implemented in 28.32–28.33. | Headless huddle transfer and peer/external source conflict checks pass as recorded below. Real-agent edits, renderer-crash and native interaction acceptance remain. |
 | Provider/runtime/platform acceptance | Independent-owner, operation, trigger, feedback and recovery checks are recorded below, including isolated macOS crash recovery, a packaged runtime-default update retaining an armed huddle, and loopback SSH disconnect/reconnect with autonomous timer execution. | Complete real coder/reviewer and native-feedback checks in same/distinct worktrees, provider authoring, remote-host/network-loss acceptance, packaged update/removal and mixed-version continuity, reboot, and resource/battery measurements. Do not substitute fixture results for these exit gates. |
 
+## Verified: shared huddle disclosure controls
+
+Huddle validation notes, built-in source, prompt/binding previews, conflict-source
+review, revision bindings, custom-trigger health and execution/agent history now
+reuse `components/ui/disclosure.tsx`. The shared Lucide chevron replaces browser
+triangle markers while keeping native keyboard and expanded-state semantics.
+Existing default-open conditions and lazy preview rendering are preserved. This
+changes presentation only; it adds no host request or runtime contract.
+
+The existing headless template/preview and revision-review browser flows pass
+against the UI-only preview. Web TypeScript, scoped ESLint and formatting pass.
+No new tests or native windows were added for this change.
+
 ## Phase-2/5 source and fixture audit
 
 This audit distinguishes implemented seams from end-to-end native/provider proof.

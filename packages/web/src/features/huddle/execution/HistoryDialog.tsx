@@ -14,6 +14,7 @@ import {
   DialogDescription,
 } from '../../../components/ui/dialog';
 import { ControlTray } from '../../../components/ui/control-tray';
+import { Disclosure } from '../../../components/ui/disclosure';
 import { huddleHistory } from './api';
 import { huddleRetainedHistory } from './history/api';
 import { historyKey, useHuddleRuntime, useHuddleCommands } from './queries';
@@ -333,11 +334,13 @@ function ExecutionRecords({
       )}
       <div className="max-h-80 space-y-3 overflow-auto">
         {page.data?.records.map(({ record }) => (
-          <details key={record.id} className="text-xs" open>
-            <summary className="cursor-pointer py-1">
-              {'node' in record ? record.node : 'kind' in record ? record.kind : record.id} ·{' '}
-              {record.state}
-            </summary>
+          <Disclosure
+            key={record.id}
+            className="text-xs"
+            open
+            summary={`${'node' in record ? record.node : 'kind' in record ? record.kind : record.id} · ${record.state}`}
+            summaryClassName="py-1 text-fg"
+          >
             {'error' in record && record.error && (
               <p className="py-1 text-fg-muted">{record.error}</p>
             )}
@@ -375,7 +378,7 @@ function ExecutionRecords({
                   }}
                 />
               )}
-          </details>
+          </Disclosure>
         ))}
       </div>
     </>

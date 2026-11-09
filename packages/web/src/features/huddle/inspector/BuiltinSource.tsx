@@ -2,6 +2,7 @@ import { useLayoutEffect, useRef } from 'react';
 import { huddleBuiltinCopyFiles, type HuddleNodeDefinition, type Session } from '@puddle/shared';
 import { useHuddleTemplates } from '../documents/templates';
 import { graphActionClass, type EditGraph } from './GraphEditing';
+import { Disclosure } from '../../../components/ui/disclosure';
 
 export function BuiltinSource({
   node,
@@ -26,15 +27,14 @@ export function BuiltinSource({
   const copy = huddleBuiltinCopyFiles(reference);
   return (
     <div className="mb-4 flex flex-col gap-2">
-      <details>
-        <summary className={`${graphActionClass} cursor-pointer`}>View built-in source</summary>
+      <Disclosure summary="View built-in source" summaryClassName={graphActionClass}>
         <pre
           className="max-h-64 overflow-auto whitespace-pre-wrap break-words py-2 text-xs"
           aria-label="Built-in adapter source"
         >
           {copy.files['run.ts']}
         </pre>
-      </details>
+      </Disclosure>
       <button
         type="button"
         className={graphActionClass}

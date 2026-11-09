@@ -1,4 +1,5 @@
 import type { HuddleRuntimeInspection } from '@puddle/shared';
+import { Disclosure } from '../../../components/ui/disclosure';
 
 type Sources = NonNullable<
   Extract<NonNullable<HuddleRuntimeInspection['owner']>, { connected: true }>['custom_triggers']
@@ -6,13 +7,12 @@ type Sources = NonNullable<
 export function TriggerHealth({ sources }: { sources: Sources }) {
   if (!sources.length) return null;
   return (
-    <details
+    <Disclosure
       className="px-4 pb-2 text-xs"
       open={sources.some((source) => source.health.state === 'gap')}
+      summary={`Custom triggers · ${sources.filter((source) => source.health.state === 'ready').length} ready`}
+      summaryClassName="py-1 text-fg-muted"
     >
-      <summary className="cursor-pointer py-1 text-fg-muted">
-        Custom triggers · {sources.filter((source) => source.health.state === 'ready').length} ready
-      </summary>
       <ul className="space-y-1 py-1" aria-label="Custom trigger health">
         {sources.map((source) => (
           <li key={source.node}>
@@ -31,6 +31,6 @@ export function TriggerHealth({ sources }: { sources: Sources }) {
           may still be running.
         </p>
       )}
-    </details>
+    </Disclosure>
   );
 }

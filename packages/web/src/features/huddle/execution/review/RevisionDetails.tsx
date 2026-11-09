@@ -1,4 +1,5 @@
 import { useId, useState } from 'react';
+import { Disclosure } from '../../../../components/ui/disclosure';
 import { useQuery } from '@tanstack/react-query';
 import type { HuddleRetainedRevision, HuddleReview, HuddleReviewEntry } from '@puddle/shared';
 import { ReadOnlyDiff } from '../../../diff/ReadOnlyDiff';
@@ -82,10 +83,9 @@ export function RevisionDetails({
             : `${entries.length} retained entries`}
         </p>
         {activation && (
-          <details>
-            <summary className="cursor-pointer hover:text-fg">
-              {recorded ? 'Recorded' : 'Active'} variables and resolved bindings
-            </summary>
+          <Disclosure
+            summary={`${recorded ? 'Recorded' : 'Active'} variables and resolved bindings`}
+          >
             <pre className="max-h-48 overflow-auto whitespace-pre-wrap break-words p-2">
               {JSON.stringify(
                 {
@@ -98,7 +98,7 @@ export function RevisionDetails({
                 2,
               )}
             </pre>
-          </details>
+          </Disclosure>
         )}
         {review.saved?.diagnostics.map((note, index) => (
           <p key={index}>

@@ -1942,7 +1942,9 @@ into one animation frame and disposes its pending callback/resize observer on
 unmount. Selected/focused objects and active drag/connection sources stay mounted;
 wire control-point hulls retain crossing and backward curves even with both nodes
 off screen. Fit graph can render the whole graph; Node list and the connection
-inspector still address all objects. Complete settings remain unfinished.
+inspector still address all objects. Huddle previews, validation notes, source/revision
+review, trigger health and execution history use the shared `Disclosure` chevron
+control, retaining native keyboard/expanded-state semantics and lazy preview content.
 Application 28.12 adds a bounded recorded-owner catalogue and retained history
 under huddle session `/history/owners` and `/history/retained` POST routes. Catalogue
 requests page newest-first by recorded creation time plus runtime id; replies are

@@ -3,6 +3,7 @@ import type { Session } from '@puddle/shared';
 import { useCurrentProfileId } from '../profile/profile-store';
 import { useEditor } from '../workspace/editor-context';
 import { ControlTray } from '../../components/ui/control-tray';
+import { Disclosure } from '../../components/ui/disclosure';
 import { PuddleGlyph } from '../../components/puddle-glyph';
 import { useHuddleDocument, useHuddleSupported } from './documents/queries';
 import { GraphOverview } from './canvas/GraphOverview';
@@ -280,16 +281,16 @@ function HuddleEditor({
             </div>
           )}
           {graph.diagnostics.length > 0 && (
-            <details className="max-h-36 overflow-auto px-4 py-2 text-xs text-fg-muted">
-              <summary className="cursor-pointer">
-                {graph.diagnostics.length} validation notes
-              </summary>
+            <Disclosure
+              className="max-h-36 overflow-auto px-4 py-2 text-xs text-fg-muted"
+              summary={`${graph.diagnostics.length} validation notes`}
+            >
               {graph.diagnostics.map((item, index) => (
                 <p key={index}>
                   {item.node ?? item.path}: {item.message}
                 </p>
               ))}
-            </details>
+            </Disclosure>
           )}
           {graph.definition.nodes.length === 0 ? (
             <div className="flex min-h-0 flex-1 flex-col items-center justify-center gap-4">

@@ -6,6 +6,7 @@ import {
   type HuddleNodeDefinition,
 } from '@puddle/shared';
 import { Label } from '../../../components/ui/label';
+import { Disclosure } from '../../../components/ui/disclosure';
 import { Textarea } from '../../../components/ui/input';
 import { initialHuddleVariables, parseHuddleVariables } from '../execution/forms';
 
@@ -18,12 +19,14 @@ interface Props {
 export function BindingPreview(props: Props) {
   const [open, setOpen] = useState(false);
   return (
-    <details className="py-2" onToggle={(event) => setOpen(event.currentTarget.open)}>
-      <summary className="cursor-pointer rounded-md px-2 py-1 text-xs hover:bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring">
-        Preview bindings
-      </summary>
+    <Disclosure
+      className="py-2"
+      onToggle={(event) => setOpen(event.currentTarget.open)}
+      summary="Preview bindings"
+      summaryClassName="rounded-md px-2 py-1 text-xs hover:bg-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+    >
       {open && <Preview {...props} />}
-    </details>
+    </Disclosure>
   );
 }
 
