@@ -47,7 +47,7 @@ the roadmap's real-provider and packaged-platform exit requirements.
 | Trigger admission policies | `runtime/huddle/state/executions.ts` applies graph defaults/per-trigger overrides in the durable admission transaction; `inspector/settings/` exposes policies and limits. | Implemented with retained dispositions, capability gates and focused ledger/editor checks; native platform acceptance remains separate. Timer missed-occurrence coalescing is a different policy. |
 | Calendar recurrence | `runtime/huddle/triggers/calendar/` implements daily/selected-weekday and monthly/yearly schedules, timezone handling and skipped missing dates. | Implementation now includes the broader recurrence; native sleep/reboot acceptance remains open. |
 | Module and fixture validation | Application 28.31 adds static module/wrapper/captured-import checking and JSON contract samples through IDE/CLI/MCP. The client kit also supplies a standalone executable component runner using real wrappers and fake I/O. | Provider-authored component acceptance remains; static samples do not execute scripts, and executable fixtures do not establish live provider/runtime behavior. |
-| Session/IDE/window integration | The phase-2/5 source/fixture audit below maps the existing seams and exposed two history gaps, now implemented in 28.32–28.33. | Headless huddle transfer and peer/external source conflict checks pass as recorded below. Real-agent edits, renderer-crash and native interaction acceptance remain. |
+| Session/IDE/window integration | The phase-2/5 source/fixture audit below maps the existing seams and exposed two history gaps, now implemented in 28.32–28.33. | Headless huddle transfer, Chromium renderer-crash recovery and peer/external source conflict checks pass as recorded below. Real-agent edits and native Electron interaction/crash acceptance remain. |
 | Provider/runtime/platform acceptance | Independent-owner, operation, trigger, feedback and recovery checks are recorded below, including isolated macOS crash recovery, a packaged runtime-default update retaining an armed huddle, and loopback SSH disconnect/reconnect with autonomous timer execution. | Complete real coder/reviewer and native-feedback checks in same/distinct worktrees, provider authoring, remote-host/network-loss acceptance, packaged update/removal and mixed-version continuity, reboot, and resource/battery measurements. Do not substitute fixture results for these exit gates. |
 
 ## Verified: shared huddle disclosure controls
@@ -113,7 +113,7 @@ The individual evidence sections below retain their original verification scope.
 | Third session kind, tray/rail creation, worktree binding and runtime gate | `documents/NewHuddleDialog.tsx`, shared placement/tab identities and normal session lifecycle policy; `huddle/authoring.browser.mjs` and `huddle/navigation.test.ts` cover creation, unsupported runtime, labels and no terminal attachment. | Packaged mixed-version admission remains a platform gate. |
 | Canvas, accessible editing, settings, colours/icons and source | `canvas/`, `inspector/`, shared editor-backed graph/layout buffers; existing canvas/wire/editing/template/browser checks cover touch/keyboard/list editing, undo, source and appearance. | Native pointer/keyboard interaction remains separate. |
 | Manual controls and execution inspection | `execution/` uses exact reviewed host controls; existing execution/review/retained checks cover start/run, revision, nodes, results and unknown delivery. Agent links and original trigger input were missing and are now supplied by 28.32/28.33. | Real agents, permissions/takeover and external services remain provider gates. |
-| Panes, previews, transfers, project/named layouts and view restoration | Kind-aware shared/window contracts, normal transfer composition and `view/` persistence; `navigation.test.ts` covers huddle tab/pane/project content and dirty-buffer ownership, while `view.browser.mjs` exercises two panes, drag, independent camera and reload. Generic headless transfers exercise shared coordinators. | The headless `huddle-transfer` flow now exercises actual renderer handoff with dirty source, captured baseline, camera and selection. Lost source/destination transfer replies and destination reload now pass in that same flow. Renderer-crash and native desktop acceptance remain pending. |
+| Panes, previews, transfers, project/named layouts and view restoration | Kind-aware shared/window contracts, normal transfer composition and `view/` persistence; `navigation.test.ts` covers huddle tab/pane/project content and dirty-buffer ownership, while `view.browser.mjs` exercises two panes, drag, independent camera and reload. Generic headless transfers exercise shared coordinators. | The headless `huddle-transfer` flow exercises actual renderer handoff with dirty source, captured baseline, camera and selection. Lost source/destination transfer replies, destination reload and Chromium renderer-crash recovery pass in that same flow. Native Electron interaction/crash acceptance remains pending. |
 | Dirty close, external changes and missing resources | Shared Monaco source/digest/conflict machinery, `HuddleTabClose`, window recovery; `source/saves.browser.mjs` and the headless `huddle-recovery` case cover captured saves, external dependency changes, retained drafts and missing placement/project recovery. | Two headless renderer windows now exercise peer saves and external source changes during review. A real coding agent editing alongside native windows remains unverified. |
 | Account-selected authoring and portable extension workflow | `authoring/` starts a normal managed session with an explicit account/worktree and bundled skill; source/runtime CLI/MCP tools and client kit include schemas, types, examples and executable fixtures. Existing authoring checks cover selection, dirty-source gating and no automatic activation. | A real selected-account agent must create/modify and validate a custom component from these shipped instructions. |
 
@@ -211,13 +211,31 @@ and the subsequent peer/external conflicts still require fresh review. The
 fixture faults only the identified huddle transfer, leaving the preceding
 ordinary-file transfer unchanged.
 
+The same flow also changes the recovered draft and view again, waits for ordinary
+background persistence, then deliberately crashes that Chromium renderer with
+`Page.crash`. Its crash handler invokes the same command, effect, drag and transfer
+disconnection boundaries as the desktop shell's `render-process-gone` handler.
+There is no pagehide, graceful close or checkpoint before the crash; the retained
+working-set revision/content stays unchanged across process loss. A fresh renderer
+under the same window identity restores the newer unsaved text, 100% zoom and Run
+node selection, registers a newer renderer generation, and completes the existing
+peer/external conflict checks. The host source remains unsaved until explicit review.
+
+The crash event is the evidence of process loss, not an acknowledgement from the
+dead renderer. Playwright permanently marks that Page crashed, so the fixture
+closes its dead page and reuses the persisted window identity with a fresh page;
+it does not claim Electron's native reload/OS lifecycle was exercised. The same
+`huddle-transfer` case passes with this extension, and scoped lint/format checks
+pass. No production code or new test case was added.
+
 The fixture installs its shared transport before initial profile/session queries,
 retains profile and browser credential values across the fixture-only transport
 scope change, and returns the placement through both catalogue and single-session
 reads. Production transport and lifecycle code are unchanged. The ordinary file
 handoff/reload still runs before the huddle flow. This proves headless renderer
-handoff, lost-reply observation, destination reload and source conflicts, not
-real-provider authoring, OS window gestures or renderer crashes.
+handoff, lost-reply observation, destination reload, headless Chromium renderer
+crash recovery and source conflicts, not real-provider authoring or native Electron
+window gestures/crash handling.
 
 The `huddle-transfer` and existing `file-menu` headless cases pass on macOS arm64.
 Web type checking, scoped lint/formatting and `git diff --check` also pass. The
@@ -4668,7 +4686,7 @@ nodes, trigger health/backlog, integration secrets, readout observation and auth
 workflows. Do not treat those earlier next-step lists as current missing features.
 
 The remaining work is real-provider authoring and coder/reviewer/native-feedback
-acceptance in same and distinct worktrees, renderer-crash/native window interaction,
+acceptance in same and distinct worktrees, native Electron crash/window interaction,
 and broader platform verification: remote-host/network-loss continuity, daemon/combined
 updates, removal with live owners and mixed runtime versions, reboot and resource/battery
 behaviour beyond the small disconnected idle baseline above. Packaged runtime-default

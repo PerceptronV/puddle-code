@@ -1188,5 +1188,11 @@ text, captured baseline, zoom and node selection, and rejects stale peer/externa
 source saves until fresh conflict review. See [huddle acceptance](huddle.md) for
 the exact scope. Lost source commit and destination accept replies now recover
 through observation without repeating the huddle move; destination reload keeps
-its dirty source and graph view. Native OS and renderer-crash acceptance remain
-pending for huddles.
+its dirty source and graph view. The same flow now crashes the destination Chromium
+renderer after ordinary background persistence, then restores a newer unsaved draft,
+camera and selected node in a fresh renderer under the same window identity.
+It verifies unchanged retained content across the crash and subsequent peer/external
+conflict handling, without a graceful-close checkpoint or execution request.
+The synthetic shell invokes the real command/effect/drag/transfer disconnection
+boundaries. Native Electron crash handling and OS interaction remain separate
+acceptance requirements.

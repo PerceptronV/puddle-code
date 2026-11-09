@@ -199,6 +199,13 @@ async function openPage(record) {
     commands.disconnected(id);
     effects.publish();
   });
+  page.on('crash', () => {
+    // Match the desktop shell's render-process-gone boundary, without native windows.
+    commands.disconnected(id);
+    effects.publish();
+    drags.disconnected(id);
+    coordinator.disconnected(id);
+  });
   page.on('pageerror', (error) => errors.push(error.message));
   if (huddleBackend)
     await page.exposeBinding('huddleWindowRequest', (_source, ...args) =>
@@ -911,6 +918,8 @@ try {
       records,
       pages,
       state,
+      commands,
+      openPage,
     });
     huddleReplies.verify();
     assert.deepEqual(errors, []);

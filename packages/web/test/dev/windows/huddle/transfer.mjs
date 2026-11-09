@@ -48,6 +48,8 @@ export async function checkHuddleTransfer({
   records,
   pages,
   state,
+  commands,
+  openPage,
 }) {
   const session = backend.session;
   await openGraph(source, profile, session);
@@ -64,8 +66,8 @@ export async function checkHuddleTransfer({
   await expect.poll(() => [...records.keys()].filter((id) => !before.has(id)).length).toBe(1);
   const record = [...records.values()].find((value) => !before.has(value.window.id));
   await expect.poll(() => pages.has(record.window.id)).toBe(true);
-  const destination = pages.get(record.window.id);
-  const moved = destination.getByRole('region', { name: 'Huddle editor' });
+  let destination = pages.get(record.window.id);
+  let moved = destination.getByRole('region', { name: 'Huddle editor' });
   await moved.getByText('Transferred huddle draft', { exact: true }).waitFor();
   await moved.getByText('Unsaved changes', { exact: true }).waitFor();
   await expect(moved.getByRole('button', { name: 'Reset zoom', exact: true })).toHaveText('125%');
@@ -95,6 +97,50 @@ export async function checkHuddleTransfer({
     'true',
   );
 
+  // Persist a newer draft and view through ordinary background capture, then lose
+  // the renderer without pagehide, a checkpoint command or a graceful close.
+  await editName(destination, 'Recovered huddle draft');
+  await moved.getByRole('button', { name: 'Zoom out', exact: true }).click();
+  await moved.getByRole('button', { name: 'Run event', exact: true }).click();
+  await expect
+    .poll(() => {
+      const content = state.read(record.window.id, profile).content;
+      return (
+        content.buffers.some((buffer) => buffer.content.includes('Recovered huddle draft')) &&
+        Object.entries(content.views).some(
+          ([key, view]) =>
+            key.startsWith('huddle:') && view?.selectedNode === 'run' && view?.camera?.zoom === 1,
+        )
+      );
+    })
+    .toBe(true);
+  const captured = state.read(record.window.id, profile);
+  const generation = commands.generation(record.window.id);
+  const protocol = await destination.context().newCDPSession(destination);
+  const crashed = destination.waitForEvent('crash', { timeout: 10_000 });
+  // Chromium can lose this command's reply along with the renderer. The crash
+  // event is the evidence; never wait for acknowledgement from the dead process.
+  void protocol.send('Page.crash').catch(() => {});
+  await crashed;
+  console.log('Huddle renderer crash observed; restoring the background capture.');
+  assert.equal(commands.available(record.window.id), false);
+  assert.deepEqual(state.read(record.window.id, profile), captured);
+  // Playwright permanently marks crashed pages unavailable. Create a fresh
+  // renderer under the same native window identity; close() also disposes CDP.
+  await destination.close();
+  await openPage(record);
+  destination = pages.get(record.window.id);
+  moved = destination.getByRole('region', { name: 'Huddle editor' });
+  await moved.getByText('Recovered huddle draft', { exact: true }).waitFor();
+  await moved.getByText('Unsaved changes', { exact: true }).waitFor();
+  await expect(moved.getByRole('button', { name: 'Reset zoom', exact: true })).toHaveText('100%');
+  await expect(moved.getByRole('button', { name: 'Run event', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  await expect.poll(() => commands.generation(record.window.id)).toBeGreaterThan(generation);
+  assert.equal(backend.name(), 'Window huddle', 'crash recovery does not save source');
+
   // A second renderer edits the same source, while the moved renderer keeps its draft.
   await openGraph(target, profile, session);
   await editName(target, 'Saved in another window');
@@ -118,12 +164,12 @@ export async function checkHuddleTransfer({
   assert.equal(backend.name(), 'External agent edit', 'an edit after review invalidates Keep mine');
   await moved.getByRole('button', { name: 'Compare', exact: true }).click();
   await moved.getByRole('button', { name: 'Keep mine', exact: true }).click();
-  await expect.poll(() => backend.name()).toBe('Transferred huddle draft');
+  await expect.poll(() => backend.name()).toBe('Recovered huddle draft');
   assert.equal(
     backend.requests.some(({ path }) => /\/(start|run|apply|rearm|stop|resume)$/.test(path)),
     false,
   );
   console.log(
-    'Huddle handoff and destination reload preserve dirty source, captured baseline and view; peer/external edits require fresh conflict review.',
+    'Huddle handoff, reload and renderer crash preserve dirty source, captured baseline and view; peer/external edits require fresh conflict review.',
   );
 }
