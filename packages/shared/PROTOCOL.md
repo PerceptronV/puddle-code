@@ -1,5 +1,24 @@
 # The puddle communication protocol
 
+Application **28.30** extends the existing component installation request with
+`template: "builtin"` and a required `builtin: {component, version}` reference.
+Other templates reject that field. The endpoint returns the existing installed
+manifest/component shape; it publishes files without changing or activating a graph.
+The IDE replaces the selected node's source in its ordinary undoable draft.
+
+Local trigger contracts can declare `hostTrigger: {component, version}` with an
+entry point and no separate `trigger` subscription. Private runtime capability
+**`hostTriggerScripts: 1`** gates these components in addition to the selected
+host source's existing capability. Preserve the pinned source's parameter schemas,
+editors, required flags and capabilities. Added parameters belong to the adapter;
+provider settings contain only declared host parameter names.
+
+Raw root events retain the pinned host source identity and schema. Admission and
+cursors use existing source machinery; routing queues a normal HuddleNode invocation
+with `{event: data}` before forwarding its validated emissions. Agent operations
+remain unavailable to trigger adapters. Result copies use existing HuddleReadout
+delivery and `readouts: 1`. No database, ledger or ordinary runtime version changes.
+
 Application **28.29** enables the existing `execution.queue` coalesce/drop values
 and adds optional `execution.triggerAdmission: { [node]: {policy, maxQueuedEvents} }`
 to format-1 definitions. Keys must resolve to triggers; limits remain 1–4096 with

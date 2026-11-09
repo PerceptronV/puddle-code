@@ -381,7 +381,8 @@
 // 28.27: optional manual/review-loop starters on inactive huddle creation.
 // 28.28: monthly/yearly calendar-date built-in (requires runtime calendar-2).
 // 28.29: per-trigger queue/coalesce/drop policies (runtime admission-1).
-export const PROTOCOL_VERSION = { major: 28, minor: 29 } as const;
+// 28.30: editable built-in copies and host-backed trigger scripts.
+export const PROTOCOL_VERSION = { major: 28, minor: 30 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

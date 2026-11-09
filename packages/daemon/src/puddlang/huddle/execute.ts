@@ -1,4 +1,10 @@
-import { validateHuddleValue, type HuddleComponent, type HuddleJson } from '@puddle/shared';
+import {
+  coreHuddleComponents,
+  validateHuddleHostTrigger,
+  validateHuddleValue,
+  type HuddleComponent,
+  type HuddleJson,
+} from '@puddle/shared';
 import type { HuddleNodeContext, HuddleValues } from './context.js';
 import type { HuddleNodeModule } from './node.js';
 import { immutable, snapshot, validatePorts, validateParameters } from './values.js';
@@ -10,10 +16,16 @@ export async function executeHuddleNode(
   context: HuddleNodeContext,
 ): Promise<HuddleValues> {
   context.signal.throwIfAborted();
-  if (component.category !== 'script') throw new Error('HuddleNode requires a script component');
+  const host =
+    component.hostTrigger &&
+    coreHuddleComponents.get(`${component.hostTrigger.component}@${component.hostTrigger.version}`);
+  if (component.category !== 'script' && !(component.category === 'trigger' && host))
+    throw new Error('HuddleNode requires a script or declared host trigger adapter');
+  const hostError = validateHuddleHostTrigger(component);
+  if (hostError) throw new Error(hostError);
   const inputs = snapshot(context.inputs);
   const parameters = snapshot(context.parameters);
-  validatePorts(component.inputs, inputs, 'input', component.activation);
+  validatePorts(host ? host.outputs : component.inputs, inputs, 'input', component.activation);
   validateParameters(component, parameters);
   const pending = new Set<Promise<void>>();
   const completedPorts = Object.fromEntries(

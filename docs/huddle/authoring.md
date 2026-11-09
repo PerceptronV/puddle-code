@@ -34,6 +34,36 @@ the real service before activation. Fake fixtures exercise contracts, not live
 integration behavior. The kit includes no credentials; authenticated services can
 use [private host secret references](integrations.md).
 
+## Local built-in adapters
+
+The kit's `builtins/<component-id>/` directories contain the same `node.json` and
+`run.ts` files as **Make local copy** in the IDE (application 28.30+). Copy a whole
+directory under `.puddle/huddle/<huddle_id>/nodes/<name>/` and reference its manifest
+with a local graph node. The generated component uses a project id; its explicit
+`hostTrigger: {component, version}` pins the original built-in source.
+
+These triggers use HuddleNode, with the raw admitted event at `inputs.event`.
+The initial script emits it unchanged. Edit code/output contracts to transform,
+filter or route events, and add parameters to expose adapter settings. Retain the
+host's parameter schemas, editors, required flags and capability declarations;
+defaults, labels and descriptions may change. Only host parameter names reach its
+provider. File/session sources still require explicit worktree bindings.
+
+Runtime `hostTriggerScripts: 1` and each source's original capability are required.
+Existing durable observation and admission supply events; the local script does
+not open a second watcher or timer. Each accepted event costs an ordinary node
+invocation under the existing concurrency, memory and execution bounds. Raw root
+history retains the built-in source identity; node history records adapter work.
+Agent operations are unavailable in trigger adapters: connect an ordinary agent
+node to process their emissions. For entirely custom sources, use HuddleTrigger
+and its declared subscription/resume contract instead.
+
+Result copies use HuddleReadout and existing `readouts: 1`. Inputs remain in node
+history; delivery returns a receipt without an external action. To add external
+delivery, update the readout's idempotency/reconciliation declarations to match
+the real service. Copying never activates changes. Undo only restores the graph
+reference; inspect published files after an uncertain installation reply.
+
 ## Account-selected editing
 
 Open the huddle and choose **Edit with agent**. Select an account and describe the

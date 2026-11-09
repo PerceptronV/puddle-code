@@ -43,12 +43,44 @@ the roadmap's real-provider and packaged-platform exit requirements.
 | Area | Current evidence | Remaining work |
 | --- | --- | --- |
 | Node binding preview | `web/features/huddle/inspector/BindingPreview.tsx` shares `resolveHuddleParameters`; exact captured runtime resources remain in `execution/review/RevisionDetails.tsx`. Existing template browser check verifies local resolution and sample isolation. | Implemented for draft parameter resolution; host resource admission remains part of Start/Apply. |
-| Built-in source and local copies | Editable agent/flow/readout templates install through `daemon/huddle/templates/install.ts`; `inspector/GraphEditing.tsx` adds core built-ins by catalogue reference. | Add readable built-in source and **Make local copy**, preserving the behavior of host-backed triggers. Copying a manifest alone is insufficient. |
+| Built-in source and local copies | `inspector/BuiltinSource.tsx` exposes source/copy through the template installer; shared `huddle/components/host.ts` preserves host observation while ordinary HuddleNode workers adapt events. | Implemented with runtime capability gating; real-provider and platform acceptance remains in the matrix below. |
 | Trigger admission policies | `runtime/huddle/state/executions.ts` applies graph defaults/per-trigger overrides in the durable admission transaction; `inspector/settings/` exposes policies and limits. | Implemented with retained dispositions, capability gates and focused ledger/editor checks; native platform acceptance remains separate. Timer missed-occurrence coalescing is a different policy. |
 | Calendar recurrence | `runtime/huddle/triggers/calendar/` implements daily/selected-weekday and monthly/yearly schedules, timezone handling and skipped missing dates. | Implementation now includes the broader recurrence; native sleep/reboot acceptance remains in the platform matrix. |
 | Module and fixture validation | Shared graph/binding validation, authoring-kit fixtures and runtime wrapper checks exist. | Audit the promised build/validate module-contract agreement and fixture-based authoring workflow; current evidence here does not prove the whole requirement. |
 | Session/IDE/window integration | Sidebar, lifecycle, source editing, Start and run, history, transfers and retained-draft recovery have individual evidence below. | Complete the integration audit against the full phase-2/5 requirements, including real agent authoring and native interaction acceptance. |
 | Provider/runtime/platform acceptance | Independent-owner, operation, trigger, feedback and recovery checks are recorded below, including isolated macOS crash recovery. | Complete real coder/reviewer and native-feedback checks in same/distinct worktrees, provider authoring, SSH disconnection, packaged update/removal and mixed-version continuity, reboot, and resource/battery measurements. Do not substitute fixture results for these exit gates. |
+
+## Implemented: built-in source and local copies
+
+Application 28.30 exposes **View built-in source** and **Make local copy** for core
+triggers and Result. Shared `huddle/templates/builtins.ts` generates editable source
+for both the existing installer and authoring-kit `builtins/<component-id>/` assets.
+The inspector replaces only the selected node's source in the shared graph draft,
+preserving settings, identity, appearance and connections. Save and Apply remain
+explicit; Undo restores the reference and leaves published files intact. The
+installer never overwrites paths or retries uncertain publication.
+
+Local trigger manifests pin `hostTrigger: {component, version}` and require
+runtime `hostTriggerScripts: 1` plus the source's existing capability. Host parameter
+schemas/editors/required flags and capabilities are retained; added settings remain
+adapter-only. Existing timer, Filetree, Git, session and native-completion machinery
+owns observation, cursors, authority and admission. It does not open a second custom
+subscription. Health inspection observes the original source records.
+
+Routing validates the original source event, then queues a normal HuddleNode
+invocation with `inputs.event`. Adapter output uses its own declared ports and
+normal routing, worker limits, cancellation and retained history. Trigger adapters
+cannot dispatch agent actions; ordinary script/agent nodes handle those downstream.
+Result copies use the existing HuddleReadout worker and retain delivered receipts.
+
+The existing worker/authoring checks exercise installed Run/Interval/Result copies,
+edited event transformation, real isolated worker routing, host interval admission,
+source health, capability refusal and absence of duplicate custom subscriptions.
+The kit's standalone TypeScript check includes every generated built-in adapter.
+The existing editing browser check covers readable source, copy/save/undo/redo,
+preserved node settings/connections, source opening and older-host gating without
+execution requests. Native providers, platform recovery and packaged-version
+continuity remain separate acceptance requirements.
 
 ## Implemented: per-trigger admission policies
 

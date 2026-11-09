@@ -30,7 +30,7 @@ export function installHuddleTemplate(
     root = join(root, part);
     directory(root);
   }
-  const { component, files } = huddleTemplateFiles(input.template);
+  const { component, files } = huddleTemplateFiles(input.template, input.builtin);
   check();
   const nodes = join(root, 'nodes');
   try {

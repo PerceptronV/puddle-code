@@ -2,6 +2,7 @@ import { realpathSync } from 'node:fs';
 import {
   canonicalHuddleJson,
   completionHuddleTrigger,
+  huddleHostTrigger,
   type HuddleCompletionSource,
 } from '@puddle/shared';
 import type { RuntimeBinding } from '../../../db/stores/runtimes.js';
@@ -59,9 +60,8 @@ export function requireCompletionNode(
   );
   const node = snapshot.definition.nodes.find((node) => node.id === source.node);
   if (
-    node?.source.kind !== 'builtin' ||
-    node.source.component !== completionHuddleTrigger.id ||
-    node.source.version !== 1
+    !node ||
+    huddleHostTrigger(node, snapshot.components[node.id])?.id !== completionHuddleTrigger.id
   )
     throw new Error('Retained node did not declare native completion observation');
 }

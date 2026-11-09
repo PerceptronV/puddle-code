@@ -1,9 +1,10 @@
 import { realpathSync } from 'node:fs';
 import {
   gitHuddleTrigger,
+  huddleHostTrigger,
+  resolveHuddleHostParameters,
   huddleGitSettingsSchema,
   HUDDLE_GIT_LIMITS,
-  resolveHuddleParameters,
   type HuddleRevisionActivation,
 } from '@puddle/shared';
 import type { HuddleDefinitionSnapshot } from '../../../../huddle/definitions/capture.js';
@@ -14,13 +15,13 @@ export function gitDefinitions(
   activation: HuddleRevisionActivation,
 ) {
   const nodes = snapshot.definition.nodes.filter(
-    (node) => node.source.kind === 'builtin' && node.source.component === gitHuddleTrigger.id,
+    (node) => huddleHostTrigger(node, snapshot.components[node.id])?.id === gitHuddleTrigger.id,
   );
   if (nodes.length > HUDDLE_GIT_LIMITS.sources)
     throw new Error('A huddle supports at most 8 Git triggers');
   return nodes.map((node, slot) => {
     const settings = huddleGitSettingsSchema.parse(
-      resolveHuddleParameters(
+      resolveHuddleHostParameters(
         snapshot.definition,
         node,
         snapshot.components[node.id]!,

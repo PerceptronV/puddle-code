@@ -5,7 +5,12 @@ import { RecordedHistoryDialog } from './history/RecordedHistoryDialog';
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import { manualHuddleTrigger, type HuddleCommandTarget, type Session } from '@puddle/shared';
+import {
+  manualHuddleTrigger,
+  huddleHostTrigger,
+  type HuddleCommandTarget,
+  type Session,
+} from '@puddle/shared';
 import { ControlTray } from '../../../components/ui/control-tray';
 import { useHuddleSourceDirty } from '../documents/use-source-dirty';
 import { useHuddleAvailability, useHuddleDocument } from '../documents/queries';
@@ -236,8 +241,8 @@ export function ExecutionControls({
               {reviewSupported &&
                 source.data?.definition.nodes.some(
                   (node) =>
-                    node.source.kind === 'builtin' &&
-                    node.source.component === manualHuddleTrigger.id,
+                    huddleHostTrigger(node, source.data?.components[node.id])?.id ===
+                    manualHuddleTrigger.id,
                 ) && (
                   <button
                     type="button"

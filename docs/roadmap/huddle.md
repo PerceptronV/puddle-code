@@ -819,8 +819,12 @@ The initial IDE contains:
   The local binding preview is implemented: sample variables resolve current draft
   settings through the shared validator without executing modules. Resource selectors
   still require host activation; Active revision shows captured runtime bindings.
-  Make local copy for built-ins remains open (editable templates already install
-  project-local source).
+  Built-in local copies are implemented on application 28.30: ordinary draft
+  edits retain node identity/settings/wires. Trigger copies declare a pinned
+  hostTrigger and use HuddleNode to adapt each admitted event, preserving existing
+  host source observation/cursors; runtime hostTriggerScripts-1 gates execution.
+  Source and Result adapters also ship in the authoring kit. Native/provider
+  acceptance remains part of the overall phase gates.
 - An execution inspector for trigger input, node state, bounded input/output,
   exact agent/session links, errors, delivery receipts and recovery choices.
   Definition selection and viewing a historical execution are separate modes.

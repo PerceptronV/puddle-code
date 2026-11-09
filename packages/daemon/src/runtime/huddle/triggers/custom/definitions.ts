@@ -7,7 +7,10 @@ export function customTriggerDefinitions(
 ) {
   if (snapshot.digest !== activation.revision) throw new Error('Custom trigger revision changed');
   const nodes = snapshot.definition.nodes.filter(
-    (node) => node.source.kind === 'local' && snapshot.components[node.id]?.category === 'trigger',
+    (node) =>
+      node.source.kind === 'local' &&
+      snapshot.components[node.id]?.category === 'trigger' &&
+      !snapshot.components[node.id]?.hostTrigger,
   );
   if (nodes.length > HUDDLE_CUSTOM_TRIGGER_LIMIT)
     throw new Error(`A huddle supports at most ${HUDDLE_CUSTOM_TRIGGER_LIMIT} custom triggers`);

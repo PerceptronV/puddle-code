@@ -24,6 +24,21 @@ Use explicit timeZone and local HH:mm time. It shares Calendar's missed policy
 and bounded catch-up. Daily/weekday Calendar and Date and time still support
 calendar: 1; inspect the selected runtime before using the new source.
 
+On host 28.30+, Make local copy publishes builtins/<component-id>/ adapters as
+editable project node.json/run.ts files. The kit contains the same source; copy
+both files under nodes/<name>/ and use a local manifest reference. Trigger adapters
+declare hostTrigger: {component, version}, require hostTriggerScripts:1 plus the
+source's original capability, and use HuddleNode with inputs.event. The runtime
+still owns timers, watchers and session/native-completion feeds, including durable
+cursors/admission. Do not add a second HuddleTrigger subscription to these nodes.
+Keep host parameter schemas, editors, required flags and capabilities intact.
+Defaults/descriptions/output contracts and adapter code may change; extra settings
+belong only to the adapter. Use emit to filter/transform/route accepted events.
+Each accepted event runs one bounded ordinary worker invocation. Agent operations
+belong in downstream script nodes. Result copies use HuddleReadout/readouts:1 and
+record a delivered receipt without an external action. Saving a copy does not
+activate it; Undo restores only the graph reference and leaves files intact.
+
 ## Files and examples
 
 Host 28.29+ and runtime admission: 1 support execution.queue values queue,

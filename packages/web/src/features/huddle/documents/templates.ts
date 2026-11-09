@@ -18,11 +18,14 @@ export function useHuddleTemplates(profile: string | undefined, session: Session
     shell &&
     supportsApplicationFeature(protocol, {
       major: 28,
-      minor: huddleNodeTemplates.find((item) => item.template === name)!.minor,
+      minor:
+        name === 'builtin' ? 30 : huddleNodeTemplates.find((item) => item.template === name)!.minor,
     });
   const mutation = useMutation({
     retry: false,
-    mutationFn: async (input: Pick<HuddleInstallTemplate, 'template' | 'component'>) => {
+    mutationFn: async (
+      input: Pick<HuddleInstallTemplate, 'template' | 'component' | 'builtin'>,
+    ) => {
       if (!profile || !supportsTemplate(input.template))
         throw new Error('This node template requires a supporting host');
       return huddleInstalledTemplateSchema.parse(

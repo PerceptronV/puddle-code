@@ -39,6 +39,9 @@ export const huddleComponentSchema = z
     nativeCompletion: huddleKeySchema.optional(),
     lifecycle: z.enum(['resume', 'restart']).optional(),
     trigger: z.strictObject({ resume: z.enum(['continue', 'fresh']) }).optional(),
+    hostTrigger: z
+      .strictObject({ component: huddleComponentIdSchema, version: z.number().int().positive() })
+      .optional(),
     readout: z
       .strictObject({
         idempotent: z.boolean(),
@@ -117,7 +120,21 @@ export const huddleComponentSchema = z
           message: 'Input scope cannot be declared on an output',
         });
     }
-    if (component.category === 'trigger' && component.entry && !component.trigger)
+    if (
+      component.hostTrigger &&
+      (component.category !== 'trigger' || !component.entry || component.trigger)
+    )
+      ctx.addIssue({
+        code: 'custom',
+        path: ['hostTrigger'],
+        message: 'Host triggers require a local trigger script without a separate subscription',
+      });
+    if (
+      component.category === 'trigger' &&
+      component.entry &&
+      !component.trigger &&
+      !component.hostTrigger
+    )
       ctx.addIssue({
         code: 'custom',
         path: ['trigger'],

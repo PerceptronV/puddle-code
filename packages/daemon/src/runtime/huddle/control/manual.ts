@@ -1,6 +1,6 @@
 import { randomUUID } from 'node:crypto';
 import { huddleEventSchema, type HuddleJson } from '@puddle/shared';
-import { manualHuddleTrigger } from '@puddle/shared';
+import { manualHuddleTrigger, huddleHostTrigger } from '@puddle/shared';
 import { HuddleLedger } from '../state/ledger.js';
 import { HuddleRevisionStore } from '../state/revisions.js';
 
@@ -18,9 +18,8 @@ export function admitManualHuddle(
   const snapshot = revisions.read(activation.revision);
   const definition = snapshot.definition.nodes.find((candidate) => candidate.id === node);
   if (
-    definition?.source.kind !== 'builtin' ||
-    definition.source.component !== manualHuddleTrigger.id ||
-    definition.source.version !== manualHuddleTrigger.version
+    !definition ||
+    huddleHostTrigger(definition, snapshot.components[node])?.id !== manualHuddleTrigger.id
   )
     throw new Error('Node is not a supported manual trigger');
   const event = huddleEventSchema.parse({

@@ -1,6 +1,7 @@
 import { useQuery } from '@tanstack/react-query';
 import {
   sessionHuddleTrigger,
+  huddleHostTrigger,
   puddlangContextSchema,
   type HuddleNodeDefinition,
   type HuddleComponent,
@@ -56,8 +57,7 @@ export function useNodeResourceOptions(
       ? [binding.value]
       : [];
   });
-  const observing =
-    node.source.kind === 'builtin' && node.source.component === sessionHuddleTrigger.id;
+  const observing = huddleHostTrigger(node, component)?.id === sessionHuddleTrigger.id;
   const binding = node.parameters.worktree;
   const worktree =
     binding?.kind === 'literal' && typeof binding.value === 'string' ? binding.value : undefined;

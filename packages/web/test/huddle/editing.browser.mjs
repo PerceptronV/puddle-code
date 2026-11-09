@@ -115,6 +115,49 @@ try {
   await editor.getByRole('button', { name: 'Undo', exact: true }).click();
   await editor.getByRole('button', { name: 'Result value', exact: true }).nth(1).waitFor();
 
+  await editor.getByRole('button', { name: 'Run event', exact: true }).click();
+  await editor.getByText('View built-in source', { exact: true }).click();
+  assert.match(await editor.getByLabel('Built-in adapter source').innerText(), /HuddleNode/);
+  const copy = editor.getByRole('button', { name: 'Make local copy', exact: true });
+  if (process.env.HUDDLE_CAPTURED_SOURCE) {
+    const before = await page.evaluate(() => window.huddleFixture.source());
+    await copy.click();
+    await editor.getByRole('button', { name: 'Open script', exact: true }).waitFor();
+    assert.equal(
+      await page.evaluate(
+        () => window.huddleFixture.source().nodes.find((node) => node.id === 'run').source.kind,
+      ),
+      'builtin',
+    );
+    await editor.getByRole('button', { name: 'Undo', exact: true }).click();
+    await copy.waitFor();
+    await editor.getByRole('button', { name: 'Redo', exact: true }).click();
+    await editor.getByRole('button', { name: 'Save', exact: true }).click();
+    await page.waitForFunction(
+      () =>
+        window.huddleFixture.source().nodes.find((node) => node.id === 'run').source.kind ===
+        'local',
+    );
+    const after = await page.evaluate(() => window.huddleFixture.source());
+    const local = after.nodes.find((node) => node.id === 'run');
+    assert.deepEqual(
+      { ...local, source: before.nodes.find((node) => node.id === 'run').source },
+      before.nodes.find((node) => node.id === 'run'),
+    );
+    assert.deepEqual(after.edges, before.edges);
+    const files = await page.evaluate(() => window.huddleFixture.componentFiles());
+    const manifest = JSON.parse(
+      files[`.puddle/huddle/${after.id}/${local.source.manifest}`].content,
+    );
+    assert.deepEqual(manifest.hostTrigger, { component: 'puddle.trigger.manual', version: 1 });
+    await editor.getByRole('button', { name: 'Open script', exact: true }).click();
+    await page.waitForSelector('.monaco-editor');
+    const script = page.locator('[data-pane-tab]').filter({ hasText: 'run.ts' });
+    await script.hover();
+    await script.getByRole('button', { name: 'Close run.ts', exact: true }).click();
+    await script.waitFor({ state: 'hidden' });
+  } else assert.equal(await copy.isDisabled(), true);
+
   await editor.getByRole('button', { name: 'Open definition', exact: true }).click();
   await page.waitForSelector('.monaco-editor');
   await page.evaluate(async () => {

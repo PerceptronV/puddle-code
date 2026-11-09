@@ -1,4 +1,5 @@
 import {
+  coreHuddleComponents,
   huddleDefinitionSchema,
   huddleLayoutSchema,
   huddleComponentSchema,
@@ -30,8 +31,9 @@ export function sourceFixture(
     const contracts: HuddleDocument['components'] = {};
     for (const node of definition.nodes) {
       if (node.source.kind === 'builtin') {
-        const component = node.source.component;
-        const contract = Object.values(document.components).find((item) => item.id === component);
+        const contract = coreHuddleComponents.get(
+          `${node.source.component}@${node.source.version}`,
+        );
         if (contract) contracts[node.id] = contract;
       } else {
         const manifest = node.source.manifest.replace(/^\.\//, '');
@@ -41,8 +43,13 @@ export function sourceFixture(
         const dir = manifest.slice(0, manifest.lastIndexOf('/') + 1);
         for (const file of [contract.entry, ...contract.dependencies].filter(
           (path): path is string => !!path,
-        ))
-          files[dir + file] = components.get(root + dir + file)!.content;
+        )) {
+          const path = (dir + file)
+            .split('/')
+            .filter((part) => part !== '.')
+            .join('/');
+          files[path] = components.get(root + path)!.content;
+        }
       }
     }
     Object.assign(document, {

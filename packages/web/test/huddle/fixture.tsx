@@ -346,7 +346,7 @@ window.fetch = async (input, init) => {
   }
   const install = path.match(new RegExp(`^${prefix}/definitions/([^/]+)/components$`));
   if (install && method === 'POST') {
-    const template = huddleTemplateFiles(body.template);
+    const template = huddleTemplateFiles(body.template, body.builtin);
     const root = `.puddle/huddle/${install[1]}/nodes/${body.component}`;
     for (const [name, content] of Object.entries(template.files))
       components.set(`${root}/${name}`, { content, mtime: 1 });

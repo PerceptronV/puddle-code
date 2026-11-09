@@ -2,9 +2,10 @@ import { lstatSync, realpathSync } from 'node:fs';
 import { isAbsolute, join } from 'node:path';
 import {
   filetreeHuddleTrigger,
+  huddleHostTrigger,
+  resolveHuddleHostParameters,
   HUDDLE_FILETREE_LIMITS,
   huddleFiletreeSettingsSchema,
-  resolveHuddleParameters,
   type HuddleRevisionActivation,
   type HuddleFiletreeSettings,
 } from '@puddle/shared';
@@ -37,13 +38,14 @@ export function filetreeDefinitions(
   activation: HuddleRevisionActivation,
 ) {
   const nodes = snapshot.definition.nodes.filter(
-    (node) => node.source.kind === 'builtin' && node.source.component === filetreeHuddleTrigger.id,
+    (node) =>
+      huddleHostTrigger(node, snapshot.components[node.id])?.id === filetreeHuddleTrigger.id,
   );
   if (nodes.length > HUDDLE_FILETREE_LIMITS.sources)
     throw new Error('A huddle supports at most 8 Filetree triggers');
   return nodes.map((node, slot) => {
     const settings = huddleFiletreeSettingsSchema.parse(
-      resolveHuddleParameters(
+      resolveHuddleHostParameters(
         snapshot.definition,
         node,
         snapshot.components[node.id]!,

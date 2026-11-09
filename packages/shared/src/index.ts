@@ -156,6 +156,8 @@ export {
 export * from './huddle/components/core.js';
 export * from './huddle/components/interval.js';
 export * from './huddle/components/calendar.js';
+export * from './huddle/components/host.js';
+export * from './huddle/templates/builtins.js';
 export * from './huddle/components/filetree.js';
 export * from './huddle/components/git.js';
 export * from './huddle/components/session.js';

@@ -2,6 +2,8 @@ import { realpathSync } from 'node:fs';
 import {
   HUDDLE_COMPLETION_SOURCE_LIMIT,
   completionHuddleTrigger,
+  huddleHostTrigger,
+  resolveHuddleHostParameters,
   huddleCompletionSettingsSchema,
   resolveHuddleParameters,
   type HuddleRevisionActivation,
@@ -14,13 +16,13 @@ export function completionDefinitions(
 ) {
   const nodes = snapshot.definition.nodes.filter(
     (node) =>
-      node.source.kind === 'builtin' && node.source.component === completionHuddleTrigger.id,
+      huddleHostTrigger(node, snapshot.components[node.id])?.id === completionHuddleTrigger.id,
   );
   if (nodes.length > HUDDLE_COMPLETION_SOURCE_LIMIT)
     throw new Error('A huddle supports at most 8 completion triggers');
   const definitions = nodes.map((node, slot) => {
     const settings = huddleCompletionSettingsSchema.parse(
-      resolveHuddleParameters(
+      resolveHuddleHostParameters(
         snapshot.definition,
         node,
         snapshot.components[node.id]!,

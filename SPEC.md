@@ -1335,6 +1335,31 @@ All timestamps are ISO 8601 UTC. Git operations against a given repository (work
 
 ### Huddle orchestration (implementation in progress)
 
+Application 28.30 exposes readable built-in adapter source and **Make local copy**.
+The existing component installer accepts `template: "builtin"` with a pinned
+`builtin: {component, version}`, publishes editable `node.json`/`run.ts` files,
+and returns their local manifest reference. The IDE changes only the selected
+node's source in the ordinary graph draft, retaining id, settings, appearance and
+connections. Save/Apply remain explicit. Undo restores the reference but keeps
+published files; failed replies require inspection before another copy.
+
+Local trigger copies declare `hostTrigger: {component, version}` and require
+runtime `hostTriggerScripts: 1` plus the source's existing capabilities. Existing
+timers, filesystem/Git observation and session/native-completion feeds retain
+source lifecycle, durable cursors, admission and authority. They emit the same
+raw root event identity; routing queues one ordinary HuddleNode invocation per
+admitted event with `inputs.event`. Its emitted values follow the local output
+contract and normal graph limits. Worker budgets, cancellation, retained history
+and recovery use the existing invocation machinery. No second subscription runs.
+
+Host parameter schemas, editors, required flags and capabilities must be retained;
+defaults/descriptions and adapter output contracts/code can change. Additional
+parameters reach the adapter only. Trigger adapters cannot dispatch agent actions;
+connect an ordinary agent/script node for those. Entirely custom sources still use
+HuddleTrigger subscriptions. A Result copy is a normal HuddleReadout recording its
+inputs and a delivered receipt without an external action. The same editable
+adapters ship in the authoring kit under `builtins/<component-id>/`.
+
 Application 28.29 and private runtime `admission: 1` enable queue/coalesce/drop
 event admission. `execution.queue` supplies the default; optional
 `execution.triggerAdmission` maps trigger node ids to `{policy, maxQueuedEvents}`.

@@ -3,6 +3,7 @@ import type { HuddleComponent } from '../../api/huddle/components.js';
 import type { HuddleDefinition, HuddleDiagnostic } from '../../api/huddle/definitions.js';
 import type { HuddleValueSchema } from '../../api/huddle/contracts.js';
 import { huddlePortCompatibility, validateHuddleValue } from './values.js';
+import { validateHuddleHostTrigger } from '../components/host.js';
 
 /** Components are resolved per node from a captured revision, never loaded as code. */
 export function validateHuddleGraph(
@@ -57,6 +58,8 @@ export function validateHuddleGraph(
         { node: node.id },
       );
     if (component.category === 'trigger') triggers++;
+    const hostError = validateHuddleHostTrigger(component);
+    if (hostError) add('host_trigger', `${path}/source`, hostError, { node: node.id });
     for (const [name, parameter] of Object.entries(component.parameters)) {
       if (
         parameter.default !== undefined &&

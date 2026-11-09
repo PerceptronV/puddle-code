@@ -72,7 +72,7 @@ export function inspectHuddleTriggers(
         source.next_at = deadline === null ? null : new Date(deadline).toISOString();
       }
     }
-    if (node.source.kind === 'local' && source.health === 'ready') {
+    if (node.source.kind === 'local' && !component.hostTrigger && source.health === 'ready') {
       const retained = custom.find(
         (item) =>
           item.node === node.id &&

@@ -23,6 +23,7 @@ import { useHuddleView } from './view/use-huddle-view';
 import { ExecutionSettings } from './inspector/settings/ExecutionSettings';
 import { NodeConcurrency } from './inspector/settings/NodeConcurrency';
 import { TriggerAdmission } from './inspector/settings/TriggerAdmission';
+import { BuiltinSource } from './inspector/BuiltinSource';
 
 export function HuddlePane({ session, focused = true }: { session: Session; focused?: boolean }) {
   const supported = useHuddleSupported();
@@ -374,6 +375,16 @@ function HuddleEditor({
                   {component?.description && (
                     <p className="mb-4 text-xs text-fg-muted">{component.description}</p>
                   )}
+                  {component && node.source.kind === 'builtin' && (
+                    <BuiltinSource
+                      key={`builtin-source:${node.id}`}
+                      node={node}
+                      session={session}
+                      profile={profile}
+                      edit={edit}
+                      locked={draft.locked || !!buffer.conflict}
+                    />
+                  )}
                   {component &&
                     Object.values(component.inputs).some((port) => port.scope === 'execution') && (
                       <p className="mb-4 text-xs text-fg-muted">
@@ -414,6 +425,7 @@ function HuddleEditor({
                     node={node}
                     component={component}
                     definition={graph.definition}
+                    components={graph.components}
                     session={session}
                     edit={edit}
                   />

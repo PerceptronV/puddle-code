@@ -6,6 +6,8 @@ import { huddleDefinitionSchema } from '../../api/huddle/definitions.js';
 import { huddleAuthoringSchemas } from './schemas.js';
 import { huddleSdkTypes } from './sdk.js';
 import { huddleAuthoringGuide } from './guide.js';
+import { coreHuddleComponents } from '../components/core.js';
+import { huddleBuiltinCopyFiles } from '../templates/builtins.js';
 import {
   authoringComponents,
   boundedHttpSource,
@@ -57,6 +59,11 @@ export function huddleAuthoringFiles(): Record<string, string> {
   for (const item of huddleFlowTemplates)
     for (const [name, contents] of Object.entries(huddleFlowTemplateFiles(item.template)!.files))
       files[`templates/${item.template}/${name}`] = contents;
+  for (const component of coreHuddleComponents.values()) {
+    const copy = huddleBuiltinCopyFiles({ component: component.id, version: component.version });
+    for (const [name, contents] of Object.entries(copy.files))
+      files[`builtins/${component.id}/${name}`] = contents;
+  }
   for (const starter of huddleStarters)
     for (const [path, content] of Object.entries(
       huddleStarterFiles(

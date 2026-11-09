@@ -2,6 +2,7 @@ import { realpathSync } from 'node:fs';
 import {
   canonicalHuddleJson,
   sessionHuddleTrigger,
+  huddleHostTrigger,
   type HuddleSessionSource,
 } from '@puddle/shared';
 import type { RuntimeBinding } from '../../../db/stores/runtimes.js';
@@ -57,9 +58,8 @@ export function validateSessionSubscription(
   );
   const node = snapshot.definition.nodes.find((node) => node.id === source.node);
   if (
-    node?.source.kind !== 'builtin' ||
-    node.source.component !== sessionHuddleTrigger.id ||
-    node.source.version !== 1
+    !node ||
+    huddleHostTrigger(node, snapshot.components[node.id])?.id !== sessionHuddleTrigger.id
   )
     throw new Error('Retained node did not declare session observation');
 }

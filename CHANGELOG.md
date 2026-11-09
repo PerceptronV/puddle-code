@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Inspect built-in huddle adapter source and make editable local copies while retaining existing trigger subscriptions, cursors and session lifecycle machinery (application 28.30, runtime hostTriggerScripts-1).
+
 - Configure huddle trigger queue, coalesce and drop policies with per-trigger bounds, durable history and unchanged running work; require runtime admission-1 (application 28.29).
 
 - Add Monthly / yearly huddle schedules with explicit month/day selection, skipped missing dates and durable catch-up, requiring runtime calendar-2 (application 28.28).

@@ -1,3 +1,4 @@
+import { randomUUID } from 'node:crypto';
 import {
   canonicalHuddleJson,
   huddleComponentSchema,
@@ -6,6 +7,7 @@ import {
   huddleRevisionSchema,
   validateHuddleGraph,
   validateHuddleValue,
+  huddleHostTrigger,
   type HuddleComponent,
   type HuddleDefinition,
   type HuddleJson,
@@ -84,26 +86,45 @@ export class HuddleGraphRouting {
       );
       const event = inbox.event;
       const component = this.components.get(event.source.node);
+      const node = this.definition.nodes.find((node) => node.id === event.source.node);
+      const host = node && huddleHostTrigger(node, component);
+      const source = component?.hostTrigger ? host : component;
       if (
         component?.category !== 'trigger' ||
-        component.id !== event.source.component ||
-        component.version !== event.source.version
+        source?.id !== event.source.component ||
+        source.version !== event.source.version
       )
         throw new Error('Event source differs from its captured trigger');
-      this.checkOutput(event.source.node, event.port, event.data);
+      const inputPort = source.outputs[event.port];
+      if (!inputPort || validateHuddleValue(inputPort.schema, event.data).length)
+        throw new Error('Invalid trigger source event');
       this.executions.start(executionId, now);
-      this.forward(
-        {
-          executionId,
-          activation: digest(`root:${executionId}`),
-          iteration: 0,
-          node: event.source.node,
-          port: event.port,
-          value: event.data,
-          delivery: execution.eventKey,
-        },
-        now,
-      );
+      if (component.hostTrigger) {
+        this.invocations.queue(
+          {
+            id: randomUUID(),
+            executionId,
+            revision: this.revision,
+            node: event.source.node,
+            activation: digest(`root:${executionId}`),
+            iteration: 0,
+            inputs: { [event.port]: event.data },
+          },
+          now,
+        );
+      } else
+        this.forward(
+          {
+            executionId,
+            activation: digest(`root:${executionId}`),
+            iteration: 0,
+            node: event.source.node,
+            port: event.port,
+            value: event.data,
+            delivery: execution.eventKey,
+          },
+          now,
+        );
       this.db.put('graph-starts', executionId, executionId, 'started', { revision: this.revision });
       return true;
     });

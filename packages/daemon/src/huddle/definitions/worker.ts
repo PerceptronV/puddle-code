@@ -89,7 +89,7 @@ export function prepareHuddleWorkerJob(
   if (
     node?.source.kind !== 'local' ||
     !component?.entry ||
-    !['script', 'readout'].includes(component.category)
+    (!['script', 'readout'].includes(component.category) && !component.hostTrigger)
   )
     throw new Error('Invocation has no captured executable component');
   return huddleWorkerJobSchema.parse({

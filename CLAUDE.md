@@ -788,6 +788,16 @@ with bounded waiting requests. Existing capable owners need no new IPC or capabi
 History and huddle review share `diff/ReadOnlyDiff.tsx`; keep models private to each
 mounted viewer and detach before disposal. Retained-only review must work without
 project source, and source comparison must not import project modules.
+Application 28.30 adds built-in local copies through the existing template installer.
+Keep generation in shared `huddle/templates/builtins.ts`, host source resolution in
+`huddle/components/host.ts` and the inspector in `huddle/inspector/BuiltinSource.tsx`.
+Local `hostTrigger` contracts require `hostTriggerScripts: 1` and the host source's
+capabilities. Reuse existing subscriptions/cursors/authority, then queue an ordinary
+HuddleNode invocation to adapt each accepted event. Preserve host parameter contracts
+and filter adapter-only settings before provider parsing. Trigger adapters cannot
+dispatch agent operations. Do not classify them as custom subscription workers or
+derive their health from custom-subscription records. Copies change graph drafts;
+Save/Apply remain explicit, and Undo leaves published source files intact.
 Manifest graph editing uses the shared `huddle.json` editor model, existing conditional file
 saves/drafts/conflicts and undo history. `tabHoldsFile` recognises manifest ownership
 for window transfers, close review, arrangements and model retention. Keep source

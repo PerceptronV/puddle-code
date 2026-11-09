@@ -3,6 +3,7 @@ import {
   huddleBindingSchema,
   huddleSecretReferenceSchema,
   completionHuddleTrigger,
+  huddleHostTrigger,
   type HuddleBinding,
   type HuddleComponent,
   type HuddleDefinition,
@@ -21,12 +22,14 @@ export function NodeParameters({
   node,
   component,
   definition,
+  components,
   edit,
   session,
 }: {
   node: HuddleNodeDefinition;
   component?: HuddleComponent;
   definition: HuddleDefinition;
+  components: Record<string, HuddleComponent>;
   edit: EditGraph;
   session: Session;
 }) {
@@ -65,8 +68,8 @@ export function NodeParameters({
               ? nodes
                   .filter(
                     (item) =>
-                      item.source.kind === 'builtin' &&
-                      item.source.component === completionHuddleTrigger.id,
+                      huddleHostTrigger(item, components[item.id])?.id ===
+                      completionHuddleTrigger.id,
                   )
                   .map((item) => ({ value: item.id, label: item.id }))
               : undefined

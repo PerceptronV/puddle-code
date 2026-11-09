@@ -13,6 +13,7 @@ import {
   huddleSaveSourceSchema,
   huddleSourceSchema,
   huddleInstallTemplateSchema,
+  huddleInstallTemplateBodySchema,
   huddleInstalledTemplateSchema,
   HUDDLE_LIMITS,
 } from '@puddle/shared';
@@ -109,7 +110,7 @@ export function huddleAuthoringRoutes(service: HuddleService): Hono {
       );
     })
     .post('/:profile/definitions/:id/components', async (c) => {
-      const body = await parseBody(c, huddleInstallTemplateSchema.omit({ huddle_id: true }));
+      const body = await parseBody(c, huddleInstallTemplateBodySchema);
       const input = huddleInstallTemplateSchema.safeParse({
         ...body,
         huddle_id: c.req.param('id'),

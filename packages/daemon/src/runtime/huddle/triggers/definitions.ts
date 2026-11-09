@@ -11,7 +11,9 @@ import {
   completionHuddleTrigger,
   HUDDLE_INTERVAL_LIMIT,
   huddleIntervalSettingsSchema,
-  resolveHuddleParameters,
+  huddleHostTrigger,
+  resolveHuddleHostParameters,
+  validateHuddleHostTrigger,
   type HuddleRevisionActivation,
   type HuddleRuntimeCapabilities,
 } from '@puddle/shared';
@@ -22,14 +24,15 @@ export function intervalDefinitions(
   activation: HuddleRevisionActivation,
 ) {
   const nodes = snapshot.definition.nodes.filter(
-    (node) => node.source.kind === 'builtin' && node.source.component === intervalHuddleTrigger.id,
+    (node) =>
+      huddleHostTrigger(node, snapshot.components[node.id])?.id === intervalHuddleTrigger.id,
   );
   if (nodes.length > HUDDLE_INTERVAL_LIMIT)
     throw new Error(`A huddle supports at most ${HUDDLE_INTERVAL_LIMIT} interval triggers`);
   return nodes.map((node) => ({
     node: node.id,
     ...huddleIntervalSettingsSchema.parse(
-      resolveHuddleParameters(
+      resolveHuddleHostParameters(
         snapshot.definition,
         node,
         snapshot.components[node.id]!,
@@ -76,6 +79,7 @@ export function requireHuddleFeatures(
     if (
       node.source.kind === 'local' &&
       component.category === 'trigger' &&
+      !component.hostTrigger &&
       capabilities.customTriggers !== 1
     )
       throw new Error('This runtime does not support custom huddle triggers');
@@ -85,34 +89,39 @@ export function requireHuddleFeatures(
       capabilities.readouts !== 1
     )
       throw new Error('This runtime does not support custom huddle readouts');
-    if (
-      component.id === filetreeHuddleTrigger.id &&
-      node.source.kind === 'builtin' &&
-      capabilities.filetree !== 1
-    )
+    if (component.hostTrigger) {
+      if (capabilities.hostTriggerScripts !== 1)
+        throw new Error('This runtime does not support local host-trigger scripts');
+      const error = validateHuddleHostTrigger(component);
+      if (error) throw new Error(error);
+    }
+    if (node.source.kind === 'builtin') {
+      const expected = coreHuddleComponents.get(`${node.source.component}@${node.source.version}`);
+      if (
+        !expected ||
+        canonicalHuddleJson(JSON.parse(JSON.stringify(expected))) !==
+          canonicalHuddleJson(JSON.parse(JSON.stringify(component)))
+      )
+        throw new Error('Unsupported captured built-in component');
+    }
+    const host = huddleHostTrigger(node, component);
+    if (!host) continue;
+    if (host.id === filetreeHuddleTrigger.id && capabilities.filetree !== 1)
       throw new Error('This runtime does not support huddle Filetree triggers');
-    if (node.source.kind !== 'builtin') continue;
-    if (component.id === sessionHuddleTrigger.id && capabilities.sessionEvents !== 1)
+    if (host.id === sessionHuddleTrigger.id && capabilities.sessionEvents !== 1)
       throw new Error('This runtime does not support huddle session triggers');
-    if (component.id === completionHuddleTrigger.id && capabilities.completionEvents !== 1)
+    if (host.id === completionHuddleTrigger.id && capabilities.completionEvents !== 1)
       throw new Error('This runtime does not support huddle completion subscriptions');
-    if (component.id === gitHuddleTrigger.id && capabilities.git !== 1)
+    if (host.id === gitHuddleTrigger.id && capabilities.git !== 1)
       throw new Error('This runtime does not support huddle Git triggers');
-    const expected = coreHuddleComponents.get(`${node.source.component}@${node.source.version}`);
-    if (
-      !expected ||
-      canonicalHuddleJson(JSON.parse(JSON.stringify(expected))) !==
-        canonicalHuddleJson(JSON.parse(JSON.stringify(component)))
-    )
-      throw new Error('Unsupported captured built-in component');
-    if (component.id === intervalHuddleTrigger.id && capabilities.timers !== 1)
+    if (host.id === intervalHuddleTrigger.id && capabilities.timers !== 1)
       throw new Error('This runtime does not support huddle interval triggers');
     if (
-      [calendarHuddleTrigger.id, dateHuddleTrigger.id].includes(component.id) &&
+      [calendarHuddleTrigger.id, dateHuddleTrigger.id].includes(host.id) &&
       ![1, 2].includes(capabilities.calendar ?? 0)
     )
       throw new Error('This runtime does not support huddle calendar/date triggers');
-    if (component.id === calendarDateHuddleTrigger.id && capabilities.calendar !== 2)
+    if (host.id === calendarDateHuddleTrigger.id && capabilities.calendar !== 2)
       throw new Error('This runtime does not support monthly/yearly huddle triggers');
   }
 }
@@ -127,7 +136,7 @@ export function requireHuddleHostFeatures(
     capabilities.completionPlans !== 1 &&
     snapshot.definition.nodes.some(
       (node) =>
-        node.source.kind === 'builtin' && node.source.component === completionHuddleTrigger.id,
+        huddleHostTrigger(node, snapshot.components[node.id])?.id === completionHuddleTrigger.id,
     )
   )
     throw new Error('This runtime does not support huddle completion baseline plans');

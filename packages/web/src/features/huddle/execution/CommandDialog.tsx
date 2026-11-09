@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import {
   manualHuddleTrigger,
+  huddleHostTrigger,
   type HuddleCommandTarget,
   type HuddleDocument,
   type HuddleReview,
@@ -55,7 +56,9 @@ export function CommandDialog({
   const [eventId] = useState(() => crypto.randomUUID());
   const triggers =
     review.document?.definition.nodes.filter(
-      (node) => node.source.kind === 'builtin' && node.source.component === manualHuddleTrigger.id,
+      (node) =>
+        huddleHostTrigger(node, review.document?.components[node.id])?.id ===
+        manualHuddleTrigger.id,
     ) ?? [];
   const [node, setNode] = useState(triggers[0]?.id ?? '');
   const [text, setText] = useState(() =>

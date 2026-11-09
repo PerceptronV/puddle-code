@@ -76,6 +76,15 @@ it leaves the published files intact. After a failed reply, inspect the files
 before creating another template. Template publication never overwrites edited
 source; partial publication can leave unreferenced files.
 
+Built-in node inspectors offer **View built-in source** and, on application 28.30+,
+**Make local copy**. Copying creates editable `node.json`/`run.ts` files and changes
+the same node's source in the draft, keeping settings, colour/icon and connections.
+Save and Apply when ready. Undo restores the built-in reference and keeps the files.
+Trigger copies require runtime `hostTriggerScripts: 1`. The host still observes
+time, files, Git or agent events using its existing machinery; the editable script
+receives each accepted event and controls what it emits. See
+[local built-in adapters](huddle/authoring.md#local-built-in-adapters) for contracts.
+
 Select a node to configure its parameters, colour and icon. **Open contract** and
 **Open script** use the normal editor. The graph and **Open definition** share
 the same manifest draft, undo history and save-conflict handling. Local contract

@@ -17,7 +17,7 @@ export function checkedWorkerSource(job: HuddleWorkerJob | HuddleTriggerWorkerJo
   const component = job.component;
   if (!component.entry) throw new Error('Worker requires a local executable entry point');
   const trigger = 'subscriptionId' in job;
-  if ((component.category === 'trigger') !== trigger)
+  if ((component.category === 'trigger' && !component.hostTrigger) !== trigger)
     throw new Error('Trigger worker requires a subscription');
   const readout = 'readout' in job ? job.readout : undefined;
   if ((component.category === 'readout') !== !!readout)

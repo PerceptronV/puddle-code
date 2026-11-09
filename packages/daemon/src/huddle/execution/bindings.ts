@@ -3,6 +3,7 @@ import { isAbsolute } from 'node:path';
 import {
   sessionHuddleTrigger,
   completionHuddleTrigger,
+  huddleHostTrigger,
   resolveHuddleParameters,
   resolveHuddleVariables,
   type HuddleStart,
@@ -32,11 +33,11 @@ export function huddleExecutionBindings(
   };
   for (const node of snapshot.definition.nodes) {
     const component = snapshot.components[node.id]!;
-    const completion =
-      node.source.kind === 'builtin' && component.id === completionHuddleTrigger.id;
+    const host = huddleHostTrigger(node, component);
+    const completion = host?.id === completionHuddleTrigger.id;
     const observing =
       completion ||
-      (node.source.kind === 'builtin' && component.id === sessionHuddleTrigger.id) ||
+      host?.id === sessionHuddleTrigger.id ||
       (node.source.kind === 'local' && component.category === 'trigger');
     const resolveSession = observing
       ? observeSession &&

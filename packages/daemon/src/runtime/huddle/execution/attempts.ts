@@ -184,6 +184,10 @@ export class HuddleAttempts {
             return null;
           }
           if (message.action.kind === 'operation') {
+            if (component.hostTrigger)
+              throw new Error(
+                'Host trigger adapters emit data; connect a script node for agent operations',
+              );
             if (!this.options.operation)
               throw new Error('Huddle host operation bridge is unavailable');
             return this.options.operation(message, invocation, signal);
