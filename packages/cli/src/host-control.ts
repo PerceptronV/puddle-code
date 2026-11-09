@@ -3,6 +3,7 @@ import {
   controlRequestSchema,
   controlResponseSchema,
   hostUpdateControlRequestSchema,
+  serializeHostUpdateCommand,
 } from '@puddle/shared';
 import { ipcPath, jsonLines, privatePath } from '@puddle/shared/node';
 import { clientHome } from './lib/paths.js';
@@ -54,7 +55,13 @@ if (process.argv.length === 3 && process.argv[2] === '--participating-update') {
     process.stdin,
     (value) => {
       const message = controlRequestSchema.parse(value);
-      if (!socket.write(JSON.stringify(message) + '\n')) process.stdin.pause();
+      // Parsing normalises legacy field names. Restore the published wire shape
+      // before forwarding to older daemons that still require those names.
+      const forwarded =
+        message.t === 'host-update'
+          ? { ...message, command: serializeHostUpdateCommand(message.command) }
+          : message;
+      if (!socket.write(JSON.stringify(forwarded) + '\n')) process.stdin.pause();
     },
     stop,
   );

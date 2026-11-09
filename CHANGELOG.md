@@ -8,3 +8,9 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Frontend
+
+#### Fixed
+
+- Preserve older daemons' host-update wire fields through the SSH helper so inspection and approval do not lose host control during upgrades.
