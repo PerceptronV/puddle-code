@@ -63,6 +63,26 @@ The existing headless template/preview and revision-review browser flows pass
 against the UI-only preview. Web TypeScript, scoped ESLint and formatting pass.
 No new tests or native windows were added for this change.
 
+## Implemented: huddle-aware removal wording
+
+The coordinated daemon-removal CLI and help now explicitly include independent
+huddle triggers/scripts in retained work and runtime-stop consent. The runtime
+review still reports live terminal counts, with a clarification that those counts
+do not describe huddle work. This fixes presentation of the existing removal
+semantics; no runtime-stop, receipt, authority or protocol behavior changes.
+The existing CLI removal checks, CLI TypeScript and scoped lint/format checks pass.
+
+Full native daemon/combined update and removal acceptance cannot use the existing
+temporary-home fixture safely on this logged-in desktop: installed host service
+inventory uses fixed `dev.puddle.puddled`/`dev.puddle.connector` labels in the same
+`gui/<uid>` domain (Linux uses fixed user-unit names). A different `PUDDLE_HOME`
+does not create a separate service-manager namespace. The successful packaged
+runtime-default check instead uses unique runtime/update-worker labels and an
+unsupervised disposable daemon. Do not extend it by registering or removing the
+fixed host labels in this user's domain. Full host-service acceptance needs a
+dedicated test user/VM/host; no native removal or user-service mutation was attempted
+during this review. Reboot and real-provider evidence remain separate open gates.
+
 ## Measured: disconnected idle owner resources
 
 On macOS 26.5.2 (25F84), arm64, Node 22.21.1, four independent owners built from

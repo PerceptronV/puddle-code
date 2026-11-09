@@ -104,6 +104,8 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
+- Clarify that daemon removal retains huddle triggers/scripts by default and that explicit runtime-stop consent includes huddles; terminal counts do not describe graph work.
+
 - Use Puddle's shared chevron disclosures throughout huddle previews, source/revision review, trigger health and execution history, retaining native keyboard controls.
 
 - Detach a conflict comparison before adopting shorter disk content, avoiding stale Monaco gutter ranges while retaining retryable comparison after a failed read.

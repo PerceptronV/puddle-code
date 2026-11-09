@@ -590,6 +590,8 @@ before service mutations and after asynchronous supervisor probes. Bound the
 inventory and per-row contract bytes, use passive metadata, and never migrate or
 replay work during inspection. Compatible startup remains available for interrupted
 owners' inspection/recovery; it is not proof that they recovered.
+CLI removal review/help names huddle triggers and scripts alongside agent/shell work.
+Keep retention distinct from Stop: zero live terminals does not mean an idle huddle.
 `RuntimeLauncher.launchHuddle` shares ordinary launch admission and supervision,
 requires an installed capable release, validates captured activation before intent
 and observes uncertain dispatch without fallback. `runtime/huddle/lifecycle/` owns

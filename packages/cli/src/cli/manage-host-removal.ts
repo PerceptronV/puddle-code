@@ -34,7 +34,7 @@ export async function removePersistentDaemonCmd(
     'Removing the daemon interrupts its daemon-owned terminals, notebook kernels, compilation tasks and programmes, and disables remote access.',
   );
   logger.info(
-    'Independent agent and terminal runtimes keep running unless you explicitly choose to stop them.',
+    'Independent agent, terminal and huddle runtimes keep running unless you explicitly choose to stop them. Retaining a huddle does not stop its triggers or scripts; terminal counts do not include that work.',
   );
   if (!(await confirm(`Stop and unregister puddled on ${transport.label}?`, { skip: cmd.yes }))) {
     logger.info('nothing removed');
@@ -49,7 +49,7 @@ export async function removePersistentDaemonCmd(
   let stop = cmd.stopRuntimes === true;
   if (review.owners.length && !stop && !cmd.yes)
     stop = await confirm(
-      'Also stop these runtimes and their shell jobs? Choosing no retains them for reinstallation.',
+      'Also stop these runtimes, including agent/shell jobs and huddle triggers/scripts? Choosing no retains them for reinstallation.',
     );
   if (cmd.purge && !stop)
     stop = await confirm('Stop all runtime work as a separate prerequisite for purging data?');

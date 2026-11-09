@@ -170,8 +170,9 @@ cli and desktop are
 client-machine artefacts: user@host targets daemon and runtime components. remove
 uninstalls a component after confirmation. On persistent hosts, daemon removal
 disables remote access and stops daemon-owned work, then retains independent
-runtimes by default. --stop-runtimes explicitly stops the reviewed runtimes and
-their shell jobs. Data and pinned releases remain for 'puddle install daemon'.
+runtimes by default, including huddle triggers and scripts. --stop-runtimes
+explicitly stops all work in the reviewed runtimes, including agents, shell jobs
+and huddles. Data and pinned releases remain for 'puddle install daemon'.
 Coordinated --purge requires a compatible daemon (feature introduced in application
 25.20) and separate runtime-stop consent (--yes --purge --stop-runtimes for
 non-interactive use). After removal,

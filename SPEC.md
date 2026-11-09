@@ -971,7 +971,10 @@ Application 25.19 wires `puddle remove daemon` to this coordinator for local and
 targets. It asks before disabling remote access and stopping daemon-owned work, then
 reviews independent runtimes under exclusive offline ownership. The default retains
 runtimes; an interactive choice or `--stop-runtimes` explicitly stops the exact reviewed
-owners and shell generations. `--yes` alone retains them. Finish rechecks the review,
+owners and shell generations. The CLI also names independent huddles in this review:
+retention leaves their triggers/scripts running, and live terminal counts do not
+represent that work. Stop consent covers huddle work alongside agent/shell jobs.
+`--yes` alone retains them. Finish rechecks the review,
 uses existing durable runtime stop intent, verifies unregistration and drains the
 controller before recording an exact attempt receipt. A lost reply is inspected,
 never resent; a later explicit removal continues the recorded service id. Changed or
