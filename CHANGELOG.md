@@ -11,6 +11,8 @@ Past releases: see docs/changelogs/.
 
 ### Frontend
 
+- Use Puddle's standard toggle for bounded feedback in huddle connections.
+
 - Keep single-tab pane controls above floating editor trays, including huddle lifecycle controls.
 
 #### Added

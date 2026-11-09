@@ -3,6 +3,7 @@ import { useId, useState } from 'react';
 import type { HuddleEdge, HuddleValueSchema } from '@puddle/shared';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
+import { Switch } from '../../../components/ui/switch';
 import type { EditGraph } from './GraphEditing';
 
 export function booleanOutputPaths(
@@ -38,17 +39,13 @@ export function Feedback({
     }));
   return (
     <div className="flex flex-col gap-2 text-xs">
-      <label className="flex cursor-pointer items-center gap-2">
-        <input
-          type="checkbox"
+      <label htmlFor={`${id}-enabled`} className="flex cursor-pointer items-center gap-2">
+        <Switch
+          id={`${id}-enabled`}
           checked={!!edge.feedback}
           disabled={!edge.feedback && !paths.length}
-          onChange={(event) =>
-            set(
-              event.target.checked
-                ? { maxRounds: 5, while: { path: paths[0]!, equals: false } }
-                : undefined,
-            )
+          onCheckedChange={(checked) =>
+            set(checked ? { maxRounds: 5, while: { path: paths[0]!, equals: false } } : undefined)
           }
         />
         Bounded feedback

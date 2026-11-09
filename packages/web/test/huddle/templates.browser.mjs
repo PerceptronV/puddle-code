@@ -120,9 +120,9 @@ try {
   const feedback = editor
     .locator('div')
     .filter({ has: page.getByText('review-agent.completed → prompt-agent.value', { exact: true }) })
-    .filter({ has: page.getByRole('checkbox', { name: 'Bounded feedback' }) })
+    .filter({ has: page.getByRole('switch', { name: 'Bounded feedback' }) })
     .last();
-  await feedback.getByRole('checkbox', { name: 'Bounded feedback' }).check();
+  await feedback.getByRole('switch', { name: 'Bounded feedback' }).check();
   await chooseHuddleOption(feedback.getByLabel('Continue while', { exact: true }), {
     label: 'complete',
   });

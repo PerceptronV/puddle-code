@@ -1955,7 +1955,8 @@ markers, close review, retained models and transfer/arrangement capture hold bot
 documents; archive retains both source tabs. Canvas sockets support pointer/touch
 dragging and click/keyboard connection creation; selectable wires expose disconnect.
 These edits share manifest undo, reject duplicate/incompatible routes and cancel on
-concurrent source edits. Cycles remain editable drafts with normal bounded-feedback
+concurrent source edits. Connection settings use the shared Puddle toggle for bounded
+feedback. Cycles remain editable drafts with normal bounded-feedback
 validation before execution. `huddle/view/` retains logical camera coordinates,
 zoom, node/edge selection and graph/list mode by transport/profile/layout/pane/tab
 and immutable placement identity. Huddles receive the same tab view context as
