@@ -34,6 +34,34 @@ delivery and the Turn completed node's editor settings are implemented. Applicat
 28.20 adds explicit native-confirmed asks within bounded feedback executions.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## Implemented: editable flow-node catalogue
+
+Application **28.25** adds `transform`, `format-text`, `condition`, `merge` and
+`join` to the existing template installation request. The Add node catalogue
+uses its existing per-template protocol gate and materialises ordinary local
+contracts/scripts. Generated settings, source opening, drafts, Save and Apply
+remain shared with other nodes. Implementations live under
+`shared/huddle/templates/flow/`; the authoring kit publishes the identical files.
+
+Transform starts as an editable identity mapping. Format text shares the agent
+prompt formatter and 128 KiB bound. Condition compares a declared own-property
+path with a JSON value without coercion; it emits exactly one optional completion
+output. Missing fields fail instead of selecting the negative branch. Merge
+uses `any` activation and forwards each alternative independently; Join uses
+`all` and returns `{left,right}` only for the same execution/activation. Neither
+node invents a latest-value cache, crosses executions or resets feedback budgets.
+No runtime capability, agent operation or database change is added.
+
+Verification: the shipped `examples/flow.json` is installed through the production
+template installer, captured with normal source validation and executed by the
+real scheduler/script workers. True and false inputs each produce one merged and
+joined result with their own original/formatted values; missing decision data
+fails without a downstream result. The existing authoring suite type-checks all
+bundled templates against generated SDK types and exercises existing adapters.
+Both focused files pass (**9 checks**). This establishes local template/routing
+behaviour, not native-provider or interactive window acceptance. See the
+[flow guide](../huddle/flow.md) for settings and a runnable example.
+
 ## Implemented: native macOS owner-crash recovery
 
 Application **28.24**, optional **`coalitionRecovery: 1`**, adds resource-coalition

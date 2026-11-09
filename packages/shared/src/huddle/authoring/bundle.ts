@@ -1,3 +1,4 @@
+import { huddleFlowTemplates, huddleFlowTemplateFiles } from '../templates/flow/catalogue.js';
 import { fileReportFiles } from '../templates/readouts/file.js';
 import { PROTOCOL_VERSION } from '../../protocol.js';
 import { huddleDefinitionSchema } from '../../api/huddle/definitions.js';
@@ -9,7 +10,6 @@ import {
   boundedHttpSource,
   feedSource,
   reportSource,
-  transformSource,
 } from './templates/components.js';
 
 const json = (value: unknown) => JSON.stringify(value, null, 2) + '\n';
@@ -37,7 +37,6 @@ export function huddleAuthoringFiles(): Record<string, string> {
     ...Object.fromEntries(
       Object.entries(huddleAuthoringSchemas()).map(([path, schema]) => [path, json(schema)]),
     ),
-    'templates/transform/run.ts': transformSource,
     'templates/feed/trigger.ts': feedSource,
     'templates/feed/http.ts': boundedHttpSource,
     'templates/report/readout.ts': reportSource,
@@ -54,6 +53,9 @@ export function huddleAuthoringFiles(): Record<string, string> {
       outputs: { completed: { message: 'fixture' } },
     }),
   };
+  for (const item of huddleFlowTemplates)
+    for (const [name, contents] of Object.entries(huddleFlowTemplateFiles(item.template)!.files))
+      files[`templates/${item.template}/${name}`] = contents;
   for (const [name, component] of Object.entries(authoringComponents))
     files[`templates/${name}/node.json`] = json(component);
   files['examples/manual.json'] = json(
@@ -98,6 +100,54 @@ export function huddleAuthoringFiles(): Record<string, string> {
       edges: [
         edge('input', 'feed', 'event', 'transform'),
         edge('output', 'transform', 'completed', 'report'),
+      ],
+    }),
+  );
+  files['examples/flow.json'] = json(
+    huddleDefinitionSchema.parse({
+      format: 1,
+      id: '0'.repeat(32),
+      name: 'Conditional flow and joined branches',
+      nodes: [
+        { id: 'run', source: { kind: 'builtin', component: 'puddle.trigger.manual', version: 1 } },
+        local('condition'),
+        local('merge'),
+        local('transform'),
+        {
+          ...local('format-text'),
+          parameters: { template: { kind: 'literal', value: 'Message: {{input.message}}' } },
+        },
+        local('join'),
+        {
+          id: 'result',
+          source: { kind: 'builtin', component: 'puddle.readout.result', version: 1 },
+        },
+      ],
+      edges: [
+        edge('input', 'run', 'event', 'condition'),
+        {
+          id: 'matched',
+          from: { node: 'condition', port: 'matched' },
+          to: { node: 'merge', port: 'left' },
+        },
+        {
+          id: 'unmatched',
+          from: { node: 'condition', port: 'unmatched' },
+          to: { node: 'merge', port: 'right' },
+        },
+        edge('transform', 'merge', 'completed', 'transform'),
+        edge('format', 'merge', 'completed', 'format-text'),
+        {
+          id: 'left',
+          from: { node: 'transform', port: 'completed' },
+          to: { node: 'join', port: 'left' },
+        },
+        {
+          id: 'right',
+          from: { node: 'format-text', port: 'completed' },
+          to: { node: 'join', port: 'right' },
+        },
+        edge('result', 'join', 'completed', 'result'),
       ],
     }),
   );

@@ -67,6 +67,19 @@ The matching component needs input `value` and output `completed` (each can use
 scoped `puddlang` bridge for managed agent operations. Do not invent runtime ids
 or dispatch duplicate asks to recover an uncertain response.
 
+## Data flow
+
+The kit includes editable Transform, Format text, Condition, Merge and Join
+components, also offered in Add node on application 28.25. Start with
+`examples/flow.json` for a complete branching/fan-out graph. Transform's initial
+script returns its input; edit source and contracts together. Format text uses
+`{{input}}` / `{{input.field}}`. Condition compares a field path with a JSON value
+and emits exactly one of `matched`/`unmatched`; missing fields fail. Merge uses
+`any` activation and forwards each arrival independently. Join uses `all` and
+requires the same execution and activation, so wire shared fan-out branches.
+Never join unrelated triggers or mutually exclusive condition outputs; use Merge
+for alternatives. Existing bounded feedback edges handle cycles separately.
+
 ## Agent flow and feedback
 
 Use editable templates from **Add node** when available: Prompt/Review agent
@@ -168,7 +181,6 @@ recreates a missing worktree.
 Report the files changed, checks actually performed and any remaining diagnostics.
 Keep authoring within the requested task. This invocation does not grant additional
 accounts, cross-profile access, nested delegation or automatic execution authority.
-
 
 On host 28.21+, `observe-retained-readout SESSION_ID --request JSON` checks an unknown
 readout after confirmed clean owner shutdown. Supply `{owner, operation_id}` from

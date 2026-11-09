@@ -1,16 +1,8 @@
 import { huddleComponentSchema } from '../../../api/huddle/components.js';
+import { transformComponent } from '../../templates/flow/transform.js';
 
 export const authoringComponents = {
-  transform: huddleComponentSchema.parse({
-    format: 1,
-    id: 'project.script.transform',
-    version: 1,
-    category: 'script',
-    title: 'Transform',
-    entry: './run.ts',
-    inputs: { value: { schema: {} } },
-    outputs: { completed: { schema: {} } },
-  }),
+  transform: transformComponent,
   feed: huddleComponentSchema.parse({
     format: 1,
     id: 'project.trigger.feed',
@@ -46,18 +38,6 @@ export const authoringComponents = {
     outputs: { completed: { schema: {} } },
   }),
 };
-
-export const transformSource = `import { HuddleNode } from 'puddlang/huddle';
-
-export default HuddleNode({
-  contract: './node.json',
-  async run({ inputs, signal }) {
-    signal.throwIfAborted();
-    // Replace this identity transform; returned values must match completion ports.
-    return { completed: inputs.value! };
-  },
-});
-`;
 
 export const boundedHttpSource = `/** Bound response bytes before JSON parsing; pass a deadline/abort signal to fetch. */
 export async function readJson(response: Response): Promise<unknown> {

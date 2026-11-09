@@ -1,5 +1,13 @@
 # The puddle communication protocol
 
+Application **28.25** adds `transform`, `format-text`, `condition`, `merge` and
+`join` to the existing component-template installation request. The shared
+catalogue gates these IDE choices on 28.25. Existing template names and response
+shapes are unchanged. The templates are editable captured `HuddleNode` scripts;
+they reuse existing completion ports, optional outputs and all/any activation.
+No runtime capability, database migration or agent protocol changes are needed.
+The bundled authoring kit publishes identical source and a complete flow example.
+
 Application **28.24** adds optional owner `coalitionRecovery: 1`, requiring
 `crashRecovery: 1`. The private containment union adds `darwin-resource-coalition`
 with original identity, boot and a bounded uint64 resource-coalition id. Existing

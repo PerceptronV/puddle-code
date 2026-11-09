@@ -23,7 +23,7 @@ adoption/projection now observes independent huddle owners alongside ordinary
 runtimes, including across isolated daemon replacement. Pinned production launch
 and exact-owner controls now integrate with session kill/archive. Local/SSH APIs
 now admit saved-source Start/Apply, reviewed Rearm/Run/Interrupt/Stop and bounded
-live-owner history. Native supervision and full provider lifecycle nodes remain unfinished. Selected-daemon startup checks retained huddle contracts read-only
+live-owner history. Native supervision and the initial provider lifecycle nodes are implemented; broader native/provider acceptance remains open. Selected-daemon startup checks retained huddle contracts read-only
 before service mutations, while allowing compatible controllers to inspect
 interrupted owners. Offline host removal, purge fencing and release
 collection now recognise huddle ownership and clean shutdown evidence. Host-update preflight, shutdown
@@ -77,6 +77,10 @@ agents now complete a spawn-once review loop through these shipped templates.
 Resume/restart templates now use ordinary SessionService lifecycle controls with
 durable operation/launch attribution (application 28.14, runtime lifecycle-1).
 Native-provider acceptance remains pending.
+Application 28.25 adds the initial editable flow-node catalogue: Transform,
+Format text, Condition, Merge and Join, using existing graph routing and worker
+contracts. The IDE and authoring kit share source and a complete branching/join
+example. Bounded feedback remains an explicit graph-edge policy.
 The [usage guide](../huddle.md) describes the implemented slice.
 Phase 4 now has runtime-owned interval, one-off date/time and daily/selected-weekday
 calendar triggers, durable occurrence admission, coalesce/skip/bounded catch-up,
@@ -329,7 +333,7 @@ Unknown schema keywords or component versions produce actionable diagnostics.
 `HuddleNode` provides the execution wrapper, cancellation signal, immutable
 parameters/input, scoped puddlang operations and validated output emission. The
 following illustrates a module; `puddlang/huddle` is available inside captured
-script workers, with application lifecycle and authoring integration still pending:
+script workers, with application lifecycle and authoring integration implemented:
 
 ```ts
 import { HuddleNode } from 'puddlang/huddle';
@@ -893,7 +897,7 @@ Phase 1 currently has the private inbox/outbox, node-attempt and exact-operation
 ledger plus durable
 graph routing, isolated script workers, retained revisions/activation and a manual
 scheduler and independent owner process/private control. Production launch/adoption
-and maintenance integration are implemented; attach/ask dispatch is wired, while full provider lifecycle nodes and native continuity acceptance remain unfinished. Phase 2 has
+and maintenance integration are implemented; attach/ask dispatch is wired, while native provider/lifecycle continuity acceptance remains unfinished. Phase 2 has
 inactive creation/opening, sidebar integration and manifest graph editing with
 shared editor drafts, movable nodes and local/SSH manual lifecycle/history APIs;
 active-revision details and saved-source comparison are implemented. Supporting

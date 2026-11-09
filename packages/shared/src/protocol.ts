@@ -376,7 +376,8 @@
 // 28.22: editable worktree report readout with no-overwrite publication and observation.
 // 28.23: private integration secret references for declared huddle parameters.
 // 28.24: same-boot huddle recovery from verified macOS resource coalition retirement.
-export const PROTOCOL_VERSION = { major: 28, minor: 24 } as const;
+// 28.25: editable flow node templates through the existing component installer.
+export const PROTOCOL_VERSION = { major: 28, minor: 25 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

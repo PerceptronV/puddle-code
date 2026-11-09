@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Add editable Transform, Format text, Condition, Merge and Join huddle nodes to the existing catalogue, with matching authoring-kit source and a runnable conditional/fan-out example (application 28.25).
+
 - Add an editable Write report huddle node with explicit worktree/path settings, atomic creation that preserves existing files, and delivery observation through the existing readout machinery (application 28.22).
 
 - Check uncertain readout deliveries after a huddle stops, using recorded History or CLI/MCP. Reuse the captured observation adapter without restarting the graph or sending another delivery (application 28.21).

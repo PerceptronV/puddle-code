@@ -46,7 +46,8 @@ display name can change. Source files are ordinary project files, suitable for G
 and agent editing. Runtime records are kept separately in private Puddle storage.
 
 Use **Add node** to add Run, Result, a time trigger, an agent template or a local
-contract path.
+contract path. Application 28.25 adds editable **Transform**, **Format text**,
+**Condition**, **Merge** and **Join** nodes; see [data flow](huddle/flow.md).
 Prompt and Review templates require application 28.3; Spawn requires 28.8.
 Prompt spawned agent and Review spawned agent require 28.9.
 They immediately publish editable source

@@ -5,6 +5,11 @@ import { huddleKeySchema, huddleRelativePathSchema } from './values.js';
 
 export const huddleInstallTemplateSchema = huddleOpenSchema.extend({
   template: z.enum([
+    'transform',
+    'format-text',
+    'condition',
+    'merge',
+    'join',
     'write-report',
     'native-prompt-agent',
     'native-review-agent',

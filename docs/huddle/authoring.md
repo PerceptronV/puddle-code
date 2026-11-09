@@ -382,3 +382,7 @@ This executes only the captured adapter's observation method and never restarts 
 graph. See [readout delivery checks](readouts.md#check-a-delivery-after-stop).
 
 For current Linux/macOS crash recovery and limited host lifetimes, see [recovery](recovery.md).
+
+The [flow-node guide](flow.md) explains the shared Transform, Format text,
+Condition, Merge and Join templates and `examples/flow.json`. The kit and IDE use
+the same source; copying a component never arms it.

@@ -49,6 +49,20 @@ as outputs, receipts, cursors or prompts. Existing workers retain original value
 Interrupt/Resume or Stop/Start is needed to refresh them after rotation/revocation.
 The kit includes no actual credentials. Custom code retains trusted OS authority.
 
+templates/{transform,format-text,condition,merge,join}/ match the editable flow
+nodes in Add node on application 28.25+. Transform starts as an identity script;
+edit run.ts and its contract to map values. Format text uses the agent prompt
+{{input}} / {{input.field}} substitution with the same 128 KiB limit. Condition
+compares the field selected by a JSON path array (default ["complete"]) with equals
+(default true). An empty path compares the whole input. Equality does not coerce
+values and ignores object key order; missing fields fail. Exactly one optional
+matched/unmatched completion output carries the original input. Merge forwards
+each arriving alternative independently with any activation. Join waits for both
+left/right inputs from the same execution and activation; it returns {left,right}.
+Use shared fan-out for Join and Merge for mutually exclusive branches. Do not wire
+separate triggers/event emissions into a Join expecting latest-value behaviour.
+These are ordinary scripts and inherit the existing execution/value limits.
+
 templates/file-report/ is the editable Write report readout (host catalogue 28.22+).
 It requires an explicit canonical worktree and relative path, creates missing parent
 directories and publishes at most 256 KiB without overwriting existing files.
@@ -60,6 +74,10 @@ the desired state, not writer identity. Observation never writes. Add report out
 directories to Filetree outputPaths explicitly; a crash may leave a staging file.
 
 examples/manual.json wires Run -> transform -> Result without external services.
+examples/flow.json wires Run -> Condition -> Merge -> Transform/Format text -> Join
+-> Result. Copy its five referenced template directories into nodes/ and supply
+manual input such as {"complete": true, "message": "Ready"}. Both decision branches
+continue once; the joined result contains the original data and formatted text.
 examples/feed-report.json wires feed -> transform -> report and requires explicit
 feedUrl/reportUrl variables. Replace the example id with the chosen directory's
 32-lowercase-hex id. Creation of a new huddle must generate 16 random bytes and

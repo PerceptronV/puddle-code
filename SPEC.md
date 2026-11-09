@@ -1432,6 +1432,17 @@ observation. Source preparation rechecks the revision digest; imports use the
 declared component closure and the pinned HuddleNode/puddlang/zod helpers.
 The existing single-file runner shares its provider-neutral agent client with
 these workers. Archive builds bundle and smoke-test the new helper entries.
+Application 28.25 adds editable Transform, Format text, Condition, Merge and Join
+scripts through the same template installer and generated inspector. Transform
+starts as an identity mapping for source editing. Format text shares agent prompt
+substitution and its 128 KiB bound. Condition follows an explicit own-property path,
+compares JSON values without coercion and emits one optional completion branch;
+missing fields fail. Merge uses `any` activation and forwards each arrival, while
+Join uses `all` activation to combine only matching execution/activation inputs.
+There is no latest-value joining or deduplication by a Merge. These scripts inherit
+ordinary invocation/concurrency/value bounds and require no new owner capability.
+The authoring kit ships identical source and a full branching/merge/fan-out/join
+example; bounded feedback continues to use declared graph edges and root budgets.
 Application 28.22 adds the editable Write report template to the existing node
 catalogue. It requires an explicit worktree and relative path, writes at most
 256 KiB of text/JSON, and publishes a synced temporary file through an exclusive

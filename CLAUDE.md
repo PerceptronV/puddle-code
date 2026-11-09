@@ -909,6 +909,12 @@ readout workers, including retained observation. Redact secret-worker logs/error
 before owner callbacks; typed outputs remain trusted adapter data. Existing workers
 retain values until interrupted/stopped. Document host-side configuration and
 rotation in `docs/huddle/integrations.md`; never read provider account credentials.
+Application 28.25 adds editable flow nodes in `shared/huddle/templates/flow/`.
+Use the existing installer/catalogue, generated settings and captured script worker.
+Keep authoring-kit source identical. Condition sends one optional completion output
+and fails on missing fields; Merge (`any`) forwards each arrival; Join (`all`) never
+combines separate activations. Format text shares agent prompt interpolation and
+limits. No new scheduler, owner capability or provider operations are needed.
 Application 28.22 adds Write report through the shared node-template catalogue;
 keep editable file readouts under `shared/huddle/templates/readouts/` and reuse
 existing template installation, worktree binding and durable readout observation.
