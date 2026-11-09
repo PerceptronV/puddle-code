@@ -59,16 +59,28 @@ try {
     }),
   );
   await page.goto('http://terminal.test/');
+  await page.clock.install();
   await page.addStyleTag({
     content: readFileSync(require.resolve('@xterm/xterm/css/xterm.css'), 'utf8'),
   });
   await page.addScriptTag({ content: bundle.outputFiles[0].text });
   const write = async (text) => {
-    await page.evaluate(
-      (value) => new Promise((resolve) => window.terminal.write(value, resolve)),
-      text,
-    );
-    await page.waitForTimeout(250);
+    await page.evaluate((value) => {
+      window.writeComplete = false;
+      window.terminal.write(value, () => {
+        window.writeComplete = true;
+      });
+    }, text);
+    await expect
+      .poll(async () => {
+        assert.deepEqual(errors, [], 'rich-output fixture page errors');
+        await page.clock.runFor(100);
+        return page.evaluate(() => window.writeComplete);
+      })
+      .toBe(true);
+    // Finish the debounce, animation frame and React update before measuring
+    // commits; a fixed wall-clock sleep can sample the previous write's work.
+    await page.clock.runFor(500);
   };
   await write('Synthetic text');
   await write('\x1b[10;1Hspinner |');
@@ -102,7 +114,6 @@ try {
   await expect.poll(() => page.evaluate(() => window.lastBlock?.theme)).toBe('light');
 
   // Exercise the shared download lifecycle with a real browser download.
-  await page.clock.install();
   await page.evaluate(() => {
     window.revoked = [];
     const revoke = URL.revokeObjectURL.bind(URL);

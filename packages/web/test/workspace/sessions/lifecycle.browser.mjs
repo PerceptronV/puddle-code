@@ -23,7 +23,7 @@ const bundle = await build({
         }));
         build.onLoad({ filter: /.*/, namespace: 'editor-stub' }, () => ({
           contents:
-            'export const LazyEditorDirtyDot = () => null; export const LazyEditorTabClose = () => null;',
+            'export const LazyFileEditorSettingsMenu = () => null; export const LazyEditorDirtyDot = () => null; export const LazyEditorTabClose = () => null;',
         }));
       },
     },
