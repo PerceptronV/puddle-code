@@ -45,6 +45,16 @@ Several huddles can live in the same worktree. The directory id is stable; the
 display name can change. Source files are ordinary project files, suitable for Git
 and agent editing. Runtime records are kept separately in private Puddle storage.
 
+On application 28.27+, **Start from** also offers **Manual flow** and **Two-agent
+review**. Manual flow wires Run → Transform → Result; Start it, then Run with any
+JSON input. Two-agent review provides a coder, reviewer, approval condition and
+five-round feedback loop. Select the coder and reviewer nodes and choose existing
+agent sessions in the declared worktree before saving and starting. Missing agent
+settings are intentional validation errors until configured. It allows ten turns
+and forwards only approval to Result; exhaustion stays a visible failed limit.
+Each starter includes editable scripts, layout, README and `fixtures/input.json`.
+Creation starts no agent or huddle runtime.
+
 On application 28.26+, **New huddle → Start from → Copy: …** copies a saved huddle
 in the selected worktree. Enter a name, then choose **Copy saved huddle**. It gets
 a fresh random id and a stopped placement; the original keeps its current lifecycle.

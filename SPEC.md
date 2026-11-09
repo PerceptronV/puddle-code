@@ -1395,6 +1395,17 @@ dependencies. Bindings distinguish literals from named variables. File/Git/sessi
 operations require an explicit worktree binding. Typed feedback edges permit
 bounded two-agent cycles; removing those edges must leave an acyclic graph.
 
+Application 28.27 adds optional `template: "manual" | "review-loop"` to inactive
+huddle creation. Omission creates the existing blank graph. Shared data-only starter
+builders under `shared/huddle/templates/graphs/` compose the existing editable node
+catalogue, layout, README and input fixture; the daemon publishes them before the
+manifest and stopped placement. New huddle, CLI/MCP and authoring kit share those
+files. Manual flow wires Run → Transform → Result. Two-agent review wires Run →
+Coder → Reviewer with five-round feedback while `complete` is false; Condition
+forwards only approval to Result. It has a ten-turn bound, single execution and
+explicit canonical worktree parameters. Agent parameters are intentionally unset:
+the user must choose sessions before validation/Start can succeed. No implicit
+account/session selection, agent spawn or activation occurs during creation.
 Application 28.26 adds explicit same-worktree duplication through local/SSH
 `POST /api/huddle/:profile/definitions/:id/duplicate`, New huddle's source selector,
 `pudl huddle duplicate` and `huddle_duplicate`. Require a name and reviewed saved

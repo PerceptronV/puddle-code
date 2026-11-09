@@ -909,6 +909,13 @@ readout workers, including retained observation. Redact secret-worker logs/error
 before owner callbacks; typed outputs remain trusted adapter data. Existing workers
 retain values until interrupted/stopped. Document host-side configuration and
 rotation in `docs/huddle/integrations.md`; never read provider account credentials.
+Application 28.27 adds manual/review-loop creation starters in
+`shared/huddle/templates/graphs/`, composed from existing node template source.
+Publish them through normal inactive creation gates, with layout/docs/input fixtures
+and manifest last. Share the same files with the authoring kit. Review-loop leaves
+agent choices unset, explicitly declares the selected worktree, bounds feedback to
+five rounds/ten turns and sends only approval to Result. Never create or choose
+agents implicitly. Keep NewHuddleSource beside the creation dialogue.
 Application 28.26 adds inactive duplication in `huddle/definitions/duplicate.ts`,
 through the existing profile/worktree service and repository mutex. Copy reviewed
 saved source only, including bounded text docs/fixtures and unreferenced components;

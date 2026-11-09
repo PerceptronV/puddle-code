@@ -35,6 +35,7 @@ export * from './huddle/review.js';
 export * from './api/huddle/templates.js';
 export * from './huddle/templates/agents.js';
 export * from './huddle/templates/catalogue.js';
+export * from './huddle/templates/graphs/catalogue.js';
 export {
   promptAgentComponent,
   reviewAgentComponent,

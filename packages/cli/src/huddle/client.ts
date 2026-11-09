@@ -22,6 +22,7 @@ import { HuddleSourceClient } from './source/client.js';
 export class HuddleClient {
   readonly supported: boolean;
   readonly duplicationSupported: boolean;
+  readonly startersSupported: boolean;
   readonly execution: HuddleExecutionClient;
   readonly placement: HuddlePlacementClient;
   readonly source: HuddleSourceClient;
@@ -32,6 +33,7 @@ export class HuddleClient {
   ) {
     this.supported = supportsApplicationFeature(protocol, { major: 27, minor: 1 });
     this.duplicationSupported = supportsApplicationFeature(protocol, { major: 28, minor: 26 });
+    this.startersSupported = supportsApplicationFeature(protocol, { major: 28, minor: 27 });
     this.execution = new HuddleExecutionClient(request, protocol);
     this.placement = new HuddlePlacementClient(request, sessionRequest, protocol);
     this.source = new HuddleSourceClient(request, protocol);
@@ -67,6 +69,8 @@ export class HuddleClient {
   async create(raw: HuddleCreate) {
     this.requireSupported();
     const input = huddleToolCreateSchema.parse(raw);
+    if (input.template && !this.startersSupported)
+      throw new Error('Huddle starters require daemon protocol 28.27 or newer');
     return huddleMutation(
       'List saved huddles in this project/worktree before creating another.',
       async () => huddleOpenedSchema.parse(await this.request('/definitions', input)),

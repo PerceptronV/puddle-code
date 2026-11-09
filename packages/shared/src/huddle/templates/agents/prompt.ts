@@ -93,7 +93,9 @@ export default HuddleNode({
         ? `const handle = inputs.agent as { runtime_id: string; session_id: string };
     const agent = await puddlang.attach(handle.runtime_id);
     if (agent.handle.session_id !== handle.session_id) throw new Error('Agent handle session changed');`
-        : 'const agent = await puddlang.attach(bindings.agent);'
+        : `const target = bindings.agent;
+    if (!target) throw new Error('Choose an agent session before running this node');
+    const agent = await puddlang.attach(target);`
     }
     const prompt = formatPrompt(String(parameters.prompt), inputs.value);
     const reply = await agent.${native ? 'askNative' : 'ask'}(${structured ? '{ prompt, schema: z.object({ complete: z.boolean(), feedback: z.string() }).strict() }' : 'prompt'});

@@ -10,6 +10,7 @@ import {
   huddleDocumentSchema,
   huddleComponentSchema,
   huddleTemplateFiles,
+  huddleStarterFiles,
   huddleLayoutSchema,
   sessionSchema,
 } from '@puddle/shared';
@@ -366,17 +367,37 @@ window.fetch = async (input, init) => {
       huddle_id: createdId,
       title: body.name,
     });
+    const starter = body.template
+      ? huddleStarterFiles(body.template, createdId, body.name, body.worktree)
+      : undefined;
     blank = huddleDocumentSchema.parse({
       ...document,
-      definition: huddleDefinitionSchema.parse({
-        format: 1,
-        id: createdId,
-        name: body.name,
-        nodes: [],
-        edges: [],
-      }),
-      components: {},
+      definition:
+        starter?.definition ??
+        huddleDefinitionSchema.parse({
+          format: 1,
+          id: createdId,
+          name: body.name,
+          nodes: [],
+          edges: [],
+        }),
+      layout: starter?.layout,
+      components: starter
+        ? Object.fromEntries(
+            starter.definition.nodes.map((node) => [
+              node.id,
+              node.source.kind === 'local'
+                ? JSON.parse(starter.files[node.source.manifest]!)
+                : document.components[node.id],
+            ]),
+          )
+        : {},
     });
+    if (starter)
+      for (const [name, content] of Object.entries(starter.files)) {
+        if (name !== 'huddle.json')
+          components.set(`.puddle/huddle/${createdId}/${name}`, { content, mtime: 1 });
+      }
     disk.set(createdId, { content: JSON.stringify(blank.definition, null, 2), mtime: 1 });
     fixture.addSession(created);
     return Response.json({ created: true, session: created, document: blank }, { status: 201 });

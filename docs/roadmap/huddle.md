@@ -85,6 +85,10 @@ Application 28.26 adds explicit copying from New huddle and CLI/MCP, preserving
 bounded saved source/layout/docs/fixtures under a fresh random id with a stopped
 placement. Reviewed source and capability checks precede publication; original
 owners and private state are untouched.
+Application 28.27 adds the initial creation starters: Manual flow and Two-agent
+review, sharing editable node sources, layout/docs/input fixtures with the authoring
+kit. The review starter requires explicit agent selection and uses existing bounded
+feedback and provider dispatch; creation remains inactive.
 The [usage guide](../huddle.md) describes the implemented slice.
 Phase 4 now has runtime-owned interval, one-off date/time and daily/selected-weekday
 calendar triggers, durable occurrence admission, coalesce/skip/bounded catch-up,

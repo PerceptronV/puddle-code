@@ -378,7 +378,8 @@
 // 28.24: same-boot huddle recovery from verified macOS resource coalition retirement.
 // 28.25: editable flow node templates through the existing component installer.
 // 28.26: duplicate reviewed saved huddle source into a fresh inactive placement.
-export const PROTOCOL_VERSION = { major: 28, minor: 26 } as const;
+// 28.27: optional manual/review-loop starters on inactive huddle creation.
+export const PROTOCOL_VERSION = { major: 28, minor: 27 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

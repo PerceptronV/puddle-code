@@ -126,6 +126,21 @@ it('rejects unsupported peers and unexpected target fields before HTTP', async (
   await expect(
     client().huddles.inspect({ ...target, host_id: 'other' } as typeof target),
   ).rejects.toThrow();
+  await expect(
+    client({ major: 28, minor: 26 }).huddles.create({
+      ...location,
+      name: 'Starter',
+      template: 'manual',
+    }),
+  ).rejects.toThrow('28.27');
+  expect(
+    parseHuddleCommand(['create'], {
+      project: location.project_id,
+      worktree: location.worktree,
+      name: 'Starter',
+      request: '{"template":"review-loop"}',
+    }),
+  ).toEqual({ action: 'create', input: { ...location, name: 'Starter', template: 'review-loop' } });
   expect(fetch).not.toHaveBeenCalled();
 });
 

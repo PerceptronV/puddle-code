@@ -1,10 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { mkdirSync, writeFileSync } from 'node:fs';
-import { join } from 'node:path';
+import { dirname, join } from 'node:path';
 import { expect, it } from 'vitest';
 import {
   encodeHuddleAgentTarget,
-  huddleDefinitionSchema,
+  huddleStarterFiles,
   RUNTIME_PROTOCOL_VERSION,
   coreHuddleComponents,
   type HuddleAgentTarget,
@@ -13,7 +13,6 @@ import { atomicPrivateJson } from '@puddle/shared/node';
 import { agentOwnerFixture } from '../../helpers/huddle/agent-owner.js';
 import { launchOwner, waitForOwner } from '../../helpers/runtime-fixture.js';
 import { runtimeDirectory, readRuntimeJson } from '../../../src/runtime/ownership/storage.js';
-import { installHuddleTemplate } from '../../../src/huddle/templates/install.js';
 import { captureHuddleDefinition } from '../../../src/huddle/definitions/capture.js';
 import { HuddleAgentDispatcher } from '../../../src/huddle/operations/dispatch/service.js';
 
@@ -61,81 +60,23 @@ it('executes shipped prompt/review nodes through two exact agent conversations a
       worktree: launch.identity.canonical_worktree_path,
     };
     writeFileSync(join(base.home, 'test-review-output'), '');
-    const created = huddleDefinitionSchema.parse({
-      format: 1,
-      id: base.runtimes.get(scope.owner.runtime_id)!.huddle_id!,
-      name: 'Two agents',
-      nodes: [],
-      edges: [],
-    });
-    const root = join(scope.owner.canonical_worktree_path, '.puddle/huddle', created.id);
-    mkdirSync(root, { recursive: true });
-    writeFileSync(join(root, 'huddle.json'), JSON.stringify(created));
-    const input = {
-      project_id: base.project.id,
-      worktree: scope.owner.canonical_worktree_path,
-      huddle_id: created.id,
-    };
-    installHuddleTemplate(
-      input.worktree,
-      { ...input, template: 'prompt-agent', component: 'coder' },
-      () => {},
-    );
-    installHuddleTemplate(
-      input.worktree,
-      { ...input, template: 'review-agent', component: 'reviewer' },
-      () => {},
-    );
-    const definition = huddleDefinitionSchema.parse({
-      ...created,
-      nodes: [
-        { id: 'run', source: { kind: 'builtin', component: 'puddle.trigger.manual', version: 1 } },
-        ...(['coder', 'reviewer'] as const).map((id) => ({
-          id,
-          source: { kind: 'local', manifest: `nodes/${id}/node.json` },
-          parameters: {
-            worktree: { kind: 'literal', value: input.worktree },
-            agent: {
-              kind: 'literal',
-              value: id === 'coder' ? scope.target.sessionId : reviewer.sessionId,
-            },
-            prompt: { kind: 'literal', value: '{{input}}' },
-          },
-        })),
-        {
-          id: 'result',
-          source: { kind: 'builtin', component: 'puddle.readout.result', version: 1 },
-        },
-      ],
-      edges: [
-        { id: 'seed', from: { node: 'run', port: 'event' }, to: { node: 'coder', port: 'value' } },
-        {
-          id: 'review',
-          from: { node: 'coder', port: 'completed' },
-          to: { node: 'reviewer', port: 'value' },
-        },
-        {
-          id: 'again',
-          from: { node: 'reviewer', port: 'completed' },
-          to: { node: 'coder', port: 'value' },
-          feedback: { maxRounds: 3, while: { path: ['complete'], equals: false } },
-        },
-        {
-          id: 'result',
-          from: { node: 'reviewer', port: 'completed' },
-          to: { node: 'result', port: 'value' },
-        },
-      ],
-    });
-    writeFileSync(
-      join(input.worktree, '.puddle/huddle', created.id, 'huddle.json'),
-      JSON.stringify(definition),
-    );
-    const snapshot = await captureHuddleDefinition(
-      input.worktree,
-      created.id,
-      coreHuddleComponents,
-    );
+    const id = base.runtimes.get(scope.owner.runtime_id)!.huddle_id!;
+    const input = { worktree: scope.owner.canonical_worktree_path };
+    const starter = huddleStarterFiles('review-loop', id, 'Two agents', input.worktree);
+    const root = join(input.worktree, '.puddle/huddle', id);
+    for (const node of starter.definition.nodes) {
+      if (node.id === 'coder' || node.id === 'reviewer')
+        node.parameters.agent = {
+          kind: 'literal',
+          value: node.id === 'coder' ? scope.target.sessionId : reviewer.sessionId,
+        };
+    }
+    starter.files['huddle.json'] = JSON.stringify(starter.definition);
+    for (const [path, text] of Object.entries(starter.files)) {
+      mkdirSync(dirname(join(root, path)), { recursive: true });
+      writeFileSync(join(root, path), text);
+    }
+    const snapshot = await captureHuddleDefinition(input.worktree, id, coreHuddleComponents);
     expect(snapshot.diagnostics.filter((d) => d.severity === 'error')).toEqual([]);
     const bindings = {
       coder: { worktree: input.worktree, agent: encodeHuddleAgentTarget(scope.target) },
@@ -146,7 +87,7 @@ it('executes shipped prompt/review nodes through two exact agent conversations a
   const dispatcher = new HuddleAgentDispatcher(f);
   dispatcher.start();
   try {
-    await f.run('Implement a small change');
+    const operation = await f.run('Implement a small change');
     await expect
       .poll(
         async () => {
@@ -156,18 +97,33 @@ it('executes shipped prompt/review nodes through two exact agent conversations a
         { timeout: 15000 },
       )
       .toEqual(['completed']);
-    const feedback = JSON.stringify({
-      complete: false,
-      feedback: 'review:1:reply:1:Implement a small change',
-    });
-    expect(readRuntimeJson(join(f.home, `${f.session.id}.turns.json`))).toMatchObject({
+    const coderTurns = readRuntimeJson(join(f.home, `${f.session.id}.turns.json`));
+    const reviewerTurns = readRuntimeJson(join(f.home, `${reviewer!.sessionId}.turns.json`));
+    expect(coderTurns).toMatchObject({
       count: 2,
-      prompt: feedback,
+      prompt: expect.stringContaining('"complete":false'),
     });
-    expect(readRuntimeJson(join(f.home, `${reviewer!.sessionId}.turns.json`))).toMatchObject({
+    expect(reviewerTurns).toMatchObject({
       count: 2,
-      prompt: `reply:2:${feedback}`,
+      prompt: expect.stringContaining('Implement a small change'),
     });
+    const history = await f.huddle.request({
+      t: 'records',
+      collection: 'invocations',
+      parent: operation.scope.executionId,
+      after: 0,
+    });
+    expect(history.t).toBe('records');
+    if (history.t === 'records') {
+      const results = history.rows
+        .map((row) => JSON.parse(row.body))
+        .filter((row) => row.node === 'result');
+      expect(results).toHaveLength(1);
+      expect(results[0]).toMatchObject({
+        state: 'completed',
+        inputs: { value: { complete: true } },
+      });
+    }
     await expect
       .poll(() => f.db.prepare('SELECT COUNT(*) AS n FROM runtime_turns WHERE consumed = 1').get())
       .toEqual({ n: 4 });

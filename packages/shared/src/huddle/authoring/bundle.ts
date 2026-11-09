@@ -1,4 +1,5 @@
 import { huddleFlowTemplates, huddleFlowTemplateFiles } from '../templates/flow/catalogue.js';
+import { huddleStarters, huddleStarterFiles } from '../templates/graphs/catalogue.js';
 import { fileReportFiles } from '../templates/readouts/file.js';
 import { PROTOCOL_VERSION } from '../../protocol.js';
 import { huddleDefinitionSchema } from '../../api/huddle/definitions.js';
@@ -56,6 +57,16 @@ export function huddleAuthoringFiles(): Record<string, string> {
   for (const item of huddleFlowTemplates)
     for (const [name, contents] of Object.entries(huddleFlowTemplateFiles(item.template)!.files))
       files[`templates/${item.template}/${name}`] = contents;
+  for (const starter of huddleStarters)
+    for (const [path, content] of Object.entries(
+      huddleStarterFiles(
+        starter.id,
+        '0'.repeat(32),
+        starter.title,
+        '/replace/with/registered/worktree',
+      ).files,
+    ))
+      files[`starters/${starter.id}/${path}`] = content;
   for (const [name, component] of Object.entries(authoringComponents))
     files[`templates/${name}/node.json`] = json(component);
   files['examples/manual.json'] = json(

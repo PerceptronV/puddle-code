@@ -457,7 +457,23 @@ describe('inactive huddle authoring', () => {
   it('creates multiple random definitions and one stopped placement each without launching anything', async () => {
     const f = fixture();
     const first = huddleOpenedSchema.parse(await f.create());
-    const second = await f.create();
+    const second = await f.service.create(
+      f.profile.id,
+      { ...f.input, template: 'manual' },
+      f.authority,
+    );
+    expect(second.document.definition.nodes.map((node) => node.id)).toEqual([
+      'run',
+      'transform',
+      'result',
+    ]);
+    expect(second.document.diagnostics).toEqual([]);
+    expect(second.document.layout?.nodes.transform).toEqual({ x: 320, y: 100 });
+    const starterRoot = join(f.worktree, '.puddle/huddle', second.session.huddle_id!);
+    expect(readFileSync(join(starterRoot, 'nodes/transform/run.ts'), 'utf8')).toContain(
+      'HuddleNode',
+    );
+    expect(readFileSync(join(starterRoot, 'fixtures/input.json'), 'utf8')).toContain('Hello');
     expect(first.session).toMatchObject({
       kind: 'huddle',
       status: 'exited',

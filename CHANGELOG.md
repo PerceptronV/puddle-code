@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Create huddles from Manual flow or Two-agent review starters, with editable scripts, layout, README and sample input. Review requires explicit agent choices and stops after five rounds; creation stays inactive (application 28.27, also CLI/MCP and authoring kit).
+
 - Copy saved huddles from New huddle into fresh stopped placements, preserving scripts, layout, docs and fixtures without copying runtime state; expose the same reviewed operation through CLI/MCP (application 28.26).
 
 - Add editable Transform, Format text, Condition, Merge and Join huddle nodes to the existing catalogue, with matching authoring-kit source and a runnable conditional/fan-out example (application 28.25).

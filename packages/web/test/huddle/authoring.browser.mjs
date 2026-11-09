@@ -16,9 +16,15 @@ try {
   await page.waitForFunction(() => !!window.huddleFixture);
   await page.evaluate(() => window.huddleFixture.releaseProjects());
   await page.getByRole('button', { name: 'New huddle', exact: true }).click();
+  await page.getByLabel('Start from', { exact: true }).click();
+  await page.getByRole('option', { name: 'Manual flow', exact: true }).click();
   await page.getByLabel('Name', { exact: true }).fill('My huddle');
   await page.getByRole('button', { name: 'Create huddle', exact: true }).click();
-  await page.getByText('This huddle is empty.', { exact: true }).waitFor();
+  await page.getByRole('region', { name: 'Huddle editor' }).waitFor();
+  await page
+    .getByRole('button', { name: /Transform/ })
+    .first()
+    .waitFor();
   await page.waitForFunction(() =>
     JSON.stringify(window.huddleFixture.state()).includes(
       'huddle:00000000-0000-4000-8000-000000000004',
@@ -88,6 +94,12 @@ try {
       (message) => message.t === 'attach' && /00000000000[34]$/.test(message.session),
     ),
     false,
+  );
+  assert.equal(
+    observed.requests.find(
+      (request) => request.method === 'POST' && request.path.endsWith('/definitions'),
+    )?.body.template,
+    'manual',
   );
   assert.equal(
     observed.requests.filter(

@@ -17,6 +17,7 @@ export const huddleLocationSchema = z.strictObject({
 export type HuddleLocation = z.infer<typeof huddleLocationSchema>;
 export const huddleCreateSchema = huddleLocationSchema.extend({
   name: z.string().trim().min(1).max(200),
+  template: z.enum(['manual', 'review-loop']).optional(),
 });
 export type HuddleCreate = z.infer<typeof huddleCreateSchema>;
 export const huddleOpenSchema = huddleLocationSchema.extend({ huddle_id: huddleIdSchema });

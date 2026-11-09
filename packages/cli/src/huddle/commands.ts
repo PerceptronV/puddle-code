@@ -22,7 +22,7 @@ export const huddleHelp = `  pudl huddle list --project ID --worktree /absolute/
   pudl huddle authoring [asset-path]
   pudl huddle inspect <huddle-id> --project ID --worktree /absolute/host/worktree
   pudl huddle validate <huddle-id> --project ID --worktree /absolute/host/worktree
-  pudl huddle create --name NAME --project ID --worktree /absolute/host/worktree
+  pudl huddle create --name NAME --project ID --worktree /absolute/host/worktree [--request '{"template":"manual"}']
   pudl huddle duplicate <huddle-id> --name NAME --project ID --worktree /absolute/host/worktree --request '{"expected_digest":"..."}'
   pudl huddle open <huddle-id> --project ID --worktree /absolute/host/worktree
   pudl huddle source <huddle-id> --project ID --worktree /absolute/host/worktree
@@ -44,6 +44,10 @@ Source paths refer to the selected execution host; authoring names select kit as
 Output is JSON. Validation exits
 1 for graph errors; source/connection errors go to stderr and also exit 1.
 Create/open save source/placements without activation; open returns session.id.
+Create optionally takes --request '{"template":"manual"}' or
+'{"template":"review-loop"}' on host 28.27+.
+Manual flow is ready for input; review-loop requires choosing coder/reviewer sessions
+in its node settings. Neither starter starts agents or arms a graph during creation.
 Duplicate copies a reviewed saved graph and its bounded project files into a fresh
 id in the same worktree (host 28.26+). Supply the inspected expected_digest. It does
 not copy runtime state or change literal resource bindings. After a lost reply,
@@ -175,11 +179,28 @@ export function parseHuddleCommand(
       }),
     };
   }
+  if (action === 'create' && args.length === 1) {
+    const request: unknown = options.request === undefined ? {} : JSON.parse(options.request);
+    if (
+      !request ||
+      typeof request !== 'object' ||
+      Array.isArray(request) ||
+      Object.keys(request).some((key) => key !== 'template')
+    )
+      throw new Error(huddleHelp);
+    return {
+      action,
+      input: huddleToolCreateSchema.parse({
+        ...request,
+        project_id: options.project,
+        worktree: options.worktree,
+        name: options.name,
+      }),
+    };
+  }
   if (options.request !== undefined || (action !== 'create' && options.name !== undefined))
     throw new Error(huddleHelp);
   const location = { project_id: options.project, worktree: options.worktree };
-  if (action === 'create' && args.length === 1)
-    return { action, input: huddleToolCreateSchema.parse({ ...location, name: options.name }) };
   if (action === 'list' && args.length === 1)
     return { action, input: huddleToolLocationSchema.parse(location) };
   if (

@@ -34,6 +34,42 @@ delivery and the Turn completed node's editor settings are implemented. Applicat
 28.20 adds explicit native-confirmed asks within bounded feedback executions.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## Implemented: creation starters
+
+Application **28.27** adds optional `template: "manual" | "review-loop"` to the
+existing inactive creation request. New huddle's shared starting-point selector,
+CLI `create --request '{"template":"manual"}'` and MCP `huddle_create` use the same
+host service. Omission retains blank creation; newer choices require a supporting
+host. Runtime availability, profile/worktree authority, storage admission and
+selected-release checks remain the existing creation gates. No owner is launched.
+
+`shared/huddle/templates/graphs/` composes ordinary editable node templates into
+a graph, layout, README and input fixture. Publication writes the graph manifest
+last under its fresh random directory. Manual flow wires Run → Transform → Result.
+Two-agent review uses Prompt/Review nodes, five-round feedback while complete is
+false, a ten-turn limit and a Condition that forwards only approval to Result.
+Both agent choices are deliberately unset and appear as missing-parameter
+validation diagnostics until selected. Each node declares the chosen canonical
+worktree; no account, agent or coordinator is created implicitly. The authoring
+kit ships identical starter files with clearly replaceable id/worktree placeholders.
+Generated Prompt/Review source now checks its required binding before attach,
+which also makes those kit scripts pass strict standalone TypeScript checks.
+
+Verification reuses the existing authoring, CLI, SDK and two-agent suites (**45
+checks** across the selected files; the authoring/two-agent rerun passes **9** after
+the generated binding fix). Inactive creation publishes the manual graph/layout/
+fixture with no runtime binding. The existing two-agent case now runs the shipped
+review starter through isolated provider owners and the normal operation bridge:
+two exchanges, four consumed turns and exactly one approved Result. Both exact
+conversation targets remain distinct. These are fake-provider processes, not live
+provider acceptance. The authoring suite type-checks every bundled starter script.
+
+The existing headless authoring flow selects Manual flow through the real
+starting-point control, observes its Transform node and verifies the creation body,
+then still copies and opens saved huddles without execution dispatch. Shared/daemon/
+CLI and web types, scoped lint, generated SDK and semantic-token checks pass.
+Real-provider/distinct-worktree and packaged/platform acceptance remain open.
+
 ## Implemented: independent saved-definition copies
 
 Application **28.26** adds local/SSH `POST

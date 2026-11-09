@@ -137,7 +137,7 @@ export class HuddleService {
       await this.deps.storage?.assertAdmission([this.deps.home, location.worktree]);
       location.check();
       this.requireSelection(support.selected);
-      const definition = createHuddleDefinition(location.worktree, input.name);
+      const definition = createHuddleDefinition(location.worktree, input.name, input.template);
       const snapshot = await this.capture(location.worktree, definition.id);
       location.check();
       this.requireSelection(support.selected);

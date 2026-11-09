@@ -101,6 +101,12 @@ export function useHuddleOpen(profile: string | undefined) {
         !supportsApplicationFeature(protocol, { major: 28, minor: 26 })
       )
         throw new Error('Copying a huddle requires a supporting host');
+      if (
+        input.kind === 'create' &&
+        input.value.template &&
+        !supportsApplicationFeature(protocol, { major: 28, minor: 27 })
+      )
+        throw new Error('Huddle starters require a supporting host');
       const path =
         input.kind === 'duplicate'
           ? `definitions/${input.value.huddle_id}/duplicate`

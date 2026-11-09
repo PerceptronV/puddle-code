@@ -1,5 +1,15 @@
 # The puddle communication protocol
 
+Application **28.27** adds optional `template: "manual" | "review-loop"` to the
+existing inactive creation request. Omission retains blank creation. The UI and
+CLI/MCP client refuse starters on older hosts; creation still requires a capable
+selected runtime and uses ordinary authority/storage/placement gates.
+Starters publish editable component sources, graph/layout, README and input fixture
+under the new random-id directory; no runtime starts and no agent is selected.
+The review starter requires explicit coder/reviewer session settings, declares the
+chosen canonical worktree and uses five feedback rounds/ten turns. An approval
+condition sends only successful reviews to Result. No runtime/ledger schema changes.
+
 Application **28.26** adds local/SSH `POST
 /api/huddle/:profile/definitions/:id/duplicate` with
 `{project_id, worktree, name, expected_digest}` and the existing opened-huddle

@@ -411,3 +411,22 @@ private execution state are never copied. On a stale digest, inspect and review
 again. On a lost response, list saved huddles and open the already-created copy;
 do not repeat the mutation automatically. Partial files remain discoverable after
 publication or placement failures.
+
+## Create from a starter
+
+On application 28.27+, add `--request '{"template":"manual"}'` or
+`--request '{"template":"review-loop"}'` to `pudl huddle create --name NAME
+--project PROJECT_ID --worktree ABSOLUTE_WORKTREE`. MCP `huddle_create` accepts the
+same optional `template` field. Omit it for the existing blank graph. All choices
+create stopped placements with fresh ids; failed replies still require discovery
+before another explicit creation.
+
+The offline authoring kit includes `starters/manual/` and `starters/review-loop/`
+with the same source, layout, README and input fixtures. If copying kit assets
+manually, replace the all-zero manifest id with a newly generated directory id and
+replace the review starter's explicit `/replace/with/registered/worktree` literal.
+The host creation command supplies its selected canonical worktree automatically.
+Review-loop intentionally omits both agent parameters: select two existing agents
+in the node settings (or edit explicit session bindings), then validate. It uses
+existing Prompt/Review scripts, five feedback rounds, ten turns and approval-only
+Result output. There is no coordinator agent or automatic completion echo route.

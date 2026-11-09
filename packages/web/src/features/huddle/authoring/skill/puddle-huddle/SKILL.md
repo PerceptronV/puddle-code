@@ -67,6 +67,17 @@ The matching component needs input `value` and output `completed` (each can use
 scoped `puddlang` bridge for managed agent operations. Do not invent runtime ids
 or dispatch duplicate asks to recover an uncertain response.
 
+## Starter graphs
+
+On host 28.27+, huddle_create accepts optional template `manual` or `review-loop`;
+the CLI uses create --request '{"template":"manual"}' with the usual explicit
+name/project/worktree. Both create inactive source and a stopped placement. The kit
+includes matching starters/ directories. Offline copies must replace the zero id
+and placeholder worktree. Review-loop requires choosing coder/reviewer sessions in
+the declared worktree. Preserve its five-round/ten-turn bounds and approval-only
+Result output unless the user explicitly changes the workflow. Do not start it
+or create/select agents merely because its files have been created.
+
 ## Copying a saved graph
 
 On host 28.26+, `pudl huddle duplicate HUDDLE_ID --name NAME --project PROJECT_ID

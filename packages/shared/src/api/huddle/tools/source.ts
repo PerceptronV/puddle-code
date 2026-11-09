@@ -12,6 +12,7 @@ export const huddleToolDefinitionSchema = huddleToolLocationSchema.extend({
 });
 export const huddleToolCreateSchema = huddleToolLocationSchema.extend({
   name: huddleCreateSchema.shape.name,
+  template: huddleCreateSchema.shape.template,
 });
 export const huddleToolDuplicateSchema = huddleToolDefinitionSchema.extend({
   name: huddleDuplicateSchema.shape.name,
@@ -48,7 +49,7 @@ const definitions = [
   ],
   [
     'huddle_create',
-    'Create a named blank huddle and inactive session in the explicit project/worktree. Requires an installed supporting runtime but never launches it. Not retryable after a lost reply: list saved huddles first.',
+    'Create a named inactive huddle in the explicit project/worktree. Omit template for a blank graph; on host 28.27+ choose manual or review-loop. Review-loop requires selecting existing agents before Start. Requires a supporting runtime but never launches it. Not retryable after a lost reply: list saved huddles first.',
     huddleToolCreateSchema,
     false,
     false,

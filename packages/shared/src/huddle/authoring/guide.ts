@@ -5,6 +5,17 @@ capabilities. Inspect the target host and validate saved source there before use
 No kit command writes project files, starts a session, imports project code or
 activates a graph. The kit works without a daemon connection.
 
+On host 28.27+, pudl huddle create accepts --request '{"template":"manual"}' or
+'{"template":"review-loop"}' alongside explicit --name, --project and --worktree.
+MCP huddle_create accepts the same optional template field; omission stays blank.
+starters/manual/ and starters/review-loop/ contain those complete graphs, layout,
+source, README and input fixtures. When copying offline assets, replace the all-zero
+id with the new directory id and /replace/with/registered/worktree with a registered
+canonical root. Host creation fills that explicit worktree from its selected scope.
+Review-loop leaves agent bindings unset: choose both existing sessions before
+validation/Start. It uses five rounds/ten turns and sends only approval to Result.
+Creation never launches a runtime or selects an account/agent.
+
 ## Files and examples
 
 schemas/ contains JSON Schema draft 2020-12 for format-1 huddle.json, component
