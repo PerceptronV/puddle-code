@@ -1,3 +1,5 @@
+import { HuddleSelect } from '../controls/HuddleSelect';
+import { nestedIsland } from '../controls/HuddlePanel';
 import { useId, useState } from 'react';
 import {
   huddleBindingSchema,
@@ -54,7 +56,7 @@ export function NodeParameters({
       }),
     }));
   return (
-    <div className="flex flex-col gap-4 py-3">
+    <div className="flex flex-col gap-3">
       {Object.entries(component?.parameters ?? {}).map(([name, parameter]) => (
         <Parameter
           key={`${name}:${JSON.stringify(node.parameters[name])}`}
@@ -152,82 +154,66 @@ function Parameter({
               ? resources.providers
               : undefined);
   return (
-    <div className="flex flex-col gap-2" role="group" aria-label={parameter.title ?? name}>
+    <div
+      className={`${nestedIsland} flex min-w-0 flex-col gap-2`}
+      role="group"
+      aria-label={parameter.title ?? name}
+    >
       <Label htmlFor={id}>
         {parameter.title ?? name}
         {parameter.required ? ' *' : ''}
       </Label>
-      <select
-        aria-label={`${name} binding`}
+      <HuddleSelect
+        label={`${name} binding`}
         value={kind}
-        className="rounded-md bg-surface p-1 text-xs"
-        onChange={(event) => {
-          setKind(event.target.value as 'literal' | 'variable');
+        onValueChange={(value) => {
+          setKind(value as 'literal' | 'variable');
           setText('');
         }}
-      >
-        <option value="literal">Value</option>
-        <option value="variable">Variable</option>
-      </select>
+        options={[
+          { value: 'literal', label: 'Value' },
+          { value: 'variable', label: 'Variable' },
+        ]}
+      />
       {kind === 'variable' ? (
-        <select
+        <HuddleSelect
           id={id}
           value={text}
-          className="rounded-md bg-surface p-1 text-sm"
-          onChange={(event) => setText(event.target.value)}
-        >
-          <option value="">Choose variable</option>
-          {Object.keys(variables).map((key) => (
-            <option key={key} value={key}>
-              {key}
-            </option>
-          ))}
-        </select>
+          onValueChange={setText}
+          placeholder="Choose variable"
+          options={Object.keys(variables).map((key) => ({ value: key, label: key }))}
+        />
       ) : choices ? (
-        <select
+        <HuddleSelect
           id={id}
           value={text}
-          className="rounded-md bg-surface p-1 text-sm"
-          onChange={(event) => setText(event.target.value)}
-        >
-          <option value="">
-            Choose{' '}
-            {completionChoices
-              ? 'completion trigger'
-              : parameter.editor === 'agent'
-                ? 'provider'
-                : parameter.editor}
-          </option>
-          {text && !choices.some((choice) => choice.value === text) && (
-            <option value={text}>{text} · unavailable</option>
-          )}
-          {choices.map((choice) => (
-            <option value={choice.value} key={choice.value}>
-              {choice.label}
-            </option>
-          ))}
-        </select>
+          onValueChange={setText}
+          placeholder={`Choose ${completionChoices ? 'completion trigger' : parameter.editor === 'agent' ? 'provider' : parameter.editor}`}
+          options={
+            text && !choices.some((choice) => choice.value === text)
+              ? [{ value: text, label: `${text} · unavailable` }, ...choices]
+              : choices
+          }
+        />
       ) : parameter.schema.enum ? (
-        <select
+        <HuddleSelect
           id={id}
           value={text}
-          className="rounded-md bg-surface p-1 text-sm"
-          onChange={(event) => setText(event.target.value)}
-        >
-          <option value="">Choose value</option>
-          {text &&
+          onValueChange={setText}
+          placeholder="Choose value"
+          options={[
+            ...(text &&
             !parameter.schema.enum.some(
               (value) => (textValue ? String(value) : JSON.stringify(value)) === text,
-            ) && <option value={text}>{text} · not in options</option>}
-          {parameter.schema.enum.map((value) => {
-            const encoded = textValue ? String(value) : JSON.stringify(value);
-            return (
-              <option key={encoded} value={encoded}>
-                {typeof value === 'string' ? value : JSON.stringify(value)}
-              </option>
-            );
-          })}
-        </select>
+            )
+              ? [{ value: text, label: `${text} · not in options` }]
+              : []),
+            ...parameter.schema.enum.map((value) => ({
+              value: textValue ? String(value) : JSON.stringify(value),
+              label: typeof value === 'string' ? value || '(empty string)' : JSON.stringify(value),
+            })),
+          ]}
+        />
       ) : parameter.editor === 'prompt' ? (
         <textarea
           id={id}
@@ -237,16 +223,16 @@ function Parameter({
           onChange={(event) => setText(event.target.value)}
         />
       ) : parameter.schema.type === 'boolean' ? (
-        <select
+        <HuddleSelect
           id={id}
           value={text}
-          className="rounded-md bg-surface p-1 text-sm"
-          onChange={(event) => setText(event.target.value)}
-        >
-          <option value="">Choose value</option>
-          <option value="true">True</option>
-          <option value="false">False</option>
-        </select>
+          onValueChange={setText}
+          placeholder="Choose value"
+          options={[
+            { value: 'true', label: 'True' },
+            { value: 'false', label: 'False' },
+          ]}
+        />
       ) : (
         <Input
           id={id}

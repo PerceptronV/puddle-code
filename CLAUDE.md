@@ -1008,6 +1008,17 @@ and manifest last. Share the same files with the authoring kit. Review-loop leav
 agent choices unset, explicitly declares the selected worktree, bounds feedback to
 five rounds/ten turns and sends only approval to Result. Never create or choose
 agents implicitly. Keep NewHuddleSource beside the creation dialogue.
+The huddle IDE uses `huddle/controls/` for shared tray actions, overlaid panels,
+dropdowns and icon choices; `inspector/catalogue/` owns grouped node presentation, and `appearance/` owns the
+63-icon node palette. Catalogue additions persist their group colour/icon; preserve
+legacy saved icons without adding them to the picker.
+Keep only one editing panel open, preserve source conflict recovery, and retain
+standard reduced-motion-aware surface/tray styling. Canvas gestures live beside
+node drag/wiring; shared pan/zoom arbitration for huddle and PDF lives in
+`web/lib/input/zoom-intent.ts`. Suppress pan while modified zoom/pinch is active.
+Application 28.34 adds display-only node `labels` in layout.json, gated on the host
+feature and saved through the existing layout model. Never rename runtime node ids
+or component contracts to change a display name.
 Application 28.26 adds inactive duplication in `huddle/definitions/duplicate.ts`,
 through the existing profile/worktree service and repository mutex. Copy reviewed
 saved source only, including bounded text docs/fixtures and unreferenced components;

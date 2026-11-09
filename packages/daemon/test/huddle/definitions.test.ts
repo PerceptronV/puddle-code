@@ -59,8 +59,18 @@ describe('huddle definition discovery and source capture', () => {
 
   it('retains deterministic source digests and changes them when source or builtin contracts change', async () => {
     const s = await setup();
+    await writeFile(
+      join(s.root, 'layout.json'),
+      JSON.stringify({
+        format: 1,
+        nodes: {},
+        labels: { [s.definition.nodes[0]!.id]: 'Manual launch' },
+      }),
+    );
     const first = await captureHuddleDefinition(s.worktree, s.definition.id, fixtureBuiltins);
     expect(first.diagnostics).toEqual([]);
+    expect(first.layout?.labels).toEqual({ [s.definition.nodes[0]!.id]: 'Manual launch' });
+    expect(first.definition).toEqual(s.definition);
     expect(
       (await captureHuddleDefinition(s.worktree, s.definition.id, fixtureBuiltins)).digest,
     ).toBe(first.digest);

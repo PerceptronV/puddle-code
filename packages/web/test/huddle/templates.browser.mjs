@@ -1,3 +1,4 @@
+import { inspectNode, chooseHuddleOption } from './helpers/controls.mjs';
 /* global window */
 import assert from 'node:assert/strict';
 import { chromium } from '@playwright/test';
@@ -34,13 +35,15 @@ try {
     ['Prompt agent', '00000000-0000-4000-8000-000000000005'],
     ['Review agent', '00000000-0000-4000-8000-000000000006'],
   ]) {
-    await editor.getByRole('button', { name: `${name} value completed turn`, exact: true }).click();
+    await inspectNode(
+      editor.getByRole('button', { name: `${name} value completed turn`, exact: true }),
+    );
     const inspector = editor.getByRole('complementary', { name: 'Node inspector' });
     const worktree = inspector.getByRole('group', { name: 'Worktree', exact: true });
-    await worktree.getByLabel('Worktree *', { exact: true }).selectOption('/preview/puddle');
+    await chooseHuddleOption(worktree.getByLabel('Worktree *', { exact: true }), '/preview/puddle');
     await worktree.getByRole('button', { name: 'Apply setting' }).click();
     const agent = inspector.getByRole('group', { name: 'Agent session', exact: true });
-    await agent.getByLabel('Agent session *', { exact: true }).selectOption(id);
+    await chooseHuddleOption(agent.getByLabel('Agent session *', { exact: true }), id);
     await agent.getByRole('button', { name: 'Apply setting' }).click();
     const prompt = inspector.getByRole('group', { name: 'Prompt', exact: true });
     assert.ok((await prompt.getByRole('textbox').inputValue()).includes('{{input}}'));
@@ -72,8 +75,14 @@ try {
       await prompt.getByText('Preview prompt', { exact: true }).click();
       await prompt.getByRole('textbox').fill('Implement the requested changes:\n{{input}}');
       await prompt.getByRole('button', { name: 'Apply setting' }).click();
-      await worktree.getByLabel('worktree binding', { exact: true }).selectOption('variable');
-      await worktree.getByLabel('Worktree *', { exact: true }).selectOption('targetWorktree');
+      await chooseHuddleOption(
+        worktree.getByLabel('worktree binding', { exact: true }),
+        'variable',
+      );
+      await chooseHuddleOption(
+        worktree.getByLabel('Worktree *', { exact: true }),
+        'targetWorktree',
+      );
       await worktree.getByRole('button', { name: 'Apply setting' }).click();
       await inspector.getByText('Preview bindings', { exact: true }).click();
       const bindings = inspector.locator('details').filter({
@@ -104,8 +113,8 @@ try {
     ['review-agent.completed', 'result.value'],
     ['review-agent.completed', 'prompt-agent.value'],
   ]) {
-    await editor.getByLabel('Output', { exact: true }).selectOption({ label: from });
-    await editor.getByLabel('Input', { exact: true }).selectOption({ label: to });
+    await chooseHuddleOption(editor.getByLabel('Output', { exact: true }), { label: from });
+    await chooseHuddleOption(editor.getByLabel('Input', { exact: true }), { label: to });
     await editor.getByRole('button', { name: 'Connect', exact: true }).click();
   }
   const feedback = editor
@@ -114,8 +123,10 @@ try {
     .filter({ has: page.getByRole('checkbox', { name: 'Bounded feedback' }) })
     .last();
   await feedback.getByRole('checkbox', { name: 'Bounded feedback' }).check();
-  await feedback.getByLabel('Continue while', { exact: true }).selectOption({ label: 'complete' });
-  await feedback.getByLabel('Feedback condition value').selectOption('false');
+  await chooseHuddleOption(feedback.getByLabel('Continue while', { exact: true }), {
+    label: 'complete',
+  });
+  await chooseHuddleOption(feedback.getByLabel('Feedback condition value'), 'false');
   await feedback.getByLabel('Maximum rounds').fill('3');
   await feedback.getByLabel('Maximum rounds').press('Enter');
   await editor.getByRole('button', { name: 'Save', exact: true }).click();
@@ -148,7 +159,7 @@ try {
   }
   assert.ok(Object.values(files).some((file) => file.content.includes('formatPrompt')));
   await editor.getByRole('button', { name: 'Connections', exact: true }).click();
-  await reviewer.click();
+  await inspectNode(reviewer);
   await editor.getByRole('button', { name: 'Open script', exact: true }).click();
   await page.waitForSelector('.monaco-editor');
   await page.waitForFunction(async () => {
@@ -162,7 +173,7 @@ try {
   });
   const tab = page.locator('[data-pane-tab="huddle:00000000-0000-4000-8000-000000000003"]');
   await tab.click({ position: { x: 10, y: 2 } });
-  await reviewer.click();
+  await inspectNode(reviewer);
   await editor.getByRole('button', { name: 'Open contract', exact: true }).click();
   await page.waitForFunction(async () => {
     const { monaco } = await import('/src/features/editor/monaco/monaco-setup.ts');

@@ -1,7 +1,8 @@
+import { Bot } from 'lucide-react';
+import { HuddleAction } from '../controls/HuddleAction';
 import { useState } from 'react';
 import type { Session } from '@puddle/shared';
 import { useHuddleSourceDirty } from '../documents/use-source-dirty';
-import { graphActionClass } from '../inspector/GraphEditing';
 import { AuthoringDialog } from './AuthoringDialog';
 
 export function AuthoringAction({
@@ -18,17 +19,16 @@ export function AuthoringAction({
   const blocked = locked || dirty;
   return (
     <>
-      <button
-        type="button"
-        className={graphActionClass}
+      <HuddleAction
+        icon={Bot}
+        label="Edit with agent"
+
         disabled={blocked || session.status === 'archived'}
         title={
           blocked ? 'Save or resolve source edits before starting an authoring agent.' : undefined
         }
         onClick={() => setOpen(true)}
-      >
-        Edit with agent
-      </button>
+      />
       {open && (
         <AuthoringDialog
           profile={profile}

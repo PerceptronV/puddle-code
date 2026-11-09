@@ -1,3 +1,4 @@
+import { inspectNode } from './helpers/controls.mjs';
 /* global window */
 import assert from 'node:assert/strict';
 import { chromium } from '@playwright/test';
@@ -43,7 +44,7 @@ try {
   await page.getByRole('region', { name: 'Huddle editor' }).waitFor();
   await page.getByRole('button', { name: 'New huddle', exact: true }).click();
   await page.getByRole('button', { name: 'Review graph', exact: true }).click();
-  await page.getByRole('button', { name: 'Run event', exact: true }).click();
+  await inspectNode(page.getByRole('button', { name: 'Run event', exact: true }));
   await page.getByRole('complementary', { name: 'Node inspector' }).waitFor();
   await page.getByRole('button', { name: 'Node list', exact: true }).click();
   await page.getByText('run.event → result.value', { exact: true }).waitFor();

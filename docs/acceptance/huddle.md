@@ -34,6 +34,47 @@ delivery and the Turn completed node's editor settings are implemented. Applicat
 28.20 adds explicit native-confirmed asks within bounded feedback executions.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## IDE island and gesture refinement — 2026-11-08
+
+The editor now uses shared icon trays over the full canvas (no opaque toolbar row),
+Agent / Terminal / Huddle / Search ordering in the session trays, and
+right-aligned lifecycle controls (including
+an always-visible Interrupt action), bottom-left graph navigation and one overlaid
+panel at a time. The inspector uses nested islands; the catalogue groups Triggers,
+Agents, Logic & data and Readouts with palette colours/icons and a fixed search
+field. All inspector dropdowns use Puddle Select. Recovery notices remain visible,
+right-aligned at the bottom right; action blockers/validation use notifications.
+Shared overlay/tray motion obeys system and application reduced motion.
+
+Drag or tap the node body to move/inspect it. Name clicks edit inline; Enter/blur
+commits and Escape cancels. Icon clicks open the anchored shared picker. Colour
+choices affect the node surface, outline, text, icon and ports. Display names use
+optional `layout.json` `labels` keyed by stable node id (application 28.34); existing
+runtime contracts and node identities are unchanged. Older hosts cannot edit labels.
+Layout undo/save/conflict handling applies to labels as well as positions.
+
+Canvas mouse/touch pan, trackpad pinch and Command/Ctrl-scroll share the logical
+camera. Pinch uses a fixed anchor and pan is suppressed during modified zoom and
+its short inertial tail. The PDF/LaTeX preview reuses the same input-intent guard.
+No visible horizontal/vertical canvas scrollbars are introduced.
+
+Verification for this refinement: web typecheck, scoped lint/formatting and semantic
+colour checks; existing editing, template and execution browser checks (bindings, feedback, source links, lifecycle,
+dirty-source gating and uncertain-outcome review); existing canvas
+browser check (node drag, touch, cancellation, undo and layout conflicts); existing
+camera/PDF coordinate tests (10 checks), and definition capture/protocol tests
+(18 checks, including display-label preservation). Direct headless Chromium preview inspection
+confirmed inline name/icon editing, shared dropdown selection, full-node colours,
+fixed catalogue search, one-panel switching, anchored mixed zoom/pan events and
+real two-touch pinch, narrow-panel sizing and the application reduced-motion toggle.
+The PDF preview also passed a Command-scroll/competing-pan check. Catalogue creation
+verified valid gold/clock inheritance, persisted icon overrides, exactly 64 picker
+choices, and the full-height canvas beneath the toolbar. Trigger groups use the
+accepted gold preset; invalid draft edits report a readable issue instead of a
+serialized validation array. These are UI-only checks and do not add live-provider or
+native Electron acceptance claims. Continue updating this file with implementation
+changes and any further platform verification.
+
 ## Current implementation audit
 
 This is a working checklist against roadmap §§4, 8–11, not a completion claim.

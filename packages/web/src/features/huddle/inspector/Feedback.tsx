@@ -1,3 +1,4 @@
+import { HuddleSelect } from '../controls/HuddleSelect';
 import { useId, useState } from 'react';
 import type { HuddleEdge, HuddleValueSchema } from '@puddle/shared';
 import { Input } from '../../../components/ui/input';
@@ -55,44 +56,43 @@ export function Feedback({
       {edge.feedback && (
         <>
           <Label htmlFor={`${id}-condition`}>Continue while</Label>
-          <select
+          <HuddleSelect
             id={`${id}-condition`}
-            className="rounded-md bg-surface p-1 text-sm"
             value={JSON.stringify(edge.feedback.while.path)}
-            onChange={(event) =>
+            onValueChange={(value) =>
               set({
                 ...edge.feedback!,
-                while: { ...edge.feedback!.while, path: JSON.parse(event.target.value) },
+                while: { ...edge.feedback!.while, path: JSON.parse(value) },
               })
             }
-          >
-            {!paths.some(
-              (path) => JSON.stringify(path) === JSON.stringify(edge.feedback!.while.path),
-            ) && (
-              <option value={JSON.stringify(edge.feedback.while.path)}>
-                {edge.feedback.while.path.join('.')} · unavailable
-              </option>
-            )}
-            {paths.map((path) => (
-              <option key={JSON.stringify(path)} value={JSON.stringify(path)}>
-                {path.join('.')}
-              </option>
-            ))}
-          </select>
-          <select
-            aria-label="Feedback condition value"
+            options={[
+              ...(!paths.some(
+                (path) => JSON.stringify(path) === JSON.stringify(edge.feedback!.while.path),
+              )
+                ? [
+                    {
+                      value: JSON.stringify(edge.feedback.while.path),
+                      label: `${edge.feedback.while.path.join('.')} · unavailable`,
+                    },
+                  ]
+                : []),
+              ...paths.map((path) => ({ value: JSON.stringify(path), label: path.join('.') })),
+            ]}
+          />
+          <HuddleSelect
+            label="Feedback condition value"
             value={String(edge.feedback.while.equals)}
-            className="rounded-md bg-surface p-1 text-sm"
-            onChange={(event) =>
+            onValueChange={(value) =>
               set({
                 ...edge.feedback!,
-                while: { ...edge.feedback!.while, equals: event.target.value === 'true' },
+                while: { ...edge.feedback!.while, equals: value === 'true' },
               })
             }
-          >
-            <option value="false">False</option>
-            <option value="true">True</option>
-          </select>
+            options={[
+              { value: 'false', label: 'False' },
+              { value: 'true', label: 'True' },
+            ]}
+          />
           <Label htmlFor={`${id}-rounds`}>Maximum rounds</Label>
           <Input
             id={`${id}-rounds`}

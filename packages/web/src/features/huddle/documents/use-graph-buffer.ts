@@ -1,3 +1,4 @@
+import { huddleEditError } from './edit-errors';
 import { useMemo } from 'react';
 import { toast } from 'sonner';
 import {
@@ -71,7 +72,7 @@ export function useGraphBuffer(
       model.pushStackElement();
       return true;
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Cannot edit this graph');
+      toast.error(huddleEditError(error, 'Cannot edit this graph'));
       return false;
     }
   };

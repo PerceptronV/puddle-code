@@ -1,3 +1,4 @@
+import { inspectNode } from './helpers/controls.mjs';
 /* global window, document, DataTransfer, DragEvent */
 import assert from 'node:assert/strict';
 import { chromium } from '@playwright/test';
@@ -37,7 +38,7 @@ try {
   await setup();
   await page.getByRole('button', { name: 'New huddle', exact: true }).click();
   await page.getByRole('button', { name: 'Review graph', exact: true }).click();
-  await editor.getByRole('button', { name: 'Run event', exact: true }).click();
+  await inspectNode(editor.getByRole('button', { name: 'Run event', exact: true }));
   await editor
     .getByRole('button', { name: 'Connection run.event to result.value', exact: true })
     .press('Enter');

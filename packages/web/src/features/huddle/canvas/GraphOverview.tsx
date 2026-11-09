@@ -1,3 +1,4 @@
+import { useCanvasGestures } from './use-canvas-gestures';
 import { useState, useRef, useLayoutEffect } from 'react';
 import type { HuddleDocument } from '@puddle/shared';
 import { CanvasControls } from './CanvasControls';
@@ -18,6 +19,9 @@ export function GraphOverview({
   document,
   selected,
   onSelect,
+  rename,
+  changeIcon,
+  canRename,
   move,
   version,
   locked,
@@ -42,6 +46,9 @@ export function GraphOverview({
   document: HuddleDocument;
   selected: string | null;
   onSelect(id: string): void;
+  rename(id: string, name: string): void;
+  changeIcon(id: string, icon: string | null): void;
+  canRename: boolean;
   move(id: string, position: Position, version: number): boolean;
   version: number;
   locked: boolean;
@@ -68,10 +75,11 @@ export function GraphOverview({
     connect,
   });
   const viewport = useRef<HTMLDivElement>(null);
-  const pan = useRef<{ pointer: number; x: number; y: number; left: number; top: number } | null>(
-    null,
-  );
   const drag = useNodeDrag({ viewport, zoom, version, locked, move, select: onSelect });
+  const gestures = useCanvasGestures(viewport, cameraBinding, () => {
+    drag.cancel();
+    if (wire.pending) wire.cancel();
+  });
   const nodes = document.definition.nodes.map((node, index) => {
     const contract = document.components[node.id];
     return {
@@ -82,14 +90,19 @@ export function GraphOverview({
       outputs: Object.keys(contract?.outputs ?? {}),
     };
   });
-  const left = Math.min(0, ...nodes.map(({ position }) => position.x)) - 32;
-  const top = Math.min(0, ...nodes.map(({ position }) => position.y)) - 32;
-  const width = Math.max(640, ...nodes.map(({ position }) => position.x - left + 272));
+  const padding = 1600 / zoom;
+  const origin = {
+    x: Math.min(0, ...nodes.map(({ position }) => position.x)) - 32,
+    y: Math.min(0, ...nodes.map(({ position }) => position.y)) - 32,
+  };
+  const left = origin.x - padding;
+  const top = origin.y - padding;
+  const width = Math.max(640, ...nodes.map(({ position }) => position.x - left + 272 + padding));
   const height = Math.max(
     400,
     ...nodes.map(
       ({ position, inputs, outputs }) =>
-        position.y - top + 90 + Math.max(inputs.length, outputs.length) * 24,
+        position.y - top + padding + 90 + Math.max(inputs.length, outputs.length) * 24,
     ),
   );
   const [initialGeometry] = useState({ left, top, width, height });
@@ -97,7 +110,7 @@ export function GraphOverview({
     const binding = bindHuddleCamera(
       viewport.current!,
       initialGeometry,
-      initialCamera,
+      initialCamera ?? { x: initialGeometry.left + 1600, y: initialGeometry.top + 1600, zoom: 1 },
       rememberCamera,
       setZoom,
     );
@@ -130,7 +143,7 @@ export function GraphOverview({
   };
   return (
     <div
-      className="flex min-h-0 min-w-0 flex-1 flex-col"
+      className="relative flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden"
       onKeyDown={(event) => {
         if (event.key === 'Escape') wire.cancel();
       }}
@@ -139,69 +152,36 @@ export function GraphOverview({
         {...{ locked, canUndo, canRedo, undo, redo, selected, fit, zoom }}
         setZoom={(value) => cameraBinding.current?.zoom(value)}
       />
-      <div className="flex min-h-5 items-center gap-2 px-3 text-xs text-fg-muted">
-        {document.definition.edges.some((edge) => edge.id === selectedEdge) && (
-          <button
-            type="button"
-            disabled={graphLocked}
-            className="rounded px-2 hover:bg-elevated disabled:opacity-50"
-            onClick={() => {
-              disconnect(selectedEdge!);
-              setSelectedEdge(null);
-            }}
-          >
-            Disconnect selected
-          </button>
-        )}
-        <span role="status">{wire.message}</span>
-        {wire.pending && (
-          <button type="button" className="rounded px-2 hover:bg-elevated" onClick={wire.cancel}>
-            Cancel connection
-          </button>
-        )}
-      </div>
+      {(selectedEdge || wire.message || wire.pending) && (
+        <div className="island-outline absolute left-3 top-3 z-10 flex max-w-[calc(100%-1.5rem)] flex-wrap items-center gap-2 rounded-[var(--ui-surface-radius)] bg-tray px-3 py-2 text-xs text-fg-muted">
+          {document.definition.edges.some((edge) => edge.id === selectedEdge) && (
+            <button
+              type="button"
+              disabled={graphLocked}
+              className="rounded px-2 hover:bg-elevated disabled:opacity-50"
+              onClick={() => {
+                disconnect(selectedEdge!);
+                setSelectedEdge(null);
+              }}
+            >
+              Disconnect selected
+            </button>
+          )}
+          <span role="status">{wire.message}</span>
+          {wire.pending && (
+            <button type="button" className="rounded px-2 hover:bg-elevated" onClick={wire.cancel}>
+              Cancel connection
+            </button>
+          )}
+        </div>
+      )}
       <div
         ref={viewport}
-        className="min-h-0 flex-1 cursor-grab overflow-auto touch-none"
+        className="no-scrollbar min-h-0 flex-1 cursor-grab overflow-hidden touch-none overscroll-none [overflow-anchor:none]"
         aria-label="Huddle graph"
         aria-description="Only nearby nodes and connections are drawn. Use Node list to browse all nodes, then Fit selected to reveal one."
         tabIndex={0}
-        onPointerDown={(event) => {
-          if (
-            ![0, 1].includes(event.button) ||
-            !event.isPrimary ||
-            (event.target as HTMLElement).closest('button')
-          )
-            return;
-          event.preventDefault();
-          event.currentTarget.style.cursor = 'grabbing';
-          event.currentTarget.setPointerCapture(event.pointerId);
-          pan.current = {
-            pointer: event.pointerId,
-            x: event.clientX,
-            y: event.clientY,
-            left: event.currentTarget.scrollLeft,
-            top: event.currentTarget.scrollTop,
-          };
-        }}
-        onPointerMove={(event) => {
-          const start = pan.current;
-          if (!start || start.pointer !== event.pointerId) return;
-          event.currentTarget.scrollLeft = start.left - event.clientX + start.x;
-          event.currentTarget.scrollTop = start.top - event.clientY + start.y;
-        }}
-        onPointerUp={(event) => {
-          pan.current = null;
-          event.currentTarget.style.cursor = '';
-        }}
-        onPointerCancel={(event) => {
-          pan.current = null;
-          event.currentTarget.style.cursor = '';
-        }}
-        onLostPointerCapture={(event) => {
-          pan.current = null;
-          event.currentTarget.style.cursor = '';
-        }}
+        {...gestures}
       >
         <div style={{ width: width * zoom, height: height * zoom }}>
           <div
@@ -263,6 +243,10 @@ export function GraphOverview({
                     redo,
                     onDelete,
                   }}
+                  title={document.layout?.labels?.[node.id] ?? contract?.title ?? node.id}
+                  rename={(name) => rename(node.id, name)}
+                  changeIcon={(icon) => changeIcon(node.id, icon)}
+                  canRename={canRename}
                   selected={selected === node.id}
                   shown={local}
                 />

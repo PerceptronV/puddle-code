@@ -15,6 +15,7 @@ export interface HuddleBounds {
 export interface HuddleCameraBinding {
   geometry(value: HuddleGeometry): void;
   zoom(value: number): void;
+  gesture(scale: number, from: { x: number; y: number }, to: { x: number; y: number }): void;
   fit(bounds: HuddleBounds): void;
   dispose(): void;
 }
@@ -78,6 +79,16 @@ export function bindHuddleCamera(
       if (!Number.isFinite(value)) return;
       capture();
       update({ ...camera, zoom: Math.min(2, Math.max(0.001, value)) });
+    },
+    gesture: (scale, from, to) => {
+      if (!Number.isFinite(scale) || scale <= 0) return;
+      capture();
+      const zoom = Math.min(2, Math.max(0.001, camera.zoom * scale));
+      update({
+        zoom,
+        x: camera.x + from.x / camera.zoom - to.x / zoom,
+        y: camera.y + from.y / camera.zoom - to.y / zoom,
+      });
     },
     fit: (bounds) => {
       if (!visible()) return;

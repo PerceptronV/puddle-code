@@ -1,3 +1,5 @@
+import { huddleOptions } from './helpers/controls.mjs';
+import { inspectNode, chooseHuddleOption } from './helpers/controls.mjs';
 /* global window */
 import assert from 'node:assert/strict';
 import { chromium } from '@playwright/test';
@@ -21,22 +23,25 @@ try {
   await editor.getByRole('button', { name: 'Add node', exact: true }).click();
   await editor.getByRole('button', { name: 'Add Turn completed', exact: true }).click();
   await editor.getByRole('button', { name: 'Add node', exact: true }).click();
-  await editor.getByRole('button', { name: 'Turn completed event', exact: true }).click();
+  await inspectNode(editor.getByRole('button', { name: 'Turn completed event', exact: true }));
   const inspector = editor.getByRole('complementary', { name: 'Node inspector' });
   await inspector.getByText('Observe exact completed external turns', { exact: false }).waitFor();
   const worktree = inspector.getByRole('group', { name: 'Worktree', exact: true });
-  assert.equal(await worktree.getByLabel('Worktree *', { exact: true }).inputValue(), '');
-  await worktree.getByLabel('Worktree *', { exact: true }).selectOption('/preview/puddle');
+  assert.equal(
+    await worktree.getByLabel('Worktree *', { exact: true }).getAttribute('data-value'),
+    '',
+  );
+  await chooseHuddleOption(worktree.getByLabel('Worktree *', { exact: true }), '/preview/puddle');
   await worktree.getByRole('button', { name: 'Apply setting' }).click();
   const agent = inspector.getByRole('group', { name: 'Agent', exact: true });
   const selector = agent.getByLabel('Agent *', { exact: true });
-  assert.equal(await selector.inputValue(), '');
-  const options = await selector.locator('option').allTextContents();
+  assert.equal(await selector.getAttribute('data-value'), '');
+  const options = (await huddleOptions(selector)).map((item) => item.label);
   assert(options.some((text) => text.includes('Coder')));
   assert(options.some((text) => text.includes('Reviewer')));
   assert(!options.some((text) => text.includes('Archived terminal')));
   assert(!options.some((text) => text.includes('Review graph')));
-  await selector.selectOption('00000000-0000-4000-8000-000000000005');
+  await chooseHuddleOption(selector, '00000000-0000-4000-8000-000000000005');
   await agent.getByRole('button', { name: 'Apply setting' }).click();
   await editor.getByRole('button', { name: 'Save', exact: true }).click();
   await page.waitForFunction(() =>

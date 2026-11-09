@@ -1,3 +1,5 @@
+import { ShieldCheck } from 'lucide-react';
+import { HuddleAction } from '../controls/HuddleAction';
 import { useId, useState } from 'react';
 import { useMutation } from '@tanstack/react-query';
 import {
@@ -26,9 +28,10 @@ export function ValidationAction({ profile, session }: { profile: string; sessio
   });
   return (
     <>
-      <button
-        type="button"
-        className={graphActionClass}
+      <HuddleAction
+        icon={ShieldCheck}
+        label="Validate"
+
         disabled={!supported}
         title={
           supported
@@ -36,9 +39,7 @@ export function ValidationAction({ profile, session }: { profile: string; sessio
             : 'Module validation requires a newer host'
         }
         onClick={() => setOpen(true)}
-      >
-        Validate
-      </button>
+      />
       {open && (
         <ValidationDialog profile={profile} session={session} onClose={() => setOpen(false)} />
       )}

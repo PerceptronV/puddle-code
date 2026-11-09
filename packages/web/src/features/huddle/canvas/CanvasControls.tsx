@@ -1,6 +1,7 @@
+import { Undo2, Redo2, Scan, Focus, Minus, Plus } from 'lucide-react';
 import { ControlTray } from '../../../components/ui/control-tray';
+import { HuddleAction } from '../controls/HuddleAction';
 
-const action = 'rounded-md px-2 py-1 text-xs hover:bg-elevated disabled:opacity-50';
 export function CanvasControls({
   locked,
   canUndo,
@@ -23,39 +24,35 @@ export function CanvasControls({
   setZoom(zoom: number): void;
 }) {
   return (
-    <div className="flex shrink-0 justify-end px-3 py-2">
+    <div className="absolute bottom-3 left-3 z-10 max-w-[calc(100%-1.5rem)]">
       <ControlTray label="Graph navigation" variant="island" className="max-w-full flex-wrap">
-        <button type="button" className={action} onClick={undo} disabled={locked || !canUndo}>
-          Undo move
-        </button>
-        <button type="button" className={action} onClick={redo} disabled={locked || !canRedo}>
-          Redo move
-        </button>
-        <button type="button" className={action} onClick={() => fit(false)}>
-          Fit graph
-        </button>
-        <button type="button" className={action} disabled={!selected} onClick={() => fit(true)}>
-          Fit selected
-        </button>
+        <HuddleAction label="Undo move" icon={Undo2} onClick={undo} disabled={locked || !canUndo} />
+        <HuddleAction label="Redo move" icon={Redo2} onClick={redo} disabled={locked || !canRedo} />
+        <HuddleAction label="Fit graph" icon={Scan} onClick={() => fit(false)} />
+        <HuddleAction
+          label="Fit selected"
+          icon={Focus}
+          disabled={!selected}
+          onClick={() => fit(true)}
+        />
+        <HuddleAction
+          label="Zoom out"
+          icon={Minus}
+          onClick={() => setZoom(Math.max(0.001, zoom / 1.25))}
+        />
         <button
           type="button"
-          className={action}
-          aria-label="Zoom out"
-          onClick={() => setZoom(Math.max(0.001, zoom / 1.25))}
+          className="px-2 text-xs tabular-nums"
+          aria-label="Reset zoom"
+          onClick={() => setZoom(1)}
         >
-          −
-        </button>
-        <button type="button" className={action} aria-label="Reset zoom" onClick={() => setZoom(1)}>
           {Math.round(zoom * 100)}%
         </button>
-        <button
-          type="button"
-          className={action}
-          aria-label="Zoom in"
+        <HuddleAction
+          label="Zoom in"
+          icon={Plus}
           onClick={() => setZoom(Math.min(2, zoom * 1.25))}
-        >
-          +
-        </button>
+        />
       </ControlTray>
     </div>
   );

@@ -282,6 +282,12 @@ export function CollapsedSessionsRail({
           />
           <div aria-hidden="true" className="mx-1 h-px self-stretch bg-border" />
           <IconButton icon={Bot} label="New agent" onClick={onNewSession} tooltipSide="left" />
+          <IconButton
+            icon={SquareTerminal}
+            label="New terminal"
+            onClick={onNewTerminal}
+            tooltipSide="left"
+          />
           {onNewHuddle && (
             <IconButton
               icon={PuddleGlyph}
@@ -290,12 +296,6 @@ export function CollapsedSessionsRail({
               tooltipSide="left"
             />
           )}
-          <IconButton
-            icon={SquareTerminal}
-            label="New terminal"
-            onClick={onNewTerminal}
-            tooltipSide="left"
-          />
           <IconButton icon={Search} label="Search sessions" onClick={onSearch} tooltipSide="left" />
         </ControlTray>
       </div>

@@ -25,7 +25,7 @@ const preview = new URLSearchParams(location.search).has('preview');
 
 const fixture = mountWorkspaceFixture({
   restore: new URLSearchParams(location.search).has('view-state'),
-  toasts: new URLSearchParams(location.search).has('source-saves'),
+  toasts: true,
 });
 if (new URLSearchParams(location.search).has('session-triggers')) {
   fixture.addSession(

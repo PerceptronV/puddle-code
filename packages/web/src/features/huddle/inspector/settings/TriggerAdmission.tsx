@@ -1,3 +1,4 @@
+import { HuddleSelect } from '../../controls/HuddleSelect';
 import { useId, useState } from 'react';
 import {
   huddleTriggerAdmissionSchema,
@@ -39,17 +40,18 @@ export function TriggerAdmission({
     <fieldset className="my-4 flex flex-col gap-2" disabled={locked || !supported}>
       <legend className="mb-2 text-xs">Trigger admission</legend>
       <Label htmlFor={`${id}-policy`}>Event policy</Label>
-      <select
+      <HuddleSelect
         id={`${id}-policy`}
-        className="rounded-md bg-surface px-2 py-1 text-sm text-fg"
         value={policy}
-        onChange={(event) => setPolicy(event.target.value)}
-      >
-        <option value="inherit">Inherit ({execution.queue})</option>
-        <option value="queue">Queue</option>
-        <option value="coalesce">Coalesce waiting events</option>
-        <option value="drop">Drop while busy</option>
-      </select>
+        onValueChange={setPolicy}
+        disabled={locked || !supported}
+        options={[
+          { value: 'inherit', label: `Inherit (${execution.queue})` },
+          { value: 'queue', label: 'Queue' },
+          { value: 'coalesce', label: 'Coalesce waiting events' },
+          { value: 'drop', label: 'Drop while busy' },
+        ]}
+      />
       {policy !== 'inherit' && (
         <>
           <Label htmlFor={`${id}-limit`}>Queued events for this trigger</Label>

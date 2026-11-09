@@ -1,3 +1,4 @@
+import { expectDirty } from './helpers/controls.mjs';
 /* global window */
 import assert from 'node:assert/strict';
 import { chromium } from '@playwright/test';
@@ -85,11 +86,15 @@ try {
   // A local draft cannot silently replace the running graph.
   await action('Add node').click();
   await action('Add Result').click();
-  await editor.getByText('Unsaved changes', { exact: true }).waitFor();
-  assert.equal(await action('Apply saved').isDisabled(), true);
+  await expectDirty(editor, true);
+  await action('Apply saved').click();
+  await page
+    .getByText('Save or resolve source edits before Start or Apply.', { exact: true })
+    .waitFor();
+  assert.equal(await dialog.count(), 0);
   assert.equal(await action('Run').isEnabled(), true);
   await action('Save').click();
-  await editor.getByText('Unsaved changes', { exact: true }).waitFor({ state: 'hidden' });
+  await expectDirty(editor, false);
   await action('Apply saved').click();
   await dialog
     .getByLabel('Variables (JSON)', { exact: true })

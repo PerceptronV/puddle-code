@@ -1,3 +1,5 @@
+import { HuddleSelect } from '../../controls/HuddleSelect';
+import { nestedIsland } from '../../controls/HuddlePanel';
 import { useId, useState } from 'react';
 import {
   huddleDefinitionSchema,
@@ -67,7 +69,7 @@ function SettingsForm({
     cleanup !== execution.cleanup;
   return (
     <form
-      className="min-w-0 flex-1 p-4"
+      className="min-w-0"
       aria-label="Execution settings"
       onSubmit={(event) => {
         event.preventDefault();
@@ -85,9 +87,9 @@ function SettingsForm({
           Update the draft, then Save. Start or Apply activates saved settings for new executions;
           accepted work keeps its original limits.
         </p>
-        <div className="grid grid-cols-[repeat(auto-fit,minmax(13rem,1fr))] gap-4">
+        <div className="flex flex-col gap-3">
           {limits.map(([key, label, min, max]) => (
-            <div key={key} className="flex flex-col gap-2">
+            <div key={key} className={`${nestedIsland} flex flex-col gap-2`}>
               <Label htmlFor={`${id}-${key}`}>{label}</Label>
               <Input
                 id={`${id}-${key}`}
@@ -101,44 +103,49 @@ function SettingsForm({
               />
             </div>
           ))}
-          <div className="flex flex-col gap-2">
+          <div className={`${nestedIsland} flex flex-col gap-2`}>
             <Label htmlFor={`${id}-queue`}>Default event admission</Label>
-            <select
+            <HuddleSelect
               id={`${id}-queue`}
-              className="rounded-md bg-surface px-2 py-1 text-sm text-fg"
               value={queue}
-              onChange={(event) => setQueue(event.target.value as Execution['queue'])}
-            >
-              <option value="queue">Queue</option>
-              {admissionSupported && (
-                <>
-                  <option value="coalesce">Coalesce waiting events</option>
-                  <option value="drop">Drop while busy</option>
-                </>
-              )}
-              {!admissionSupported && execution.queue !== 'queue' && (
-                <option value={execution.queue} disabled>
-                  {execution.queue} · unavailable
-                </option>
-              )}
-            </select>
+              onValueChange={(value) => setQueue(value as Execution['queue'])}
+              disabled={locked}
+              options={[
+                { value: 'queue', label: 'Queue' },
+                ...(admissionSupported
+                  ? [
+                      { value: 'coalesce', label: 'Coalesce waiting events' },
+                      { value: 'drop', label: 'Drop while busy' },
+                    ]
+                  : execution.queue !== 'queue'
+                    ? [
+                        {
+                          value: execution.queue,
+                          label: `${execution.queue} · unavailable`,
+                          disabled: true,
+                        },
+                      ]
+                    : []),
+              ]}
+            />
             <p className="text-xs text-fg-muted">
               {admissionSupported
                 ? 'Triggers inherit this policy unless overridden in their inspector. Coalesce replaces waiting work only; Drop skips busy sources or full queues. Running work is never interrupted.'
                 : 'This host supports queued events only.'}
             </p>
           </div>
-          <div className="flex flex-col gap-2">
+          <div className={`${nestedIsland} flex flex-col gap-2`}>
             <Label htmlFor={`${id}-cleanup`}>Owned agent cleanup</Label>
-            <select
+            <HuddleSelect
               id={`${id}-cleanup`}
-              className="rounded-md bg-surface px-2 py-1 text-sm text-fg"
               value={cleanup}
-              onChange={(event) => setCleanup(event.target.value as Execution['cleanup'])}
-            >
-              <option value="stop-owned">Stop owned agents</option>
-              <option value="retain-owned">Keep owned agents</option>
-            </select>
+              onValueChange={(value) => setCleanup(value as Execution['cleanup'])}
+              disabled={locked}
+              options={[
+                { value: 'stop-owned', label: 'Stop owned agents' },
+                { value: 'retain-owned', label: 'Keep owned agents' },
+              ]}
+            />
             <p className="text-xs text-fg-muted">
               On interruption, Stop or execution failure. Kept agents remain in ordinary session
               controls; attached agents keep their own lifecycle.

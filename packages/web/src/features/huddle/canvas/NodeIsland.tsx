@@ -1,10 +1,9 @@
 import type { HuddleComponent, HuddleNodeDefinition } from '@puddle/shared';
-import { PuddleGlyph } from '../../../components/puddle-glyph';
+import { NodeHeading } from './NodeHeading';
 import {
   appearanceColourClass,
   appearanceColourStyle,
 } from '../../../lib/appearance/appearance-colours';
-import { PROFILE_ICON_BY_NAME } from '../../profile/profile-icons';
 import { cn } from '../../../lib/utils';
 import { movePosition, type Position } from './geometry';
 import type { useNodeDrag } from './use-node-drag';
@@ -12,6 +11,10 @@ import type { WireGesture } from './connections/use-wire-gesture';
 
 export function NodeIsland({
   node,
+  title,
+  rename,
+  changeIcon,
+  canRename,
   contract,
   position,
   shown,
@@ -27,6 +30,10 @@ export function NodeIsland({
   onDelete,
 }: {
   node: HuddleNodeDefinition;
+  title: string;
+  rename(name: string): void;
+  changeIcon(icon: string | null): void;
+  canRename: boolean;
   contract?: HuddleComponent;
   position: Position;
   shown: Position;
@@ -44,31 +51,60 @@ export function NodeIsland({
   const inputs = Object.keys(contract?.inputs ?? {}),
     outputs = Object.keys(contract?.outputs ?? {});
   const appearance = node.appearance ?? contract?.appearance;
-  const Icon = (appearance?.icon && PROFILE_ICON_BY_NAME[appearance.icon]) || PuddleGlyph;
+  const coloured = !!appearance?.colour;
   const portClass =
     'flex h-6 max-w-full items-center gap-2 rounded-sm text-xs hover:bg-explorer-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring';
   return (
     <div
       data-huddle-node={node.id}
       className={cn(
-        'island-outline absolute w-60 select-none rounded-xl p-3',
+        'island-outline absolute w-60 touch-none select-none rounded-xl p-3',
+        !locked && (drag.preview?.id === node.id ? 'cursor-grabbing' : 'cursor-grab'),
         selected ? 'bg-elevated text-accent' : 'bg-surface text-fg',
+        appearanceColourClass(appearance?.colour),
       )}
-      style={{ left: shown.x, top: shown.y }}
+      style={{
+        left: shown.x,
+        top: shown.y,
+        ...appearanceColourStyle(appearance?.colour),
+        ...(coloured
+          ? {
+              backgroundColor: `color-mix(in srgb, currentColor ${selected ? 14 : 7}%, var(--bg-surface))`,
+              outlineColor: 'color-mix(in srgb, currentColor 35%, var(--border))',
+            }
+          : {}),
+      }}
+      {...drag.handlers(node.id, position)}
+      onClickCapture={(event) => {
+        if (drag.suppressClick()) {
+          event.preventDefault();
+          event.stopPropagation();
+        }
+      }}
+      onClick={(event) => {
+        if (
+          event.currentTarget.contains(event.target as Node) &&
+          !(event.target as Element).closest('button, input')
+        )
+          onSelect(node.id);
+      }}
     >
-      <button
-        type="button"
-        aria-pressed={selected}
-        aria-label={[
-          contract?.title ?? node.id,
+      <NodeHeading
+        title={title}
+        label={[
+          title,
           ...inputs,
           ...outputs,
           ...(!inputs.length && !outputs.length
             ? [contract?.category ?? 'Unresolved component']
             : []),
         ].join(' ')}
-        onClick={() => onSelect(node.id)}
-        {...drag.handlers(node.id, position)}
+        icon={appearance?.icon}
+        selected={selected}
+        canRename={canRename}
+        locked={locked}
+        rename={rename}
+        changeIcon={changeIcon}
         onKeyDown={(event) => {
           if (event.key === 'Escape') {
             drag.cancel();
@@ -97,20 +133,10 @@ export function NodeIsland({
           const step = event.shiftKey ? 50 : 10;
           move(node.id, movePosition(position, delta[0]! * step, delta[1]! * step), version);
         }}
-        className={cn(
-          'mb-1 flex h-8 w-full touch-none items-center gap-2 rounded-md text-left text-sm transition-colors hover:bg-explorer-hover focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring',
-          !locked && (drag.preview?.id === node.id ? 'cursor-grabbing' : 'cursor-grab'),
-        )}
+      />
+      <div
+        className={cn('flex justify-between gap-3', coloured ? 'text-current' : 'text-fg-muted')}
       >
-        <span
-          className={appearanceColourClass(appearance?.colour)}
-          style={appearanceColourStyle(appearance?.colour)}
-        >
-          <Icon className="size-4" />
-        </span>
-        <span className="truncate">{contract?.title ?? node.id}</span>
-      </button>
-      <div className="flex justify-between gap-3 text-fg-muted">
         <div className="min-w-0">
           {inputs.map((port) => {
             const endpoint = { node: node.id, port };
@@ -119,6 +145,7 @@ export function NodeIsland({
               <button
                 type="button"
                 key={port}
+                data-huddle-socket
                 aria-label={`Input ${node.id}.${port}`}
                 title={
                   problem ??
@@ -147,6 +174,7 @@ export function NodeIsland({
             <button
               type="button"
               key={port}
+              data-huddle-socket
               aria-label={`Output ${node.id}.${port}`}
               {...wire.output({ node: node.id, port })}
               className={cn(portClass, 'ml-auto touch-none justify-end disabled:opacity-50')}

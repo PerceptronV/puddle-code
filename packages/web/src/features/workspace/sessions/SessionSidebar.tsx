@@ -110,10 +110,10 @@ export function SessionSidebar({
         ) : (
           <>
             <IconButton icon={Bot} label="New agent" onClick={onNewSession} />
+            <IconButton icon={SquareTerminal} label="New terminal" onClick={onNewTerminal} />
             {onNewHuddle && (
               <IconButton icon={PuddleGlyph} label="New huddle" onClick={onNewHuddle} />
             )}
-            <IconButton icon={SquareTerminal} label="New terminal" onClick={onNewTerminal} />
             <IconButton icon={Search} label="Search sessions" onClick={() => setSearching(true)} />
           </>
         )}

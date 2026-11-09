@@ -1,3 +1,16 @@
+import {
+  Info,
+  CirclePlay,
+  GitCompareArrows,
+  History,
+  Pause,
+  Play,
+  RotateCcw,
+  Square,
+  Upload,
+  Zap,
+} from 'lucide-react';
+import { HuddleAction } from '../controls/HuddleAction';
 import { TriggerDialog } from './triggers/TriggerDialog';
 import { AutoStartControl } from './AutoStartControl';
 import { useRetainedHistorySupported } from './history/api';
@@ -14,7 +27,6 @@ import {
 import { ControlTray } from '../../../components/ui/control-tray';
 import { useHuddleSourceDirty } from '../documents/use-source-dirty';
 import { useHuddleAvailability, useHuddleDocument } from '../documents/queries';
-import { graphActionClass } from '../inspector/GraphEditing';
 import { huddleHistory } from './api';
 import type { HuddleExecutionCommand } from './start-and-run';
 import { CommandDialog, type CommandReview } from './CommandDialog';
@@ -79,15 +91,14 @@ export function ExecutionControls({
     !runtime.data || runtime.isError || runtime.data.unresolved || owner?.connected === false;
   const canAct = !busy && !commands.status.review && !unavailable && !current?.stopping;
   const canStart =
-    canAct &&
-    !owner &&
-    availability.data?.available &&
-    !dirty &&
-    !locked &&
-    session.status !== 'archived';
-  const canApply = canAct && !!current && !dirty && !locked && session.status !== 'archived';
+    canAct && !owner && availability.data?.available && session.status !== 'archived';
+  const canApply = canAct && !!current && session.status !== 'archived';
   const prepare = async (kind: CommandReview['kind']) => {
     if (!canAct) return;
+    if (kind !== 'run' && (dirty || locked)) {
+      toast.warning('Save or resolve source edits before Start or Apply.');
+      return;
+    }
     const starting = kind === 'start' || kind === 'start-and-run';
     setPreparing(true);
     try {
@@ -121,7 +132,12 @@ export function ExecutionControls({
     }
   };
   const send = async (command: HuddleExecutionCommand) => {
-    const response = await commands.send(command);
+    const response = await commands.send(command).catch((error: unknown) => {
+      toast.error(error instanceof Error ? error.message : 'Huddle command failed', {
+        description: 'The command was not repeated. Inspect the outcome before another action.',
+      });
+      throw error;
+    });
     setReview(null);
     if (response.action === 'run')
       setHistory({
@@ -150,6 +166,16 @@ export function ExecutionControls({
         if (commands.status.review) setHistory({ owner: identity });
       } else await availability.refetch();
       commands.reviewed();
+      if (observed.owner?.failure) toast.warning(observed.owner.failure);
+      else if (!observed.owner && availability.data?.available === false)
+        toast.warning(availability.data.reason);
+      else
+        toast.info(status, {
+          description:
+            observed.owner?.lifetime === 'host_session'
+              ? 'Runtime lifetime is limited to this host session.'
+              : undefined,
+        });
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Cannot inspect outcome');
     } finally {
@@ -189,17 +215,21 @@ export function ExecutionControls({
   return (
     <>
       <div
-        className="flex shrink-0 flex-wrap items-center gap-3 px-4 py-2"
+        className="pointer-events-auto ml-auto flex max-w-full shrink-0 flex-wrap items-center justify-end gap-3"
         aria-label="Huddle execution"
       >
-        <span className="text-xs text-fg-muted" role="status">
-          {status}
-        </span>
-        <ControlTray label="Huddle execution actions" className="max-w-full flex-wrap">
+        <ControlTray
+          label="Huddle execution actions"
+          variant="island"
+          className="max-w-full flex-wrap"
+        >
+          <span className="sr-only" role="status">
+            {status}
+          </span>
           {runtime.data?.recovery && (
-            <button
-              type="button"
-              className={graphActionClass}
+            <HuddleAction
+              icon={RotateCcw}
+              label="Recover after reboot"
               title="Restore the last active graph and retained trigger cursors after a host reboot. Running scripts remain interrupted."
               disabled={busy || commands.status.review || session.status === 'archived' || locked}
               onClick={() =>
@@ -208,14 +238,12 @@ export function ExecutionControls({
                   input: { owner: runtime.data!.recovery!.owner },
                 }).catch(() => {})
               }
-            >
-              Recover after reboot
-            </button>
+            />
           )}
           {runtime.data?.recovery?.crash_recovery && (
-            <button
-              type="button"
-              className={graphActionClass}
+            <HuddleAction
+              icon={RotateCcw}
+              label="Recover after crash"
               title="Recover a crashed owner after its recorded kernel scope confirms that script descendants have stopped. Queued events resume; interrupted scripts are not replayed."
               disabled={busy || commands.status.review || session.status === 'archived' || locked}
               onClick={() =>
@@ -224,160 +252,125 @@ export function ExecutionControls({
                   input: { owner: runtime.data!.recovery!.owner, after: 'owner-crash' },
                 }).catch(() => {})
               }
-            >
-              Recover after crash
-            </button>
+            />
           )}
           {!owner && !runtime.data?.recovery && (
             <>
-              <button
-                type="button"
-                className={graphActionClass}
+              <HuddleAction
+                icon={Play}
+                label="Start"
                 disabled={!canStart}
                 onClick={() => void prepare('start')}
-              >
-                Start
-              </button>
+              />
               {reviewSupported &&
                 source.data?.definition.nodes.some(
                   (node) =>
                     huddleHostTrigger(node, source.data?.components[node.id])?.id ===
                     manualHuddleTrigger.id,
                 ) && (
-                  <button
-                    type="button"
-                    className={graphActionClass}
+                  <HuddleAction
+                    icon={CirclePlay}
+                    label="Start and run"
                     disabled={!canStart}
                     onClick={() => void prepare('start-and-run')}
-                  >
-                    Start and run
-                  </button>
+                  />
                 )}
             </>
           )}
           {current && (
             <>
               {reviewSupported && (
-                <button
-                  type="button"
-                  className={graphActionClass}
+                <HuddleAction
+                  icon={GitCompareArrows}
+                  label="Active revision"
                   disabled={busy || !current.target.activationId}
                   onClick={() => setRevisionTarget(current.target)}
-                >
-                  Active revision
-                </button>
+                />
               )}
-              <button
-                type="button"
-                className={graphActionClass}
+              <HuddleAction
+                icon={Upload}
+                label="Apply saved"
                 disabled={!canApply}
                 onClick={() => void prepare('apply')}
-              >
-                Apply saved
-              </button>
+              />
               {current.lifecycle === 'armed' ? (
                 <>
-                  <button
-                    type="button"
-                    className={graphActionClass}
+                  <HuddleAction
+                    icon={Play}
+                    label="Run"
                     disabled={!canAct}
                     onClick={() => void prepare('run')}
-                  >
-                    Run
-                  </button>
-                  <button
-                    type="button"
-                    className={graphActionClass}
-                    disabled={!canAct}
-                    onClick={() =>
-                      void send({ action: 'interrupt', input: { target: current.target } }).catch(
-                        () => {},
-                      )
-                    }
-                  >
-                    Interrupt
-                  </button>
+                  />
                 </>
               ) : (
-                <button
-                  type="button"
-                  className={graphActionClass}
+                <HuddleAction
+                  icon={Play}
+                  label="Resume"
                   disabled={!canAct}
                   onClick={() =>
                     void send({ action: 'rearm', input: { target: current.target } }).catch(
                       () => {},
                     )
                   }
-                >
-                  Resume
-                </button>
+                />
               )}
-              <button
-                type="button"
-                className={graphActionClass}
+              <HuddleAction
+                icon={Square}
+                label="Stop"
                 disabled={!canAct}
                 onClick={() =>
                   void send({ action: 'stop', input: { target: current.target } }).catch(() => {})
                 }
-              >
-                Stop
-              </button>
+              />
             </>
           )}
-          <button
-            type="button"
-            className={graphActionClass}
+          <HuddleAction
+            icon={Pause}
+            label="Interrupt"
+            disabled={!canAct || current?.lifecycle !== 'armed'}
+            onClick={() => {
+              if (current?.lifecycle === 'armed')
+                void send({ action: 'interrupt', input: { target: current.target } }).catch(
+                  () => {},
+                );
+            }}
+          />
+          <HuddleAction
+            title={`${status}${current?.failure ? ` · ${current.failure}` : ''}`}
+            icon={Info}
+            label={commands.status.review ? 'Inspect outcome' : 'Inspect runtime'}
+
             disabled={busy || runtime.isFetching}
             onClick={() => void inspectOutcome()}
-          >
-            {commands.status.review ? 'Inspect outcome' : 'Inspect runtime'}
-          </button>
+          />
           {current?.trigger_inspection && (
-            <button
-              type="button"
-              className={graphActionClass}
+            <HuddleAction
+              icon={Zap}
+              label="Triggers"
               onClick={() => setTriggerTarget(current.target)}
-            >
-              Triggers
-            </button>
+            />
           )}
           {(current || retainedSupported) && (
-            <button
-              type="button"
-              className={graphActionClass}
+            <HuddleAction
+              icon={History}
+              label="History"
               disabled={busy}
               onClick={() =>
                 current
                   ? setHistory({ owner: ownerIdentity(current.target) })
                   : setRecordedHistory(true)
               }
-            >
-              History
-            </button>
+            />
+          )}
+          {current && current.auto_start !== undefined && (
+            <AutoStartControl
+              enabled={current.auto_start}
+              target={current.target}
+              disabled={!canAct || session.status === 'archived' || locked}
+              send={send}
+            />
           )}
         </ControlTray>
-        {current && current.auto_start !== undefined && (
-          <AutoStartControl
-            enabled={current.auto_start}
-            target={current.target}
-            disabled={!canAct || session.status === 'archived' || locked}
-            send={send}
-          />
-        )}
-        {dirty && (
-          <span className="text-xs text-fg-muted">Save source edits before Start or Apply.</span>
-        )}
-        {!owner && availability.data?.available === false && (
-          <span className="text-xs text-fg-muted">{availability.data.reason}</span>
-        )}
-        {(current?.lifetime === 'host_session' ||
-          (!owner &&
-            availability.data?.available &&
-            availability.data.lifetime === 'host_session')) && (
-          <span className="text-xs text-fg-muted">
-            Runtime lifetime is limited to this host session.
-          </span>
-        )}
       </div>
       {current?.custom_triggers && !current.trigger_inspection && (
         <TriggerHealth sources={current.custom_triggers} />
@@ -391,13 +384,6 @@ export function ExecutionControls({
           stale={unavailable || !current || !sameTarget(current.target, triggerTarget)}
           onClose={() => setTriggerTarget(null)}
         />
-      )}
-      {(runtime.error || commands.status.error || current?.failure) && (
-        <p role="alert" className="shrink-0 px-4 pb-2 text-xs text-fg-muted">
-          {runtime.error?.message ?? commands.status.error ?? current?.failure}
-          {commands.status.error &&
-            ' The command was not repeated. Inspect executions before sending another input.'}
-        </p>
       )}
       {review && (
         <CommandDialog

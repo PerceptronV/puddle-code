@@ -4,6 +4,7 @@ import { movePosition, type Position } from './geometry';
 interface Drag {
   id: string;
   pointer: number;
+  captured: HTMLElement;
   origin: Position;
   x: number;
   y: number;
@@ -28,6 +29,7 @@ export function useNodeDrag({
   move(id: string, position: Position, version: number): boolean;
   select(id: string): void;
 }) {
+  const skipClick = useRef(false);
   const active = useRef<Drag | null>(null);
   const [preview, setPreview] = useState<{ id: string; position: Position } | null>(null);
   const position = (drag: Drag, event: PointerEvent) =>
@@ -43,13 +45,29 @@ export function useNodeDrag({
   return {
     preview,
     cancel,
+    suppressClick: () => {
+      const skip = skipClick.current;
+      skipClick.current = false;
+      return skip;
+    },
     handlers: (id: string, origin: Position) => ({
-      onPointerDown(event: PointerEvent<HTMLButtonElement>) {
+      onPointerDown(event: PointerEvent<HTMLElement>) {
         if (event.button !== 0 || !event.isPrimary || locked) return;
+        if (
+          !event.currentTarget.contains(event.target as Node) ||
+          (event.target as Element).closest('[data-huddle-socket], [data-node-control]')
+        )
+          return;
         event.stopPropagation();
-        event.currentTarget.focus();
-        event.currentTarget.setPointerCapture(event.pointerId);
+        skipClick.current = false;
+        (
+          event.currentTarget.querySelector<HTMLElement>('[data-node-name]') ?? event.currentTarget
+        ).focus({ preventScroll: true });
+        const captured =
+          (event.target as Element).closest<HTMLElement>('button') ?? event.currentTarget;
+        captured.setPointerCapture(event.pointerId);
         active.current = {
+          captured,
           id,
           origin,
           pointer: event.pointerId,
@@ -61,9 +79,9 @@ export function useNodeDrag({
           version,
           moved: false,
         };
-        select(id);
+        if (!(event.target as Element).closest('[data-node-identity]')) select(id);
       },
-      onPointerMove(event: PointerEvent<HTMLButtonElement>) {
+      onPointerMove(event: PointerEvent<HTMLElement>) {
         const drag = active.current;
         if (!drag || drag.pointer !== event.pointerId) return;
         if (locked || version !== drag.version) {
@@ -72,15 +90,16 @@ export function useNodeDrag({
         }
         if (!drag.moved && Math.hypot(event.clientX - drag.x, event.clientY - drag.y) < 4) return;
         drag.moved = true;
+        skipClick.current = true;
         setPreview({ id, position: position(drag, event) });
       },
-      onPointerUp(event: PointerEvent<HTMLButtonElement>) {
+      onPointerUp(event: PointerEvent<HTMLElement>) {
         const drag = active.current;
         if (!drag || drag.pointer !== event.pointerId) return;
         if (drag.moved && !locked) move(id, position(drag, event), drag.version);
         cancel();
-        if (event.currentTarget.hasPointerCapture(event.pointerId))
-          event.currentTarget.releasePointerCapture(event.pointerId);
+        if (drag.captured.hasPointerCapture(event.pointerId))
+          drag.captured.releasePointerCapture(event.pointerId);
       },
       onPointerCancel: cancel,
       onLostPointerCapture: cancel,

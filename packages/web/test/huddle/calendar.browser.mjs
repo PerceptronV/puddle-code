@@ -1,3 +1,4 @@
+import { inspectNode, chooseHuddleOption } from './helpers/controls.mjs';
 /* global window */
 import assert from 'node:assert/strict';
 import { chromium } from '@playwright/test';
@@ -20,7 +21,7 @@ try {
     await editor.getByRole('button', { name: 'Add node', exact: true }).click();
     await editor.getByRole('button', { name: `Add ${name}`, exact: true }).click();
     await editor.getByRole('button', { name: 'Add node', exact: true }).click();
-    await editor.getByRole('button', { name: `${name} event`, exact: true }).click();
+    await inspectNode(editor.getByRole('button', { name: `${name} event`, exact: true }));
   };
   const setText = async (name, value) => {
     const group = inspector.getByRole('group', { name, exact: true });
@@ -68,7 +69,10 @@ try {
   );
   await setText('Date and time', '2027-03-01T09:00:00+01:00');
   const past = inspector.getByRole('group', { name: 'If already past when armed', exact: true });
-  await past.getByLabel('If already past when armed *', { exact: true }).selectOption('skip');
+  await chooseHuddleOption(
+    past.getByLabel('If already past when armed *', { exact: true }),
+    'skip',
+  );
   await past.getByRole('button', { name: 'Apply setting' }).click();
   await editor.getByRole('button', { name: 'Save', exact: true }).click();
   await page.waitForFunction(() =>

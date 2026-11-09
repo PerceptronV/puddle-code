@@ -1,3 +1,5 @@
+import { huddleOptions } from './helpers/controls.mjs';
+import { inspectNode, chooseHuddleOption } from './helpers/controls.mjs';
 /* global window */
 import assert from 'node:assert/strict';
 import { chromium } from '@playwright/test';
@@ -20,47 +22,45 @@ async function open(query) {
 try {
   const editor = await open('spawn-templates');
   await editor.getByRole('button', { name: 'Add Spawn agent', exact: true }).click();
-  await editor
-    .getByRole('button', { name: 'Spawn agent value completed agent turn', exact: true })
-    .click();
+  await inspectNode(
+    editor.getByRole('button', { name: 'Spawn agent value completed agent turn', exact: true }),
+  );
   const inspector = editor.getByRole('complementary', { name: 'Node inspector' });
   const setting = (name) => inspector.getByRole('group', { name, exact: true });
   const choose = async (name, value) => {
     const group = setting(name);
-    await group.getByLabel(`${name} *`, { exact: true }).selectOption(value);
+    await chooseHuddleOption(group.getByLabel(`${name} *`, { exact: true }), value);
     await group.getByRole('button', { name: 'Apply setting' }).click();
   };
-  const projectId = await setting('Project')
-    .getByLabel('Project *', { exact: true })
-    .getByRole('option')
-    .nth(1)
-    .getAttribute('value');
+  const projectId = (
+    await huddleOptions(setting('Project').getByLabel('Project *', { exact: true }))
+  )[0].value;
   await choose('Project', projectId);
   await choose('Worktree', '/preview/puddle');
   await choose('Provider', 'claude');
   await choose('Account', '11');
   assert.deepEqual(
-    await setting('Provider')
-      .getByLabel('Provider *', { exact: true })
-      .getByRole('option')
-      .evaluateAll((items) => items.map((item) => item.value)),
-    ['', 'claude', 'codex'],
+    (await huddleOptions(setting('Provider').getByLabel('Provider *', { exact: true }))).map(
+      (item) => item.value,
+    ),
+    ['claude', 'codex'],
   );
   assert.deepEqual(
-    await setting('Account')
-      .getByLabel('Account *', { exact: true })
-      .getByRole('option')
-      .evaluateAll((items) => items.map((item) => item.value)),
-    ['', '11'],
+    (await huddleOptions(setting('Account').getByLabel('Account *', { exact: true }))).map(
+      (item) => item.value,
+    ),
+    ['11'],
   );
   await choose('Provider', 'codex');
   assert.equal(
-    await setting('Account').getByLabel('Account *', { exact: true }).inputValue(),
+    await setting('Account').getByLabel('Account *', { exact: true }).getAttribute('data-value'),
     '11',
   );
   assert.ok(
     (
-      await setting('Account').getByRole('option', { name: '11 · unavailable' }).textContent()
+      await setting('Account')
+        .getByRole('combobox', { name: 'Account *', exact: true })
+        .textContent()
     ).includes('unavailable'),
   );
   await choose('Account', '12');

@@ -1,5 +1,15 @@
 # The puddle communication protocol
 
+Application **28.34** adds optional `labels: { [nodeId]: string }` to huddle
+`layout.json` and its inspection projection. Labels are trimmed, 1–200 characters,
+and bounded by the existing node count. They are display names, independent of
+stable node ids, component contracts, bindings and graph execution. The IDE gates
+label edits on 28.34 and saves them through the existing layout buffer, conditional
+file save and undo/conflict handling. Omitting the map retains existing names.
+No runtime capability, database or ledger change is required; existing owners
+continue to use unchanged executable definitions. Older hosts cannot accept the
+new layout metadata, so clients must not write labels to them.
+
 Application **28.33** adds local/SSH `POST
 /api/huddle/:profile/sessions/:sid/history/input` with `{owner, execution_id}`.
 The reply is `{source: "retained-trigger", observed_at, owner, event}`. Its

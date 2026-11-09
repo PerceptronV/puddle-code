@@ -1,3 +1,4 @@
+import { inspectNode, chooseHuddleOption } from './helpers/controls.mjs';
 /* global window */
 import assert from 'node:assert/strict';
 import { chromium } from '@playwright/test';
@@ -18,7 +19,7 @@ try {
   await editor.getByRole('button', { name: 'Add node', exact: true }).click();
   await editor.getByRole('button', { name: 'Add Interval', exact: true }).click();
   await editor.getByRole('button', { name: 'Add node', exact: true }).click();
-  await editor.getByRole('button', { name: 'Interval event', exact: true }).click();
+  await inspectNode(editor.getByRole('button', { name: 'Interval event', exact: true }));
   const inspector = editor.getByRole('complementary', { name: 'Node inspector' });
   const interval = inspector.getByRole('group', { name: 'Interval (milliseconds)', exact: true });
   assert.equal(await interval.getByRole('spinbutton').inputValue(), '60000');
@@ -26,10 +27,10 @@ try {
   await interval.getByRole('button', { name: 'Apply setting' }).click();
   const missed = inspector.getByRole('group', { name: 'Missed occurrences', exact: true });
   assert.equal(
-    await missed.getByLabel('Missed occurrences *', { exact: true }).inputValue(),
+    await missed.getByLabel('Missed occurrences *', { exact: true }).getAttribute('data-value'),
     'coalesce',
   );
-  await missed.getByLabel('Missed occurrences *', { exact: true }).selectOption('catch-up');
+  await chooseHuddleOption(missed.getByLabel('Missed occurrences *', { exact: true }), 'catch-up');
   await missed.getByRole('button', { name: 'Apply setting' }).click();
   const limit = inspector.getByRole('group', { name: 'Catch-up limit', exact: true });
   await limit.getByRole('spinbutton').fill('3');

@@ -87,6 +87,10 @@ export type HuddleDefinition = z.infer<typeof huddleDefinitionSchema>;
 
 export const huddleLayoutSchema = z.strictObject({
   format: z.literal(1),
+  labels: z
+    .record(huddleKeySchema, z.string().trim().min(1).max(200))
+    .refine((value) => Object.keys(value).length <= HUDDLE_LIMITS.nodes)
+    .optional(),
   nodes: z
     .record(
       huddleKeySchema,

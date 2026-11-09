@@ -1,7 +1,6 @@
-import { useId } from 'react';
+import { RotateCcw } from 'lucide-react';
+import { HuddleAction } from '../controls/HuddleAction';
 import type { HuddleCommandTarget } from '@puddle/shared';
-import { Switch } from '../../../components/ui/switch';
-import { Label } from '../../../components/ui/label';
 import type { HuddleCommand } from './api';
 
 export function AutoStartControl({
@@ -15,26 +14,19 @@ export function AutoStartControl({
   disabled: boolean;
   send(command: HuddleCommand): Promise<void>;
 }) {
-  const id = useId();
   return (
-    <div
-      className="flex items-center gap-2"
-      title="Recover this run when the host starts after a reboot. Stopped or interrupted huddles stay stopped. A fresh Start defaults off."
-    >
-      <Switch
-        id={id}
-        checked={enabled}
-        disabled={disabled}
-        onCheckedChange={(value) =>
-          void send({
-            action: 'auto-start',
-            input: { target, expected: enabled, enabled: value },
-          }).catch(() => {})
-        }
-      />
-      <Label htmlFor={id} className="cursor-pointer text-xs">
-        Auto-start after reboot
-      </Label>
-    </div>
+    <HuddleAction
+      icon={RotateCcw}
+      label="Auto-start after reboot"
+      aria-pressed={enabled}
+      disabled={disabled}
+      title={`Auto-start after reboot: ${enabled ? 'on' : 'off'}. Recover this run when the host starts; stopped or interrupted huddles stay stopped.`}
+      onClick={() =>
+        void send({
+          action: 'auto-start',
+          input: { target, expected: enabled, enabled: !enabled },
+        }).catch(() => {})
+      }
+    />
   );
 }

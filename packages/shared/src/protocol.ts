@@ -385,7 +385,8 @@
 // 28.31: explicit static huddle module and contract-fixture validation.
 // 28.32: opt-in recorded agent identities in live and retained huddle operation history.
 // 28.33: explicit retained trigger-input inspection for a selected huddle execution.
-export const PROTOCOL_VERSION = { major: 28, minor: 33 } as const;
+// 28.34: optional display-only node labels in huddle layout metadata.
+export const PROTOCOL_VERSION = { major: 28, minor: 34 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

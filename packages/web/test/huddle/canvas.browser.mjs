@@ -1,3 +1,4 @@
+import { inspectNode } from './helpers/controls.mjs';
 /* global window */
 import assert from 'node:assert/strict';
 import { chromium } from '@playwright/test';
@@ -26,7 +27,7 @@ try {
   await page.getByRole('button', { name: 'Review graph', exact: true }).click();
   const editor = page.getByRole('region', { name: 'Huddle editor' });
   const run = editor.getByRole('button', { name: 'Run event', exact: true });
-  await run.click();
+  await inspectNode(run);
   await editor.getByRole('button', { name: 'Apply position' }).waitFor();
   await page.waitForFunction(async () => {
     const { monaco } = await import('/src/features/editor/monaco/monaco-setup.ts');
@@ -203,7 +204,7 @@ try {
   await page.evaluate(() => window.huddleFixture.releaseProjects());
   await page.getByRole('button', { name: 'New huddle', exact: true }).click();
   await page.getByRole('button', { name: 'Review graph', exact: true }).click();
-  await run.click();
+  await inspectNode(run);
   assert.equal(await editor.getByRole('button', { name: 'Apply position' }).isDisabled(), true);
   await move(100, 60);
   assert.equal(

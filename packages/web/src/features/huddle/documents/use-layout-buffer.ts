@@ -1,3 +1,4 @@
+import { huddleEditError } from './edit-errors';
 import { useMemo } from 'react';
 import { toast } from 'sonner';
 import {
@@ -52,9 +53,30 @@ export function useLayoutBuffer(session: Session, focused: boolean, definition?:
       model.pushStackElement();
       return true;
     } catch (error) {
-      toast.error(error instanceof Error ? error.message : 'Cannot move this node');
+      toast.error(huddleEditError(error, 'Cannot move this node'));
       return false;
     }
   };
-  return { ...source, ...parsed, locked, version, move };
+  const canRename = !locked && supportsApplicationFeature(protocol, { major: 28, minor: 34 });
+  const rename = (id: string, name: string) => {
+    const model = source.buffer.model;
+    if (!canRename || !model || !definition?.nodes.some((node) => node.id === id)) return;
+    try {
+      const current = huddleLayoutSchema.parse(JSON.parse(model.getValue()));
+      const labels = { ...current.labels };
+      if (name.trim()) labels[id] = name.trim();
+      else delete labels[id];
+      const { labels: _old, ...rest } = current;
+      const next = huddleLayoutSchema.parse({
+        ...rest,
+        ...(Object.keys(labels).length ? { labels } : {}),
+      });
+      model.pushStackElement();
+      applyDraft(model, JSON.stringify(next, null, 2) + '\n');
+      model.pushStackElement();
+    } catch (error) {
+      toast.error(huddleEditError(error, 'Cannot rename this node'));
+    }
+  };
+  return { ...source, ...parsed, locked, version, move, rename, canRename };
 }

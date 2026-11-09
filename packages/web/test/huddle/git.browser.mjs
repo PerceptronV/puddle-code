@@ -1,3 +1,4 @@
+import { inspectNode, chooseHuddleOption } from './helpers/controls.mjs';
 /* global window */
 import assert from 'node:assert/strict';
 import { chromium } from '@playwright/test';
@@ -20,7 +21,7 @@ try {
     await editor.getByRole('button', { name: 'Add node', exact: true }).click();
     await editor.getByRole('button', { name: `Add ${name}`, exact: true }).click();
     await editor.getByRole('button', { name: 'Add node', exact: true }).click();
-    await editor.getByRole('button', { name: `${name} event`, exact: true }).click();
+    await inspectNode(editor.getByRole('button', { name: `${name} event`, exact: true }));
   };
   const setText = async (name, value) => {
     const group = inspector.getByRole('group', { name, exact: true });
@@ -29,8 +30,11 @@ try {
   };
   await add('Git');
   const worktree = inspector.getByRole('group', { name: 'Worktree', exact: true });
-  assert.equal(await worktree.getByLabel('Worktree *', { exact: true }).inputValue(), '');
-  await worktree.getByLabel('Worktree *', { exact: true }).selectOption('/preview/puddle');
+  assert.equal(
+    await worktree.getByLabel('Worktree *', { exact: true }).getAttribute('data-value'),
+    '',
+  );
+  await chooseHuddleOption(worktree.getByLabel('Worktree *', { exact: true }), '/preview/puddle');
   await worktree.getByRole('button', { name: 'Apply setting' }).click();
   assert.equal(
     await inspector

@@ -1,3 +1,4 @@
+import { inspectNode, chooseHuddleOption } from './helpers/controls.mjs';
 /* global window */
 import assert from 'node:assert/strict';
 import { chromium } from '@playwright/test';
@@ -24,9 +25,9 @@ try {
   await editor.getByRole('button', { name: 'Add node', exact: true }).click();
   await editor.getByRole('button', { name: 'Fit graph', exact: true }).click();
   for (const name of ['Prompt spawned agent', 'Review spawned agent']) {
-    await editor
-      .getByRole('button', { name: `${name} value agent completed turn`, exact: true })
-      .click();
+    await inspectNode(
+      editor.getByRole('button', { name: `${name} value agent completed turn`, exact: true }),
+    );
     const inspector = editor.getByRole('complementary', { name: 'Node inspector' });
     await inspector.getByText(/Retained inputs: agent/).waitFor();
     assert.equal(
@@ -34,7 +35,7 @@ try {
       0,
     );
     const worktree = inspector.getByRole('group', { name: 'Worktree', exact: true });
-    await worktree.getByLabel('Worktree *', { exact: true }).selectOption('/preview/puddle');
+    await chooseHuddleOption(worktree.getByLabel('Worktree *', { exact: true }), '/preview/puddle');
     await worktree.getByRole('button', { name: 'Apply setting' }).click();
     assert.ok(
       (

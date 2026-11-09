@@ -1,3 +1,4 @@
+import { inspectNode, chooseHuddleOption } from './helpers/controls.mjs';
 /* global window */
 import assert from 'node:assert/strict';
 import { chromium } from '@playwright/test';
@@ -21,17 +22,21 @@ try {
   await editor.getByRole('button', { name: 'Add node', exact: true }).click();
   await editor.getByRole('button', { name: 'Add Session lifecycle', exact: true }).click();
   await editor.getByRole('button', { name: 'Add node', exact: true }).click();
-  await editor.getByRole('button', { name: 'Session lifecycle event', exact: true }).click();
+  await inspectNode(editor.getByRole('button', { name: 'Session lifecycle event', exact: true }));
   const inspector = editor.getByRole('complementary', { name: 'Node inspector' });
   const worktree = inspector.getByRole('group', { name: 'Worktree', exact: true });
-  assert.equal(await worktree.getByLabel('Worktree *', { exact: true }).inputValue(), '');
-  await worktree.getByLabel('Worktree *', { exact: true }).selectOption('/preview/puddle');
+  assert.equal(
+    await worktree.getByLabel('Worktree *', { exact: true }).getAttribute('data-value'),
+    '',
+  );
+  await chooseHuddleOption(worktree.getByLabel('Worktree *', { exact: true }), '/preview/puddle');
   await worktree.getByRole('button', { name: 'Apply setting' }).click();
   const session = inspector.getByRole('group', { name: 'Session', exact: true });
-  assert.equal(await session.getByLabel('Session', { exact: true }).inputValue(), '');
-  await session
-    .getByLabel('Session', { exact: true })
-    .selectOption('00000000-0000-4000-8000-000000000009');
+  assert.equal(await session.getByLabel('Session', { exact: true }).getAttribute('data-value'), '');
+  await chooseHuddleOption(
+    session.getByLabel('Session', { exact: true }),
+    '00000000-0000-4000-8000-000000000009',
+  );
   await session.getByRole('button', { name: 'Apply setting' }).click();
   const set = async (name, value) => {
     const group = inspector.getByRole('group', { name, exact: true });
@@ -60,7 +65,7 @@ try {
     statuses: { kind: 'literal', value: ['exited'] },
   });
   await session.getByRole('button', { name: 'Clear setting' }).click();
-  assert.equal(await session.getByLabel('Session', { exact: true }).inputValue(), '');
+  assert.equal(await session.getByLabel('Session', { exact: true }).getAttribute('data-value'), '');
   await editor.getByRole('button', { name: 'Save', exact: true }).click();
   await page.waitForFunction(
     () =>

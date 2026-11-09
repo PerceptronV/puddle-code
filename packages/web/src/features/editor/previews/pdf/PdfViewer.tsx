@@ -1,3 +1,4 @@
+import { bindZoomIntent } from '../../../../lib/input/zoom-intent';
 import { ControlTray } from '../../../../components/ui/control-tray';
 import { latexSynctexResponseSchema, type LatexSynctexResponse } from '@puddle/shared';
 import {
@@ -49,6 +50,7 @@ interface ZoomAnchor {
 }
 
 interface TouchPinch {
+  anchor: ZoomAnchor | undefined;
   distance: number;
   zoom: number;
 }
@@ -129,10 +131,14 @@ export function PdfViewer({
     const scroller = scrollRef.current;
     if (!scroller) return;
     let touchPinch: TouchPinch | null = null;
+    let pinching = false;
+    const intent = bindZoomIntent(scroller.ownerDocument.defaultView!);
 
     const onWheel = (event: WheelEvent) => {
-      if (!event.ctrlKey) return;
+      const mode = intent.wheel(event);
+      if (mode === 'pan' && !pinching) return;
       event.preventDefault();
+      if (mode !== 'zoom' || pinching) return;
       const pixels = wheelPixels(event, scroller.clientHeight);
       changeZoom(pdfWheelZoom(zoomRef.current, pixels), event);
     };
@@ -141,29 +147,38 @@ export function PdfViewer({
         touchPinch = null;
         return;
       }
+      event.preventDefault();
+      pinching = true;
       touchPinch = {
+        anchor: touchCentre(event.touches),
         distance: touchDistance(event.touches),
         zoom: zoomRef.current,
       };
     };
     const onTouchMove = (event: TouchEvent) => {
+      if (pinching || intent.panBlocked() || event.metaKey || event.ctrlKey) event.preventDefault();
       if (!touchPinch || event.touches.length !== 2) return;
-      event.preventDefault();
+      intent.suppressPan();
       changeZoom(
         pdfPinchZoom(touchPinch.zoom, touchPinch.distance, touchDistance(event.touches)),
-        touchCentre(event.touches),
+        touchPinch.anchor,
       );
     };
     const onTouchEnd = (event: TouchEvent) => {
       if (event.touches.length < 2) touchPinch = null;
+      if (event.touches.length === 0) {
+        if (pinching) intent.suppressPan();
+        pinching = false;
+      }
     };
 
     scroller.addEventListener('wheel', onWheel, { passive: false });
-    scroller.addEventListener('touchstart', onTouchStart, { passive: true });
+    scroller.addEventListener('touchstart', onTouchStart, { passive: false });
     scroller.addEventListener('touchmove', onTouchMove, { passive: false });
     scroller.addEventListener('touchend', onTouchEnd, { passive: true });
     scroller.addEventListener('touchcancel', onTouchEnd, { passive: true });
     return () => {
+      intent.dispose();
       scroller.removeEventListener('wheel', onWheel);
       scroller.removeEventListener('touchstart', onTouchStart);
       scroller.removeEventListener('touchmove', onTouchMove);
@@ -251,7 +266,7 @@ export function PdfViewer({
         ref={scrollRef}
         role="region"
         aria-label="PDF document"
-        className="h-full w-full overflow-auto"
+        className="h-full w-full overflow-auto [overflow-anchor:none]"
       >
         {!document || width === null ? (
           <Status>

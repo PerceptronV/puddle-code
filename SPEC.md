@@ -1911,8 +1911,36 @@ placement admission leaves discoverable files; lost create replies must not caus
 automatic creation retries. No owner launches or trigger admissions occur during
 creation/opening. Remote profile leases are denied. Application 28.0 adds a
 closed-union huddle tab and sidebar creation/opening, including the collapsed rail
-and project menus. Huddle content renders saved nodes/ports/wires, a list/inspector
-and ordinary editor source links. Manifest graph edits now share the source file's
+and project menus. Session creation trays order Agent, Terminal, Huddle, then Search
+in expanded and collapsed forms. Huddle content renders saved nodes/ports/wires, a list/inspector
+and ordinary editor source links. The IDE uses shared icon-action island trays,
+floating over the full canvas without an opaque toolbar row,
+with lifecycle actions right-aligned and Interrupt always visible (disabled when
+unavailable). Graph navigation floats at the bottom left; draft-recovery notices
+remain right-aligned at the bottom right. The title is already carried by the tab.
+One editing panel overlays the graph at a time: the grouped, coloured node catalogue
+with a fixed search field, connections, execution settings, or the node inspector.
+New catalogue nodes persist the group's colour and matching icon as their appearance.
+The node picker has 63 glyphs plus Default, includes every default catalogue icon,
+and uses glyphs outside the user/host sets for the remaining slots. Legacy saved
+profile glyphs remain readable without occupying picker slots.
+Inspector sections use nested islands and shared Puddle dropdowns. Existing shared
+tray/overlay animations respect application and system reduced-motion settings.
+Validation and dirty-source action blockers use notifications instead of permanent
+canvas banners; source conflict comparison remains explicitly accessible.
+
+The whole node body supports dragging and tap-to-inspect; sockets retain wiring.
+Names edit inline (Enter/blur commits, Escape cancels); icons open the shared picker
+anchored to the node. Explicit node colours tint the surface/outline and carry
+through text, icons and ports, independently of host selection accents.
+Application 28.34 adds optional bounded `layout.json` `labels` keyed by stable node
+id, sharing layout undo/save/conflict handling; label editing requires that host
+feature. Labels do not change component contracts or runtime node identity.
+Canvas scrollbars stay hidden. Mouse/trackpad swipe, touch pan/pinch, keyboard pan
+and Command/Ctrl-scroll use the persisted logical camera. Pinch/modified zoom hold
+a fixed anchor and suppress competing pan events, including brief inertial tails;
+the PDF/LaTeX preview shares the same input-intent guard. No OS page zoom is triggered
+by gestures inside these surfaces. Manifest graph edits now share the source file's
 Monaco model, drafts, undo, conditional saves and conflict review. Node creation,
 connection selectors, deletion, parameter bindings and appearance controls are
 available. Application 28.4 adds pointer/touch node movement, arrow-key movement,
@@ -1945,7 +1973,7 @@ into one animation frame and disposes its pending callback/resize observer on
 unmount. Selected/focused objects and active drag/connection sources stay mounted;
 wire control-point hulls retain crossing and backward curves even with both nodes
 off screen. Fit graph can render the whole graph; Node list and the connection
-inspector still address all objects. Huddle previews, validation notes, source/revision
+inspector still address all objects. Huddle previews, source/revision
 review, trigger health and execution history use the shared `Disclosure` chevron
 control, retaining native keyboard/expanded-state semantics and lazy preview content.
 Application 28.12 adds a bounded recorded-owner catalogue and retained history

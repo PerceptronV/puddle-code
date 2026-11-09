@@ -10,8 +10,13 @@ export function addGraphNode(
   graph: HuddleDefinition,
   source: HuddleNodeDefinition['source'],
   base: string,
+  appearance?: HuddleNodeDefinition['appearance'],
 ) {
-  const node = huddleNodeSchema.parse({ id: nextGraphId(graph.nodes, base), source });
+  const node = huddleNodeSchema.parse({
+    id: nextGraphId(graph.nodes, base),
+    source,
+    ...(appearance ? { appearance } : {}),
+  });
   return { ...graph, nodes: [...graph.nodes, node] };
 }
 

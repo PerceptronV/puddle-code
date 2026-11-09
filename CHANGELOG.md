@@ -13,6 +13,9 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Rework the huddle IDE into icon trays and one floating editing island, with nested settings, Puddle dropdowns, a grouped coloured node catalogue and fixed search. Add whole-node dragging, inline name/icon editing, full-node colour accents, matching catalogue defaults and a dedicated 64-choice icon picker, bottom-left canvas navigation and right-aligned recovery notices. Display-name edits require application 28.34.
+- Support anchored huddle pinch and Command/Ctrl-scroll zoom without competing swipe input; share pan suppression with the LaTeX/PDF preview and honour reduced-motion settings.
+
 - Inspect an execution's original trigger event from huddle history, CLI or MCP, including after Stop and source removal, without contacting the trigger source (application 28.33).
 
 - Link huddle operation history to its exact recorded agent session, with worktree/runtime details and retained-history support; keep older-host history compatible (application 28.32).
