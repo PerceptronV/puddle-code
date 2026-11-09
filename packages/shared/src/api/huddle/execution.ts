@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { sessionId } from '../common.js';
+import { sessionId, projectId } from '../common.js';
 import { huddleJsonSchema, huddleKeySchema, HUDDLE_LIMITS } from './values.js';
 import { huddleRevisionSchema } from './events.js';
 import {
@@ -97,6 +97,7 @@ export const huddleReadoutObserveAcceptedSchema = z.strictObject({
 const historyRequest = {
   owner: huddleRuntimeTargetSchema,
   include_readout_observation: z.literal(true).optional(),
+  include_agent: z.literal(true).optional(),
 };
 export const huddleHistoryRequestSchema = z.discriminatedUnion('collection', [
   z.strictObject({
@@ -142,6 +143,13 @@ const invocation = z.strictObject(huddleInvocationRecordSchema.shape).pick({
   result: true,
   error: true,
 });
+export const huddleHistoryAgentSchema = z.strictObject({
+  sessionId: z.uuid(),
+  projectId,
+  worktree: z.string().min(1).max(4096),
+  runtimeId: z.uuid().optional(),
+});
+export type HuddleHistoryAgent = z.infer<typeof huddleHistoryAgentSchema>;
 const operation = z
   .strictObject(huddleOperationRecordSchema.shape)
   .pick({
@@ -154,7 +162,10 @@ const operation = z
     result: true,
     error: true,
   })
-  .extend({ readout_observation: z.literal(true).optional() });
+  .extend({
+    readout_observation: z.literal(true).optional(),
+    agent: huddleHistoryAgentSchema.optional(),
+  });
 export const huddleExecutionViewSchema = execution.strip();
 export const huddleInvocationViewSchema = invocation.strip();
 export const huddleOperationViewSchema = operation.strip();

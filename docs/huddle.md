@@ -6,6 +6,11 @@ an exact asset path reads its content without activating or changing a huddle.
 The [executable fixture guide](huddle/testing.md) covers local component checks
 with fake fetch responses and agent replies using the kit's standalone runner.
 
+On application 28.32+, history's **Operations** view offers **Open agent session**
+for recorded agent actions, including retained history after Stop. It shows the
+recorded worktree and runtime; the session may now have a different runtime or
+conversation. Opening it does not resume, restart or resend anything.
+
 Huddles are project orchestration graphs powered by puddlang. This guide describes
 the implemented local/SSH workflow. The [roadmap](roadmap/huddle.md) covers the full
 design; [acceptance](acceptance/huddle.md) records verified behaviour and remaining

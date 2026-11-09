@@ -831,6 +831,8 @@ The initial IDE contains:
 - An execution inspector for trigger input, node state, bounded input/output,
   exact agent/session links, errors, delivery receipts and recovery choices.
   Definition selection and viewing a historical execution are separate modes.
+  Application 28.32 adds exact recorded agent-session links to live/retained
+  operation history, with worktree/runtime details and no lifecycle mutation.
 - Keyboard-accessible add/connect/disconnect/select/move/delete operations,
   undo/redo for graph edits, and a list/inspector alternative to precise wire
   dragging. Graph undo never undoes an external action already executed.

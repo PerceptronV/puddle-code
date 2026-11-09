@@ -550,10 +550,10 @@ export class HuddleExecutionService {
   async history(profile: string, id: string, raw: HuddleHistoryRequest, authority: Authority) {
     const input = huddleHistoryRequestSchema.parse(raw);
     const scope = this.scope(profile, id, authority);
-    const { owner, include_readout_observation, ...query } = input;
+    const { owner, include_readout_observation, include_agent, ...query } = input;
     const page = await this.deps.controls.records(id, owner, query, scope.valid);
     scope.check();
-    return projectHuddleHistory(page, include_readout_observation);
+    return projectHuddleHistory(page, include_readout_observation, include_agent);
   }
 
   historyOwners(

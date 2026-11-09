@@ -1,5 +1,11 @@
 # Edit a huddle with an agent
 
+For `pudl huddle history` / `retained-history` and their MCP equivalents, add
+`include_agent: true` inside the history request to receive recorded agent session,
+project, worktree and optional runtime identities on operation records (28.32+).
+Older hosts reject this explicit option before a request is sent. These identities
+describe the recorded operation, not proof of a currently running agent.
+
 ## Packaged authoring kit
 
 `pudl huddle authoring` lists bundled schemas, TypeScript declarations, editable

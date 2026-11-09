@@ -51,6 +51,14 @@ try {
   await page.getByRole('button', { name: 'Back to history', exact: true }).click();
   await page.getByRole('button', { name: 'Operations', exact: true }).click();
   await page.getByText('Destination reply was lost', { exact: true }).waitFor();
+  const agent = page.getByRole('link', { name: 'Open agent session', exact: true });
+  assert.match(
+    await agent.getAttribute('href'),
+    /\/project\/[a-f0-9]{10}\/session\/00000000-0000-4000-8000-000000000005$/,
+  );
+  await page.getByText('Recorded worktree: /fixture/recorded-worktree', { exact: true }).waitFor();
+  await page.getByText('Recorded agent identity', { exact: true }).click();
+  await page.getByText('Runtime 88888888-8888-4888-8888-888888888888', { exact: true }).waitFor();
   assert.equal(
     await page.getByRole('button', { name: /Observe readout|Inspect previous command/ }).count(),
     0,

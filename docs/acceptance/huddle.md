@@ -50,6 +50,30 @@ the roadmap's real-provider and packaged-platform exit requirements.
 | Session/IDE/window integration | Sidebar, lifecycle, source editing, Start and run, history, transfers and retained-draft recovery have individual evidence below. | Complete the integration audit against the full phase-2/5 requirements, including real agent authoring and native interaction acceptance. |
 | Provider/runtime/platform acceptance | Independent-owner, operation, trigger, feedback and recovery checks are recorded below, including isolated macOS crash recovery. | Complete real coder/reviewer and native-feedback checks in same/distinct worktrees, provider authoring, SSH disconnection, packaged update/removal and mixed-version continuity, reboot, and resource/battery measurements. Do not substitute fixture results for these exit gates. |
 
+## Implemented: recorded agent-session links
+
+Application 28.32 adds `include_agent: true` to live and retained history requests.
+The shared public projection returns only session/project/worktree and optional
+runtime identity from validated ask targets, completed spawn/lifecycle receipts
+or declared resume/restart targets. Unknown spawn outcomes and arbitrary
+readout/node data never produce links. Private native/account fields and prompts
+remain excluded. Omitting the flag retains the previous response shape; clients
+gate it on supporting hosts, and the daemon strips it before owner/ledger reads.
+
+The IDE's Operations view uses ordinary session routes, closes the history dialog
+when opening a session and displays recorded worktree/runtime details. Live and
+stopped-owner history share the component. It does not reconnect a runtime,
+reconcile an operation, resume a session or assert that the current conversation
+matches the recorded one. This closes the explicit agent/session-link gap found
+in the phase-2/5 integration audit. Other audit and native-provider gates remain.
+
+The focused history checks verify opt-in projection, ask/lifecycle/spawn identities,
+omission of private targets and forged result shapes, live/retained route handling
+and older-host CLI refusal. The existing headless retained-history flow verifies
+the exact session URL, recorded worktree/runtime details and continued absence of
+execution/observation mutations. Light/dark views retain the shared dialog and
+semantic styling. Shared/daemon/CLI builds, web types and token checks pass.
+
 ## Implemented: standalone executable component fixtures
 
 The client-bundled kit supplies `testing/{run,worker,sdk}.mjs`, generated shared

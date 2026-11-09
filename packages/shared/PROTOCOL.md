@@ -1,5 +1,16 @@
 # The puddle communication protocol
 
+Application **28.32** adds optional `include_agent: true` to live and retained
+huddle history requests. Supporting replies can add `agent: {sessionId, projectId,
+worktree, runtimeId?}` to operation records. The projection uses validated ask
+targets, settled spawn/lifecycle receipts, or declared resume/restart targets.
+Arbitrary node/readout results never become agent identities. No flag means no
+new field, preserving strict older response consumers. CLI/MCP reject an explicit
+flag before HTTP on older hosts; the IDE feature-detects it. Runtime/ledger/database
+formats are unchanged, and private targets, account/native references and request
+prompts remain outside this projection. Recorded identity does not prove current
+runtime or native-conversation continuity.
+
 The client-bundled authoring kit also carries a standalone executable fixture
 runner under `testing/`. Existing asset reads return its source bytes; they never
 execute it. Running copied assets is a separate local trusted-code command with

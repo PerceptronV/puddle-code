@@ -20,6 +20,7 @@ import { historyKey, useHuddleRuntime, useHuddleCommands } from './queries';
 import { useDaemonVersion } from '../../../lib/queries/queries';
 import { ReadoutObservation } from './ReadoutObservation';
 import { graphActionClass } from '../inspector/GraphEditing';
+import { AgentLink } from './history/AgentLink';
 
 type Owner = HuddleHistoryRequest['owner'];
 function usePage(profile: string, session: string, input: HuddleHistoryRequest, retained = false) {
@@ -195,6 +196,7 @@ export function HistoryDialog({
                 owner={owner}
                 execution={selected}
                 retained={retained}
+                onOpenAgent={onClose}
               />
             </div>
           ) : (
@@ -214,12 +216,14 @@ function ExecutionRecords({
   owner,
   execution,
   retained,
+  onOpenAgent,
 }: {
   profile: string;
   session: string;
   owner: Owner;
   execution: string;
   retained: boolean;
+  onOpenAgent(): void;
 }) {
   const [collection, setCollection] = useState<'invocations' | 'operations'>('invocations');
   const [cursors, setCursors] = useState([0]);
@@ -238,6 +242,9 @@ function ExecutionRecords({
       after,
       parent: execution,
       ...(observationSupported ? { include_readout_observation: true as const } : {}),
+      ...(supportsApplicationFeature(protocol, { major: 28, minor: 32 })
+        ? { include_agent: true as const }
+        : {}),
     },
     retained,
   );
@@ -322,6 +329,9 @@ function ExecutionRecords({
               <p className="py-1 text-fg-muted">{record.error}</p>
             )}
             {'inputs' in record && <Value label="Inputs" value={record.inputs} />}
+            {'agent' in record && record.agent && (
+              <AgentLink agent={record.agent} onOpen={onOpenAgent} />
+            )}
             {'result' in record && record.result !== undefined && (
               <Value label="Result" value={record.result} />
             )}

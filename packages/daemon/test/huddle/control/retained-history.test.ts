@@ -28,7 +28,7 @@ it('reads results after Stop and source removal without relaunch, adoption or pu
     expect(run.status).toBe(200);
     await until(() => readdirSync(f.home).includes('entered'));
     writeFileSync(join(f.home, 'release'), 'go');
-    const query = { owner, collection: 'executions', after: 0 };
+    const query = { owner, collection: 'executions', after: 0, include_agent: true };
     await until(
       async () =>
         (await f.request('history', query)).body.records?.[0]?.record.state === 'completed',

@@ -19,6 +19,19 @@ const target = {
 const owner = { runtimeId: target.runtimeId, incarnation: target.incarnation };
 const event = '00000000-0000-4000-8000-000000000005';
 const digest = 'a'.repeat(64);
+it('refuses explicit recorded-agent history on older hosts before sending a request', async () => {
+  const request = vi.fn();
+  const client = new HuddleClient(request, { major: 28, minor: 31 });
+  for (const action of ['history', 'retained-history'] as const)
+    await expect(
+      client.execution.execute({
+        action,
+        session_id: session,
+        request: { owner, collection: 'operations', parent: event, after: 0, include_agent: true },
+      }),
+    ).rejects.toThrow('28.32');
+  expect(request).not.toHaveBeenCalled();
+});
 const inspection = {
   session_id: session,
   unresolved: false,
@@ -161,7 +174,7 @@ it('gates runtime features and opt-in inspection fields independently of source 
   const current = new HuddleClient(request, PROTOCOL_VERSION);
   await current.execution.execute({ action: 'runtime', session_id: session });
   expect(request).toHaveBeenLastCalledWith(
-    `/sessions/${session}/runtime?include_readout_observation=true&include_custom_triggers=true`,
+    `/sessions/${session}/runtime?include_readout_observation=true&include_custom_triggers=true&include_recovery=true&include_auto_start=true&include_trigger_inspection=true&include_crash_recovery=true`,
   );
 });
 

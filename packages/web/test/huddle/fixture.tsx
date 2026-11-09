@@ -170,7 +170,12 @@ components.set(`.puddle/huddle/${savedId}/nodes/review/run.ts`, {
   mtime: 1,
 });
 const source = sourceFixture(document, disk, components);
-const retainedHistory = retainedHistoryFixture();
+const retainedHistory = retainedHistoryFixture({
+  sessionId: '00000000-0000-4000-8000-000000000005',
+  projectId: project.id,
+  worktree: '/fixture/recorded-worktree',
+  runtimeId: '88888888-8888-4888-8888-888888888888',
+});
 // Existing fixture scripts retain explicit pre-source-save host coverage.
 // Modern captured saves use ?source-saves and real computed capture hashes.
 const capturedSaves = ['source-saves', 'copy-source'].some((flag) =>

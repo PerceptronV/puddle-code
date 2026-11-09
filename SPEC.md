@@ -2051,6 +2051,14 @@ Node built-ins retain normal OS authority; this is not a sandbox or proof of
 provider admission/continuity. Static Validate never invokes it. See
 [executable fixtures](docs/huddle/testing.md) for the format and command.
 
+Application 28.32 adds opt-in recorded agent identities to live/retained operation
+history. The daemon projects only validated ask targets and spawn/lifecycle
+outcomes/targets, retaining explicit worktree and optional runtime identity. The
+IDE links the exact session through normal project routing and labels recorded
+identity separately from current runtime/conversation state. Opening a link never
+dispatches an agent operation. Older clients receive unchanged projections;
+new clients request the field only on supporting hosts. No owner/ledger changes.
+
 The IDE's **Edit with agent** action under `web/features/huddle/authoring/` uses
 ordinary session creation with an explicitly selected current-profile account,
 the huddle's exact joined worktree, an initial task/context prompt and permission

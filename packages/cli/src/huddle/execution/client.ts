@@ -27,10 +27,12 @@ export class HuddleExecutionClient {
   readonly crashRecovery: boolean;
   readonly autoStart: boolean;
   readonly triggerInspection: boolean;
+  readonly historyAgents: boolean;
   constructor(
     private readonly request: (path: string, body?: unknown) => Promise<unknown>,
     protocol?: { major: number; minor: number },
   ) {
+    this.historyAgents = supportsApplicationFeature(protocol, { major: 28, minor: 32 });
     this.retainedReadoutObservation = supportsApplicationFeature(protocol, {
       major: 28,
       minor: 21,
@@ -50,6 +52,12 @@ export class HuddleExecutionClient {
     if (!this.supported)
       throw new Error('Huddle runtime tools require compatible daemon protocol 28.2 or newer');
     const command = huddleToolExecutionCommandSchema.parse(raw);
+    if (
+      (command.action === 'history' || command.action === 'retained-history') &&
+      command.request.include_agent &&
+      !this.historyAgents
+    )
+      throw new Error('Recorded agent history requires daemon protocol 28.32 or newer');
     const path = `/sessions/${command.session_id}`;
     if (command.action === 'retained-revision') {
       if (!this.retainedRevision)

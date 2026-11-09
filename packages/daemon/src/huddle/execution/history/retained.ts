@@ -14,7 +14,7 @@ export function readRetainedHuddleHistory(
 ) {
   try {
     const launch = retainedHuddleLaunch(home, profile, session, binding, input);
-    const { owner, include_readout_observation, ...query } = input;
+    const { owner, include_readout_observation, include_agent, ...query } = input;
     const page = readPage(home, launch.scope, query);
     return {
       source: 'retained-ledger' as const,
@@ -24,6 +24,7 @@ export function readRetainedHuddleHistory(
         include_readout_observation &&
           binding?.state === 'exited' &&
           launch.capabilities.readoutObservation === 1,
+        include_agent,
       ),
     };
   } catch (error) {

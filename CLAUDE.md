@@ -804,6 +804,12 @@ for JSON samples. Keep fixture digests separate from source revisions. CLI/MCP
 falls back to graph-only checks on older hosts, refusing fixture requests there.
 Validation does not activate source, prove full TypeScript correctness or replace
 the worker's actual contract checks. Use exact captured import extensions in kits.
+Application 28.32 projects opt-in recorded agent identities in live/retained huddle
+history. Keep extraction under `huddle/execution/history/agent.ts`; use validated
+operation targets/receipts, never scan arbitrary outputs for session-shaped data.
+Strip `include_agent` before private owner/ledger reads and omit new fields for
+older callers. Web history links use normal session routing and do not start or
+reconcile agents; display recorded worktree/runtime separately from current state.
 Application 28.30 adds built-in local copies through the existing template installer.
 Keep generation in shared `huddle/templates/builtins.ts`, host source resolution in
 `huddle/components/host.ts` and the inspector in `huddle/inspector/BuiltinSource.tsx`.
