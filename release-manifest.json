@@ -1,8 +1,8 @@
 {
   "format": 2,
-  "version": "0.5.3",
+  "version": "0.5.4",
   "components": {
-    "frontend": "0.5.3",
+    "frontend": "0.5.4",
     "daemon": "0.5.3",
     "runtime": "0.5.3"
   }
