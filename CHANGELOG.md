@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Recover retained huddle graph/layout drafts when their project is unavailable, with downloads and grouped close review; label huddles correctly in CLI status and tab tooltips.
+
 - Add Start and run for stopped huddles: review saved revision, variables and manual input together, then send once after confirming the active graph; uncertain replies require inspection.
 
 - Preview huddle prompt settings with local sample JSON, showing missing fields and size errors before execution; share formatting with shipped agent and Format text scripts.

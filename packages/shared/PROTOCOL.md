@@ -1,5 +1,9 @@
 # The puddle communication protocol
 
+Unavailable-project huddle draft recovery and kind labels use existing session,
+tab and retained-buffer contracts. Account migration/handoff explicitly accept
+agent placements only. No schema or protocol version changes are introduced.
+
 The frontend Start and run action requires existing revision-review support
 (application 28.10). It composes Start → revision read → Run under one pending
 user action, verifies the saved digest/variables and uses the exact returned

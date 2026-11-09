@@ -1395,6 +1395,13 @@ dependencies. Bindings distinguish literals from named variables. File/Git/sessi
 operations require an explicit worktree binding. Typed feedback edges permit
 bounded two-agent cycles; removing those edges must leave an acyclic graph.
 
+When a native window's project is unavailable, huddle tabs still expose retained
+manifest/layout drafts through the existing local recovery/download surface.
+Register their grouped close review with the ordinary window close coordinator;
+keep/cancel preserves the drafts, and discard respects other logical views.
+Recovery requires neither the project row nor a huddle owner and does not recreate
+host files. CLI status and tab tooltips identify these placements as huddles.
+
 For stopped huddles with a saved manual trigger, **Start and run** reviews the
 saved revision, worktree, variables and one manual input together. Supporting
 clients compose existing Start, revision review and Run requests (host 28.10+),

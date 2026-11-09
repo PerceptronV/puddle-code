@@ -284,7 +284,7 @@ export async function run(command: Command): Promise<number> {
         );
         for (const s of report.sessions) {
           const title = s.title ?? '(untitled)';
-          const agent = s.kind === 'terminal' ? 'terminal' : (s.agent_type ?? 'agent');
+          const agent = s.kind === 'agent' ? (s.agent_type ?? 'agent') : s.kind;
           const when = s.last_activity_at ?? s.updated_at;
           process.stdout.write(
             `  ${s.id.slice(0, 8)}  ${pad(s.status, 13)} ${pad(agent, 12)} ${pad(title, 32)} ${when}\n`,

@@ -910,6 +910,13 @@ before owner callbacks; typed outputs remain trusted adapter data. Existing work
 retain values until interrupted/stopped. Document host-side configuration and
 rotation in `docs/huddle/integrations.md`; never read provider account credentials.
 
+Unavailable-project recovery must render huddle targets returned by
+`desktopPaneCloseReview`, not just editor tabs: those targets already own their
+retained graph/layout buffers, so they are absent from the orphan list. Keep the
+view in `windows/recovery/HuddleRecovery.tsx`, using shared `tabHoldsFile` matching
+and the existing multi-file close policy. Recover without a project/session lookup
+or runtime/file mutations. Preserve independent views when closing a graph.
+
 The IDE's Start and run action composes existing Start, revision review and Run
 requests under one pending mutation in `web/features/huddle/execution/start-and-run.ts`.
 Require revision-review support (28.10), validate both inputs before Start, then

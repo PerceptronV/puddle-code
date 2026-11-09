@@ -12,6 +12,7 @@ import { checkWindowEffects, checkDetachedEffectOwner } from './windows/effects/
 import { checkCatalogueLayouts } from './windows/arrangements/catalogue.mjs';
 import { checkArrangementHandshake } from './windows/arrangements/handshake.mjs';
 import { checkArrangementApply, checkArrangementMode } from './windows/arrangements/apply.mjs';
+import { checkHuddleRecovery } from './windows/recovery/huddle.mjs';
 
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
 const directory = await mkdtemp(join(tmpdir(), 'puddle-live-window-'));
@@ -884,6 +885,10 @@ try {
   }
   if (process.env.WINDOW_LAYOUT_APPLY === '1' && mode === 'project' && dockBack)
     await checkArrangementMode({ state, source, profileId: profile, checkText });
+  if (process.env.WINDOW_HUDDLE_RECOVERY === '1') {
+    await checkHuddleRecovery(target, profile);
+    assert.deepEqual(errors, []);
+  }
 } catch (error) {
   console.error('Transfer diagnostics', trace, errors);
   for (const [id, page] of pages) {

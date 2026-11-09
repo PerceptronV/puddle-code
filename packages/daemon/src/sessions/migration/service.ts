@@ -66,8 +66,8 @@ export async function migrateSessionAccount(
   };
   authority();
   const session = deps.sessions.get(id);
-  if (session.kind === 'terminal' || session.account_id === null || session.agent_type === null)
-    throw ApiError.badRequest('not_migratable', 'a terminal session has no account to migrate');
+  if (session.kind !== 'agent' || session.account_id === null || session.agent_type === null)
+    throw ApiError.badRequest('not_migratable', 'only agent sessions can migrate accounts');
   const project = deps.projects.get(session.project_id);
   const source = deps.accounts.get(session.account_id);
   const target = deps.accounts.get(targetAccountId);

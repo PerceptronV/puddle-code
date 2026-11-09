@@ -1,6 +1,7 @@
 import type { Session } from '@puddle/shared';
 import { SquareTerminal } from 'lucide-react';
 import { AgentIcon } from '../../../components/agent-icon';
+import { PuddleGlyph } from '../../../components/puddle-glyph';
 import { useClientSettings } from '../../../lib/settings/client-settings';
 import { useAccounts, useProjects } from '../../../lib/queries/queries';
 import { useCurrentProfileId } from '../../profile/profile-store';
@@ -17,7 +18,7 @@ import { useCurrentProfileId } from '../../profile/profile-store';
  *   surface mix projects — under a project-based layout every tab in the window
  *   belongs to the project the window is already about.
  * - **agent · account**, for an agent session; **terminal** with its terminal
- *   glyph for a shell session. A file has neither line.
+ *   glyph for a shell session; **huddle** with its Puddle glyph for a graph.
  *
  * A tab rooted outside its worktree (a browse-tree `external` file) or bound to
  * no worktree at all (an untitled draft) describes neither: the caller passes no
@@ -56,6 +57,12 @@ export function TabTooltipBody({
           <AgentIcon type={session.agent_type ?? ''} className="size-3 shrink-0" />
           <span>{session.agent_type}</span>
           {account !== undefined && <span> · {account}</span>}
+        </span>
+      )}
+      {session?.kind === 'huddle' && (
+        <span className="mt-0.5 flex items-center gap-1 text-2xs text-fg-muted">
+          <PuddleGlyph className="size-3 shrink-0" />
+          <span>huddle</span>
         </span>
       )}
       {session?.kind === 'terminal' && (

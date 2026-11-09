@@ -9,6 +9,7 @@ import { windowBufferKey } from '../state/content-state';
 import { DraftRecovery } from './DraftRecovery';
 import { useRetainedBuffers } from './use-retained-buffers';
 import { OrphanedDraft } from './OrphanedDraft';
+import { HuddleRecovery } from './HuddleRecovery';
 import { LazyEditorTabClose } from '../../editor/lazy-editor-parts';
 import { tabKind } from '../../editor/tabs/editor-tabs';
 import { tabCloseKey } from '../../workspace/tabs/close/TabCloseRequests';
@@ -41,6 +42,16 @@ export function ProjectRecovery({
       </Button>
       <div className="mt-4 flex flex-col gap-4">
         {targets.map(({ paneId, ref }) => {
+          if (ref.type === 'huddle')
+            return (
+              <HuddleRecovery
+                key={tabCloseKey(paneId, tabRefKey(ref))}
+                paneId={paneId}
+                tab={ref}
+                drafts={drafts}
+                onClose={(signal) => onClose(paneId, ref, signal)}
+              />
+            );
           if (ref.type !== 'editor') return null;
           const draft = drafts.find((value) => windowBufferKey(value) === windowBufferKey(ref.tab));
           const close = (

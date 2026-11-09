@@ -34,6 +34,49 @@ delivery and the Turn completed node's editor settings are implemented. Applicat
 28.20 adds explicit native-confirmed asks within bounded feedback executions.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## Implemented: kind-aware recovery and presentation audit
+
+The first source audit of remaining agent/terminal assumptions found and corrected
+three user-visible gaps. `puddle status` now labels a huddle as `huddle` instead of
+falling back to `agent`; tab tooltips show its Puddle glyph and kind. More seriously,
+`ProjectRecovery` skipped huddle targets returned by `desktopPaneCloseReview`.
+Those targets already owned their retained graph/layout buffers, so the buffers
+were absent from the orphan list too and became invisible during project loss.
+
+`windows/recovery/HuddleRecovery.tsx` now displays every retained buffer held by
+the graph tab using `tabHoldsFile`, with local text/download access and one grouped
+close action. The normal multi-file `EditorTabClose` registers the exact pane/tab
+close key, respects other views, and offers keep/discard review. It needs no
+project/session lookup and never starts an owner or recreates host files. Account
+migration/handoff also explicitly reject non-agent placements with an accurate
+error instead of calling every non-agent a terminal.
+
+Inspected boundaries and findings:
+
+| Boundary | Evidence and disposition |
+| --- | --- |
+| Creation/schema | `shared/api/agents/sessions.ts` intentionally restricts ordinary session creation to `AgentTerminalKind`; huddles use their dedicated creation path. No widening needed. |
+| Agent operations | `sessions/service.ts`, `sessions/migration/`, `sessions/runtime/` and huddle agent dispatch check agent identity or reject huddle placements. Migration/handoff wording and predicates corrected. |
+| Terminal transport | `ws/gateway.ts` calls `assertLegacyRuntime` for ordinary streams, which rejects huddles. Runtime notification selection joins `terminal_placements`; it does not accidentally treat huddle owners as terminal attention sources. |
+| Navigation/lifecycle | `sessionLifecycle`, `SessionActions`, `SessionTabActions`, `sessionTabRef` and `LocalPhonePane` already distinguish huddles; legacy Resume/terminal composer are excluded. CLI status and tab tooltip presentation corrected. |
+| Window ownership | Shared close analysis, content capture, file-view retention and transfer/navigation helpers already hold huddle graph/layout drafts. The unavailable-project renderer was the missing consumer and is corrected here. |
+| Trigger catalogue | Session lifecycle settings intentionally select agent/terminal sources; native completion and agent controls remain agent-specific. This audit does not widen those contracts into recursive huddle-to-huddle triggers. |
+
+Verification: `test:windows:headless huddle-recovery` runs the existing real
+window-transfer/reload fixture and adds unavailable-project graph/layout drafts.
+It verifies both texts, local download, cancel/keep, grouped discard and preservation
+of the unrelated file draft, with no host file or huddle mutations. This uses
+headless Chromium and synthetic native bridges; no Electron window or daemon is
+launched. Shared/daemon/CLI and web TypeScript, scoped lint, formatting and
+semantic-token checks pass. CLI label and tooltip changes were source/type checked,
+not separately exercised through a live CLI/hover acceptance run.
+
+This is a scoped source audit, not proof of the full roadmap. One additional gap
+was observed while building the recovery fixture: a missing huddle placement in
+an otherwise available project displays only a reconnection message; its retained
+graph/layout text should also be exposed. That recovery branch remains to be
+addressed. Platform/provider/native-window acceptance remains open.
+
 ## Implemented: Start and run
 
 Stopped huddles with a saved manual trigger now offer **Start and run** beside

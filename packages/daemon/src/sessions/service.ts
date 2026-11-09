@@ -1022,8 +1022,11 @@ export class SessionService extends EventEmitter {
    */
   async handoff(id: string, targetAccountId: number): Promise<Session> {
     const session = this.deps.sessions.get(id);
-    if (session.kind === 'terminal' || session.account_id === null || session.agent_type === null) {
-      throw ApiError.badRequest('not_migratable', 'a terminal session has no agent to hand off');
+    if (session.kind !== 'agent' || session.account_id === null || session.agent_type === null) {
+      throw ApiError.badRequest(
+        'not_migratable',
+        'only agent sessions can hand off to another agent',
+      );
     }
     const project = this.deps.projects.get(session.project_id);
     const target = this.deps.accounts.get(targetAccountId); // 404 if unknown
