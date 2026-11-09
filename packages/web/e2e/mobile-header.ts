@@ -60,7 +60,8 @@ export async function checkMobileHeader(page: Page, testInfo: TestInfo) {
   for (const name of ['New agent', 'New terminal', 'Archived sessions']) {
     const item = menu.getByRole('menuitem', { name, exact: true });
     await expect(item).toBeVisible();
-    expect((await item.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+    // The menu enters with a scale animation; measure its settled hit target.
+    await expect.poll(async () => (await item.boundingBox())!.height).toBeGreaterThanOrEqual(44);
   }
   await expect(menu.getByRole('menuitemcheckbox', { name: /Active agent$/ })).toHaveAttribute(
     'aria-checked',

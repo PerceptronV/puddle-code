@@ -34,6 +34,7 @@ test.afterAll(async () => server?.close());
 test.beforeEach(async ({ page }) => {
   await page.route(`${origin}/api/**`, (route) => {
     const path = new URL(route.request().url()).pathname;
+    if (path.endsWith('/sessions')) return route.fulfill({ json: [] });
     if (path.endsWith('/file'))
       return route.fulfill({
         json: {

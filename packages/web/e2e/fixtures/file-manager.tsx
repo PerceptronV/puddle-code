@@ -1,4 +1,5 @@
 import { createRoot } from 'react-dom/client';
+import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { Toaster } from 'sonner';
 import { PROTOCOL_VERSION, sessionSchema } from '@puddle/shared';
@@ -61,34 +62,41 @@ if (params.has('remote')) {
 
 createRoot(document.getElementById('root')!).render(
   <QueryClientProvider client={query}>
-    <TooltipProvider>
-      <div style={{ height: 300 }}>
-        <ExplorerProvider
-          session={session}
-          root={root}
-          activePath={null}
-          compilableExtensions={new Set()}
+    <MemoryRouter>
+      <TooltipProvider>
+        <div style={{ height: 300 }}>
+          <ExplorerProvider
+            session={session}
+            root={root}
+            activePath={null}
+            compilableExtensions={new Set()}
+          >
+            <FileExplorer />
+          </ExplorerProvider>
+        </div>
+        <FileTabContextMenu
+          tab={{ session: session.id, path: 'read me.txt' }}
+          directory={session.worktree_path}
+          onReveal={() => {}}
+          onRename={() => {}}
         >
-          <FileExplorer />
-        </ExplorerProvider>
-      </div>
-      <FileTabContextMenu
-        tab={{ session: session.id, path: 'read me.txt' }}
-        directory={session.worktree_path}
-        onReveal={() => {}}
-        onRename={() => {}}
-      >
-        <button>Worktree file tab</button>
-      </FileTabContextMenu>
-      <FileTabContextMenu
-        tab={{ kind: 'external', session: session.id, root: '/outside/library', path: 'notes.txt' }}
-        directory="/outside/library"
-        onReveal={() => {}}
-        onRename={() => {}}
-      >
-        <button>External file tab</button>
-      </FileTabContextMenu>
-      <Toaster />
-    </TooltipProvider>
+          <button>Worktree file tab</button>
+        </FileTabContextMenu>
+        <FileTabContextMenu
+          tab={{
+            kind: 'external',
+            session: session.id,
+            root: '/outside/library',
+            path: 'notes.txt',
+          }}
+          directory="/outside/library"
+          onReveal={() => {}}
+          onRename={() => {}}
+        >
+          <button>External file tab</button>
+        </FileTabContextMenu>
+        <Toaster />
+      </TooltipProvider>
+    </MemoryRouter>
   </QueryClientProvider>,
 );

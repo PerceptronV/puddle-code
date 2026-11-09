@@ -84,7 +84,7 @@ test('bracket highlights follow the glyphs when the editor font finishes loading
     await expect(page.locator('#root .bracket-match')).toHaveCount(2);
     expect(await page.evaluate(() => document.fonts.check('30px "Ubuntu Sans Mono"'))).toBe(false);
     await expect.poll(() => bracketOffsets(page)).toEqual([expect.any(Number), expect.any(Number)]);
-    expect(Math.max(...(await bracketOffsets(page)))).toBeLessThan(1);
+    await expect.poll(async () => Math.max(...(await bracketOffsets(page)))).toBeLessThan(1);
 
     releaseFont();
     await page.evaluate(() => document.fonts.ready.then(() => undefined));

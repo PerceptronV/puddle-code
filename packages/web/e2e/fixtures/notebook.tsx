@@ -2,6 +2,7 @@ import { monaco } from '../../src/features/editor/monaco/monaco-setup';
 import { updateClientSettings } from '../../src/lib/settings/client-settings';
 import { useState } from 'react';
 import { createRoot } from 'react-dom/client';
+import { MemoryRouter } from 'react-router';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import { DndContext } from '@dnd-kit/core';
 import type { CompilationProvider, LayoutLeaf } from '@puddle/shared';
@@ -129,4 +130,8 @@ function Fixture() {
   );
 }
 
-createRoot(document.getElementById('root')!).render(<Fixture />);
+createRoot(document.getElementById('root')!).render(
+  <MemoryRouter>
+    <Fixture />
+  </MemoryRouter>,
+);
