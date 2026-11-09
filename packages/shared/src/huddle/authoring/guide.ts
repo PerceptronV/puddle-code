@@ -151,10 +151,46 @@ File, Git and session components additionally need explicit worktree declaration
 never infer a worktree from process cwd. Custom source has trusted host OS authority.
 
 fixtures/ contains fake source responses and expected transform/delivery outcomes.
-Use these in a separate trusted-code test with mocked fetch and acknowledged emit/
-checkpoint/health callbacks. No fixture points to a live provider. Runtime tests
-must verify contract outputs, cursor progression after admission, gap handling,
-unknown delivery and cancellation; static JSON Schema validation cannot do so.
+For executable cases, copy ALL testing/ assets (including chunks/) into the huddle
+root and install its pinned zod dependency with npm install --ignore-scripts
+--prefix /absolute/worktree/.puddle/huddle/ID/testing. No puddlang npm package is
+needed. Node 22.15+ can run:
+node /absolute/worktree/.puddle/huddle/ID/testing/run.mjs --worktree /absolute/worktree
+  --huddle ID --fixture fixtures/executable.json --timeout 10000
+The shipped fixture matches examples/feed-report.json and its three local templates.
+Read/extract content through the normal kit asset commands; they never write files.
+
+Executable fixture format is {format:1,cases:[{name,node,inputs,expect:{outputs}}]}.
+Cases may supply parameters (merged with contract defaults, not graph variables),
+bindings, fake secrets, cursor, mode:deliver|observe, observeMs:0..5000 and
+abortAfterMs:1..5000. File/Git/session components require parameters.worktree as an
+explicit absolute path. Host-trigger adapters receive inputs.event and run as
+HuddleNode; their watchers are not started. Trigger callbacks record emissions,
+health and checkpoints; emit returns a fake acknowledged sequence. Subscriptions
+close after observeMs. Readouts receive a fake delivery envelope.
+fetch is an ordered list of {url,method?,body?,status?,response:{reply:JSON}|{error:TEXT}}.
+Method/status default to GET/200. URLs, methods and supplied bodies match exactly.
+operations is an ordered list of {request,response} for the actual puddlang client;
+attach returns {runtime_id:UUID,session_id:UUID}, ask replies are strings. Requests
+match JSON exactly, including structured output_schema when present. Unexpected
+or unused mocks fail, even if adapter code catches their errors. No live fallback.
+expect selects exact outputs, result, emissions, health and/or checkpoints, or an
+errorIncludes substring. At least one expectation is required. Script emissions
+are {port,value}; trigger emissions retain the full event. Omitted observations
+are not asserted. Each file is <=256 KiB with <=64 cases; observations/mock lists
+are <=64. Each case has a fresh process, 128 MiB V8 old-space and 1 MiB output limit.
+Timeout is 100..30000ms per case (default 10000); failed cases are never retried.
+JSON results name the captured revision and case outcomes; exit 0 means all passed.
+
+This executes trusted project code; it is not part of Validate. The child receives
+a small environment allowlist and fake fetch/agent APIs, but Node built-ins still
+have filesystem/process/network authority and may spawn children outside its
+deadline. Use disposable data and fake secrets: this is not an OS sandbox. There
+is no host connection, real account, graph activation or provider admission. Run
+Validate separately for full graph/source checks. No fixture points to a live
+provider. Add gap/cancellation cases for custom adapters; passing component cases
+do not prove durable runtime or external-service semantics. Maintainers regenerate
+these portable assets with node scripts/build-huddle-testing.mjs; --check detects drift.
 
 On host 28.26+, pudl huddle duplicate HUDDLE_ID --name NAME --project PROJECT_ID
 --worktree ABSOLUTE_WORKTREE --request '{"expected_digest":"REVIEWED_DIGEST"}'

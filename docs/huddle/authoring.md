@@ -3,7 +3,7 @@
 ## Packaged authoring kit
 
 `pudl huddle authoring` lists bundled schemas, TypeScript declarations, editable
-script/trigger/readout templates, two example graphs and fake integration fixtures.
+script/trigger/readout templates, example graphs and integration fixtures.
 Read one exact listed path with `pudl huddle authoring README.md` or
 `pudl huddle authoring types/puddlang-huddle.d.ts`. Output is JSON: the listing has
 `files: [{path, bytes}]`; a selected asset has `path` and `content`. Both include
@@ -23,6 +23,11 @@ not runtime cross-field/path/byte limits, binding or graph validation. Include
 and zod 4 as a development dependency. Worker imports still use pinned helpers;
 do not install a runtime package named puddlang. Maintainers regenerate declarations
 with `node scripts/build-huddle-types.mjs`; `--check` detects stale generated output.
+
+For actual component execution with fake inputs, fetch responses and agent replies,
+use the kit's [standalone fixture runner](testing.md). Copy all `testing/` assets
+together. This is an explicit trusted-code command, separate from read-only Validate,
+and requires no live daemon or agent account.
 
 Copy relevant `templates/` directories to the selected huddle's `nodes/` paths.
 The manual example needs only the transform; the feed/report example needs all

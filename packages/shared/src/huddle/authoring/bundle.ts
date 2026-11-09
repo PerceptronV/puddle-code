@@ -6,6 +6,7 @@ import { huddleDefinitionSchema } from '../../api/huddle/definitions.js';
 import { huddleAuthoringSchemas } from './schemas.js';
 import { huddleSdkTypes } from './sdk.js';
 import { huddleAuthoringGuide } from './guide.js';
+import { huddleTestingAssets } from './testing.js';
 import { coreHuddleComponents } from '../components/core.js';
 import { huddleBuiltinCopyFiles } from '../templates/builtins.js';
 import {
@@ -30,6 +31,7 @@ const edge = (id: string, from: string, port: string, to: string) => ({
 export function huddleAuthoringFiles(): Record<string, string> {
   const files: Record<string, string> = {
     'README.md': huddleAuthoringGuide,
+    ...huddleTestingAssets,
     ...Object.fromEntries(
       Object.entries(fileReportFiles).map(([name, contents]) => [
         `templates/file-report/${name}`,
@@ -63,6 +65,78 @@ export function huddleAuthoringFiles(): Record<string, string> {
           node: 'transform',
           inputs: { value: { message: 'fixture' } },
           outputs: { completed: { message: 'fixture' } },
+        },
+      ],
+    }),
+    'fixtures/executable.json': json({
+      format: 1,
+      cases: [
+        {
+          name: 'Transform executes',
+          node: 'transform',
+          inputs: { value: { message: 'fixture' } },
+          expect: { outputs: { completed: { message: 'fixture' } } },
+        },
+        {
+          name: 'Feed admits events before checkpoint',
+          node: 'feed',
+          parameters: { url: 'https://fixture.invalid/feed' },
+          fetch: [
+            {
+              url: 'https://fixture.invalid/feed',
+              response: {
+                reply: {
+                  gap: false,
+                  cursor: 'page-1',
+                  events: [{ id: 'event-1', cursor: 'event-1', data: { message: 'fixture' } }],
+                },
+              },
+            },
+          ],
+          expect: {
+            emissions: [
+              { id: 'event-1', port: 'event', data: { message: 'fixture' }, nextCursor: 'event-1' },
+            ],
+            checkpoints: ['page-1'],
+            health: [{ state: 'ready' }],
+          },
+        },
+        {
+          name: 'Report confirms receipt',
+          node: 'report',
+          parameters: { endpoint: 'https://fixture.invalid/report' },
+          inputs: { value: { message: 'fixture' } },
+          fetch: [
+            {
+              url: 'https://fixture.invalid/report',
+              method: 'POST',
+              body: '{"message":"fixture"}',
+              response: { reply: { accepted: true, receipt: { id: 'receipt-1' } } },
+            },
+          ],
+          expect: {
+            result: {
+              status: 'delivered',
+              receipt: { id: 'receipt-1' },
+              outputs: { completed: { id: 'receipt-1' } },
+            },
+          },
+        },
+        {
+          name: 'Lost report reply remains unknown',
+          node: 'report',
+          parameters: { endpoint: 'https://fixture.invalid/report' },
+          inputs: { value: { message: 'fixture' } },
+          fetch: [
+            {
+              url: 'https://fixture.invalid/report',
+              method: 'POST',
+              response: { error: 'Fixture lost reply' },
+            },
+          ],
+          expect: {
+            result: { status: 'unknown', message: 'Delivery reply unavailable or invalid' },
+          },
         },
       ],
     }),

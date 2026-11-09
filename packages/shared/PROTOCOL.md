@@ -1,5 +1,11 @@
 # The puddle communication protocol
 
+The client-bundled authoring kit also carries a standalone executable fixture
+runner under `testing/`. Existing asset reads return its source bytes; they never
+execute it. Running copied assets is a separate local trusted-code command with
+fake fetch/agent APIs, no host connection and no protocol/version change. Its
+format-1 executable fixtures are distinct from Validate's contract sample files.
+
 Application **28.31** adds local/SSH `POST
 /api/huddle/:profile/definitions/:id/validate` with `{project_id, worktree,
 fixtures?: string[]}`. At most 16 fixture paths are relative to the huddle root;

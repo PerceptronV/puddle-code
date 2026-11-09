@@ -1,6 +1,6 @@
 # Huddle implementation and acceptance
 
-Status: foundation in progress, 2026-11-08. The full objective remains the
+Status: implementation and acceptance in progress, 2026-11-08. The full objective remains the
 [huddle roadmap](../roadmap/huddle.md). Application 27.1 exposes inactive definition
 creation/opening through local/SSH HTTP. Application 28.0 adds the sidebar entry
 and graph panes. Manifest editing now shares ordinary editor drafts, undo and
@@ -43,12 +43,43 @@ the roadmap's real-provider and packaged-platform exit requirements.
 | Area | Current evidence | Remaining work |
 | --- | --- | --- |
 | Node binding preview | `web/features/huddle/inspector/BindingPreview.tsx` shares `resolveHuddleParameters`; exact captured runtime resources remain in `execution/review/RevisionDetails.tsx`. Existing template browser check verifies local resolution and sample isolation. | Implemented for draft parameter resolution; host resource admission remains part of Start/Apply. |
-| Built-in source and local copies | `inspector/BuiltinSource.tsx` exposes source/copy through the template installer; shared `huddle/components/host.ts` preserves host observation while ordinary HuddleNode workers adapt events. | Implemented with runtime capability gating; real-provider and platform acceptance remains in the matrix below. |
+| Built-in source and local copies | `inspector/BuiltinSource.tsx` exposes source/copy through the template installer; shared `huddle/components/host.ts` preserves host observation while ordinary HuddleNode workers adapt events. | Implemented with runtime capability gating; real-provider and platform acceptance remains open as described below. |
 | Trigger admission policies | `runtime/huddle/state/executions.ts` applies graph defaults/per-trigger overrides in the durable admission transaction; `inspector/settings/` exposes policies and limits. | Implemented with retained dispositions, capability gates and focused ledger/editor checks; native platform acceptance remains separate. Timer missed-occurrence coalescing is a different policy. |
-| Calendar recurrence | `runtime/huddle/triggers/calendar/` implements daily/selected-weekday and monthly/yearly schedules, timezone handling and skipped missing dates. | Implementation now includes the broader recurrence; native sleep/reboot acceptance remains in the platform matrix. |
-| Module and fixture validation | Application 28.31 adds static module/wrapper/captured-import checking and JSON contract sample files through IDE/CLI/MCP; runtime checks remain authoritative. | Complete the separate trusted-code fixture execution workflow and provider-authored component acceptance; static samples do not execute scripts. |
+| Calendar recurrence | `runtime/huddle/triggers/calendar/` implements daily/selected-weekday and monthly/yearly schedules, timezone handling and skipped missing dates. | Implementation now includes the broader recurrence; native sleep/reboot acceptance remains open. |
+| Module and fixture validation | Application 28.31 adds static module/wrapper/captured-import checking and JSON contract samples through IDE/CLI/MCP. The client kit also supplies a standalone executable component runner using real wrappers and fake I/O. | Provider-authored component acceptance remains; static samples do not execute scripts, and executable fixtures do not establish live provider/runtime behavior. |
 | Session/IDE/window integration | Sidebar, lifecycle, source editing, Start and run, history, transfers and retained-draft recovery have individual evidence below. | Complete the integration audit against the full phase-2/5 requirements, including real agent authoring and native interaction acceptance. |
 | Provider/runtime/platform acceptance | Independent-owner, operation, trigger, feedback and recovery checks are recorded below, including isolated macOS crash recovery. | Complete real coder/reviewer and native-feedback checks in same/distinct worktrees, provider authoring, SSH disconnection, packaged update/removal and mixed-version continuity, reboot, and resource/battery measurements. Do not substitute fixture results for these exit gates. |
+
+## Implemented: standalone executable component fixtures
+
+The client-bundled kit supplies `testing/{run,worker,sdk}.mjs`, generated shared
+chunks, a pinned zod development dependency and `fixtures/executable.json`.
+`daemon/src/huddle/testing/` owns the command, case format and mocks;
+`scripts/build-huddle-testing.mjs` bundles the actual wrapper implementations,
+captured-import loader, source capture and puddlang client. `--check` rejects
+stale assets. No application, database or runtime protocol change is introduced.
+Asset reads remain inert. The explicit copied runner needs Node 22.15+, a local
+worktree/definition and fixture path, but no daemon, account or placement.
+
+Cases receive contract defaults plus explicit parameters/bindings/fake secrets,
+with explicit absolute worktrees for file/Git/session capabilities. A fresh child
+executes each selected component against ordered fake fetch/agent replies and
+acknowledged trigger callbacks. Expectations compare outputs, emissions, readout
+results, health/checkpoints and/or expected failures. Unexpected or unconsumed
+mock calls fail even if caught. Trigger subscriptions close after observation;
+cancellation is explicit. Each child has bounded heap/output and a deadline.
+This is trusted code, not an OS sandbox: built-ins retain OS access and arbitrary
+spawned descendants are not contained. Graph/resource admission and native agent
+completion remain the existing runtime's responsibility, not a second fixture
+implementation. See [the usage guide](../huddle/testing.md).
+
+Eleven focused checks pass across the portable runner, existing authoring templates
+and CLI/MCP kit access. The runner check extracts the actual shipped bundle and
+executes its four examples, rejects a caught unexpected fetch, verifies environment
+separation, exercises attach/ask through the actual client and terminates a live
+overdue child. Generation drift, shared/daemon/CLI builds, web type checking, scoped
+lint and formatting checks pass. Real-provider authoring and runtime/platform
+acceptance remain pending.
 
 ## Implemented: static module and contract-fixture validation
 
@@ -75,7 +106,8 @@ fixture values, real API/CLI scope and compatibility, and top-level side-effect
 nonexecution without sessions/runtime bindings. This caught extensionless imports
 in the shipped feed/report templates; both now name their captured `http.ts` file.
 The headless editor check exercises report presentation and older-host gating. Executable
-component fixtures, real authoring agents and platform acceptance remain open.
+component fixtures are covered by the separate runner above; real authoring agents
+and platform acceptance remain open.
 
 ## Implemented: built-in source and local copies
 
@@ -4402,17 +4434,18 @@ software and did not start a service.
 
 ## Remaining implementation and acceptance
 
-Phase 0 remains open for the full component catalogue and resource admission.
-Phase 1 has retained revisions/activation, the ledger, routing, workers and a manual
-scheduler composed in an independent owner process, now exposed through local/SSH
-lifecycle, live-history and retained-history APIs with IDE controls. Next complete
-owner recovery, provider lifecycle coverage, host resource accounting and
-lifecycle fencing. Active-revision/source review and execution settings are implemented above. Finish unified trigger health/backlog,
-additional integration adapters, provider-backed lifecycle nodes,
-managed integration secrets, real-service adapters and packaged integration.
+Use the current implementation audit at the top of this document and the individual
+evidence records above. Historical increment descriptions record their status at
+the time; later entries implement recovery, resource admission/accounting, lifecycle
+nodes, trigger health/backlog, integration secrets, readout observation and authoring
+workflows. Do not treat those earlier next-step lists as current missing features.
 
-All live provider, SSH, native window, supervisor, complete owner crash/reboot, trigger cadence,
-readout reconciliation, permission/takeover, persistence/retention and installation
-acceptance is **Pending**. No fake fixture, static validator or TypeScript build
-establishes those behaviours. Maintain the roadmap's complete acceptance list as
-these features ship; do not reduce the goal to this preparatory layer.
+The remaining work is the full phase-2/5 integration audit, real-provider authoring
+and coder/reviewer/native-feedback acceptance in same and distinct worktrees, and
+packaged/platform verification: SSH disconnect/reconnect, updates/removal with mixed
+runtime versions, native window interactions, reboot and resource/battery behavior.
+Keep provider/platform acceptance pending until corresponding native evidence
+exists; retain the provider baselines in `docs/acceptance/puddlang.md`. Isolated owner/crash/trigger/delivery checks establish only their
+recorded scope; they do not establish every native platform or external service.
+Maintain the roadmap's complete acceptance list and fix implementation gaps revealed
+by these checks before claiming completion.

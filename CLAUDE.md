@@ -726,6 +726,13 @@ opening any host connection. `huddle_authoring` serves the same client-labelled 
 over MCP without host capability claims. Never interpret asset names as filesystem
 paths or write source during a kit read. Generate SDK declarations using
 `scripts/build-huddle-types.mjs`; keep its drift/type-check and fake-adapter tests.
+Standalone executable fixture code lives under `daemon/src/huddle/testing/`;
+`scripts/build-huddle-testing.mjs` bundles the actual SDK wrappers, import loader
+and mock client into the kit's `testing/` assets. Keep generation deterministic
+and use `--check` after changes to its source dependencies. Execute trusted project
+code only through the explicit copied runner command, never during asset reads or
+Validate. It has fake fetch/agent replies and per-case process deadlines, not OS
+sandboxing or graph/runtime admission. See `docs/huddle/testing.md`.
 Structural schemas do not replace source/graph/runtime validation. Placement tools live in
 `cli/src/huddle/placement/`: verify kind/profile through the scoped huddle runtime
 route before calling the ordinary session GET/archive/unarchive routes. UUID,

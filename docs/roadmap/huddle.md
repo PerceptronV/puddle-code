@@ -916,6 +916,10 @@ selected JSON fixture files with node input/parameter/output/event samples,
 using runtime contract validators without arming live triggers or contacting providers. Source
 inspection must not evaluate custom modules. Executing component tests is a
 separate trusted-code action with fake event/readout fixtures.
+The client kit now ships that separate runner in `testing/`, using production
+wrappers and captured imports with ordered fake fetch/agent replies and one bounded
+child per case. See [the executable fixture guide](../huddle/testing.md).
+This covers component behavior; real-provider authoring acceptance remains required.
 
 An IDE authoring action supplies the exact definition directory/worktree and task
 to the selected agent. The agent edits ordinary project files; the IDE observes

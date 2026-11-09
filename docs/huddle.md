@@ -3,6 +3,8 @@
 For custom components, use the [packaged authoring kit](huddle/authoring.md#packaged-authoring-kit):
 `pudl huddle authoring` lists schemas, wrapper types, templates and fake fixtures;
 an exact asset path reads its content without activating or changing a huddle.
+The [executable fixture guide](huddle/testing.md) covers local component checks
+with fake fetch responses and agent replies using the kit's standalone runner.
 
 Huddles are project orchestration graphs powered by puddlang. This guide describes
 the implemented local/SSH workflow. The [roadmap](roadmap/huddle.md) covers the full

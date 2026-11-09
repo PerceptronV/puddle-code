@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Ship a standalone huddle component fixture runner with real SDK contracts, fake fetch/agent replies, per-case deadlines and executable script/trigger/readout examples.
+
 - Validate saved huddle module syntax, captured imports, wrapper contracts and optional JSON fixture samples from the IDE or CLI/MCP without executing project code (application 28.31); fix custom trigger/readout template imports to use captured filenames.
 
 - Inspect built-in huddle adapter source and make editable local copies while retaining existing trigger subscriptions, cursors and session lifecycle machinery (application 28.30, runtime hostTriggerScripts-1).
