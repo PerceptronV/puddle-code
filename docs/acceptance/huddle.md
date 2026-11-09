@@ -47,7 +47,7 @@ the roadmap's real-provider and packaged-platform exit requirements.
 | Trigger admission policies | `runtime/huddle/state/executions.ts` applies graph defaults/per-trigger overrides in the durable admission transaction; `inspector/settings/` exposes policies and limits. | Implemented with retained dispositions, capability gates and focused ledger/editor checks; native platform acceptance remains separate. Timer missed-occurrence coalescing is a different policy. |
 | Calendar recurrence | `runtime/huddle/triggers/calendar/` implements daily/selected-weekday and monthly/yearly schedules, timezone handling and skipped missing dates. | Implementation now includes the broader recurrence; native sleep/reboot acceptance remains open. |
 | Module and fixture validation | Application 28.31 adds static module/wrapper/captured-import checking and JSON contract samples through IDE/CLI/MCP. The client kit also supplies a standalone executable component runner using real wrappers and fake I/O. | Provider-authored component acceptance remains; static samples do not execute scripts, and executable fixtures do not establish live provider/runtime behavior. |
-| Session/IDE/window integration | The phase-2/5 source/fixture audit below maps the existing seams and exposed two history gaps, now implemented in 28.32–28.33. | Headless huddle transfer and peer/external source conflict checks pass as recorded below. Real-agent edits, lost transfer replies and native interaction acceptance remain. |
+| Session/IDE/window integration | The phase-2/5 source/fixture audit below maps the existing seams and exposed two history gaps, now implemented in 28.32–28.33. | Headless huddle transfer and peer/external source conflict checks pass as recorded below. Real-agent edits, renderer-crash and native interaction acceptance remain. |
 | Provider/runtime/platform acceptance | Independent-owner, operation, trigger, feedback and recovery checks are recorded below, including isolated macOS crash recovery. | Complete real coder/reviewer and native-feedback checks in same/distinct worktrees, provider authoring, SSH disconnection, packaged update/removal and mixed-version continuity, reboot, and resource/battery measurements. Do not substitute fixture results for these exit gates. |
 
 ## Phase-2/5 source and fixture audit
@@ -60,15 +60,19 @@ The individual evidence sections below retain their original verification scope.
 | Third session kind, tray/rail creation, worktree binding and runtime gate | `documents/NewHuddleDialog.tsx`, shared placement/tab identities and normal session lifecycle policy; `huddle/authoring.browser.mjs` and `huddle/navigation.test.ts` cover creation, unsupported runtime, labels and no terminal attachment. | Packaged mixed-version admission remains a platform gate. |
 | Canvas, accessible editing, settings, colours/icons and source | `canvas/`, `inspector/`, shared editor-backed graph/layout buffers; existing canvas/wire/editing/template/browser checks cover touch/keyboard/list editing, undo, source and appearance. | Native pointer/keyboard interaction remains separate. |
 | Manual controls and execution inspection | `execution/` uses exact reviewed host controls; existing execution/review/retained checks cover start/run, revision, nodes, results and unknown delivery. Agent links and original trigger input were missing and are now supplied by 28.32/28.33. | Real agents, permissions/takeover and external services remain provider gates. |
-| Panes, previews, transfers, project/named layouts and view restoration | Kind-aware shared/window contracts, normal transfer composition and `view/` persistence; `navigation.test.ts` covers huddle tab/pane/project content and dirty-buffer ownership, while `view.browser.mjs` exercises two panes, drag, independent camera and reload. Generic headless transfers exercise shared coordinators. | The headless `huddle-transfer` flow now exercises actual renderer handoff with dirty source, captured baseline, camera and selection. Huddle-specific lost transfer replies and native desktop acceptance remain pending. |
+| Panes, previews, transfers, project/named layouts and view restoration | Kind-aware shared/window contracts, normal transfer composition and `view/` persistence; `navigation.test.ts` covers huddle tab/pane/project content and dirty-buffer ownership, while `view.browser.mjs` exercises two panes, drag, independent camera and reload. Generic headless transfers exercise shared coordinators. | The headless `huddle-transfer` flow now exercises actual renderer handoff with dirty source, captured baseline, camera and selection. Lost source/destination transfer replies and destination reload now pass in that same flow. Renderer-crash and native desktop acceptance remain pending. |
 | Dirty close, external changes and missing resources | Shared Monaco source/digest/conflict machinery, `HuddleTabClose`, window recovery; `source/saves.browser.mjs` and the headless `huddle-recovery` case cover captured saves, external dependency changes, retained drafts and missing placement/project recovery. | Two headless renderer windows now exercise peer saves and external source changes during review. A real coding agent editing alongside native windows remains unverified. |
 | Account-selected authoring and portable extension workflow | `authoring/` starts a normal managed session with an explicit account/worktree and bundled skill; source/runtime CLI/MCP tools and client kit include schemas, types, examples and executable fixtures. Existing authoring checks cover selection, dirty-source gating and no automatic activation. | A real selected-account agent must create/modify and validate a custom component from these shipped instructions. |
 
 Local read-only readiness inspection found Codex 0.166.0 and Claude Code 2.1.319
 on PATH; Gemini CLI and OpenCode were not found there (configured alternate paths
 were not inspected). The installed `pudl --help` advertises application major 26,
-so it cannot establish this branch's huddle acceptance. No agent was started or
-account credential copied during that inspection.
+so it cannot establish this branch's huddle acceptance. A subsequent read-only
+connection with the built branch CLI confirmed that the running local daemon
+reports application major 26, rejected against client major 28 before context
+reads. Live huddle acceptance needs a separately prepared supporting host; the
+existing host was not upgraded or restarted. No agent was started or account
+credential copied during these inspections.
 
 ## Verified: huddle renderer transfer and concurrent source edits
 
@@ -86,16 +90,27 @@ before replacing it. A subsequent external source edit invalidates the reviewed
 **Keep mine** action, preserving that newer edit until another comparison. No
 Start, Run, Apply, Rearm, Stop or Resume request is issued.
 
+The same flow now loses both the source's commit reply and destination's accept
+reply after the real coordinator durably commits the huddle transfer. Both
+renderers observe the committed result. Exactly one preparation, acceptance and
+commit are dispatched; no replacement move is created. Reloading the committed
+destination before saving restores the dirty manifest, zoom and selected node,
+and the subsequent peer/external conflicts still require fresh review. The
+fixture faults only the identified huddle transfer, leaving the preceding
+ordinary-file transfer unchanged.
+
 The fixture installs its shared transport before initial profile/session queries,
 retains profile and browser credential values across the fixture-only transport
 scope change, and returns the placement through both catalogue and single-session
 reads. Production transport and lifecycle code are unchanged. The ordinary file
 handoff/reload still runs before the huddle flow. This proves headless renderer
-handoff and source conflicts, not real-provider authoring, OS window gestures,
-renderer crashes or lost huddle transfer replies.
+handoff, lost-reply observation, destination reload and source conflicts, not
+real-provider authoring, OS window gestures or renderer crashes.
 
 The `huddle-transfer` and existing `file-menu` headless cases pass on macOS arm64.
-Web type checking, scoped lint/formatting and `git diff --check` also pass.
+Web type checking, scoped lint/formatting and `git diff --check` also pass. The
+subsequent lost-reply/reload extension passes the same `huddle-transfer` case and
+scoped lint/formatting checks; no application or protocol code changed.
 
 Run against a UI-only preview with:
 `PREVIEW_URL=http://127.0.0.1:5199/ pnpm --filter @puddle/web test:windows:headless huddle-transfer`.

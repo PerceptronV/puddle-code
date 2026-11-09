@@ -14,6 +14,7 @@ import { checkArrangementHandshake } from './windows/arrangements/handshake.mjs'
 import { checkArrangementApply, checkArrangementMode } from './windows/arrangements/apply.mjs';
 import { checkHuddleRecovery } from './windows/recovery/huddle.mjs';
 import { checkHuddleTransfer } from './windows/huddle/transfer.mjs';
+import { huddleTransferReplies } from './windows/huddle/replies.mjs';
 
 const root = fileURLToPath(new URL('../../../../', import.meta.url));
 const directory = await mkdtemp(join(tmpdir(), 'puddle-live-window-'));
@@ -109,6 +110,7 @@ const coordinator = new WindowTransfers({
     return commands.transfer(id, command);
   },
 });
+const huddleReplies = huddleBackend ? huddleTransferReplies(coordinator) : null;
 const pendingProjectCommands = new Map();
 const projects = new ProjectWindows({
   state: () => state,
@@ -272,6 +274,7 @@ async function openPage(record) {
     if (method === 'read') return state.readPresentation(id, request);
     if (method === 'write' || method === 'seed')
       return state.write(id, request.profileId, request.revision, request.content);
+    if (huddleReplies) return huddleReplies.dispatch(id, method, request);
     if (method === 'preparePane') return coordinator.preparePane(id, request);
     return coordinator[method](id, request);
   });
@@ -909,6 +912,7 @@ try {
       pages,
       state,
     });
+    huddleReplies.verify();
     assert.deepEqual(errors, []);
   }
   if (process.env.WINDOW_HUDDLE_RECOVERY === '1') {

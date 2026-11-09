@@ -1186,5 +1186,7 @@ The `huddle-transfer` headless case now passes through the real renderer and
 transfer coordinator with a synthetic native bridge. It preserves dirty manifest
 text, captured baseline, zoom and node selection, and rejects stale peer/external
 source saves until fresh conflict review. See [huddle acceptance](huddle.md) for
-the exact scope. Native OS acceptance and huddle-specific lost transfer replies
-remain pending.
+the exact scope. Lost source commit and destination accept replies now recover
+through observation without repeating the huddle move; destination reload keeps
+its dirty source and graph view. Native OS and renderer-crash acceptance remain
+pending for huddles.

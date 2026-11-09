@@ -85,6 +85,16 @@ export async function checkHuddleTransfer({
   assert.ok(held.buffers.some((buffer) => buffer.baseRevision?.digest));
   assert.equal(backend.name(), 'Window huddle', 'moving a view does not save source');
 
+  // Reload the committed destination before any save: restoration uses its durable capture.
+  await destination.reload();
+  await moved.getByText('Transferred huddle draft', { exact: true }).waitFor();
+  await moved.getByText('Unsaved changes', { exact: true }).waitFor();
+  await expect(moved.getByRole('button', { name: 'Reset zoom', exact: true })).toHaveText('125%');
+  await expect(moved.getByRole('button', { name: 'Result value', exact: true })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+
   // A second renderer edits the same source, while the moved renderer keeps its draft.
   await openGraph(target, profile, session);
   await editName(target, 'Saved in another window');
@@ -114,6 +124,6 @@ export async function checkHuddleTransfer({
     false,
   );
   console.log(
-    'Huddle renderer handoff preserves dirty source, captured baseline and view; peer/external edits require fresh conflict review.',
+    'Huddle handoff and destination reload preserve dirty source, captured baseline and view; peer/external edits require fresh conflict review.',
   );
 }
