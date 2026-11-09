@@ -48,7 +48,7 @@ the roadmap's real-provider and packaged-platform exit requirements.
 | Calendar recurrence | `runtime/huddle/triggers/calendar/` implements daily/selected-weekday and monthly/yearly schedules, timezone handling and skipped missing dates. | Implementation now includes the broader recurrence; native sleep/reboot acceptance remains open. |
 | Module and fixture validation | Application 28.31 adds static module/wrapper/captured-import checking and JSON contract samples through IDE/CLI/MCP. The client kit also supplies a standalone executable component runner using real wrappers and fake I/O. | Provider-authored component acceptance remains; static samples do not execute scripts, and executable fixtures do not establish live provider/runtime behavior. |
 | Session/IDE/window integration | The phase-2/5 source/fixture audit below maps the existing seams and exposed two history gaps, now implemented in 28.32–28.33. | Headless huddle transfer and peer/external source conflict checks pass as recorded below. Real-agent edits, renderer-crash and native interaction acceptance remain. |
-| Provider/runtime/platform acceptance | Independent-owner, operation, trigger, feedback and recovery checks are recorded below, including isolated macOS crash recovery. | Complete real coder/reviewer and native-feedback checks in same/distinct worktrees, provider authoring, SSH disconnection, packaged update/removal and mixed-version continuity, reboot, and resource/battery measurements. Do not substitute fixture results for these exit gates. |
+| Provider/runtime/platform acceptance | Independent-owner, operation, trigger, feedback and recovery checks are recorded below, including isolated macOS crash recovery and a packaged runtime-default update retaining an armed huddle. | Complete real coder/reviewer and native-feedback checks in same/distinct worktrees, provider authoring, SSH disconnection, packaged update/removal and mixed-version continuity, reboot, and resource/battery measurements. Do not substitute fixture results for these exit gates. |
 
 ## Phase-2/5 source and fixture audit
 
@@ -73,6 +73,43 @@ reports application major 26, rejected against client major 28 before context
 reads. Live huddle acceptance needs a separately prepared supporting host; the
 existing host was not upgraded or restarted. No agent was started or account
 credential copied during these inspections.
+
+## Verified: packaged runtime-default update with an armed huddle
+
+On macOS arm64, `pnpm build`, the host archive and standalone CLI archive builds
+pass at source commit `6aeb846f`. The host archive advertises application 28.33,
+runtime 1.2 and the current huddle capabilities. Its packaged puddlang and captured
+HuddleNode worker smoke checks pass, including a declared helper import and Zod.
+The existing standalone CLI distribution check passes installation, pinned/latest
+upgrade, failed-upgrade preservation and removal without system Node/npm.
+
+The built process integration suite passes 24 enabled checks. Its separately
+opted-in `e2e/runtime-update.test.ts` now also creates a real huddle through normal
+host authority and HTTP in a disposable repository, using the shipped **Manual
+flow** starter. The captured Transform script completes a manual execution before
+and after the native runtime-default update. Both runs retain the same runtime,
+incarnation and activation target, and history contains the exact supplied values.
+The updater selects a new immutable runtime generation while preserving the daemon
+selection/PID and the existing huddle owner. No agent account or external service
+is used. Clean Stop is confirmed, and the uniquely identified fixture runtime and
+update-worker launchd registrations are absent before removing the temporary home.
+Failed huddle cleanup retains that home for inspection.
+
+The focused packaged run and scoped lint/formatting pass. Reproduce after building
+the host archive:
+
+```sh
+PUDDLE_TEST_RUNTIME_ARCHIVE="$PWD/dist-release/puddled-v0.5.0-darwin-arm64.tar.gz" \
+PUDDLE_TEST_RUNTIME_SUPERVISOR=1 \
+pnpm --filter @puddle-code/cli exec vitest run --config vitest.e2e.config.ts \
+  e2e/runtime-update.test.ts --maxWorkers=1
+```
+
+This establishes same-version runtime-default reselection with a live huddle and
+real packaged workers. It does not establish daemon/combined replacement during
+an active invocation, old-version coexistence, removal with live owners, SSH,
+reboot, real-agent feedback or resource/battery behaviour. Those remain explicit
+platform/provider gates. Existing user installations were not changed.
 
 ## Verified: huddle renderer transfer and concurrent source edits
 

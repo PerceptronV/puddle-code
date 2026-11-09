@@ -8,6 +8,7 @@ import { hostUpdateLedgerSchema, hostUpdateWorkerSchema } from '@puddle/shared';
 import { digest } from '@puddle/shared/node';
 import { findFreePort } from '../src/lib/transport/net.js';
 import { root, stop, until } from './helpers.js';
+import { packagedHuddle } from './helpers/huddle.js';
 
 const archive = process.env.PUDDLE_TEST_RUNTIME_ARCHIVE;
 const enabled =
@@ -23,7 +24,7 @@ function workerIds(home: string): string[] {
 }
 
 it.runIf(enabled)(
-  'updates an isolated installed runtime through the built CLI and native one-shot worker',
+  'updates an isolated installed runtime while a packaged huddle keeps its owner and executes',
   async () => {
     const temporary = realpathSync(mkdtempSync(join(tmpdir(), 'puddle-update-e2e-')));
     const home = join(temporary, '.puddle');
@@ -55,6 +56,8 @@ it.runIf(enabled)(
       }
     };
     let daemon: ChildProcess | undefined;
+    let huddle: Awaited<ReturnType<typeof packagedHuddle>> | undefined;
+    let retainHome = false;
     try {
       // Temporary home, explicit environment and no installed service registration.
       for (const component of ['daemon', 'runtime']) {
@@ -92,6 +95,11 @@ it.runIf(enabled)(
         return output.includes('listening on');
       }, Boolean);
       const pid = daemon.pid;
+      const worktree = join(temporary, 'project');
+      await execute('/usr/bin/git', ['init', '-b', 'main', worktree]);
+      retainHome = true;
+      huddle = await packagedHuddle(home, port, worktree);
+      await huddle.run('Before runtime selection');
       const cli = join(root, 'packages/cli/dist/index.js');
       const result = await execute(process.execPath, [
         cli,
@@ -113,6 +121,7 @@ it.runIf(enabled)(
       expect(daemon.pid).toBe(pid);
       expect(daemon.exitCode).toBeNull();
       expect(() => process.kill(pid!, 0)).not.toThrow();
+      await huddle.run('After runtime selection');
       const job = hostUpdateWorkerSchema.parse(
         JSON.parse(readFileSync(join(home, 'updates/jobs', operation.id, 'worker.json'), 'utf8')),
       );
@@ -123,7 +132,17 @@ it.runIf(enabled)(
       expect(status.stdout + status.stderr).toContain(`${operation.id} on this machine: complete`);
     } finally {
       try {
-        if (daemon) await stop(daemon);
+        try {
+          if (huddle) {
+            await huddle.stop();
+            const service = `gui/${process.getuid!()}/dev.puddle.runtime.${digest(realpathSync(home)).slice(0, 8)}.${huddle.target.runtimeId}`;
+            expect([0, 113]).toContain(await native(['bootout', service]));
+            expect(await native(['print', service])).toBe(113);
+            retainHome = false;
+          }
+        } finally {
+          if (daemon) await stop(daemon);
+        }
       } finally {
         for (const id of workerIds(home)) {
           const job = hostUpdateWorkerSchema.parse(
@@ -139,7 +158,7 @@ it.runIf(enabled)(
           expect(await native(['print', target])).toBe(113);
         }
         // Retain files if registration absence could not be proven.
-        rmSync(temporary, { recursive: true, force: true });
+        if (!retainHome) rmSync(temporary, { recursive: true, force: true });
       }
     }
   },
