@@ -1227,6 +1227,8 @@ CI runs only on pushed release tags (`v*`) or explicit check tags (`ci` or
 `ci/**`), not ordinary branch pushes or pull requests. To check a commit without
 releasing, use a unique tag such as `git tag ci/check-name <commit>` followed by
 `git push origin ci/check-name`. CI tags never invoke release publishing.
+Keep CI and release publication independent: a CI failure must not block publication
+when the release packaging jobs pass.
 
 Desktop release packaging uses `packages/desktop/scripts/package.mjs`: at most three
 attempts for transient download failures, with 10/20-second backoff. It forces
