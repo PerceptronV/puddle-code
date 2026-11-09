@@ -12,6 +12,7 @@ import {
 } from '@puddle/shared';
 import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
+import { PromptPreview } from './PromptPreview';
 import { graphActionClass, type EditGraph } from './GraphEditing';
 import { useNodeResourceOptions, type NodeResourceOptions } from './resources';
 
@@ -271,6 +272,24 @@ function Parameter({
         </button>
       </div>
       {parameter.description && <p className="text-xs text-fg-muted">{parameter.description}</p>}
+      {parameter.editor === 'prompt' && (
+        <>
+          {kind === 'variable' && typeof variables[text]?.default === 'string' && (
+            <p className="text-xs text-fg-muted">
+              Preview uses the variable default. Start bindings may supply another template.
+            </p>
+          )}
+          <PromptPreview
+            template={
+              kind === 'literal'
+                ? text
+                : typeof variables[text]?.default === 'string'
+                  ? (variables[text].default as string)
+                  : undefined
+            }
+          />
+        </>
+      )}
       {!binding && parameter.default !== undefined && (
         <p className="text-xs text-fg-muted">Default: {JSON.stringify(parameter.default)}</p>
       )}

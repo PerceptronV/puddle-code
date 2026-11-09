@@ -380,7 +380,11 @@ such as `{ "kind": "variable", "name": "targetWorktree" }`, not strings evaluate
 as code. Literal bindings use `{ "kind": "literal", "value": ... }` so objects
 cannot be confused with references.
 Prompt interpolation supports named data references with a preview and missing
-value errors; it must not use `eval` or interpolate through a shell.
+value errors; it must not use `eval` or interpolate through a shell. The node
+inspector now previews standard `{{input}}` / `{{input.field}}` substitutions
+against local sample JSON, sharing source with shipped agent and Format text
+formatters. It reports missing values and UTF-8 size errors, labels variable
+defaults and never executes custom scripts or sends sample data.
 
 Graph execution rules must be explicit before building the canvas:
 

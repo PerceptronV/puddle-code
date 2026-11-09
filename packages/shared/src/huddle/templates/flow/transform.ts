@@ -1,5 +1,5 @@
 import { huddleComponentSchema } from '../../../api/huddle/components.js';
-import { agentPromptSource } from '../agents/prompt.js';
+import { agentPromptSource } from '../prompts/source.js';
 
 export const transformComponent = huddleComponentSchema.parse({
   format: 1,

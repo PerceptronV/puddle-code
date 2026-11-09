@@ -909,6 +909,14 @@ readout workers, including retained observation. Redact secret-worker logs/error
 before owner callbacks; typed outputs remain trusted adapter data. Existing workers
 retain values until interrupted/stopped. Document host-side configuration and
 rotation in `docs/huddle/integrations.md`; never read provider account credentials.
+
+Huddle prompt previews live in `web/features/huddle/inspector/PromptPreview.tsx`.
+Use the self-contained formatter in `shared/huddle/templates/prompts/format.ts`;
+`scripts/build-huddle-types.mjs` also publishes its exact editable source into
+node templates. Keep sample data local and separate from saved bindings or Run
+input. Preview standard substitutions only; never evaluate custom project scripts.
+No wire or runtime version change is needed for this editor feature.
+
 Application 28.27 adds manual/review-loop creation starters in
 `shared/huddle/templates/graphs/`, composed from existing node template source.
 Publish them through normal inactive creation gates, with layout/docs/input fixtures

@@ -1,7 +1,7 @@
 import { runInNewContext } from 'node:vm';
 import { transformSync } from 'esbuild';
 import { expect, it } from 'vitest';
-import { agentPromptSource } from '../../src/huddle/templates/agents/prompt.js';
+import { agentPromptSource } from '../../src/huddle/templates/prompts/source.js';
 
 // Exercise the exact editable asset copied into a user's component directory.
 const module = { exports: {} as { formatPrompt: (template: string, input: unknown) => string } };

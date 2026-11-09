@@ -39,7 +39,6 @@ export * from './huddle/templates/graphs/catalogue.js';
 export {
   promptAgentComponent,
   reviewAgentComponent,
-  agentPromptSource,
   agentNodeSource,
 } from './huddle/templates/agents/prompt.js';
 export { spawnAgentComponent, spawnAgentSource } from './huddle/templates/agents/spawn.js';
@@ -54,6 +53,8 @@ export * from './runtime/huddle/triggers/custom.js';
 export * from './huddle/validation/values.js';
 export * from './huddle/validation/graph.js';
 export * from './huddle/validation/bindings.js';
+export { agentPromptSource } from './huddle/templates/prompts/source.js';
+export { formatPrompt as formatHuddleInputPrompt } from './huddle/templates/prompts/format.js';
 export * from './api/workspace/projects.js';
 export * from './api/workspace/scratchpad.js';
 export * from './api/workspace/layouts.js';

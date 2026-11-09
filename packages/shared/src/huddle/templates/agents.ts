@@ -1,11 +1,7 @@
+import { agentPromptSource } from './prompts/source.js';
 import { nativeAgentComponent } from './agents/native.js';
 import { lifecycleAgentComponent, lifecycleAgentSource } from './agents/lifecycle.js';
-import {
-  agentNodeSource,
-  agentPromptSource,
-  promptAgentComponent,
-  reviewAgentComponent,
-} from './agents/prompt.js';
+import { agentNodeSource, promptAgentComponent, reviewAgentComponent } from './agents/prompt.js';
 import { spawnAgentComponent, spawnAgentSource } from './agents/spawn.js';
 import { promptSpawnedAgentComponent, reviewSpawnedAgentComponent } from './agents/owned.js';
 import type { HuddleInstallTemplate } from '../../api/huddle/templates.js';

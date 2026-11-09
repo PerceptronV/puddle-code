@@ -1395,6 +1395,15 @@ dependencies. Bindings distinguish literals from named variables. File/Git/sessi
 operations require an explicit worktree binding. Typed feedback edges permit
 bounded two-agent cycles; removing those edges must leave an acyclic graph.
 
+Prompt settings offer an on-demand local preview using sample JSON. The IDE and
+shipped agent/Format text sources share the standard `{{input}}` /
+`{{input.field}}` formatter, with missing-field and 128 KiB UTF-8 output errors.
+Substitutions do not evaluate code or recursively expand inserted text. Variable
+templates use an explicitly labelled default or a user-entered sample; private
+host bindings are never fetched for preview. Samples are not persisted or sent.
+Custom script formatters remain editable and may differ from this standard preview.
+No protocol change is required.
+
 Application 28.27 adds optional `template: "manual" | "review-loop"` to inactive
 huddle creation. Omission creates the existing blank graph. Shared data-only starter
 builders under `shared/huddle/templates/graphs/` compose the existing editable node

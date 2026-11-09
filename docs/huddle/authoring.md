@@ -430,3 +430,20 @@ Review-loop intentionally omits both agent parameters: select two existing agent
 in the node settings (or edit explicit session bindings), then validate. It uses
 existing Prompt/Review scripts, five feedback rounds, ten turns and approval-only
 Result output. There is no coordinator agent or automatic completion echo route.
+
+
+## Preview prompt settings
+
+Expand **Preview prompt** in a node's Prompt or Template setting and enter a JSON
+sample of its incoming value. The preview updates as you edit the template or
+sample, showing missing-field and size errors before you run anything. Strings
+are inserted as text; objects, arrays, booleans and null use JSON. Substituted text
+is not expanded again. The output limit is 128 KiB measured in UTF-8 bytes.
+
+The preview uses the same standard `{{input}}` and `{{input.field}}` formatter
+shipped with agent and Format text nodes. Custom `prompt.ts` or `run.ts` changes
+may implement other formatting: use **Open script** to inspect those changes.
+Variable-bound templates preview their labelled default, or ask for a sample
+template when no text default exists. Host Start bindings can override defaults.
+Samples stay local to the inspector, are not saved to the huddle, and never run
+nodes or send prompts to agents. **Apply setting** still applies only the setting.

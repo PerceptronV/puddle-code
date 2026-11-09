@@ -34,6 +34,36 @@ delivery and the Turn completed node's editor settings are implemented. Applicat
 28.20 adds explicit native-confirmed asks within bounded feedback executions.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## Implemented: prompt previews
+
+Prompt/Template settings now offer **Preview prompt** with local sample JSON.
+The inspector uses `shared/huddle/templates/prompts/format.ts`; the existing SDK
+asset generator also publishes that exact self-contained TypeScript as editable
+`prompt.ts` in agent and Format text templates. Formatting semantics are unchanged:
+`{{input}}` and own-field paths, JSON for nonstrings, no recursive interpolation,
+missing-field errors and a 128 KiB UTF-8 prompt limit. Existing saved component
+sources are not rewritten. No protocol or owner capability changes are required.
+
+Previews use the current field text before Apply. Variable bindings use a labelled
+text default, or a separately entered sample template when none exists. The host's
+actual Start bindings are not fetched or inferred. Preview samples remain local
+component state and do not enter source, saved settings, Run requests or agent
+prompts. Custom script formatters may differ; the UI explains this and does not
+execute project scripts to preview them.
+
+Verification: the existing headless template-authoring flow passes nested values,
+nonrecursive interpolation, missing fields, invalid JSON and multibyte output
+limits, then continues through saving, feedback wiring and Open script/contract
+without executing a huddle. Its stale global script count was replaced with checks
+for the two installed nodes' actual entry files (the fixture also contains an
+unreferenced script). The final run used an isolated UI-only Vite cache because
+the pre-existing preview's stale Monaco dependencies failed to load. No production
+daemon or native window was launched. The authoring-kit suite passes **8 checks**,
+including standalone script type-checking; the existing formatter suite passes
+**2 checks**. Shared/daemon/CLI and web types, scoped lint, generated asset drift
+and semantic-token checks pass. Variable-bound preview branches are implemented
+but were not separately exercised in the browser run.
+
 ## Implemented: creation starters
 
 Application **28.27** adds optional `template: "manual" | "review-loop"` to the

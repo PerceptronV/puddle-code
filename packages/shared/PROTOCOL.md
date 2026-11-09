@@ -1,5 +1,9 @@
 # The puddle communication protocol
 
+Prompt previews are frontend-local and use the same formatter source as shipped
+node templates. They add no request fields, runtime capability or protocol version;
+sample values never become saved settings or execution input.
+
 Application **28.27** adds optional `template: "manual" | "review-loop"` to the
 existing inactive creation request. Omission retains blank creation. The UI and
 CLI/MCP client refuse starters on older hosts; creation still requires a capable

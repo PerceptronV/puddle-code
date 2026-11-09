@@ -47,6 +47,29 @@ try {
     if (name === 'Prompt agent') {
       await prompt.getByRole('button', { name: 'Clear setting' }).click();
       assert.equal(await prompt.getByRole('textbox').inputValue(), '{{input}}');
+      const template = prompt.getByLabel('Prompt *', { exact: true });
+      await template.fill('Implement: {{input.task}}; context: {{input.context}}');
+      await prompt.getByText('Preview prompt', { exact: true }).click();
+      const sample = prompt.getByLabel('Sample input (JSON)', { exact: true });
+      await sample.fill('{"task":"fix {{input.literal}}", "context":{"ready":false}}');
+      assert.equal(
+        await prompt.getByRole('region', { name: 'Rendered prompt' }).innerText(),
+        'Implement: fix {{input.literal}}; context: {"ready":false}',
+      );
+      await sample.fill('{}');
+      await prompt
+        .getByRole('status')
+        .filter({ hasText: 'Missing prompt input field: .task' })
+        .waitFor();
+      assert.equal(await prompt.getByRole('region', { name: 'Rendered prompt' }).count(), 0);
+      await sample.fill('{');
+      await prompt.getByRole('status').waitFor();
+      await sample.fill(JSON.stringify({ task: 'é'.repeat(65536), context: null }));
+      await prompt
+        .getByRole('status')
+        .filter({ hasText: 'Prompt exceeds its byte limit' })
+        .waitFor();
+      await prompt.getByText('Preview prompt', { exact: true }).click();
       await prompt.getByRole('textbox').fill('Implement the requested changes:\n{{input}}');
       await prompt.getByRole('button', { name: 'Apply setting' }).click();
     }
@@ -92,7 +115,11 @@ try {
     '00000000-0000-4000-8000-000000000006',
   );
   const files = await page.evaluate(() => window.huddleFixture.componentFiles());
-  assert.equal(Object.keys(files).filter((path) => path.endsWith('/run.ts')).length, 2);
+  for (const id of ['prompt-agent', 'review-agent']) {
+    const node = source.nodes.find((item) => item.id === id);
+    const entry = `.puddle/huddle/${source.id}/${node.source.manifest.replace(/node\.json$/, 'run.ts')}`;
+    assert.ok(files[entry]?.content.includes('HuddleNode'), `Missing installed script: ${entry}`);
+  }
   assert.ok(Object.values(files).some((file) => file.content.includes('formatPrompt')));
   await editor.getByRole('button', { name: 'Connections', exact: true }).click();
   await reviewer.click();
