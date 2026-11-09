@@ -5,12 +5,13 @@ import { RecordedHistoryDialog } from './history/RecordedHistoryDialog';
 import { useState } from 'react';
 import { useQueryClient } from '@tanstack/react-query';
 import { toast } from 'sonner';
-import type { HuddleCommandTarget, Session } from '@puddle/shared';
+import { manualHuddleTrigger, type HuddleCommandTarget, type Session } from '@puddle/shared';
 import { ControlTray } from '../../../components/ui/control-tray';
 import { useHuddleSourceDirty } from '../documents/use-source-dirty';
 import { useHuddleAvailability, useHuddleDocument } from '../documents/queries';
 import { graphActionClass } from '../inspector/GraphEditing';
-import { huddleHistory, type HuddleCommand } from './api';
+import { huddleHistory } from './api';
+import type { HuddleExecutionCommand } from './start-and-run';
 import { CommandDialog, type CommandReview } from './CommandDialog';
 import { HistoryDialog } from './HistoryDialog';
 import { TriggerHealth } from './TriggerHealth';
@@ -80,21 +81,22 @@ export function ExecutionControls({
     !locked &&
     session.status !== 'archived';
   const canApply = canAct && !!current && !dirty && !locked && session.status !== 'archived';
-  const prepare = async (kind: 'start' | 'apply' | 'run') => {
+  const prepare = async (kind: CommandReview['kind']) => {
     if (!canAct) return;
+    const starting = kind === 'start' || kind === 'start-and-run';
     setPreparing(true);
     try {
       const observed = await runtime.refetch({ throwOnError: true });
       const active = observed.data?.owner;
       if (!observed.data || observed.data.unresolved || active?.connected === false)
         throw new Error('Runtime observation is unavailable');
-      if (kind === 'start' && active)
+      if (starting && active)
         throw new Error('An owner already exists; inspect it before starting');
-      if (kind !== 'start' && (!active?.connected || active.stopping))
+      if (!starting && (!active?.connected || active.stopping))
         throw new Error('No available owner to control');
       let document = source.data;
       if (kind !== 'run') document = (await source.refetch({ throwOnError: true })).data;
-      if (kind === 'start') {
+      if (kind === 'start' || kind === 'start-and-run') {
         if (!document) throw new Error('Saved source is unavailable');
         setReview({ kind, document });
       } else if (active?.connected) {
@@ -113,12 +115,12 @@ export function ExecutionControls({
       setPreparing(false);
     }
   };
-  const send = async (command: HuddleCommand) => {
+  const send = async (command: HuddleExecutionCommand) => {
     const response = await commands.send(command);
     setReview(null);
-    if (response.action === 'run' && command.action === 'run')
+    if (response.action === 'run')
       setHistory({
-        owner: ownerIdentity(command.input.target),
+        owner: ownerIdentity(response.target),
         execution: response.value.executionId,
       });
   };
@@ -152,11 +154,13 @@ export function ExecutionControls({
   let blocked: string | null = commands.status.review
     ? 'Close this review and inspect the previous outcome before another action.'
     : null;
-  if (review && !blocked) {
+  if (review && !blocked && !commands.status.pending) {
     if (runtime.isError || !runtime.data || runtime.data.unresolved || owner?.connected === false)
       blocked = 'Runtime observation is unavailable. Close and inspect again.';
     else if (
-      review.kind === 'start' ? !!owner : !current || !sameTarget(current.target, review.target)
+      review.kind === 'start' || review.kind === 'start-and-run'
+        ? !!owner
+        : !current || !sameTarget(current.target, review.target)
     )
       blocked = 'The active graph changed. Close and inspect again.';
     else if (review.kind !== 'run' && (dirty || locked))
@@ -220,14 +224,31 @@ export function ExecutionControls({
             </button>
           )}
           {!owner && !runtime.data?.recovery && (
-            <button
-              type="button"
-              className={graphActionClass}
-              disabled={!canStart}
-              onClick={() => void prepare('start')}
-            >
-              Start
-            </button>
+            <>
+              <button
+                type="button"
+                className={graphActionClass}
+                disabled={!canStart}
+                onClick={() => void prepare('start')}
+              >
+                Start
+              </button>
+              {reviewSupported &&
+                source.data?.definition.nodes.some(
+                  (node) =>
+                    node.source.kind === 'builtin' &&
+                    node.source.component === manualHuddleTrigger.id,
+                ) && (
+                  <button
+                    type="button"
+                    className={graphActionClass}
+                    disabled={!canStart}
+                    onClick={() => void prepare('start-and-run')}
+                  >
+                    Start and run
+                  </button>
+                )}
+            </>
           )}
           {current && (
             <>

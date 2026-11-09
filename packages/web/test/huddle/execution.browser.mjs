@@ -43,12 +43,16 @@ try {
   await open('?old-execution');
   await editor.getByRole('button', { name: 'Open definition', exact: true }).waitFor();
   assert.equal(await action('Start').count(), 0);
+  assert.equal(await action('Start and run').count(), 0);
   assert.equal(
     await page.evaluate(() =>
       window.huddleFixture.requests.some((r) => /\/sessions\/[^/]+\/runtime$/.test(r.path)),
     ),
     false,
   );
+  await open('?old-review');
+  await action('Start').waitFor();
+  assert.equal(await action('Start and run').count(), 0);
   await open();
   await action('Start').click();
   await dialog.getByRole('button', { name: 'Start saved graph', exact: true }).click();
@@ -181,6 +185,78 @@ try {
   await editor.getByText('Stopped', { exact: true }).waitFor();
   await action('Start').waitFor();
   assert.equal(await count('stop'), 1);
+
+  // Combined Start/Run retains one pending mutation and never retries either step.
+  async function prepareCombined() {
+    await action('Start and run').click();
+    await dialog.getByText(/Saved revision /).waitFor();
+    await dialog
+      .getByLabel('Variables (JSON)', { exact: true })
+      .fill('{"targetWorktree":"/project"}');
+    await dialog.getByLabel('Input (JSON)', { exact: true }).fill('{"prompt":"Combined input"}');
+  }
+  await open();
+  await prepareCombined();
+  await dialog.getByLabel('Input (JSON)', { exact: true }).fill('{');
+  await dialog.getByRole('button', { name: 'Start and run', exact: true }).click();
+  await dialog.getByRole('alert').waitFor();
+  assert.equal(await count('start'), 0);
+  await dialog.getByLabel('Input (JSON)', { exact: true }).fill('{"prompt":"Combined input"}');
+  await page.evaluate(() => window.huddleFixture.runtime.holdNext('run'));
+  await dialog.getByRole('button', { name: 'Start and run', exact: true }).click();
+  await page.waitForFunction(() =>
+    window.huddleFixture.requests.some((r) => r.path.endsWith('/run')),
+  );
+  assert.equal(
+    await dialog.getByRole('button', { name: 'Sending…', exact: true }).isDisabled(),
+    true,
+  );
+  assert.equal(await count('start'), 1);
+  assert.equal(await count('revision'), 1);
+  assert.equal(await count('run'), 1);
+  await page.evaluate(() => window.huddleFixture.runtime.release());
+  await dialog.getByRole('heading', { name: 'Huddle history', exact: true }).waitFor();
+  await dialog.getByText('Combined input', { exact: false }).first().waitFor();
+  await close();
+
+  for (const lost of ['start', 'run']) {
+    await open();
+    await prepareCombined();
+    await page.evaluate((action) => window.huddleFixture.runtime.loseNext(action), lost);
+    await dialog.getByRole('button', { name: 'Start and run', exact: true }).click();
+    await dialog.getByRole('alert').waitFor();
+    await close();
+    assert.equal(await count('start'), 1);
+    assert.equal(await count('run'), lost === 'start' ? 0 : 1);
+    await action('Inspect outcome').click();
+    await dialog.getByRole('heading', { name: 'Huddle history', exact: true }).waitFor();
+    assert.equal(await count('start'), 1);
+    assert.equal(await count('run'), lost === 'start' ? 0 : 1);
+    assert.equal(
+      await page.evaluate(() => window.huddleFixture.runtime.executions().length),
+      lost === 'start' ? 0 : 1,
+    );
+    await close();
+  }
+
+  // Another controller interrupts the owner while the revision read is in flight.
+  await open();
+  await prepareCombined();
+  await page.evaluate(() => window.huddleFixture.runtime.holdNext('revision'));
+  await dialog.getByRole('button', { name: 'Start and run', exact: true }).click();
+  await page.waitForFunction(() =>
+    window.huddleFixture.requests.some((r) => r.path.endsWith('/revision')),
+  );
+  await page.evaluate(async () => {
+    const runtime = window.huddleFixture.runtime;
+    await runtime.request('00000000-0000-4000-8000-000000000003', 'interrupt', {
+      target: runtime.state().target,
+    });
+    runtime.release();
+  });
+  await dialog.getByRole('alert').waitFor();
+  assert.equal(await count('run'), 0);
+  await close();
   assert.deepEqual(errors, []);
   console.log(
     'Huddle execution: capability gate, saved-source review, explicit input/results, lifecycle, dirty drafts, stale source, lost replies, pagination and narrow layouts pass.',

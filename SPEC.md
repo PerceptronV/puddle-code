@@ -1395,6 +1395,16 @@ dependencies. Bindings distinguish literals from named variables. File/Git/sessi
 operations require an explicit worktree binding. Typed feedback edges permit
 bounded two-agent cycles; removing those edges must leave an acyclic graph.
 
+For stopped huddles with a saved manual trigger, **Start and run** reviews the
+saved revision, worktree, variables and one manual input together. Supporting
+clients compose existing Start, revision review and Run requests (host 28.10+),
+keeping one mutation pending throughout. Validate both inputs before Start and
+verify its exact target, active revision and variables before sending the event.
+Run remains conditional on the same owner generation/activation. Lost replies,
+connection changes or competing controls require inspection, with no replay or
+automatic rollback; Start may have armed automatic triggers even when manual
+input was not sent. Separate Start and Run controls remain available.
+
 Prompt settings offer an on-demand local preview using sample JSON. The IDE and
 shipped agent/Format text sources share the standard `{{input}}` /
 `{{input.field}}` formatter, with missing-field and 128 KiB UTF-8 output errors.

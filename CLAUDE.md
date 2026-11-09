@@ -910,6 +910,14 @@ before owner callbacks; typed outputs remain trusted adapter data. Existing work
 retain values until interrupted/stopped. Document host-side configuration and
 rotation in `docs/huddle/integrations.md`; never read provider account credentials.
 
+The IDE's Start and run action composes existing Start, revision review and Run
+requests under one pending mutation in `web/features/huddle/execution/start-and-run.ts`.
+Require revision-review support (28.10), validate both inputs before Start, then
+verify the returned exact target, saved digest and variables before sending once.
+Connection changes or uncertain replies stop the sequence and require observation;
+never restart, retry, select another owner or roll back the started graph. Start
+still arms automatic triggers. The standalone controls retain their existing gates.
+
 Huddle prompt previews live in `web/features/huddle/inspector/PromptPreview.tsx`.
 Use the self-contained formatter in `shared/huddle/templates/prompts/format.ts`;
 `scripts/build-huddle-types.mjs` also publishes its exact editable source into

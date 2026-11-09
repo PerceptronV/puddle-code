@@ -447,3 +447,19 @@ Variable-bound templates preview their labelled default, or ask for a sample
 template when no text default exists. Host Start bindings can override defaults.
 Samples stay local to the inspector, are not saved to the huddle, and never run
 nodes or send prompts to agents. **Apply setting** still applies only the setting.
+
+
+## Start and run
+
+A stopped huddle with a saved Run trigger offers **Start and run** on hosts with
+revision review support (28.10+). Review the saved revision and worktree, supply
+its variables, choose the manual trigger and enter the input as JSON. Both forms
+are validated before starting. After Start succeeds, the UI confirms the active
+revision and variables, then sends the input to that exact activation.
+
+Start also arms automatic triggers. This action is a sequence, not a transaction:
+if revision verification fails, the huddle can remain armed with no manual input
+sent. A lost Start reply stops before sending input; a lost Run reply may mean
+the input was accepted. Close the review and use **Inspect outcome**. Neither step
+is retried, resumed on reconnect, or rolled back automatically. Normal **Start**
+and **Run** remain available separately.

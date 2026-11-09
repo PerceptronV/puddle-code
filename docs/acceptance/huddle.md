@@ -34,6 +34,40 @@ delivery and the Turn completed node's editor settings are implemented. Applicat
 28.20 adds explicit native-confirmed asks within bounded feedback executions.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## Implemented: Start and run
+
+Stopped huddles with a saved manual trigger now offer **Start and run** beside
+Start. The review shows saved revision/worktree, variables, trigger and JSON input.
+Both inputs are validated before starting. The frontend helper under
+`web/features/huddle/execution/start-and-run.ts` composes existing Start, revision
+review and Run requests under one pending mutation. It requires host 28.10's
+revision-review support; older hosts retain their existing separate controls.
+There is no new wire action, runtime capability, database change or lifecycle path.
+
+After Start, the client requires a connected armed owner, the same session, and
+an activation. Revision review must match that exact target and the submitted
+saved digest/variables. Run uses the returned owner/generation/activation and a
+single event id. Changes in connection credentials/transport at request boundaries
+stop continuation. Successful Run opens the existing execution history.
+
+Start arms automatic triggers before manual input is sent; the dialog explains
+this. These steps are not a transaction. A failed/lost Start reply sends no manual
+input; failed revision verification leaves the started graph for inspection. A
+lost Run reply may represent accepted input. Errors identify the stage and retain
+the existing observation requirement. There is no retry, reconnect queue, automatic
+Stop/rollback or substitution of a newer activation. The shared pending state
+prevents overlapping commands in this renderer throughout all three requests.
+
+Verification: the existing headless execution flow passes the original lifecycle,
+dirty-source, stale-source, history and narrow-layout checks plus combined success,
+invalid input before Start, pending-state retention through Run, old-host gates,
+lost Start/Run replies and an intervening interruption while revision inspection
+is in flight. Inspection does not repeat either mutation. This uses the real
+frontend with in-memory HTTP/runtime fixtures, not a production daemon or live
+provider. Web TypeScript, scoped lint, formatting and semantic-token checks pass.
+The existing backend Start/Run semantics are unchanged; real-host combined-action
+acceptance remains part of the platform/provider matrix.
+
 ## Implemented: prompt previews
 
 Prompt/Template settings now offer **Preview prompt** with local sample JSON.

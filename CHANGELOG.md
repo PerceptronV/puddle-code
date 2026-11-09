@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Add Start and run for stopped huddles: review saved revision, variables and manual input together, then send once after confirming the active graph; uncertain replies require inspection.
+
 - Preview huddle prompt settings with local sample JSON, showing missing fields and size errors before execution; share formatting with shipped agent and Format text scripts.
 
 - Create huddles from Manual flow or Two-agent review starters, with editable scripts, layout, README and sample input. Review requires explicit agent choices and stops after five rounds; creation stays inactive (application 28.27, also CLI/MCP and authoring kit).

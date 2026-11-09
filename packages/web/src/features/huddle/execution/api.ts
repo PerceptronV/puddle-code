@@ -104,7 +104,11 @@ export async function sendHuddleCommand(profile: string, session: string, comman
   if (command.action === 'readouts/observe' || command.action === 'readouts/observe-retained')
     return { action: 'observing' as const, value: huddleReadoutObserveAcceptedSchema.parse(reply) };
   if (command.action === 'run')
-    return { action: 'run' as const, value: huddleRunAcceptedSchema.parse(reply) };
+    return {
+      action: 'run' as const,
+      value: huddleRunAcceptedSchema.parse(reply),
+      target: command.input.target,
+    };
   if (command.action === 'stop')
     return { action: 'stop' as const, value: huddleStoppedSchema.parse(reply) };
   return { action: 'state' as const, value: huddleRuntimeInspectionSchema.parse(reply) };

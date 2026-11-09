@@ -195,6 +195,10 @@ it does not arm external triggers or send an agent prompt. Existing definitions
 can be opened without creating another runtime. Start arms a saved revision;
 Run supplies one manual trigger event to the active revision. For a stopped
 huddle, offer an explicit Start and run action showing the revision and bindings.
+This is now implemented on hosts with revision review (28.10+): the IDE validates
+both inputs, starts once, confirms the active revision/variables, then sends one
+manual event to that exact activation. Automatic triggers arm during Start; any
+uncertain step requires inspection without retries or rollback.
 
 Initial workflows should prove the whole model:
 

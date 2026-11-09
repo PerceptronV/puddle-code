@@ -18,10 +18,11 @@ import { Input } from '../../../components/ui/input';
 import { Label } from '../../../components/ui/label';
 import { fieldSurface } from '../../../components/ui/recipes';
 import { initialHuddleVariables, parseHuddleInput, parseHuddleVariables } from './forms';
-import type { HuddleCommand } from './api';
+import type { HuddleExecutionCommand } from './start-and-run';
 
 export type CommandReview =
   | { kind: 'start'; document: HuddleDocument }
+  | { kind: 'start-and-run'; document: HuddleDocument }
   | {
       kind: 'apply' | 'run';
       document?: HuddleDocument;
@@ -47,7 +48,7 @@ export function CommandDialog({
   blocked: string | null;
   pending: boolean;
   error: string | null;
-  send(command: HuddleCommand): Promise<void>;
+  send(command: HuddleExecutionCommand): Promise<void>;
   onClose(): void;
 }) {
   const id = useId();
@@ -67,12 +68,16 @@ export function CommandDialog({
           : '{}',
   );
   const [failure, setFailure] = useState<string | null>(null);
+  const [manualText, setManualText] = useState('null');
   const running = review.kind === 'run';
+  const combined = review.kind === 'start-and-run';
   const title = running
     ? 'Run huddle'
-    : review.kind === 'start'
-      ? 'Start saved graph'
-      : 'Apply saved graph';
+    : combined
+      ? 'Start and run'
+      : review.kind === 'start'
+        ? 'Start saved graph'
+        : 'Apply saved graph';
   const submit = async () => {
     if (blocked || pending) return;
     setFailure(null);
@@ -96,11 +101,20 @@ export function CommandDialog({
           expected_digest: review.document.digest,
           variables: parseHuddleVariables(review.document.definition, text),
         };
-        await send(
-          review.kind === 'start'
-            ? { action: 'start', input }
-            : { action: 'apply', input: { ...input, target: review.target } },
-        );
+        if (review.kind === 'start-and-run') {
+          if (!triggers.some((trigger) => trigger.id === node.trim()))
+            throw new Error('Choose a manual trigger from the saved graph');
+          await send({
+            action: 'start-and-run',
+            input,
+            event: { node: node.trim(), event_id: eventId, data: parseHuddleInput(manualText) },
+          });
+        } else
+          await send(
+            review.kind === 'start'
+              ? { action: 'start', input }
+              : { action: 'apply', input: { ...input, target: review.target } },
+          );
       }
     } catch (error) {
       setFailure(error instanceof Error ? error.message : 'Cannot send this command');
@@ -121,7 +135,9 @@ export function CommandDialog({
         <DialogDescription>
           {running
             ? 'Send one input to the active graph. Apply saved edits to use them in future runs.'
-            : 'Use the saved files and the variables below. Unsaved script edits are not included. Start arms automatic triggers; Apply resets their schedules. Both create a new activation, so past one-off dates set to fire may run again. Manual input is sent separately.'}
+            : combined
+              ? 'Start the saved revision with these variables, then send one manual input after confirming the active revision. Starting also arms automatic triggers, including past one-off dates set to fire. If either step is uncertain, inspect the outcome before continuing.'
+              : 'Use the saved files and the variables below. Unsaved script edits are not included. Start arms automatic triggers; Apply resets their schedules. Both create a new activation, so past one-off dates set to fire may run again. Manual input is sent separately.'}
         </DialogDescription>
         {!running && (
           <div className="space-y-1 text-xs text-fg-muted">
@@ -147,7 +163,7 @@ export function CommandDialog({
             void submit();
           }}
         >
-          {running && (
+          {(running || combined) && (
             <div className="flex flex-col gap-2">
               <Label htmlFor={`${id}-node`}>Manual trigger</Label>
               <Input
@@ -163,8 +179,9 @@ export function CommandDialog({
                 ))}
               </datalist>
               <p className="text-xs text-fg-muted">
-                Suggestions come from saved source. Enter an existing trigger id if the active graph
-                differs.
+                {combined
+                  ? 'Choose a manual trigger in this saved revision.'
+                  : 'Suggestions come from saved source. Enter an existing trigger id if the active graph differs.'}
               </p>
             </div>
           )}
@@ -182,9 +199,25 @@ export function CommandDialog({
               }}
             />
           </div>
+          {combined && (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor={`${id}-input`}>Input (JSON)</Label>
+              <textarea
+                id={`${id}-input`}
+                className={`${fieldSurface} min-h-28 resize-y p-2 font-mono text-xs`}
+                value={manualText}
+                disabled={pending}
+                spellCheck={false}
+                onChange={(event) => {
+                  setManualText(event.target.value);
+                  setFailure(null);
+                }}
+              />
+            </div>
+          )}
           {(blocked || error || failure) && (
             <p role="alert" className="whitespace-pre-wrap break-words text-xs text-fg-muted">
-              {blocked ?? error ?? failure}
+              {combined && error ? error : (blocked ?? error ?? failure)}
             </p>
           )}
           <DialogFooter>

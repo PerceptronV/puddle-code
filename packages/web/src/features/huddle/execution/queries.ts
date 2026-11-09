@@ -2,7 +2,9 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { supportsApplicationFeature } from '@puddle/shared';
 import { useDaemonVersion } from '../../../lib/queries/queries';
 import { useHuddleSupported } from '../documents/queries';
-import { inspectHuddle, sendHuddleCommand, type HuddleCommand } from './api';
+import { inspectHuddle, sendHuddleCommand } from './api';
+import { useHuddleReviewSupported } from './review/api';
+import { startAndRunHuddle, type HuddleExecutionCommand } from './start-and-run';
 
 export const runtimeKey = (profile: string, session: string) =>
   ['huddle-runtime', profile, session] as const;
@@ -49,6 +51,7 @@ const initial: CommandStatus = { pending: false, review: false, error: null, exe
 /** Shared per placement in this renderer; unmount/reconnect never queues or retries a mutation. */
 export function useHuddleCommands(profile: string, session: string) {
   const supported = useHuddleExecutionSupported();
+  const reviewSupported = useHuddleReviewSupported();
   const cache = useQueryClient();
   const key = ['huddle-command', profile, session];
   const status = useQuery({
@@ -63,7 +66,10 @@ export function useHuddleCommands(profile: string, session: string) {
     mutationKey: key,
     retry: false,
     networkMode: 'always',
-    mutationFn: (command: HuddleCommand) => sendHuddleCommand(profile, session, command),
+    mutationFn: (command: HuddleExecutionCommand) =>
+      command.action === 'start-and-run'
+        ? startAndRunHuddle(profile, session, command)
+        : sendHuddleCommand(profile, session, command),
     onSuccess: (reply) => {
       if (reply.action === 'state') cache.setQueryData(runtimeKey(profile, session), reply.value);
       cache.setQueryData<CommandStatus>(key, {
@@ -81,9 +87,11 @@ export function useHuddleCommands(profile: string, session: string) {
   });
   return {
     status,
-    async send(command: HuddleCommand) {
+    async send(command: HuddleExecutionCommand) {
       const current = cache.getQueryData<CommandStatus>(key) ?? initial;
       if (!supported || !profile) throw new Error('This host does not support huddle execution');
+      if (command.action === 'start-and-run' && !reviewSupported)
+        throw new Error('Start and run requires a host supporting revision review');
       if (current.pending || current.review || cache.isMutating({ mutationKey: key }))
         throw new Error('Inspect the previous command before another action');
       cache.setQueryData<CommandStatus>(key, { ...initial, pending: true });

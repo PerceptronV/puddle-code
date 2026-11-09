@@ -1,5 +1,11 @@
 # The puddle communication protocol
 
+The frontend Start and run action requires existing revision-review support
+(application 28.10). It composes Start → revision read → Run under one pending
+user action, verifies the saved digest/variables and uses the exact returned
+activation target. It adds no HTTP action, schema or protocol version. Lost replies
+and connection changes are observation-only; neither mutation is retried.
+
 Prompt previews are frontend-local and use the same formatter source as shipped
 node templates. They add no request fields, runtime capability or protocol version;
 sample values never become saved settings or execution input.
