@@ -15,8 +15,8 @@ import { huddleExecutionRoutes } from '../../../src/http/routes/execution/huddle
 import { ApiError } from '../../../src/http/errors.js';
 import { huddleLaunchFixture } from './launch.js';
 
-export async function huddleExecutionFixture(native?: 'interactive') {
-  const f = await huddleLaunchFixture(false, native);
+export async function huddleExecutionFixture(native?: 'interactive', nativeSupervisor = false) {
+  const f = await huddleLaunchFixture(false, native, nativeSupervisor);
   execFileSync('git', ['init', '-b', 'main', f.home], { stdio: 'ignore' });
   const repos = new RepoStore(f.db);
   const projects = new ProjectStore(f.db);

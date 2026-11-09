@@ -50,6 +50,8 @@ export function copyHuddleRecoverySeed(
   )
     throw new Error('Automatic recovery requires supporting source and replacement owners');
   if (containment) {
+    if (containment.kind === 'darwin-resource-coalition' && capabilities.coalitionRecovery !== 1)
+      throw new Error('Selected runtime does not support macOS coalition recovery');
     if (source.boot_id !== boot) throw new Error('Unexpected same-boot containment proof');
     requireHuddleDescendantsEnded(home, source, containment);
   }
@@ -73,6 +75,13 @@ export function copyHuddleRecoverySeed(
       throw new Error('Recovery ledger exceeds its physical limit');
     return db.serialize();
   });
+  // serialize includes the committed WAL snapshot, but preserves its WAL-mode header.
+  // Deserialize cannot open WAL mode: change only this private complete copy.
+  // https://www.sqlite.org/c3ref/deserialize.html
+  if (copied.length < 100 || copied.subarray(0, 16).toString('ascii') !== 'SQLite format 3\0')
+    throw new Error('Invalid serialized huddle recovery snapshot');
+  copied[18] = 1;
+  copied[19] = 1;
   const db = new Database(copied);
   let bytes: Buffer;
   let activation;

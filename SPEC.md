@@ -1465,7 +1465,8 @@ and maintenance/shutdown draining. No graph or owner is restarted. Retained-hist
 reads may opt into delivery-check offers; the separate observe-retained endpoint
 requires exact owner/operation identity. Missing editable source is supported.
 Interrupted owners require existing recovery before observation. Automatic Linux
-owner-crash recovery is described below; other-platform fencing remains pending.
+owner-crash recovery and macOS coalition recovery are described below; detached
+host lifetimes retain reboot-only recovery.
 Application 28.7 and optional runtime `customTriggers: 1` add project-local
 HuddleTrigger subscriptions under `runtime/huddle/triggers/custom/`. Captured
 manifest policy declares `continue|fresh` resume. Up to eight independent bounded
@@ -2092,7 +2093,21 @@ checks, excludes Stop/archive/inactive intent, rechecks admission and drains bef
 launcher maintenance/shutdown. Retained automaticAttempts permits three consecutive
 automatic replacements; explicit/reboot recovery or fresh Start resets the budget. Accepted
 replacement intent is observation-only after lost replies. Reboot auto-start remains
-separate. macOS/detached containment and native acceptance remain unfinished.
+separate. Application 28.24 adds coalitionRecovery-1 for macOS launchd owners.
+The pinned read-only native helper captures the owner's kernel resource coalition
+before project execution, verifying its same-user parent and launchd ancestry.
+Recovery retains original identity/boot/coalition provenance. Populated scopes
+block recovery, including detached descendants. Empty scope permits normal exact
+service retirement only, with a fresh precondition under retirement claims; the
+kernel must then report reaping before source acquisition, seed copying and new
+owner startup proceed. Existing automatic recovery shares this path and budget.
+No new status detector or agent lifecycle is introduced. Unsupported native probes,
+missing proof and detached host lifetimes retain explicit reboot-only recovery.
+Original source WAL files are never modified: normalize the private serialized
+snapshot's journal-mode header before opening it in memory. Native macOS 26.5.2
+arm64 verifies a real owner crash, surviving detached child, refusal before child
+exit, one replacement and preserved queued work. Other platforms/versions, reboot,
+provider and packaged acceptance remain open. See `docs/huddle/recovery.md`.
 
 ### Puddlang runs
 

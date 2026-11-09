@@ -130,6 +130,7 @@ export async function removeRuntimeService(
   home: string,
   identity: RuntimeIdentity,
   run: CompilationCommandRunner = runCompilationCommand,
+  beforeRetire?: () => void,
 ): Promise<'removed' | 'absent' | 'owned'> {
   const directory = runtimeDirectory(home, identity.runtime_id);
   let claims: ReturnType<typeof acquireRuntimeRetirementClaims>;
@@ -141,6 +142,7 @@ export async function removeRuntimeService(
   }
   try {
     const retire = () => {
+      beforeRetire?.();
       const file = join(directory, 'retired.json');
       try {
         const previous = runtimeRetiredSchema.parse(readRuntimeJson(file));

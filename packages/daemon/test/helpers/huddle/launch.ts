@@ -1,3 +1,5 @@
+import { buildHuddleNative } from '../../../../../scripts/lib/huddle/native.mjs';
+import { runCompilationCommand } from '../../../src/compilation/process.js';
 import { RUNTIME_PROTOCOL_VERSION } from '@puddle/shared';
 import { randomBytes } from 'node:crypto';
 import { spawn } from 'node:child_process';
@@ -28,7 +30,11 @@ fs.appendFileSync(inputs.value + '/entered', 'x');
 while(!fs.existsSync(inputs.value + '/release')) await new Promise(r => setTimeout(r, 10));
 return {completed: 42}; }});`;
 
-export async function huddleLaunchFixture(loseDispatchReply = false, native?: 'interactive') {
+export async function huddleLaunchFixture(
+  loseDispatchReply = false,
+  native?: 'interactive',
+  nativeSupervisor = false,
+) {
   const f = runtimeDatabase(native);
   if (!native) f.runtimes.finish(f.binding.runtime_id, 'exited', () => {});
   const installed = runtimeRelease(
@@ -42,6 +48,11 @@ export async function huddleLaunchFixture(loseDispatchReply = false, native?: 'i
     constants.COPYFILE_FICLONE,
   );
   cpSync(bundleDir, join(installed.release, 'daemon'), { recursive: true });
+  if (nativeSupervisor)
+    buildHuddleNative(
+      fileURLToPath(new URL('../../../../../', import.meta.url)),
+      join(installed.release, 'daemon'),
+    );
   await build({
     entryPoints: [fileURLToPath(new URL('../../../src/runtime/index.ts', import.meta.url))],
     outfile: join(installed.release, 'daemon', 'puddler.mjs'),
@@ -79,6 +90,7 @@ export async function huddleLaunchFixture(loseDispatchReply = false, native?: 'i
     f.controller,
   );
   const run = vi.fn<CompilationCommandRunner>(async (command) => {
+    if (nativeSupervisor) return runCompilationCommand({ ...command, env: environment(f.home) });
     const record = runtimeSupervisorSchema.parse(
       readRuntimeJson(join(dirname(command.args[2]!), 'supervisor.json')),
     );

@@ -1,3 +1,7 @@
+import {
+  HuddleContainmentRetirementRequired,
+  retireEmptyDarwinContainment,
+} from '../huddle/recovery/containment/darwin.js';
 import type { SessionLaunchCaller } from '../../sessions/creation/caller.js';
 import { randomBytes, randomUUID } from 'node:crypto';
 import { realpathSync, rmSync } from 'node:fs';
@@ -152,15 +156,50 @@ export class RuntimeLauncher {
         throw ApiError.conflict('huddle_recovery_changed', 'The recorded owner changed');
       if ((autoStartOnly || automatic) && this.deps.runtimes.stopRequested(binding.runtime_id))
         throw ApiError.conflict('huddle_stopping', 'Stop was requested for this huddle');
-      const recovery = acquireHuddleRecoverySource(
-        this.deps.home,
-        binding,
-        lifetime.bootId,
-        autoStartOnly,
-        allowSameBoot && selected.huddle.crashRecovery === 1,
-        automatic,
-      );
+      const acquire = () =>
+        acquireHuddleRecoverySource(
+          this.deps.home,
+          binding,
+          lifetime.bootId,
+          autoStartOnly,
+          allowSameBoot && selected.huddle.crashRecovery === 1,
+          automatic,
+        );
+      let recovery: ReturnType<typeof acquire>;
       try {
+        recovery = acquire();
+      } catch (error) {
+        if (
+          !(error instanceof HuddleContainmentRetirementRequired) ||
+          selected.huddle.coalitionRecovery !== 1
+        )
+          throw error;
+        await retireEmptyDarwinContainment(this.deps.home, error);
+        if (!authorised())
+          throw new ApiError(401, 'upstream_expired', 'Connection authority expired');
+        const current = this.deps.runtimes.get(binding.runtime_id);
+        if (
+          !current ||
+          current.state !== binding.state ||
+          current.incarnation !== binding.incarnation ||
+          current.active_session_id !== binding.active_session_id ||
+          this.deps.runtimes.stopRequested(binding.runtime_id)
+        )
+          throw ApiError.conflict(
+            'huddle_recovery_changed',
+            'Huddle recovery intent changed during service retirement',
+          );
+        recovery = acquire();
+      }
+      try {
+        if (
+          recovery.containment?.kind === 'darwin-resource-coalition' &&
+          selected.huddle.coalitionRecovery !== 1
+        )
+          throw ApiError.conflict(
+            'huddle_recovery_unsupported',
+            'Select a runtime with macOS coalition recovery support',
+          );
         await launchHuddleOwner(
           this.deps,
           sessionId,

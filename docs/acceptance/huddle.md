@@ -34,6 +34,39 @@ delivery and the Turn completed node's editor settings are implemented. Applicat
 28.20 adds explicit native-confirmed asks within bounded feedback executions.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## Implemented: native macOS owner-crash recovery
+
+Application **28.24**, optional **`coalitionRecovery: 1`**, adds resource-coalition
+containment for launchd owners. `daemon/native/huddle/darwin-containment.c` is a
+bounded read-only probe, compiled into macOS archives by
+`scripts/lib/huddle/native.mjs`. `recovery/containment/darwin.ts` uses the original
+owner's pinned helper and exact identity/boot to capture and observe evidence.
+The existing crash API, IDE/CLI/MCP action and automatic-recovery coordinator are
+reused. Old agent/terminal and huddle owners retain their prior contracts.
+
+A populated coalition blocks replacement even when the owner PID has exited. Empty
+scope permits normal service retirement only, guarded again inside its existing
+owner/dispatch claims. Recovery waits for kernel reaping before copying the seed;
+source acquisition and replacement startup recheck it. No arbitrary PID is signalled.
+Unsupported native interfaces, missing probes/proof and detached host lifetimes
+retain reboot-only recovery. External effects still require their existing receipts.
+See [recovery](../huddle/recovery.md) for kernel-source references and limitations.
+
+The real crash case also exposed a WAL snapshot issue: `db.serialize()` retains a
+WAL-mode header that SQLite cannot deserialize into memory. Recovery now converts
+only the complete private serialized copy's header before opening it, preserving
+committed WAL contents and leaving original source files unchanged.
+
+Verification on **macOS 26.5.2 arm64**: one native launchd huddle is killed while a
+detached descendant survives. Recovery refuses until that child exits, then retires
+the exact service, creates one replacement, restores queued work, interrupts the
+in-flight execution and refuses a second replacement. The original script's marker
+stays single. Native jobs are uniquely named and removed through the fixture's
+verified cleanup; installed services and desktop windows are never used. The native
+case and existing cgroup, reboot and automatic-recovery cases pass (**4 cases**).
+Broader native versions/architectures, automatic native crash injection, providers,
+reboot, SSH, packaging/upgrades and resource measurements remain separate acceptance.
+
 ## Implemented: private integration references
 
 Application **28.23**, optional owner **`integrationSecrets: 1`**, adds secret-editor
@@ -276,7 +309,8 @@ child process in an isolated installed service, kill only that huddle owner, ver
 recovery refuses until its cgroup is empty, then observe exactly one replacement,
 unchanged queued roots and no second agent dispatch. Also test lost recovery replies.
 Application 28.19 adds bounded automatic Linux recovery as described above;
-macOS/detached descendant fencing remains unfinished. Arbitrary external service requests are external effects; cgroup
+Application 28.24 adds macOS launchd coalition fencing as described above; detached
+host-session lifetimes retain reboot-only recovery. Arbitrary external service requests are external effects; cgroup
 containment is not a sandbox against deliberate process migration.
 
 Kernel semantics: [cgroup-v2 populated state](https://docs.kernel.org/admin-guide/cgroup-v2.html)

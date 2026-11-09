@@ -1004,8 +1004,8 @@ revision claims; preserve the old fence and ledger. Copy retained state into a n
 runtime, bind one successor atomically, and interrupt running scripts before
 scheduler construction. Preserve original callers for historical host operations;
 never dispatch them again. IDE/CLI/MCP share the exact recorded-owner target. Do not
-turn a failed or lost reply into retry permission. Same-boot descendant fencing,
-native reboot acceptance remain unfinished. Application 28.16 adds owner autoStart-1
+turn a failed or lost reply into retry permission. Same-boot fencing is described
+below; native reboot acceptance remains unfinished. Application 28.16 adds owner autoStart-1
 and an explicit per-run setting. Keep setting changes separate from Arm: exact
 previous-value checks must preserve generation, schedules and cursors. Startup pages
 unresolved owners in `runtime/huddle/recovery/startup.ts`, skips same-boot/stopped/
@@ -1025,8 +1025,18 @@ notifications; do not add an agent status detector. Share automatic placement ch
 with reboot startup, recheck Stop/archive/armed intent under recovery admission,
 retain a three-attempt automatic budget in private recovery provenance and never
 retry accepted predecessor replacement intent. Include this coordinator before the
-launcher in daemon maintenance/shutdown draining. macOS/detached fencing remains
-unfinished.
+launcher in daemon maintenance/shutdown draining. Application 28.24 adds macOS
+launchd support through coalitionRecovery-1 and `recovery/containment/darwin.ts`.
+Compile the read-only probe from `daemon/native/huddle/` via
+`scripts/lib/huddle/native.mjs` into the pinned archive. Capture the owner's resource
+coalition before project code. Refuse populated scopes; retire an empty exact service
+through normal `removeRuntimeService` with its under-claim precondition, then require
+kernel reaping before seed/launch. Never substitute PID absence or kill arbitrary
+recorded descendants. Unavailable native evidence and detached hosts retain
+reboot-only recovery. Normalize only the private serialized recovery snapshot's
+WAL header before deserialize; never alter the original ledger or omit committed
+WAL data. Native macOS 26.5.2 arm64 crash/queue acceptance passes; broader platform,
+provider and packaged acceptance remain open.
 Application 28.17 and optional triggerInspection-1 expose installed source health
 and retained accepted backlog through owner `inspection/`, the existing exact
 control queue and web `execution/triggers/`. Reuse existing lifecycle/status feeds;

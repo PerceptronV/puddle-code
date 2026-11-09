@@ -51,6 +51,7 @@ import { stageNodeRuntime } from './lib/node-runtime.mjs';
 import { smokePuddlang } from './lib/puddlang-smoke.mjs';
 import { smokeHuddleWorker } from './lib/huddle-smoke.mjs';
 import { puddlangEntryPoints } from './lib/puddlang-build.mjs';
+import { buildHuddleNative } from './lib/huddle/native.mjs';
 import { readReleasePlan, legacyReleasePlan } from './lib/releases/plan.mjs';
 import { releaseNotes } from './lib/releases/notes.mjs';
 
@@ -315,6 +316,7 @@ async function pack() {
 rmSync(stage, { recursive: true, force: true });
 mkdirSync(stage, { recursive: true });
 await bundleHostProcesses();
+buildHuddleNative(repoRoot, join(stage, 'daemon'));
 await build({
   entryPoints: puddlangEntryPoints(repoRoot),
   outdir: join(stage, 'daemon'),

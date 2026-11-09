@@ -1,5 +1,22 @@
 # The puddle communication protocol
 
+Application **28.24** adds optional owner `coalitionRecovery: 1`, requiring
+`crashRecovery: 1`. The private containment union adds `darwin-resource-coalition`
+with original identity, boot and a bounded uint64 resource-coalition id. Existing
+HTTP/CLI/MCP crash-recovery requests and optional offers are reused unchanged.
+Old owners without the capability continue existing work and retain their prior
+recovery rules. A replacement carrying this containment requires the capability.
+
+Before project execution, supporting launchd owners use their pinned read-only
+native helper to capture kernel membership. Recovery refuses populated coalitions.
+An empty coalition permits only normal service retirement, rechecked under its
+existing owner/dispatch claims. Replacement requires a reaped coalition, rechecked
+under source claims, seed copying and replacement startup. Missing native evidence
+falls back only to explicit reboot recovery, never PID absence. Existing bounded
+automatic recovery consumes the same proof. No agent-runtime protocol or database
+migration changes. Serialized recovery snapshots normalize their private WAL-mode
+header before deserialization; original files and committed WAL data are preserved.
+
 Application **28.23** adds parameter editor `secret` and optional owner
 `integrationSecrets: 1`. Source stores bounded logical references; Start/Apply
 checks a private host grant scoped to profile, project, huddle and canonical

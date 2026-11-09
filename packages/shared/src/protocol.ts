@@ -375,7 +375,8 @@
 // 28.21: explicit readout observation from a cleanly stopped retained huddle.
 // 28.22: editable worktree report readout with no-overwrite publication and observation.
 // 28.23: private integration secret references for declared huddle parameters.
-export const PROTOCOL_VERSION = { major: 28, minor: 23 } as const;
+// 28.24: same-boot huddle recovery from verified macOS resource coalition retirement.
+export const PROTOCOL_VERSION = { major: 28, minor: 24 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

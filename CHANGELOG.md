@@ -129,11 +129,15 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
+- Recover huddle snapshots left in WAL mode by a real crash, converting only the private serialized copy before opening it in memory and preserving committed queued work.
+
 - Preserve byte-order marks in captured huddle scripts and digest checks; reject BOM-prefixed JSON documents instead of silently changing their source bytes.
 
 ### Runtime
 
 #### Added
+
+- Recover crashed macOS launchd huddles after recorded kernel coalition evidence confirms all script descendants have ended; reuse normal service retirement and the existing queued-work recovery path (application 28.24).
 
 - Retain exact huddle ask/spawn caller identities with durable intent, preserving receipt and cleanup scopes across mailbox reconstruction without replaying consumed operations; owner replacement remains unfinished.
 

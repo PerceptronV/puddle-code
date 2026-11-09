@@ -380,3 +380,5 @@ Retained readouts can also be reconciled after clean owner shutdown on applicati
 28.21+: use `observe-retained-readout` with the exact recorded owner and operation id.
 This executes only the captured adapter's observation method and never restarts the
 graph. See [readout delivery checks](readouts.md#check-a-delivery-after-stop).
+
+For current Linux/macOS crash recovery and limited host lifetimes, see [recovery](recovery.md).

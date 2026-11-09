@@ -61,6 +61,8 @@ export const huddleOwnerLaunchSchema = z
     if (
       launch.recovery &&
       (launch.capabilities.recovery !== 1 ||
+        (launch.recovery.containment?.kind === 'darwin-resource-coalition' &&
+          launch.capabilities.coalitionRecovery !== 1) ||
         (launch.recovery.containment !== undefined && launch.capabilities.crashRecovery !== 1) ||
         (launch.recovery.automaticAttempts !== undefined &&
           launch.capabilities.automaticRecovery !== 1) ||

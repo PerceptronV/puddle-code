@@ -207,7 +207,7 @@ export function ExecutionControls({
             <button
               type="button"
               className={graphActionClass}
-              title="Recover a crashed Linux cgroup-v2 owner after its script descendants are confirmed stopped. Queued events resume; interrupted scripts are not replayed."
+              title="Recover a crashed owner after its recorded kernel scope confirms that script descendants have stopped. Queued events resume; interrupted scripts are not replayed."
               disabled={busy || commands.status.review || session.status === 'archived' || locked}
               onClick={() =>
                 void send({

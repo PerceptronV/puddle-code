@@ -124,7 +124,8 @@ relative path, text/JSON formatting and content-based delivery observation. It
 creates complete files without overwriting conflicts; the authoring kit includes
 the same source. Filetree output exclusions remain explicit.
 Interrupted owners still require recovery first. Same-boot recovery on
-macOS/detached lifetimes remains unfinished. Explicit reboot recovery
+macOS launchd lifetimes is implemented in application 28.24 using kernel resource
+coalitions; detached host-session lifetimes retain reboot-only recovery. Explicit reboot recovery
 now restores the recorded activation, queued work and trigger cursors in one
 replacement owner (application 28.15, runtime recovery-1, migration 51). Running
 scripts are interrupted and historical agent operations remain observation-only.
@@ -135,8 +136,9 @@ acceptance remains pending. Application 28.18 adds explicit same-boot recovery
 for systemd/cgroup-v2 owners with retained containment and positive empty-scope
 evidence. Application 28.19 adds bounded automatic recovery from existing owner-loss
 reconciliation for armed supporting Linux runs, with Stop/archive/maintenance gates
-and a retained three-replacement limit. macOS/detached descendant fencing and native
-platform acceptance remain pending.
+and a retained three-replacement limit. Application 28.24 adds macOS launchd coalition fencing and verified native
+crash/queued-work recovery on macOS 26.5.2 arm64. Detached host-session recovery and
+broader native/platform acceptance remain pending.
 See [implementation evidence](../acceptance/huddle.md). Unshipped
 API names and examples below remain proposals except where explicitly documented
 in acceptance as implemented.
@@ -689,8 +691,11 @@ fence descendants, one atomic predecessor/successor mapping, a copied ledger and
 restored subscriptions/queues. Old operations retain observation-only host authority.
 Explicit per-run auto-start is implemented in 28.16. Application 28.18 adds
 explicit same-boot recovery with retained Linux systemd/cgroup-v2 containment;
-bounded automatic Linux recovery follows in 28.19. macOS/detached descendant
-fencing and native platform acceptance remain unfinished.
+bounded automatic Linux recovery follows in 28.19. Application 28.24 adds macOS
+launchd resource-coalition fencing through the same recovery path, including normal
+service retirement before kernel reaping. Native crash/queued-work acceptance passes
+on macOS 26.5.2 arm64. Detached host-session recovery and broader platform acceptance
+remain open; missing native proof never permits a PID-based substitute.
 Legacy rows without provenance must retain their verified original launch identity;
 never backfill them from a replacement's identity.
 

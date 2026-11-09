@@ -1,4 +1,9 @@
 import {
+  captureDarwinContainment,
+  hasDarwinContainment,
+  requireDarwinDescendantsEnded,
+} from './containment/darwin.js';
+import {
   closeSync,
   constants,
   openSync,
@@ -70,6 +75,20 @@ const recordPath = (home: string, launch: HuddleOwnerLaunch) =>
 
 /** Capture before any project code can run. Unsupported lifetimes retain reboot-only recovery. */
 export function recordHuddleContainment(home: string, launch: HuddleOwnerLaunch): void {
+  if (process.platform === 'darwin') {
+    const record = captureDarwinContainment(home, launch);
+    if (!record) return;
+    const file = recordPath(home, launch);
+    try {
+      const existing = huddleContainmentSchema.parse(readRuntimeJson(file));
+      if (canonicalHuddleJson(existing) !== canonicalHuddleJson(record))
+        throw new Error('Huddle containment identity changed');
+    } catch (error) {
+      if (!missing(error)) throw error;
+      atomicPrivateJson(file, record, { syncDirectory: true });
+    }
+    return;
+  }
   if (process.platform !== 'linux' || launch.capabilities.crashRecovery !== 1 || !launch.boot_id)
     return;
   const supervisor = runtimeSupervisorSchema.parse(
@@ -131,10 +150,9 @@ export function requireHuddleDescendantsEnded(
     record = huddleContainmentSchema.parse(readRuntimeJson(recordPath(home, launch)));
   } catch (error) {
     if (missing(error))
-      throw new Error(
-        'This owner has no retained Linux cgroup-v2 containment proof; use reboot recovery',
-        { cause: error },
-      );
+      throw new Error('This owner has no retained kernel containment proof; use reboot recovery', {
+        cause: error,
+      });
     throw error;
   }
   if (
@@ -143,6 +161,10 @@ export function requireHuddleDescendantsEnded(
     (expected && canonicalHuddleJson(record) !== canonicalHuddleJson(expected))
   )
     throw new Error('Huddle containment provenance changed');
+  if (record.kind === 'darwin-resource-coalition') {
+    requireDarwinDescendantsEnded(home, launch, record);
+    return record;
+  }
   const host = hierarchy();
   if (host.device !== record.device || host.namespace !== record.namespace)
     throw new Error('Huddle cgroup hierarchy or namespace changed');
@@ -169,9 +191,12 @@ export function requireHuddleDescendantsEnded(
 
 /** Offer only where retained metadata matches this host; dispatch still proves empty scope under claims. */
 export function hasHuddleContainment(home: string, launch: HuddleOwnerLaunch): boolean {
-  if (process.platform !== 'linux' || launch.capabilities.crashRecovery !== 1) return false;
+  if (!['linux', 'darwin'].includes(process.platform) || launch.capabilities.crashRecovery !== 1)
+    return false;
   try {
     const record = huddleContainmentSchema.parse(readRuntimeJson(recordPath(home, launch)));
+    if (record.kind === 'darwin-resource-coalition')
+      return hasDarwinContainment(home, launch, record);
     const host = hierarchy();
     location(record.path, runtimeServiceName(home, launch.identity, 'systemd'));
     return (

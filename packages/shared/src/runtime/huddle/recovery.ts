@@ -4,16 +4,31 @@ import { huddleRevisionSchema } from '../../api/huddle/events.js';
 
 export const HUDDLE_AUTOMATIC_RECOVERY_LIMIT = 3;
 
-export const huddleContainmentSchema = z.strictObject({
+const containmentIdentity = {
   format: z.literal(1),
   identity: runtimeIdentitySchema,
   boot: z.uuid(),
-  kind: z.literal('cgroup-v2'),
-  path: z.string().min(1).max(4096),
-  device: z.string().regex(/^[0-9]+$/),
-  inode: z.string().regex(/^[0-9]+$/),
-  namespace: z.string().regex(/^cgroup:\[[0-9]+\]$/),
-});
+};
+export const huddleContainmentSchema = z.discriminatedUnion('kind', [
+  z.strictObject({
+    format: z.literal(1),
+    identity: runtimeIdentitySchema,
+    boot: z.uuid(),
+    kind: z.literal('cgroup-v2'),
+    path: z.string().min(1).max(4096),
+    device: z.string().regex(/^[0-9]+$/),
+    inode: z.string().regex(/^[0-9]+$/),
+    namespace: z.string().regex(/^cgroup:\[[0-9]+\]$/),
+  }),
+  z.strictObject({
+    ...containmentIdentity,
+    kind: z.literal('darwin-resource-coalition'),
+    coalition: z
+      .string()
+      .regex(/^[1-9][0-9]{0,19}$/)
+      .refine((v) => BigInt(v) > 4n && BigInt(v) <= 0xffffffffffffffffn),
+  }),
+]);
 export type HuddleContainment = z.infer<typeof huddleContainmentSchema>;
 
 /** Host-produced recovery provenance; no browser supplies filesystem paths or launch identities. */
