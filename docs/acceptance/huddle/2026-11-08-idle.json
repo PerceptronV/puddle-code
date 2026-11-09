@@ -1,0 +1,203 @@
+{
+  "sourceCommit": "f8797047",
+  "platform": {
+    "os": "macOS",
+    "version": "26.5.2",
+    "build": "25F84",
+    "arch": "arm64",
+    "node": "22.21.1"
+  },
+  "method": {
+    "api": "proc_pid_rusage RUSAGE_INFO_V4",
+    "timebase": {
+      "numer": 125,
+      "denom": 3
+    },
+    "warmupMs": 5000,
+    "durationMs": 65001.736542,
+    "frontend": false,
+    "daemon": false,
+    "controller": "closed before warmup",
+    "source": "current runtime bundled by existing runtime-fixture.ts",
+    "graphs": {
+      "manual": "Manual \u2192 identity HuddleNode \u2192 Result; no input submitted",
+      "date": "One-off date 24 hours ahead \u2192 identity HuddleNode \u2192 Result",
+      "filetree": "Empty watched directory; reconcileMs=30000, debounceMs=250",
+      "git": "Fresh empty main-branch repository; reconcileMs=30000, debounceMs=250"
+    },
+    "timeCalibration": {
+      "processTimeNs": 249886000,
+      "convertedRusageNs": 251162166.66666666
+    }
+  },
+  "samples": [
+    {
+      "mode": "manual",
+      "before": {
+        "userTicks": 6776918,
+        "systemTicks": 1046537,
+        "childUserTicks": 0,
+        "childSystemTicks": 0,
+        "interruptWakeups": 37,
+        "packageWakeups": 0,
+        "childInterruptWakeups": 0,
+        "childPackageWakeups": 0,
+        "footprintBytes": 121911384,
+        "residentBytes": 158957568,
+        "diskReadBytes": 8192,
+        "diskWrittenBytes": 241664
+      },
+      "after": {
+        "userTicks": 9871979,
+        "systemTicks": 1451381,
+        "childUserTicks": 0,
+        "childSystemTicks": 0,
+        "interruptWakeups": 60,
+        "packageWakeups": 0,
+        "childInterruptWakeups": 0,
+        "childPackageWakeups": 0,
+        "footprintBytes": 68594344,
+        "residentBytes": 108724224,
+        "diskReadBytes": 8192,
+        "diskWrittenBytes": 241664
+      },
+      "cpuMs": 145.829375,
+      "childCpuMs": 0.0,
+      "percentOneCore": 0.22434689095694282,
+      "stateUnchanged": true,
+      "stateMtimeUnchanged": true,
+      "finalStatus": {
+        "state": "running",
+        "liveWorkers": false,
+        "failure": null
+      },
+      "finalControlState": "armed"
+    },
+    {
+      "mode": "date",
+      "before": {
+        "userTicks": 5319274,
+        "systemTicks": 775128,
+        "childUserTicks": 0,
+        "childSystemTicks": 0,
+        "interruptWakeups": 38,
+        "packageWakeups": 0,
+        "childInterruptWakeups": 0,
+        "childPackageWakeups": 0,
+        "footprintBytes": 124991936,
+        "residentBytes": 161857536,
+        "diskReadBytes": 0,
+        "diskWrittenBytes": 307200
+      },
+      "after": {
+        "userTicks": 8423961,
+        "systemTicks": 1161430,
+        "childUserTicks": 0,
+        "childSystemTicks": 0,
+        "interruptWakeups": 61,
+        "packageWakeups": 0,
+        "childInterruptWakeups": 0,
+        "childPackageWakeups": 0,
+        "footprintBytes": 67496448,
+        "residentBytes": 107872256,
+        "diskReadBytes": 0,
+        "diskWrittenBytes": 307200
+      },
+      "cpuMs": 145.457875,
+      "childCpuMs": 0.0,
+      "percentOneCore": 0.22377536776423557,
+      "stateUnchanged": true,
+      "stateMtimeUnchanged": true,
+      "finalStatus": {
+        "state": "running",
+        "liveWorkers": false,
+        "failure": null
+      },
+      "finalControlState": "armed"
+    },
+    {
+      "mode": "filetree",
+      "before": {
+        "userTicks": 5265706,
+        "systemTicks": 662417,
+        "childUserTicks": 0,
+        "childSystemTicks": 0,
+        "interruptWakeups": 38,
+        "packageWakeups": 0,
+        "childInterruptWakeups": 0,
+        "childPackageWakeups": 0,
+        "footprintBytes": 125909608,
+        "residentBytes": 162824192,
+        "diskReadBytes": 0,
+        "diskWrittenBytes": 315392
+      },
+      "after": {
+        "userTicks": 7904470,
+        "systemTicks": 1010555,
+        "childUserTicks": 0,
+        "childSystemTicks": 0,
+        "interruptWakeups": 89,
+        "packageWakeups": 0,
+        "childInterruptWakeups": 0,
+        "childPackageWakeups": 0,
+        "footprintBytes": 67938888,
+        "residentBytes": 108478464,
+        "diskReadBytes": 0,
+        "diskWrittenBytes": 315392
+      },
+      "cpuMs": 124.45425,
+      "childCpuMs": 0.0,
+      "percentOneCore": 0.1914629617926985,
+      "stateUnchanged": true,
+      "stateMtimeUnchanged": true,
+      "finalStatus": {
+        "state": "running",
+        "liveWorkers": false,
+        "failure": null
+      },
+      "finalControlState": "armed"
+    },
+    {
+      "mode": "git",
+      "before": {
+        "userTicks": 5481720,
+        "systemTicks": 726496,
+        "childUserTicks": 464282,
+        "childSystemTicks": 351952,
+        "interruptWakeups": 51,
+        "packageWakeups": 0,
+        "childInterruptWakeups": 0,
+        "childPackageWakeups": 0,
+        "footprintBytes": 125385152,
+        "residentBytes": 162430976,
+        "diskReadBytes": 0,
+        "diskWrittenBytes": 315392
+      },
+      "after": {
+        "userTicks": 8963991,
+        "systemTicks": 1264759,
+        "childUserTicks": 2273229,
+        "childSystemTicks": 1760914,
+        "interruptWakeups": 128,
+        "packageWakeups": 0,
+        "childInterruptWakeups": 0,
+        "childPackageWakeups": 0,
+        "footprintBytes": 69364368,
+        "residentBytes": 109854720,
+        "diskReadBytes": 0,
+        "diskWrittenBytes": 315392
+      },
+      "cpuMs": 167.52225,
+      "childCpuMs": 134.07954166666667,
+      "percentOneCore": 0.25771965321535334,
+      "stateUnchanged": true,
+      "stateMtimeUnchanged": true,
+      "finalStatus": {
+        "state": "running",
+        "liveWorkers": false,
+        "failure": null
+      },
+      "finalControlState": "armed"
+    }
+  ]
+}

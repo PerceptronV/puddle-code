@@ -9,7 +9,7 @@ captured-source script workers, retained revisions/activation and a manual sched
 in an independent owner process with private authenticated control, explicit
 runtime-role metadata and pinned capability checks. Phase 2 has the third session
 kind, immutable application placement and common runtime inventory role, with
-application protocol 28.11. Local/SSH inactive creation, discovery, inspection and
+application protocol 28.33. Local/SSH inactive creation, discovery, inspection and
 placement opening now have sidebar creation and a graph pane with manifest
 editing, shared source/layout drafts, settings, undo and file-conflict review.
 Pointer/touch and keyboard node movement, position settings, pan and fit controls

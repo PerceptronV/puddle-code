@@ -63,6 +63,46 @@ The existing headless template/preview and revision-review browser flows pass
 against the UI-only preview. Web TypeScript, scoped ESLint and formatting pass.
 No new tests or native windows were added for this change.
 
+## Measured: disconnected idle owner resources
+
+On macOS 26.5.2 (25F84), arm64, Node 22.21.1, four independent owners built from
+`f8797047` were armed, disconnected from their controllers and observed together
+for 65.002 seconds after a five-second warmup. There was no daemon, frontend,
+agent or subscription account. The existing `runtime-fixture.ts` bundled the
+actual owner and workers with its sanitised environment and disposable homes;
+the temporary measurement case reused `test/huddle/owner/process.test.ts` setup.
+It was removed after observation; the original test file is unchanged.
+
+| Armed graph/source | Owner CPU (ms) | Child CPU (ms) | Owner CPU (% of one core) | Final physical footprint (MiB) | Interrupt wakeups |
+| --- | ---: | ---: | ---: | ---: | ---: |
+| Manual, no input | 145.83 | 0 | 0.224 | 65.42 | 23 |
+| One-off date, 24 hours ahead | 145.46 | 0 | 0.224 | 64.37 | 23 |
+| Filetree, empty watched directory | 124.45 | 0 | 0.191 | 64.79 | 51 |
+| Git, fresh empty repository on main | 167.52 | 134.08 | 0.258 | 66.15 | 77 |
+
+Each source fed an identity HuddleNode and Result readout. Filetree and Git used
+the shipped 30-second reconciliation and 250-ms debounce defaults, covering two
+reconciliations during measurement. No input changed or deadline became due.
+All four retained `running`/`armed` state, no live workers and no failure. Owner
+state contents and modification times were unchanged. Reported disk read/write
+byte deltas and package-idle wakeup deltas were zero; Git's exited-child CPU is
+reported separately rather than hidden in its owner figure.
+
+Read-only `proc_pid_rusage(RUSAGE_INFO_V4)` snapshots supplied the counters and
+physical footprint. CPU fields are Mach absolute-time ticks on this host: apply
+`mach_timebase_info`'s 125/3 factor to obtain nanoseconds. A separate 250-ms CPU
+loop calibrated this conversion against `process_time_ns` (249.886 ms versus
+251.162 ms including sampling overhead). Initial unconverted CPU estimates were
+discarded. [Raw counters and sampling metadata](huddle/2026-11-08-idle.json)
+retain both endpoints and the conversion, excluding ephemeral owner identities.
+
+This is a short, single-host baseline for small idle graphs, including runtime
+housekeeping after startup. It does not establish battery drain, energy savings,
+large filetrees/repositories, active-agent or custom-worker cost, daemon-connected
+overhead, packaged/native-service overhead, long-term memory behaviour or Linux
+performance. Those remain acceptance work. The owners exited through the existing
+fixture cleanup, and no user installation or production service was changed.
+
 ## Phase-2/5 source and fixture audit
 
 This audit distinguishes implemented seams from end-to-end native/provider proof.
@@ -4627,10 +4667,13 @@ the time; later entries implement recovery, resource admission/accounting, lifec
 nodes, trigger health/backlog, integration secrets, readout observation and authoring
 workflows. Do not treat those earlier next-step lists as current missing features.
 
-The remaining work is the full phase-2/5 integration audit, real-provider authoring
-and coder/reviewer/native-feedback acceptance in same and distinct worktrees, and
-packaged/platform verification: SSH disconnect/reconnect, updates/removal with mixed
-runtime versions, native window interactions, reboot and resource/battery behavior.
+The remaining work is real-provider authoring and coder/reviewer/native-feedback
+acceptance in same and distinct worktrees, renderer-crash/native window interaction,
+and broader platform verification: remote-host/network-loss continuity, daemon/combined
+updates, removal with live owners and mixed runtime versions, reboot and resource/battery
+behaviour beyond the small disconnected idle baseline above. Packaged runtime-default
+reselection and loopback SSH disconnect/reconnect now have the bounded evidence
+recorded near the top; they do not close the broader platform gates.
 Keep provider/platform acceptance pending until corresponding native evidence
 exists; retain the provider baselines in `docs/acceptance/puddlang.md`. Isolated owner/crash/trigger/delivery checks establish only their
 recorded scope; they do not establish every native platform or external service.
