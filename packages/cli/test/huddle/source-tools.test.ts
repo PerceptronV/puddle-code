@@ -164,7 +164,7 @@ it('advertises strict source MCP tools with effect annotations and rejects malfo
   );
   for (const tool of huddleMcpTools) {
     expect(tool.annotations.readOnlyHint).toBe(
-      !['huddle_create', 'huddle_open'].includes(tool.name),
+      !['huddle_create', 'huddle_open', 'huddle_duplicate'].includes(tool.name),
     );
     expect(tool.inputSchema.additionalProperties).toBe(false);
   }

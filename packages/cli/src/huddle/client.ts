@@ -6,10 +6,12 @@ import {
   huddleValidationSchema,
   huddleOpenedSchema,
   huddleToolCreateSchema,
+  huddleToolDuplicateSchema,
   supportsApplicationFeature,
   type HuddleLocation,
   type HuddleOpen,
   type HuddleCreate,
+  type HuddleDuplicate,
 } from '@puddle/shared';
 import { HuddleExecutionClient } from './execution/client.js';
 import { HuddlePlacementClient } from './placement/client.js';
@@ -19,6 +21,7 @@ import { HuddleSourceClient } from './source/client.js';
 /** Uses the same selected profile/authority as puddlang. Source and execution stay separate. */
 export class HuddleClient {
   readonly supported: boolean;
+  readonly duplicationSupported: boolean;
   readonly execution: HuddleExecutionClient;
   readonly placement: HuddlePlacementClient;
   readonly source: HuddleSourceClient;
@@ -28,6 +31,7 @@ export class HuddleClient {
     sessionRequest?: (path: string, body?: unknown) => Promise<unknown>,
   ) {
     this.supported = supportsApplicationFeature(protocol, { major: 27, minor: 1 });
+    this.duplicationSupported = supportsApplicationFeature(protocol, { major: 28, minor: 26 });
     this.execution = new HuddleExecutionClient(request, protocol);
     this.placement = new HuddlePlacementClient(request, sessionRequest, protocol);
     this.source = new HuddleSourceClient(request, protocol);
@@ -66,6 +70,16 @@ export class HuddleClient {
     return huddleMutation(
       'List saved huddles in this project/worktree before creating another.',
       async () => huddleOpenedSchema.parse(await this.request('/definitions', input)),
+    );
+  }
+  async duplicate(raw: HuddleDuplicate) {
+    if (!this.duplicationSupported)
+      throw new Error('Copying a huddle requires daemon protocol 28.26 or newer');
+    const { huddle_id, ...input } = huddleToolDuplicateSchema.parse(raw);
+    return huddleMutation(
+      'List saved huddles in this project/worktree before copying again.',
+      async () =>
+        huddleOpenedSchema.parse(await this.request(`/definitions/${huddle_id}/duplicate`, input)),
     );
   }
   async open(raw: HuddleOpen) {

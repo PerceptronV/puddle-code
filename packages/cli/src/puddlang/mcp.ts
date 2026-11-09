@@ -82,7 +82,11 @@ export async function serveMcp(
         tools: [
           ...puddlangMcpTools,
           huddleAuthoringMcpTool,
-          ...(client.huddles?.supported ? huddleMcpTools : []),
+          ...(client.huddles?.supported
+            ? huddleMcpTools.filter(
+                (tool) => tool.name !== 'huddle_duplicate' || client.huddles?.duplicationSupported,
+              )
+            : []),
           ...(client.huddles?.source.supported ? huddleSourceMcpTools : []),
           ...executionTools(client.huddles?.execution),
           ...placementTools(client.huddles?.placement),

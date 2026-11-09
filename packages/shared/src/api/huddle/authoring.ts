@@ -21,6 +21,11 @@ export const huddleCreateSchema = huddleLocationSchema.extend({
 export type HuddleCreate = z.infer<typeof huddleCreateSchema>;
 export const huddleOpenSchema = huddleLocationSchema.extend({ huddle_id: huddleIdSchema });
 export type HuddleOpen = z.infer<typeof huddleOpenSchema>;
+export const huddleDuplicateSchema = huddleOpenSchema.extend({
+  name: huddleCreateSchema.shape.name,
+  expected_digest: z.string().regex(/^[a-f0-9]{64}$/),
+});
+export type HuddleDuplicate = z.infer<typeof huddleDuplicateSchema>;
 /** One source file per publication; callers retain drafts until this write is observed. */
 export const huddleSaveSchema = huddleOpenSchema.extend({
   expected_digest: z.string().regex(/^[a-f0-9]{64}$/),

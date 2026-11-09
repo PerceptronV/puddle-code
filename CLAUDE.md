@@ -909,6 +909,14 @@ readout workers, including retained observation. Redact secret-worker logs/error
 before owner callbacks; typed outputs remain trusted adapter data. Existing workers
 retain values until interrupted/stopped. Document host-side configuration and
 rotation in `docs/huddle/integrations.md`; never read provider account credentials.
+Application 28.26 adds inactive duplication in `huddle/definitions/duplicate.ts`,
+through the existing profile/worktree service and repository mutex. Copy reviewed
+saved source only, including bounded text docs/fixtures and unreferenced components;
+reject links/unstable captures. Allocate an exclusive fresh random-id directory,
+rewrite only manifest id/name, then create a stopped placement. Preserve original
+owners and literal resource bindings. Do not copy private runtime state or secret
+grants. Gate UI/CLI/MCP on 28.26; never retry an uncertain copy. Partial files remain
+for discovery/inspection if placement or publication fails.
 Application 28.25 adds editable flow nodes in `shared/huddle/templates/flow/`.
 Use the existing installer/catalogue, generated settings and captured script worker.
 Keep authoring-kit source identical. Condition sends one optional completion output

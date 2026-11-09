@@ -6,6 +6,7 @@ import {
   huddleOpenedSchema,
   supportsApplicationFeature,
   type HuddleCreate,
+  type HuddleDuplicate,
   type HuddleOpen,
   type Session,
 } from '@puddle/shared';
@@ -85,19 +86,37 @@ export function useHuddleDocument(profile: string | undefined, session: Session)
 }
 export function useHuddleOpen(profile: string | undefined) {
   const cache = useQueryClient();
+  const protocol = useDaemonVersion().data?.protocol;
   return useMutation({
     mutationFn: async (
-      input: { kind: 'create'; value: HuddleCreate } | { kind: 'open'; value: HuddleOpen },
+      input:
+        | { kind: 'create'; value: HuddleCreate }
+        | { kind: 'open'; value: HuddleOpen }
+        | { kind: 'duplicate'; value: HuddleDuplicate },
     ) => {
       if (!profile || browserTransport() || !huddleShellSupported())
         throw new Error('Huddle authoring is unavailable on this connection');
-      return huddleOpenedSchema.parse(
-        await api(
-          'POST',
-          `/api/huddle/${profile}/${input.kind === 'create' ? 'definitions' : 'open'}`,
-          input.value,
-        ),
-      );
+      if (
+        input.kind === 'duplicate' &&
+        !supportsApplicationFeature(protocol, { major: 28, minor: 26 })
+      )
+        throw new Error('Copying a huddle requires a supporting host');
+      const path =
+        input.kind === 'duplicate'
+          ? `definitions/${input.value.huddle_id}/duplicate`
+          : input.kind === 'create'
+            ? 'definitions'
+            : 'open';
+      const body =
+        input.kind === 'duplicate'
+          ? {
+              project_id: input.value.project_id,
+              worktree: input.value.worktree,
+              name: input.value.name,
+              expected_digest: input.value.expected_digest,
+            }
+          : input.value;
+      return huddleOpenedSchema.parse(await api('POST', `/api/huddle/${profile}/${path}`, body));
     },
     retry: false,
     onSuccess: ({ session }) => {

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import type { Session } from '@puddle/shared';
+import { supportsApplicationFeature, type Session } from '@puddle/shared';
 import {
   Dialog,
   DialogContent,
@@ -17,7 +17,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '../../../components/ui/select';
-import { useRepoWorktrees } from '../../../lib/queries/queries';
+import { useDaemonVersion, useRepoWorktrees } from '../../../lib/queries/queries';
 import {
   useHuddleAvailability,
   useHuddleDefinitions,
@@ -40,6 +40,14 @@ export function NewHuddleDialog({
 }) {
   const [name, setName] = useState('');
   const [selectedRoot, setSelectedRoot] = useState<string | null>(null);
+  const [copy, setCopy] = useState<{
+    id: string;
+    digest: string;
+    name: string;
+    worktree: string;
+  } | null>(null);
+  const protocol = useDaemonVersion().data?.protocol;
+  const canCopy = supportsApplicationFeature(protocol, { major: 28, minor: 26 });
   const roots = useRepoWorktrees(repo);
   const worktree =
     selectedRoot ?? roots.data?.worktrees.find((root) => root.is_primary)?.path ?? '';
@@ -47,6 +55,12 @@ export function NewHuddleDialog({
   const availability = useHuddleAvailability(profile, true);
   const definitions = useHuddleDefinitions(profile, project, worktree, true);
   const action = useHuddleOpen(profile);
+  const saved = definitions.data?.filter((definition) => 'digest' in definition) ?? [];
+  const copyValid =
+    !copy ||
+    (canCopy &&
+      copy.worktree === worktree &&
+      saved.some((definition) => definition.id === copy.id && definition.digest === copy.digest));
   const finish = (session: Session) => {
     onOpened(session);
     onClose();
@@ -66,17 +80,36 @@ export function NewHuddleDialog({
         <DialogHeader>
           <DialogTitle>New huddle</DialogTitle>
           <DialogDescription>
-            Create a blank graph without running it, or open a saved huddle.
+            {canCopy
+              ? 'Create a blank graph, copy saved source, or open a huddle. New graphs stay stopped.'
+              : 'Create a blank graph without running it, or open a saved huddle.'}
           </DialogDescription>
         </DialogHeader>
         <form
           className="flex flex-col gap-4"
           onSubmit={(event) => {
             event.preventDefault();
-            if (!worktree || !name.trim() || !availability.data?.available || action.isPending)
+            if (
+              !worktree ||
+              !name.trim() ||
+              !copyValid ||
+              !availability.data?.available ||
+              action.isPending
+            )
               return;
             action.mutate(
-              { kind: 'create', value: { project_id: project, worktree, name } },
+              copy
+                ? {
+                    kind: 'duplicate',
+                    value: {
+                      project_id: project,
+                      worktree,
+                      name,
+                      huddle_id: copy.id,
+                      expected_digest: copy.digest,
+                    },
+                  }
+                : { kind: 'create', value: { project_id: project, worktree, name } },
               { onSuccess: ({ session }) => finish(session) },
             );
           }}
@@ -86,7 +119,10 @@ export function NewHuddleDialog({
             <Select
               value={worktree}
               onValueChange={(value) => {
-                if (value) setSelectedRoot(value);
+                if (value) {
+                  setSelectedRoot(value);
+                  setCopy(null);
+                }
               }}
               disabled={action.isPending}
             >
@@ -102,6 +138,57 @@ export function NewHuddleDialog({
               </SelectContent>
             </Select>
           </div>
+          {canCopy && (
+            <div className="flex flex-col gap-2">
+              <Label htmlFor="huddle-source">Start from</Label>
+              <Select
+                value={copy?.id ?? 'blank'}
+                disabled={action.isPending}
+                onValueChange={(value) => {
+                  if (value === 'blank') setCopy(null);
+                  else {
+                    const selected = saved.find((definition) => definition.id === value);
+                    if (selected)
+                      setCopy({
+                        id: selected.id,
+                        digest: selected.digest,
+                        name: selected.name,
+                        worktree,
+                      });
+                  }
+                }}
+              >
+                <SelectTrigger id="huddle-source">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="blank">Blank graph</SelectItem>
+                  {saved.map((definition) => (
+                    <SelectItem key={definition.id} value={definition.id}>
+                      Copy: {definition.name} · {definition.id.slice(0, 8)}
+                    </SelectItem>
+                  ))}
+                  {copy && !saved.some((definition) => definition.id === copy.id) && (
+                    <SelectItem value={copy.id} disabled>
+                      Unavailable: {copy.name}
+                    </SelectItem>
+                  )}
+                </SelectContent>
+              </Select>
+              {copy && (
+                <p className="text-xs text-fg-muted">
+                  Copies saved files only, with a new id. Review copied worktree, account and
+                  session settings before Start.
+                </p>
+              )}
+              {!copyValid && (
+                <p role="status" className="text-xs text-fg-muted">
+                  The selected source changed or is unavailable. Select Blank graph, then choose the
+                  source again after reviewing its saved files.
+                </p>
+              )}
+            </div>
+          )}
           <div className="flex flex-col gap-2">
             <Label htmlFor="huddle-name">Name</Label>
             <Input
@@ -135,10 +222,11 @@ export function NewHuddleDialog({
               !availability.data?.available ||
               !worktree ||
               !name.trim() ||
+              !copyValid ||
               action.isPending
             }
           >
-            Create huddle
+            {copy ? 'Copy saved huddle' : 'Create huddle'}
           </Button>
         </form>
         <div className="flex max-h-56 flex-col gap-2 overflow-auto">

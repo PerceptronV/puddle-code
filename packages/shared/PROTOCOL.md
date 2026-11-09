@@ -1,5 +1,22 @@
 # The puddle communication protocol
 
+Application **28.26** adds local/SSH `POST
+/api/huddle/:profile/definitions/:id/duplicate` with
+`{project_id, worktree, name, expected_digest}` and the existing opened-huddle
+response (201). It copies saved source into a fresh 32-hex id and stopped placement
+in the same registered worktree. The selected runtime must support huddles; no
+runtime is started. Source digest, profile authority, storage and selected release
+are rechecked before publication/placement. The original graph/owner is unchanged.
+
+Copying includes bounded ordinary UTF-8 project files, unreferenced components,
+fixtures, README and layout, with two-pass consistency checks. It rejects links,
+non-regular files, more than 128 files/256 entries, 256 KiB per file or 4 MiB total.
+Only the manifest id/name change; literal bindings are preserved. Private execution
+state, installation variables and secret grants are not copied. Publication uses
+exclusive paths; partial files remain discoverable if a later step fails.
+New-huddle UI, `pudl huddle duplicate` and `huddle_duplicate` gate on 28.26 and never
+retry a lost reply. Existing creation/opening and runtime contracts are unchanged.
+
 Application **28.25** adds `transform`, `format-text`, `condition`, `merge` and
 `join` to the existing component-template installation request. The shared
 catalogue gates these IDE choices on 28.25. Existing template names and response

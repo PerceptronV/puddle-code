@@ -67,6 +67,17 @@ The matching component needs input `value` and output `completed` (each can use
 scoped `puddlang` bridge for managed agent operations. Do not invent runtime ids
 or dispatch duplicate asks to recover an uncertain response.
 
+## Copying a saved graph
+
+On host 28.26+, `pudl huddle duplicate HUDDLE_ID --name NAME --project PROJECT_ID
+--worktree ABSOLUTE_WORKTREE --request '{"expected_digest":"REVIEWED_DIGEST"}'`
+and MCP `huddle_duplicate` create a fresh stopped copy in the same worktree.
+Inspect saved source for the digest first. The copy includes bounded UTF-8 docs,
+fixtures and unused components but excludes private state and unsaved drafts.
+Literal resource bindings remain as written; review them before activation and
+supply separate private variable bindings/secret grants. A failed reply requires
+listing saved huddles before any further copy; never automatically retry.
+
 ## Data flow
 
 The kit includes editable Transform, Format text, Condition, Merge and Join

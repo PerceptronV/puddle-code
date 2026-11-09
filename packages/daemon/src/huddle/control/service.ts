@@ -2,6 +2,8 @@ import { realpath } from 'node:fs/promises';
 import { isAbsolute } from 'node:path';
 import {
   huddleCreateSchema,
+  huddleDuplicateSchema,
+  type HuddleDuplicate,
   huddleLocationSchema,
   huddleOpenSchema,
   huddleSaveSchema,
@@ -28,6 +30,7 @@ import {
 import { ApiError } from '../../http/errors.js';
 import { captureHuddleDefinition, type HuddleDefinitionSnapshot } from '../definitions/capture.js';
 import { createHuddleDefinition } from '../definitions/create.js';
+import { captureHuddleCopy, publishHuddleCopy } from '../definitions/duplicate.js';
 import { saveHuddleDefinition, saveHuddleSource } from '../definitions/save.js';
 import { discoverHuddleDefinitions } from '../definitions/discovery.js';
 import { installHuddleTemplate } from '../templates/install.js';
@@ -136,6 +139,30 @@ export class HuddleService {
       this.requireSelection(support.selected);
       const definition = createHuddleDefinition(location.worktree, input.name);
       const snapshot = await this.capture(location.worktree, definition.id);
+      location.check();
+      this.requireSelection(support.selected);
+      return this.place(input.project_id, location, snapshot);
+    });
+  }
+
+  duplicate(profile: string, raw: HuddleDuplicate, authority: () => boolean) {
+    const input = huddleDuplicateSchema.parse(raw);
+    return this.atLocation(profile, input, authority, async (location) => {
+      const support = await this.support();
+      await this.deps.storage?.assertAdmission([this.deps.home, location.worktree]);
+      location.check();
+      this.requireSelection(support.selected);
+      const source = await this.capture(location.worktree, input.huddle_id);
+      if (source.digest !== input.expected_digest)
+        throw ApiError.conflict(
+          'huddle_source_changed',
+          'Huddle source changed; inspect it before copying',
+        );
+      const copy = await captureHuddleCopy(location.worktree, source);
+      location.check();
+      this.requireSelection(support.selected);
+      const id = publishHuddleCopy(location.worktree, input.name, copy);
+      const snapshot = await this.capture(location.worktree, id);
       location.check();
       this.requireSelection(support.selected);
       return this.place(input.project_id, location, snapshot);

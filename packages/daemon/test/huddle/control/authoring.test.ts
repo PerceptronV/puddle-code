@@ -38,6 +38,8 @@ import { runtimeRelease } from '../../helpers/runtime-release.js';
 import { createHuddleDefinition } from '../../../src/huddle/definitions/create.js';
 import { HuddleClient } from '../../../../cli/src/huddle/client.js';
 import { PROTOCOL_VERSION } from '@puddle/shared';
+import { callHuddleTool } from '../../../../cli/src/huddle/mcp.js';
+import { parseHuddleCommand, runHuddleCommand } from '../../../../cli/src/huddle/commands.js';
 
 const cleanups: Array<() => void> = [];
 afterEach(() => {
@@ -136,6 +138,124 @@ function fixture() {
 }
 
 describe('inactive huddle authoring', () => {
+  it('copies saved source through CLI/HTTP with fresh stopped identity, rejects stale/unsafe source and observes a lost reply without retry', async () => {
+    const f = fixture();
+    const original = await f.create();
+    const target = { ...f.location, huddle_id: original.session.huddle_id! };
+    const source = join(f.worktree, '.puddle/huddle', target.huddle_id);
+    await f.service.installTemplate(
+      f.profile.id,
+      { ...target, template: 'format-text', component: 'format' },
+      f.authority,
+    );
+    const graph = {
+      ...original.document.definition,
+      nodes: [
+        { id: 'run', source: { kind: 'builtin', component: 'puddle.trigger.manual', version: 1 } },
+        { id: 'format', source: { kind: 'local', manifest: 'nodes/format/node.json' } },
+      ],
+      edges: [
+        {
+          id: 'input',
+          from: { node: 'run', port: 'event' },
+          to: { node: 'format', port: 'value' },
+        },
+      ],
+    };
+    writeFileSync(join(source, 'huddle.json'), JSON.stringify(graph));
+    writeFileSync(join(source, 'layout.json'), '{"format":1,"nodes":{"format":{"x":20,"y":30}}}\n');
+    writeFileSync(join(source, 'README.md'), 'Keep the purpose and fixtures.\n');
+    mkdirSync(join(source, 'fixtures/empty'), { recursive: true });
+    writeFileSync(join(source, 'fixtures/input.json'), '{"message":"saved"}\n');
+    const inspected = await f.service.inspect(f.profile.id, target, f.authority);
+    const app = new Hono()
+      .use('*', async (c, next) => {
+        c.set('authorityValid', f.authority);
+        await next();
+      })
+      .route('/api/huddle', huddleAuthoringRoutes(f.service));
+    app.onError((error, c) =>
+      c.json(
+        { error: error instanceof ApiError ? error.code : error.message },
+        error instanceof ApiError ? (error.status as 400) : 500,
+      ),
+    );
+    let loseReply = false;
+    const request = vi.fn(async (path: string, body?: unknown) => {
+      const response = await app.request(`/api/huddle/${f.profile.id}${path}`, {
+        method: body === undefined ? 'GET' : 'POST',
+        headers: { 'content-type': 'application/json' },
+        ...(body === undefined ? {} : { body: JSON.stringify(body) }),
+      });
+      if (!response.ok) throw new Error(`HTTP ${response.status}: ${await response.text()}`);
+      if (loseReply && body !== undefined) throw new Error('Lost copy reply');
+      return response.json();
+    });
+    const client = new HuddleClient(request, PROTOCOL_VERSION);
+    const print = vi.fn();
+    const command = parseHuddleCommand(['duplicate', target.huddle_id], {
+      project: f.project.id,
+      worktree: f.worktree,
+      name: 'Independent copy',
+      request: JSON.stringify({ expected_digest: inspected.digest }),
+    });
+    expect(await runHuddleCommand(client, command, print)).toBe(0);
+    const copied = huddleOpenedSchema.parse(print.mock.calls[0]![0]);
+    expect(copied.session).toMatchObject({
+      kind: 'huddle',
+      status: 'exited',
+      worktree_path: f.worktree,
+    });
+    expect(copied.session.id).not.toBe(original.session.id);
+    expect(copied.session.huddle_id).toMatch(/^[a-f0-9]{32}$/);
+    expect(copied.session.huddle_id).not.toBe(target.huddle_id);
+    expect(copied.document.definition).toEqual({
+      ...inspected.definition,
+      id: copied.session.huddle_id,
+      name: 'Independent copy',
+    });
+    const destination = join(f.worktree, '.puddle/huddle', copied.session.huddle_id);
+    for (const file of [
+      'layout.json',
+      'README.md',
+      'fixtures/input.json',
+      'nodes/format/node.json',
+      'nodes/format/run.ts',
+      'nodes/format/prompt.ts',
+    ])
+      expect(readFileSync(join(destination, file), 'utf8')).toBe(
+        readFileSync(join(source, file), 'utf8'),
+      );
+    expect(readdirSync(join(destination, 'fixtures/empty'))).toEqual([]);
+    expect(readFileSync(join(source, 'huddle.json'), 'utf8')).toBe(JSON.stringify(graph));
+    const input = { ...target, name: 'Another copy', expected_digest: inspected.digest };
+    await expect(
+      new HuddleClient(request, { major: 28, minor: 25 }).duplicate(input),
+    ).rejects.toThrow('28.26');
+    const count = readdirSync(join(f.worktree, '.puddle/huddle')).length;
+    await expect(client.duplicate({ ...input, expected_digest: '0'.repeat(64) })).rejects.toThrow(
+      'huddle_source_changed',
+    );
+    symlinkSync(join(source, 'README.md'), join(source, 'shortcut'));
+    await expect(client.duplicate(input)).rejects.toThrow('ordinary files');
+    rmSync(join(source, 'shortcut'));
+    expect(readdirSync(join(f.worktree, '.puddle/huddle'))).toHaveLength(count);
+    loseReply = true;
+    const before = request.mock.calls.length;
+    await expect(callHuddleTool(client, 'huddle_duplicate', input)).rejects.toThrow(
+      /Lost copy reply.*\n.*Do not retry automatically/,
+    );
+    expect(request.mock.calls.length).toBe(before + 1);
+    const observed = await client.list(f.location);
+    expect(observed).toHaveLength(count + 1);
+    expect(observed.some((entry) => 'name' in entry && entry.name === input.name)).toBe(true);
+    expect(f.db.prepare('SELECT * FROM runtime_bindings').all()).toEqual([]);
+    expect(f.db.prepare('SELECT status FROM sessions').all()).toEqual([
+      { status: 'exited' },
+      { status: 'exited' },
+      { status: 'exited' },
+    ]);
+  });
   it('round-trips captured source through the real CLI/HTTP path, refuses competing revisions and retains text after a lost reply', async () => {
     const f = fixture();
     const definition = createHuddleDefinition(f.worktree, 'Source');

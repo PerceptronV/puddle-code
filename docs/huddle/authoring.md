@@ -386,3 +386,28 @@ For current Linux/macOS crash recovery and limited host lifetimes, see [recovery
 The [flow-node guide](flow.md) explains the shared Transform, Format text,
 Condition, Merge and Join templates and `examples/flow.json`. The kit and IDE use
 the same source; copying a component never arms it.
+
+## Copy a saved huddle
+
+On application 28.26+, inspect the saved source first, then supply that digest:
+
+```sh
+pudl huddle duplicate 0123456789abcdef0123456789abcdef \
+  --name 'Review copy' --profile work --project 0123456789 --worktree /srv/app \
+  --request '{"expected_digest":"<digest from inspect>"}'
+```
+
+MCP `huddle_duplicate` takes `project_id`, `worktree`, `huddle_id`, `name` and
+`expected_digest`. Both return the new stopped placement and document. They copy
+the reviewed saved definition in the same worktree, with a fresh id; no runtime
+or trigger starts. The full bounded source tree includes README, fixtures, unused
+components and empty directories, with a limit of 128 files/256 entries, 256 KiB
+per file and 4 MiB total. Links, non-regular files and invalid UTF-8 are rejected.
+
+The manifest's top-level id/name change; other source and literal bindings remain
+as written. Review account/session/worktree settings and supply fresh private
+variable bindings or integration grants before activation. Unsaved drafts and
+private execution state are never copied. On a stale digest, inspect and review
+again. On a lost response, list saved huddles and open the already-created copy;
+do not repeat the mutation automatically. Partial files remain discoverable after
+publication or placement failures.

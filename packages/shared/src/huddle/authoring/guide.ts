@@ -93,6 +93,15 @@ checkpoint/health callbacks. No fixture points to a live provider. Runtime tests
 must verify contract outputs, cursor progression after admission, gap handling,
 unknown delivery and cancellation; static JSON Schema validation cannot do so.
 
+On host 28.26+, pudl huddle duplicate HUDDLE_ID --name NAME --project PROJECT_ID
+--worktree ABSOLUTE_WORKTREE --request '{"expected_digest":"REVIEWED_DIGEST"}'
+copies a saved definition in that worktree to a fresh random id and stopped
+placement. MCP huddle_duplicate takes the same fields. Copies include bounded
+UTF-8 source, docs and fixtures but no private runtime state or unsaved drafts.
+Only manifest id/name change; review preserved literal resource bindings before
+activation. Private variable values and integration grants must be supplied anew.
+After a lost reply, list saved huddles before another explicit copy; never retry.
+
 Use pudl huddle inspect/validate with explicit profile/project/worktree and huddle
 id to review saved files. Start/Apply is separate explicit execution intent; use
 the reviewed digest and exact inspected owner target. Never refresh targets or

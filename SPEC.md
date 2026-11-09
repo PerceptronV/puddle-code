@@ -1395,6 +1395,21 @@ dependencies. Bindings distinguish literals from named variables. File/Git/sessi
 operations require an explicit worktree binding. Typed feedback edges permit
 bounded two-agent cycles; removing those edges must leave an acyclic graph.
 
+Application 28.26 adds explicit same-worktree duplication through local/SSH
+`POST /api/huddle/:profile/definitions/:id/duplicate`, New huddle's source selector,
+`pudl huddle duplicate` and `huddle_duplicate`. Require a name and reviewed saved
+`expected_digest`, a registered canonical worktree, current profile authority,
+storage admission and a capable selected runtime. Allocate a fresh random 32-hex
+id with exclusive directory creation and bounded collision retries. Copy all bounded
+ordinary UTF-8 source files (including unreferenced components, docs and fixtures),
+empty directories and layout; reject links, non-regular files and unstable capture.
+Limits are 128 files, 256 entries, 256 KiB/file and 4 MiB total. Preserve source text
+except the rewritten manifest id/name. Literal resource bindings remain unchanged;
+private run state, installation bindings and secret grants are never copied.
+Create one stopped placement without starting or changing either owner. Publish the
+new manifest last; failed publication/placement leaves discoverable files for
+inspection and explicit opening. Lost replies are not retried automatically.
+
 Daemon `huddle/definitions/` performs data-only discovery and bounded source
 capture with revision hashes, rejecting symlink/traversal escapes and detected
 concurrent edits. It does not execute scripts or create runtime/session records.

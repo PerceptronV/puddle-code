@@ -34,6 +34,46 @@ delivery and the Turn completed node's editor settings are implemented. Applicat
 28.20 adds explicit native-confirmed asks within bounded feedback executions.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## Implemented: independent saved-definition copies
+
+Application **28.26** adds local/SSH `POST
+/api/huddle/:profile/definitions/:id/duplicate` with explicit name, project/worktree
+and reviewed `expected_digest`. New huddle's **Start from** selector, CLI
+`pudl huddle duplicate` and MCP `huddle_duplicate` use that same service. Unsupported
+hosts hide/refuse the action. Source selection retains its reviewed digest rather
+than substituting refreshed data at dispatch; stale source requires another review.
+
+`huddle/definitions/duplicate.ts` captures the full bounded ordinary UTF-8 source
+tree, including layout, README, fixtures, unused components and empty directories.
+It rechecks membership/content and the original root identity, rejects symlinks and
+special files, and enforces 128 files/256 entries, 256 KiB/file and 4 MiB total.
+The copied manifest changes only its id/name (and JSON formatting). Publication
+checks its resulting size too, uses exclusive files/directories and writes the
+manifest last. The shared allocator uses 16 random bytes and bounded collision
+retries. Source/authority/storage/selected-runtime gates precede publication;
+placement creation rechecks authority and selection after capture.
+
+The result is a separate stopped placement in the same registered worktree. No
+owner starts, no original runtime is changed, and no private history/cursors,
+installation variable values or integration grants are copied. Literal resource
+bindings remain as written and must be reviewed before Start. Later failures leave
+published files discoverable; CLI/MCP/browser mutations do not retry lost replies.
+
+Verification: the existing authoring/CLI suites pass **36 checks**, including one
+real service/HTTP/CLI/MCP copy flow. It preserves captured scripts/dependencies,
+layout, README, fixtures and empty directories; allocates distinct random definition
+and placement ids; rejects old hosts, stale digests and symlinked files; and retains
+one discoverable copy after a simulated lost reply without another request. All
+placements remain exited and the runtime-binding table stays empty. The focused
+copy case passes again after final layout/size guards.
+
+The existing headless Chromium authoring check now verifies Create, Copy saved
+huddle and Open through real UI components with in-memory HTTP. It asserts one
+copy request with the selected digest/location, opens independent pane content,
+and observes no start/run/resume dispatch. Shared/daemon/CLI
+and web types, scoped lint, generated SDK and UI semantic-token checks pass.
+Native/provider/SSH and packaged lifecycle acceptance remain separate gates.
+
 ## Implemented: editable flow-node catalogue
 
 Application **28.25** adds `transform`, `format-text`, `condition`, `merge` and

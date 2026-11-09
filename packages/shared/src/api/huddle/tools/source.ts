@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { huddleCreateSchema, huddleLocationSchema } from '../authoring.js';
+import { huddleCreateSchema, huddleDuplicateSchema, huddleLocationSchema } from '../authoring.js';
 import { huddleDiagnosticSchema } from '../definitions.js';
 import { huddleIdSchema } from '../values.js';
 
@@ -12,6 +12,10 @@ export const huddleToolDefinitionSchema = huddleToolLocationSchema.extend({
 });
 export const huddleToolCreateSchema = huddleToolLocationSchema.extend({
   name: huddleCreateSchema.shape.name,
+});
+export const huddleToolDuplicateSchema = huddleToolDefinitionSchema.extend({
+  name: huddleDuplicateSchema.shape.name,
+  expected_digest: huddleDuplicateSchema.shape.expected_digest,
 });
 export const huddleValidationSchema = z.strictObject({
   valid: z.boolean(),
@@ -46,6 +50,13 @@ const definitions = [
     'huddle_create',
     'Create a named blank huddle and inactive session in the explicit project/worktree. Requires an installed supporting runtime but never launches it. Not retryable after a lost reply: list saved huddles first.',
     huddleToolCreateSchema,
+    false,
+    false,
+  ],
+  [
+    'huddle_duplicate',
+    'Copy a reviewed saved huddle into a fresh random-id directory and stopped placement in the same declared worktree (host 28.26+). Requires name and expected_digest. Copies bounded source, layout, fixtures and docs without private runtime state or activation. Literal bindings remain unchanged. Never retry after a lost reply: list saved huddles first.',
+    huddleToolDuplicateSchema,
     false,
     false,
   ],

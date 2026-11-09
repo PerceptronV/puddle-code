@@ -8,7 +8,10 @@ try {
   page = await browser.newPage({ viewport: { width: 1440, height: 900 } });
   page.on('pageerror', (error) => errors.push(error.message));
   await page.goto(
-    new URL('/test/huddle/fixture.html', process.env.PREVIEW_URL ?? 'http://localhost:5174/').href,
+    new URL(
+      '/test/huddle/fixture.html?copy-source',
+      process.env.PREVIEW_URL ?? 'http://localhost:5174/',
+    ).href,
   );
   await page.waitForFunction(() => !!window.huddleFixture);
   await page.evaluate(() => window.huddleFixture.releaseProjects());
@@ -21,6 +24,17 @@ try {
       'huddle:00000000-0000-4000-8000-000000000004',
     ),
   );
+  await page.getByRole('button', { name: 'New huddle', exact: true }).click();
+  await page.getByLabel('Start from', { exact: true }).click();
+  await page.getByRole('option', { name: 'Copy: Review graph · aaaaaaaa', exact: true }).click();
+  await page.getByLabel('Name', { exact: true }).fill('Copied review');
+  await page.getByRole('button', { name: 'Copy saved huddle', exact: true }).click();
+  await page.waitForFunction(() =>
+    JSON.stringify(window.huddleFixture.state()).includes(
+      'huddle:00000000-0000-4000-8000-000000000008',
+    ),
+  );
+  await page.getByRole('region', { name: 'Huddle editor' }).waitFor();
   await page.getByRole('button', { name: 'New huddle', exact: true }).click();
   await page.getByRole('button', { name: 'Review graph', exact: true }).click();
   await page.getByRole('button', { name: 'Run event', exact: true }).click();
@@ -82,15 +96,35 @@ try {
     1,
   );
   assert.equal(
+    observed.requests.filter(
+      (request) => request.method === 'POST' && request.path.endsWith('/duplicate'),
+    ).length,
+    1,
+  );
+  assert.deepEqual(observed.requests.find((request) => request.path.endsWith('/duplicate'))?.body, {
+    project_id: observed.requests.find(
+      (request) => request.path.endsWith('/definitions') && request.method === 'POST',
+    ).body.project_id,
+    worktree: observed.requests.find(
+      (request) => request.path.endsWith('/definitions') && request.method === 'POST',
+    ).body.worktree,
+    name: 'Copied review',
+    expected_digest: 'c'.repeat(64),
+  });
+  assert.equal(
     observed.requests.some((request) => /\/(start|run|resume)$/.test(request.path)),
     false,
   );
   assert.deepEqual(errors, []);
   console.log(
-    'Huddle create/open, graph inspection, source links, collapsed rail and narrow view passed without runtime dispatch or terminal attachment.',
+    'Huddle create/copy/open, graph inspection, source links, collapsed rail and narrow view passed without runtime dispatch or terminal attachment.',
   );
 } catch (error) {
   console.error('Browser errors:', errors);
+  console.error(
+    'Recent requests:',
+    await page?.evaluate(() => window.huddleFixture?.requests.slice(-20)),
+  );
   console.error(await page?.locator('body').innerText());
   await page?.screenshot({ path: '/tmp/puddle-huddle-failure.png' });
   throw error;

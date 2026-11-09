@@ -45,6 +45,16 @@ Several huddles can live in the same worktree. The directory id is stable; the
 display name can change. Source files are ordinary project files, suitable for Git
 and agent editing. Runtime records are kept separately in private Puddle storage.
 
+On application 28.26+, **New huddle → Start from → Copy: …** copies a saved huddle
+in the selected worktree. Enter a name, then choose **Copy saved huddle**. It gets
+a fresh random id and a stopped placement; the original keeps its current lifecycle.
+The copy includes saved scripts, layout, README, fixtures and unused components,
+not unsaved editor drafts, run history, trigger cursors, private variable bindings
+or secret grants. Literal worktree/account/session settings remain unchanged:
+review them before Start. Copying requires ordinary UTF-8 source within the normal
+file/bundle limits and rejects symlinks. If a reply fails, inspect Saved huddles
+before trying again; the copy may already exist.
+
 Use **Add node** to add Run, Result, a time trigger, an agent template or a local
 contract path. Application 28.25 adds editable **Transform**, **Format text**,
 **Condition**, **Merge** and **Join** nodes; see [data flow](huddle/flow.md).

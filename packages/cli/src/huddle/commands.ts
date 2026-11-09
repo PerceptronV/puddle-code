@@ -2,6 +2,7 @@ import {
   huddleToolDefinitionSchema,
   huddleToolLocationSchema,
   huddleToolCreateSchema,
+  huddleToolDuplicateSchema,
   huddleToolSaveSourceSchema,
   huddleToolExecutionCommandSchema,
   huddleExecutionToolSchemas,
@@ -10,6 +11,7 @@ import {
   type HuddleLocation,
   type HuddleOpen,
   type HuddleCreate,
+  type HuddleDuplicate,
   type HuddleSaveSource,
   type HuddleToolExecutionCommand,
   type HuddleToolPlacementCommand,
@@ -21,6 +23,7 @@ export const huddleHelp = `  pudl huddle list --project ID --worktree /absolute/
   pudl huddle inspect <huddle-id> --project ID --worktree /absolute/host/worktree
   pudl huddle validate <huddle-id> --project ID --worktree /absolute/host/worktree
   pudl huddle create --name NAME --project ID --worktree /absolute/host/worktree
+  pudl huddle duplicate <huddle-id> --name NAME --project ID --worktree /absolute/host/worktree --request '{"expected_digest":"..."}'
   pudl huddle open <huddle-id> --project ID --worktree /absolute/host/worktree
   pudl huddle source <huddle-id> --project ID --worktree /absolute/host/worktree
   pudl huddle save-source <huddle-id> --project ID --worktree /absolute/host/worktree --request JSON
@@ -41,6 +44,10 @@ Source paths refer to the selected execution host; authoring names select kit as
 Output is JSON. Validation exits
 1 for graph errors; source/connection errors go to stderr and also exit 1.
 Create/open save source/placements without activation; open returns session.id.
+Duplicate copies a reviewed saved graph and its bounded project files into a fresh
+id in the same worktree (host 28.26+). Supply the inspected expected_digest. It does
+not copy runtime state or change literal resource bindings. After a lost reply,
+list saved huddles before another explicit copy; no automatic retry is safe.
 Runtime commands use that placement's declared worktree. Start/Apply require an
 explicit expected_digest and variables; Apply and later mutations require the
 exact target from runtime inspection. Run also requires node, event_id and data.
@@ -83,6 +90,7 @@ export type HuddleCommand =
   | { action: 'inspect' | 'validate' | 'open' | 'source'; input: HuddleOpen }
   | { action: 'save-source'; input: HuddleSaveSource }
   | { action: 'create'; input: HuddleCreate }
+  | { action: 'duplicate'; input: HuddleDuplicate }
   | { action: 'placement'; command: HuddleToolPlacementCommand }
   | { action: 'execution'; command: HuddleToolExecutionCommand };
 
@@ -106,6 +114,27 @@ export function parseHuddleCommand(
     return {
       action: 'placement',
       command: huddleToolPlacementCommandSchema.parse({ action, session_id: id }),
+    };
+  }
+  if (action === 'duplicate') {
+    if (args.length !== 2 || options.request === undefined) throw new Error(huddleHelp);
+    const request: unknown = JSON.parse(options.request);
+    if (
+      !request ||
+      typeof request !== 'object' ||
+      Array.isArray(request) ||
+      Object.keys(request).some((key) => key !== 'expected_digest')
+    )
+      throw new Error(huddleHelp);
+    return {
+      action,
+      input: huddleToolDuplicateSchema.parse({
+        ...request,
+        project_id: options.project,
+        worktree: options.worktree,
+        huddle_id: id,
+        name: options.name,
+      }),
     };
   }
   if (action === 'save-source') {
@@ -164,7 +193,15 @@ export function parseHuddleCommand(
 export async function runHuddleCommand(
   client: Pick<
     HuddleClient,
-    'list' | 'inspect' | 'validate' | 'create' | 'open' | 'execution' | 'placement' | 'source'
+    | 'list'
+    | 'inspect'
+    | 'validate'
+    | 'create'
+    | 'duplicate'
+    | 'open'
+    | 'execution'
+    | 'placement'
+    | 'source'
   >,
   command: HuddleCommand,
   print: (value: unknown) => void,
@@ -175,6 +212,7 @@ export async function runHuddleCommand(
   else if (command.action === 'inspect') print(await client.inspect(command.input));
   else if (command.action === 'open') print(await client.open(command.input));
   else if (command.action === 'create') print(await client.create(command.input));
+  else if (command.action === 'duplicate') print(await client.duplicate(command.input));
   else if (command.action === 'source') print(await client.source.read(command.input));
   else if (command.action === 'save-source') print(await client.source.save(command.input));
   else if (command.action === 'execution') print(await client.execution.execute(command.command));

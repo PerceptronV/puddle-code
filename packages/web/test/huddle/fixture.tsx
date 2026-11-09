@@ -9,7 +9,7 @@ import {
   huddleDefinitionSchema,
   huddleDocumentSchema,
   huddleComponentSchema,
-  huddleAgentTemplateFiles,
+  huddleTemplateFiles,
   huddleLayoutSchema,
   sessionSchema,
 } from '@puddle/shared';
@@ -73,6 +73,7 @@ window.WebSocket = class extends EventTarget {
 } as unknown as typeof WebSocket;
 const savedId = 'a'.repeat(32);
 const createdId = 'b'.repeat(32);
+const copiedId = 'd'.repeat(32);
 const document = huddleDocumentSchema.parse({
   digest: 'c'.repeat(64),
   definition: huddleDefinitionSchema.parse({
@@ -143,6 +144,7 @@ const reviewer = huddleComponentSchema.parse({
 });
 let created: typeof saved | undefined;
 let blank: typeof document | undefined;
+let copied: typeof document | undefined;
 const disk = new Map<string, { content: string; mtime: number }>([
   [savedId, { content: JSON.stringify(document.definition, null, 2), mtime: 1 }],
 ]);
@@ -170,7 +172,9 @@ const source = sourceFixture(document, disk, components);
 const retainedHistory = retainedHistoryFixture();
 // Existing fixture scripts retain explicit pre-source-save host coverage.
 // Modern captured saves use ?source-saves and real computed capture hashes.
-const capturedSaves = new URLSearchParams(location.search).has('source-saves');
+const capturedSaves = ['source-saves', 'copy-source'].some((flag) =>
+  new URLSearchParams(location.search).has(flag),
+);
 let available = true;
 const runtime = huddleRuntimeFixture(() => document);
 let executionSupported = !new URLSearchParams(location.search).has('old-execution');
@@ -303,7 +307,7 @@ window.fetch = async (input, init) => {
     );
   if (path === `${prefix}/definitions` && method === 'GET')
     return Response.json(
-      [document, ...(blank ? [blank] : [])].map((item) => ({
+      [document, ...(blank ? [blank] : []), ...(copied ? [copied] : [])].map((item) => ({
         id: item.definition.id,
         name: item.definition.name,
         digest: item.digest,
@@ -311,11 +315,37 @@ window.fetch = async (input, init) => {
       })),
     );
   if (path === `${prefix}/definitions/${savedId}/source`) return source.request(method, body);
+  if (path === `${prefix}/definitions/${createdId}/source` && blank)
+    return sourceFixture(blank, disk, components).request(method, body);
+  if (path === `${prefix}/definitions/${copiedId}/source` && copied)
+    return sourceFixture(copied, disk, components).request(method, body);
   if (path === `${prefix}/definitions/${savedId}`) return Response.json(document);
   if (path === `${prefix}/definitions/${createdId}`) return Response.json(blank);
+  if (path === `${prefix}/definitions/${copiedId}`) return Response.json(copied);
+  if (path === `${prefix}/definitions/${savedId}/duplicate` && method === 'POST') {
+    if (!available || body.expected_digest !== document.digest)
+      return Response.json(
+        { error: { code: 'stale', message: 'Source changed' } },
+        { status: 409 },
+      );
+    copied = huddleDocumentSchema.parse({
+      ...document,
+      digest: 'e'.repeat(64),
+      definition: { ...document.definition, id: copiedId, name: body.name },
+    });
+    const session = sessionSchema.parse({
+      ...saved,
+      id: '00000000-0000-4000-8000-000000000008',
+      huddle_id: copiedId,
+      title: body.name,
+    });
+    disk.set(copiedId, { content: JSON.stringify(copied.definition, null, 2), mtime: 1 });
+    fixture.addSession(session);
+    return Response.json({ created: true, session, document: copied }, { status: 201 });
+  }
   const install = path.match(new RegExp(`^${prefix}/definitions/([^/]+)/components$`));
   if (install && method === 'POST') {
-    const template = huddleAgentTemplateFiles(body.template);
+    const template = huddleTemplateFiles(body.template);
     const root = `.puddle/huddle/${install[1]}/nodes/${body.component}`;
     for (const [name, content] of Object.entries(template.files))
       components.set(`${root}/${name}`, { content, mtime: 1 });

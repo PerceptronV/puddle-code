@@ -5,7 +5,7 @@ import { huddleDefinitionSchema } from '@puddle/shared';
 import { ApiError } from '../../http/errors.js';
 
 /** Small synchronous publication: no await between final authority check and writes. */
-export function createHuddleDefinition(worktree: string, name: string) {
+export function createHuddleDirectory(worktree: string) {
   if (realpathSync(worktree) !== worktree)
     throw ApiError.conflict('huddle_worktree_changed', 'Huddle worktree changed');
   let directory = worktree;
@@ -23,11 +23,23 @@ export function createHuddleDefinition(worktree: string, name: string) {
         'Huddle collection must contain ordinary directories',
       );
   }
-  const id = randomBytes(16).toString('hex');
-  const definition = huddleDefinitionSchema.parse({ format: 1, id, name, nodes: [], edges: [] });
   // Exclusive mkdir never replaces an existing definition, even on an id collision.
-  const root = join(directory, id);
-  mkdirSync(root);
+  for (let attempt = 0; attempt < 8; attempt++) {
+    const id = randomBytes(16).toString('hex');
+    const root = join(directory, id);
+    try {
+      mkdirSync(root);
+      return { id, root };
+    } catch (error) {
+      if ((error as NodeJS.ErrnoException).code !== 'EEXIST') throw error;
+    }
+  }
+  throw new Error('Could not allocate a new huddle directory');
+}
+
+export function createHuddleDefinition(worktree: string, name: string) {
+  const { id, root } = createHuddleDirectory(worktree);
+  const definition = huddleDefinitionSchema.parse({ format: 1, id, name, nodes: [], edges: [] });
   writeFileSync(join(root, 'huddle.json'), `${JSON.stringify(definition, null, 2)}\n`, {
     flag: 'wx',
     flush: true,

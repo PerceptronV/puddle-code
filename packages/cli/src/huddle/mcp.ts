@@ -1,5 +1,6 @@
 import {
   huddleToolCreateSchema,
+  huddleToolDuplicateSchema,
   huddleToolDefinitionSchema,
   huddleToolLocationSchema,
 } from '@puddle/shared';
@@ -20,6 +21,8 @@ export async function callHuddleTool(
       return client.validate(huddleToolDefinitionSchema.parse(args));
     case 'huddle_create':
       return client.create(huddleToolCreateSchema.parse(args));
+    case 'huddle_duplicate':
+      return client.duplicate(huddleToolDuplicateSchema.parse(args));
     case 'huddle_open':
       return client.open(huddleToolDefinitionSchema.parse(args));
     default:
