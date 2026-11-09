@@ -1335,6 +1335,21 @@ All timestamps are ISO 8601 UTC. Git operations against a given repository (work
 
 ### Huddle orchestration (implementation in progress)
 
+Application 28.23 adds integration-secret references through parameter editor
+`secret` and runtime `integrationSecrets: 1`. Private `huddle-integrations.json`
+in the installation home grants exact profile/project/huddle/canonical-worktree
+access to logical references. Require a bounded, same-user private regular file;
+ambiguous grants and unavailable references fail with redacted diagnostics.
+Start/Apply checks availability; independent worker startup rereads current values.
+Only references enter source/revisions/bindings. Values travel in private startup
+frames and appear in a frozen context map, never environment or command arguments.
+Scripts, custom triggers, live and retained readout observation share the resolver.
+Existing workers retain their values until interrupted/stopped; rotation does not
+recall process memory. Secret-bearing workers redact logs and error/health/refusal
+messages before persistence. Trusted adapters must keep credentials out of outputs,
+cursors, receipts and prompts. Host configuration is edited directly; no browser
+secret-value endpoint is exposed. See `docs/huddle/integrations.md`.
+
 Application **28.16** adds local/SSH `POST
 /api/huddle/:profile/sessions/:sid/auto-start` with `{target, expected, enabled}`.
 `expected` is the inspected setting. Opt-in `include_auto_start=true` adds

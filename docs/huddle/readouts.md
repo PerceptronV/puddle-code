@@ -83,8 +83,8 @@ event and scope, source port, graph revision, node, invocation id and idempotenc
 key. Settings and resolved bindings are also immutable. File, Git and session
 components must declare an explicit `worktree` parameter; use `context.bindings`
 for resolved resource references. A network-only component need not invent a file
-or session binding. Integration-secret references are not implemented yet; keep
-credentials out of graph source files.
+or session binding. Use [private integration references](integrations.md) for
+authentication; keep credentials out of graph source files.
 
 Return one of:
 
@@ -182,3 +182,5 @@ requires a filesystem supporting hard links; failure is reported without falling
 back to an overwrite. A process crash may leave a `.puddle-report-*` staging file.
 Add the report directory to every relevant Filetree trigger's **Output paths**
 exclusions, including staging files, to prevent output-triggered feedback.
+
+For authenticated services, use [private integration-secret references](integrations.md).

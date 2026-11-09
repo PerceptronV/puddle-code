@@ -24,6 +24,7 @@ export const huddleRuntimeCapabilitiesSchema = z.strictObject({
   completionEvents: version.optional(),
   completionPlans: version.optional(),
   nativeFeedback: version.optional(),
+  integrationSecrets: version.optional(),
   readouts: version.optional(),
   readoutObservation: version.optional(),
   customTriggers: version.optional(),
@@ -51,6 +52,7 @@ export const HUDDLE_RUNTIME_CAPABILITIES: Readonly<HuddleRuntimeCapabilities> = 
   completionEvents: 1,
   completionPlans: 1,
   nativeFeedback: 1,
+  integrationSecrets: 1,
   readouts: 1,
   readoutObservation: 1,
   customTriggers: 1,
@@ -83,6 +85,7 @@ export function supportsHuddleRuntime(value: unknown): value is HuddleRuntimeCap
     (parsed.data.git === undefined || parsed.data.git === 1) &&
     (parsed.data.sessionEvents === undefined || parsed.data.sessionEvents === 1) &&
     (parsed.data.completionEvents === undefined || parsed.data.completionEvents === 1) &&
+    (parsed.data.integrationSecrets === undefined || parsed.data.integrationSecrets === 1) &&
     (parsed.data.nativeFeedback === undefined ||
       (parsed.data.nativeFeedback === 1 &&
         parsed.data.operations === 2 &&

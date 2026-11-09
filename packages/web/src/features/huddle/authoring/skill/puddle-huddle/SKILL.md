@@ -93,7 +93,15 @@ idempotency, reconciliation and cancellation support. Treat unknown delivery as
 unknown, not success or permission to repeat a side effect. Consult available
 trigger/readout templates or supplied wrapper types for the exact adapter methods;
 do not implement external integrations from guessed signatures. Keep credentials
-out of graph source and prompts.
+out of graph source and prompts. On application 28.23 with integrationSecrets:1,
+use string parameters with editor secret and no default. Store only logical
+references in settings; adapters use context.secrets?.PARAMETER_NAME. The operator
+configures exact profile/project/huddle/canonical-worktree grants in private
+huddle-integrations.json under Puddle home. Never request credential values in the
+agent prompt or write them into project files. Start/Apply checks availability;
+workers recheck at startup. Keep secrets out of outputs, receipts and cursors too.
+Secret-worker diagnostics are redacted; Interrupt/Resume or Stop/Start refreshes
+running workers after host-side rotation.
 
 ## Save, inspect, activate
 

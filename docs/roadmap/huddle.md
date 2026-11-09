@@ -836,7 +836,10 @@ and `huddle_authoring` now expose a client-bundled kit: structural JSON Schemas,
 generated wrapper types, editable transform/pull-feed/report components, example
 graphs and fake fixtures. Kit reads need no host or source mutation; the reported
 client protocol is not target-host capability evidence. Real-provider authoring,
-richer integrations and managed secrets remain unfinished. Recorded revisions are
+richer integrations remain unfinished. Application 28.23 adds private host
+integration grants and secret parameter references, checked at activation and
+worker startup with redacted diagnostics. Host configuration is edited directly;
+existing workers retain values until interrupted/stopped. Recorded revisions are
 now inspectable through 28.13 without a connected owner.
 
 Let users select any eligible account in the current profile to create or modify

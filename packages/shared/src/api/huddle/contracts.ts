@@ -7,6 +7,8 @@ import {
   type HuddleJson,
 } from './values.js';
 
+export const huddleSecretReferenceSchema = z.string().regex(/^[a-z][a-z0-9_-]{0,63}$/);
+
 const valueTypes = ['null', 'boolean', 'number', 'integer', 'string', 'array', 'object'] as const;
 export type HuddleValueType = (typeof valueTypes)[number];
 export interface HuddleValueSchema {
@@ -89,6 +91,7 @@ export const huddleParameterSchema = z.strictObject({
     .enum([
       'json',
       'text',
+      'secret',
       'prompt',
       'number',
       'boolean',

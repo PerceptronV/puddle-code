@@ -1,6 +1,7 @@
 import { useId, useState } from 'react';
 import {
   huddleBindingSchema,
+  huddleSecretReferenceSchema,
   completionHuddleTrigger,
   type HuddleBinding,
   type HuddleComponent,
@@ -120,6 +121,8 @@ function Parameter({
   );
   let candidate: HuddleBinding | undefined;
   try {
+    if (parameter.editor === 'secret' && kind === 'literal')
+      huddleSecretReferenceSchema.parse(text);
     candidate = huddleBindingSchema.parse(
       kind === 'variable'
         ? { kind, name: text }
@@ -270,6 +273,12 @@ function Parameter({
       {parameter.description && <p className="text-xs text-fg-muted">{parameter.description}</p>}
       {!binding && parameter.default !== undefined && (
         <p className="text-xs text-fg-muted">Default: {JSON.stringify(parameter.default)}</p>
+      )}
+      {parameter.editor === 'secret' && (
+        <p className="text-xs text-fg-muted">
+          Enter a private host reference, never the secret value. Start/Apply checks availability
+          for this huddle and worktree; workers recheck before running.
+        </p>
       )}
       {parameter.editor === 'worktree' && (
         <p className="text-xs text-fg-muted">

@@ -99,9 +99,24 @@ export const huddleWorkerMessageSchema = z.discriminatedUnion('type', [
   z.strictObject({ type: z.literal('finished'), outputs: huddleNamedValuesSchema }),
   z.strictObject({ type: z.literal('failed'), error: z.string().min(1).max(4096) }),
 ]);
+const workerSecrets = z
+  .record(huddleKeySchema, z.string().min(1).max(4096))
+  .refine(
+    (values) =>
+      Object.keys(values).length <= 16 &&
+      new TextEncoder().encode(JSON.stringify(values)).length <= 64 * 1024,
+  );
 export const huddleWorkerInputSchema = z.discriminatedUnion('type', [
-  z.strictObject({ type: z.literal('subscribe'), job: huddleTriggerWorkerJobSchema }),
-  z.strictObject({ type: z.literal('start'), job: huddleWorkerJobSchema }),
+  z.strictObject({
+    type: z.literal('subscribe'),
+    job: huddleTriggerWorkerJobSchema,
+    secrets: workerSecrets.optional(),
+  }),
+  z.strictObject({
+    type: z.literal('start'),
+    job: huddleWorkerJobSchema,
+    secrets: workerSecrets.optional(),
+  }),
   z.strictObject({ type: z.literal('reply'), id: z.uuid(), value: huddleJsonSchema }),
   z.strictObject({ type: z.literal('reject'), id: z.uuid(), error: z.string().min(1).max(4096) }),
   z.strictObject({ type: z.literal('cancel'), reason: z.string().min(1).max(4096) }),

@@ -1,3 +1,4 @@
+import { huddleSecretResolver } from '../integrations/secrets.js';
 import type { HuddleOfflineReadouts } from './readouts/offline.js';
 import { retainedHuddleLaunch } from './retained/identity.js';
 import { hasHuddleContainment } from '../../runtime/huddle/recovery/containment.js';
@@ -40,6 +41,8 @@ import {
   type HuddleHistoryRequest,
   type HuddleRuntimeInspection,
   type Session,
+  type HuddleComponent,
+  type HuddleJson,
 } from '@puddle/shared';
 import type { ProfileStore } from '../../db/stores/profiles.js';
 import type { ProjectStore } from '../../db/stores/projects.js';
@@ -286,6 +289,16 @@ export class HuddleExecutionService {
             );
           return selected.id;
         };
+        const secrets = huddleSecretResolver(this.deps.home, {
+          profileId: profile,
+          projectId: session.project_id,
+          huddleId: session.huddle_id!,
+          worktree: location.worktree,
+        });
+        const resources = (component: HuddleComponent, values: Record<string, HuddleJson>) => {
+          secrets(component, values);
+          return huddleResourceBindings(this.deps, profile, session.project_id, component, values);
+        };
         let prepared: ReturnType<typeof prepareHuddleActivation>;
         try {
           const bindings = huddleExecutionBindings(
@@ -302,8 +315,7 @@ export class HuddleExecutionService {
                   lifecycle,
                 )),
             observeSession,
-            (component, values) =>
-              huddleResourceBindings(this.deps, profile, session.project_id, component, values),
+            resources,
           );
           prepared = prepareHuddleActivation(
             snapshot,
@@ -333,8 +345,7 @@ export class HuddleExecutionService {
                   lifecycle,
                 )),
             observeSession,
-            (component, values) =>
-              huddleResourceBindings(this.deps, profile, session.project_id, component, values),
+            resources,
           );
           if (canonicalHuddleJson(current) !== canonicalHuddleJson(prepared.activation.bindings))
             throw ApiError.conflict(

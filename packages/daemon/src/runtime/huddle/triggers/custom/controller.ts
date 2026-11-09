@@ -18,7 +18,7 @@ import {
 
 type WorkerOptions = Pick<
   HuddleWorkerOptions,
-  'nodePath' | 'entryPath' | 'allowance' | 'environment'
+  'secrets' | 'nodePath' | 'entryPath' | 'allowance' | 'environment'
 >;
 interface Subscription {
   source: HuddleCustomTriggerSource;

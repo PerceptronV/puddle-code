@@ -45,6 +45,11 @@ export function requireHuddleFeatures(
 ) {
   for (const node of snapshot.definition.nodes) {
     const component = snapshot.components[node.id]!;
+    if (
+      Object.values(component.parameters).some((p) => p.editor === 'secret') &&
+      capabilities.integrationSecrets !== 1
+    )
+      throw new Error('This runtime does not support huddle integration secrets');
     if (component.nativeCompletion && capabilities.nativeFeedback !== 1)
       throw new Error('This runtime does not support native completion feedback');
     if (component.lifecycle && capabilities.lifecycle !== 1)

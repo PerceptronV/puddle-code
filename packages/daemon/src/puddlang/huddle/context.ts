@@ -10,6 +10,8 @@ export type HuddleValues = Readonly<Record<string, HuddleJson>>;
 export interface HuddleNodeContext {
   inputs: HuddleValues;
   parameters: HuddleValues;
+  /** Declared parameter names mapped to private host values; absent on older runtimes. Never emit or persist. */
+  secrets?: Readonly<Record<string, string>>;
   /** Resolved host references are still rechecked at operation dispatch. */
   bindings: Readonly<Record<string, string>>;
   puddlang: import('../client.js').PuddlangClient;
@@ -20,6 +22,8 @@ export interface HuddleNodeContext {
 
 export interface HuddleExtensionContext {
   parameters: HuddleValues;
+  /** Declared parameter names mapped to private host values; absent on older runtimes. Never emit or persist. */
+  secrets?: Readonly<Record<string, string>>;
   bindings: Readonly<Record<string, string>>;
   signal: AbortSignal;
   log(message: string): void;

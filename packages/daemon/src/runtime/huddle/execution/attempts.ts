@@ -24,7 +24,7 @@ import { prepareReadoutObservation } from '../readouts/observation.js';
 
 export interface HuddleAttemptOptions extends Pick<
   HuddleWorkerOptions,
-  'nodePath' | 'entryPath' | 'environment' | 'allowance'
+  'secrets' | 'nodePath' | 'entryPath' | 'environment' | 'allowance'
 > {
   maxWorkers?: number;
   /** Host implementation must revalidate scope and use the ledger before external dispatch. */

@@ -31,7 +31,8 @@ the selected huddle id. Create new ids with the normal huddle creation command.
 The feed assumes a bounded cursor API; the report requires an explicit confirmed
 receipt and treats missing/invalid replies as unknown. Adapt these assumptions to
 the real service before activation. Fake fixtures exercise contracts, not live
-integration behavior. Credentials and managed secret resolution are not included.
+integration behavior. The kit includes no credentials; authenticated services can
+use [private host secret references](integrations.md).
 
 ## Account-selected editing
 
@@ -125,6 +126,11 @@ all three files together, select an explicit worktree, and configure the report
 path and text/JSON format. Install `@types/node` for Node 22 in the authoring
 project and enable `allowImportingTsExtensions` for no-emit checks. See
 [Write report](readouts.md#write-report) for conflict and observation behavior.
+
+For authenticated integrations, use [private host secret references](integrations.md)
+(application 28.23, runtime `integrationSecrets: 1`). Graph files contain logical
+references; adapters receive the value in `context.secrets` by parameter name.
+Never ask an authoring agent to put credentials in source or prompts.
 
 For custom extensions, see [triggers](triggers.md) and [readouts](readouts.md).
 Standalone JSON Schema/type bundles and component fixtures remain pending. The originally proposed directory-only validation command is superseded by the explicit scope above.

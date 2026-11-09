@@ -36,7 +36,18 @@ successful JSON {accepted: true, receipt: ...}; other replies remain unknown.
 The idempotency header alone does not imply deduplication; the template declares
 idempotent false and never automatically retries or observes uncertain delivery.
 Adapt both adapters to a real service's documented semantics before activation.
-Credentials and managed secret references are not provided by this kit.
+On host 28.23 with integrationSecrets:1, declare string parameters with editor
+secret and no default. Settings contain logical references, never credentials.
+The operator supplies huddle-integrations.json in private Puddle home with exact
+profileId/projectId/huddleId/worktree grants and a values map. Require private
+same-user mode 0600 and no symlink/hard links. Access context.secrets?.PARAMETER_NAME;
+parameters still hold references. Start/Apply and worker startup check availability.
+The private file is bounded to 64 KiB; each grant has at most 16 nonempty values of
+4096 characters. References match /^[a-z][a-z0-9_-]{0,63}$/.
+Secret-worker logs and failure/health diagnostics are redacted. Never emit secrets
+as outputs, receipts, cursors or prompts. Existing workers retain original values;
+Interrupt/Resume or Stop/Start is needed to refresh them after rotation/revocation.
+The kit includes no actual credentials. Custom code retains trusted OS authority.
 
 templates/file-report/ is the editable Write report readout (host catalogue 28.22+).
 It requires an explicit canonical worktree and relative path, creates missing parent

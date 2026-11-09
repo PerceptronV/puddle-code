@@ -175,8 +175,8 @@ export default HuddleTrigger({
 The example bounds response bytes, page size and request time. Adapt those limits
 to the service and retain them in production adapters. Put credentials outside
 graph/source files. The [authoring kit](authoring.md#packaged-authoring-kit) ships an
-editable version with fake fixtures and generated wrapper types. Managed
-integration-secret references remain unfinished.
+editable version with fake fixtures and generated wrapper types. Authentication
+can use [private integration references](integrations.md) on supporting runtimes.
 
 ## Resource and compatibility limits
 
@@ -197,5 +197,7 @@ user's OS authority; declarations and captured imports are not a security sandbo
 
 Existing agent/terminal owners and huddle runtimes without custom-trigger support
 remain usable. Unsupported runtimes cannot launch or Apply custom-trigger graphs.
-Automatic owner-crash replacement, integration-specific acceptance and managed
-secret resolution remain separate unfinished work.
+Automatic owner-crash replacement is supported on verified Linux cgroup-v2 scopes;
+other same-boot platform recovery and integration-specific acceptance remain open.
+
+For authenticated services, use [private integration-secret references](integrations.md).

@@ -1,3 +1,4 @@
+import { huddleSecretResolver } from '../../huddle/integrations/secrets.js';
 import { recordHuddleContainment } from './recovery/containment.js';
 import { inspectHuddleTriggers } from './inspection/triggers.js';
 import { verifyHuddleRecoverySeed } from './recovery/verify.js';
@@ -133,6 +134,13 @@ export class HuddleOwner {
           nodePath: process.execPath,
           entryPath: realpathSync(workerEntry),
           allowance: memory.allowance,
+          secrets:
+            launch.capabilities.integrationSecrets === 1
+              ? huddleSecretResolver(home, {
+                  ...launch.scope,
+                  worktree: launch.identity.canonical_worktree_path,
+                })
+              : undefined,
           operation: (request, invocation, signal) => {
             if (
               request.action.kind === 'operation' &&
@@ -228,6 +236,13 @@ export class HuddleOwner {
           nodePath: process.execPath,
           entryPath: realpathSync(workerEntry),
           allowance: memory.allowance,
+          secrets:
+            launch.capabilities.integrationSecrets === 1
+              ? huddleSecretResolver(home, {
+                  ...launch.scope,
+                  worktree: launch.identity.canonical_worktree_path,
+                })
+              : undefined,
         },
         () => this.drive(),
         () => this.persist(),

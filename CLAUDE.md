@@ -899,6 +899,16 @@ runtime observation closes. Completion nodes are in the public catalogue; host
 launch/Apply requires both event and plan capabilities. Resolve targets as observed
 live agents with explicit worktrees, without requiring an automated ask bridge.
 Oversized JSON envelopes fail without truncating replies.
+Application 28.23 and owner `integrationSecrets: 1` resolve secret-editor references
+through `huddle/integrations/secrets.ts`. Require exact private host grants for
+profile/project/huddle/canonical worktree, bounded private same-user files and
+redacted errors. Recheck before activation and each worker startup. Pass values
+only in private startup envelopes, never captured jobs, bindings, journals,
+environments or command arguments. Share the resolver across script, trigger and
+readout workers, including retained observation. Redact secret-worker logs/errors
+before owner callbacks; typed outputs remain trusted adapter data. Existing workers
+retain values until interrupted/stopped. Document host-side configuration and
+rotation in `docs/huddle/integrations.md`; never read provider account credentials.
 Application 28.22 adds Write report through the shared node-template catalogue;
 keep editable file readouts under `shared/huddle/templates/readouts/` and reuse
 existing template installation, worktree binding and durable readout observation.

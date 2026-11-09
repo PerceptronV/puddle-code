@@ -34,6 +34,40 @@ delivery and the Turn completed node's editor settings are implemented. Applicat
 28.20 adds explicit native-confirmed asks within bounded feedback executions.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## Implemented: private integration references
+
+Application **28.23**, optional owner **`integrationSecrets: 1`**, adds secret-editor
+parameters, a private host grant resolver under `huddle/integrations/`, and frozen
+`context.secrets` values for scripts, triggers and readouts. The host file is bounded
+and requires exact profile/project/huddle/canonical-worktree scope, private same-user
+regular-file ownership, no symlink/extra links and stable reads. Values are resolved
+at Start/Apply admission and again immediately before each worker startup. Retained
+readout observation uses the same resolver after clean owner shutdown.
+
+Only logical references enter source, revisions and bindings. Values are separate
+private startup-frame fields, never environment variables, arguments or ledger rows.
+Secret-bearing workers redact logs, failures, readout refusal/unknown messages and
+trigger health messages before owner callbacks. Typed outputs, receipts and cursors
+remain trusted adapter data: this does not sandbox project scripts. Existing workers
+retain old credentials until interrupted/stopped. Host-side configuration and rotation
+are documented in [integrations](../huddle/integrations.md); there is no browser
+secret-value endpoint and provider account stores are never queried.
+
+Verification: **11 focused cases pass** across the integration-worker cases,
+the existing SDK/authoring suite and one HTTP Start/Run/Stop case. They cover exact
+scope, unavailable/private-file checks, rotation at startup, frozen worker values,
+redacted split logs/failures/readout/trigger diagnostics, rejection before launch,
+and successful independent-owner execution with references-only source/history.
+The HTTP fixture uses the canonical worktree path, including macOS temp aliases.
+Shared/daemon/CLI and web TypeScript checks, scoped lint and generated SDK checks pass.
+
+Manual acceptance: configure a fake service grant on local and SSH hosts, declare a
+secret parameter and use it in a custom trigger/readout. Confirm Start rejects a
+missing/wrong grant, source/revisions contain only references, service authentication
+works, and diagnostics stay redacted. Rotate, then Interrupt/Resume and verify the
+new credential is used without replaying uncertain deliveries. Remove the grant and
+verify new workers fail unavailable. Real-service/SSH acceptance remains pending.
+
 ## Implemented: worktree report readout
 
 Application **28.22** adds **Write report** to Add node and the existing component

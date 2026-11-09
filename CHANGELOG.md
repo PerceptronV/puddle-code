@@ -82,6 +82,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Resolve huddle integration secrets from exact private host grants, keeping references in source and values in worker memory; check availability before activation and redact worker diagnostics (application 28.23).
+
 - Observe retained readouts only after confirmed clean owner shutdown, under existing runtime/writer claims. Bound observation to one worker and drain it for maintenance/shutdown; retain outcomes in the original ledger.
 
 - Support opt-in huddle `askNative()` confirmation through existing asks and completion feeds, retaining exact native evidence atomically with source cursors. Suppress automated roots and reject changed subscriptions without resending prompts; gate source on `nativeFeedback: 1`.

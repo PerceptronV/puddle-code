@@ -72,6 +72,23 @@ export const huddleComponentSchema = z
         message:
           'Native completion requires a session script and a string parameter naming its completion trigger',
       });
+    const secretParameters = Object.entries(component.parameters).filter(
+      ([, p]) => p.editor === 'secret',
+    );
+    if (secretParameters.length > 16)
+      ctx.addIssue({
+        code: 'custom',
+        path: ['parameters'],
+        message: 'At most 16 integration secrets are supported',
+      });
+    for (const [name, parameter] of secretParameters) {
+      if (parameter.schema.type !== 'string' || parameter.default !== undefined)
+        ctx.addIssue({
+          code: 'custom',
+          path: ['parameters', name],
+          message: 'Secret references require a string schema without a default',
+        });
+    }
     const retained = Object.entries(component.inputs).filter(
       ([, port]) => port.scope === 'execution',
     );

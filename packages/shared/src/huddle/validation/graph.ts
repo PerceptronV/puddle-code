@@ -1,3 +1,4 @@
+import { huddleSecretReferenceSchema } from '../../api/huddle/contracts.js';
 import type { HuddleComponent } from '../../api/huddle/components.js';
 import type { HuddleDefinition, HuddleDiagnostic } from '../../api/huddle/definitions.js';
 import type { HuddleValueSchema } from '../../api/huddle/contracts.js';
@@ -67,6 +68,16 @@ export function validateHuddleGraph(
         continue;
       }
       if (binding.kind === 'literal') {
+        if (
+          parameter.editor === 'secret' &&
+          !huddleSecretReferenceSchema.safeParse(binding.value).success
+        )
+          add(
+            'secret_reference',
+            `${path}/parameters/${name}`,
+            'Choose a private integration reference, not a secret value',
+            { node: node.id },
+          );
         for (const issue of validateHuddleValue(parameter.schema, binding.value))
           add('parameter_value', `${path}/parameters/${name}${issue.path}`, issue.message, {
             node: node.id,
@@ -83,7 +94,9 @@ export function validateHuddleGraph(
         else {
           if (
             variable.editor !== parameter.editor &&
-            ['worktree', 'account', 'session', 'project', 'agent'].includes(parameter.editor)
+            ['secret', 'worktree', 'account', 'session', 'project', 'agent'].includes(
+              parameter.editor,
+            )
           )
             add(
               'binding_kind',

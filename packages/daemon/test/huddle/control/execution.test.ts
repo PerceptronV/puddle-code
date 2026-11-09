@@ -1,5 +1,13 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, readFileSync, rmSync, symlinkSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  realpathSync,
+  rmSync,
+  symlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import {
@@ -461,3 +469,71 @@ it.each(['interval', 'date', 'filetree', 'git'] as const)(
     }
   },
 );
+
+it('checks private integration availability before launch and supplies secrets through the independent owner', async () => {
+  const f = await fixture();
+  try {
+    const definition = structuredClone(f.options.snapshot.definition);
+    const component = structuredClone(f.options.snapshot.components.worker!);
+    component.parameters.token = { editor: 'secret', schema: { type: 'string' }, required: true };
+    definition.nodes.find((node) => node.id === 'worker')!.parameters.token = {
+      kind: 'literal',
+      value: 'service_token',
+    };
+    writeFileSync(join(f.root, 'huddle.json'), JSON.stringify(definition));
+    writeFileSync(join(f.root, 'nodes/example/node.json'), JSON.stringify(component));
+    writeFileSync(
+      join(f.root, 'nodes/example/run.ts'),
+      `import { HuddleNode } from 'puddlang/huddle';
+export default HuddleNode({contract:'./node.json',async run(ctx) {
+  if (ctx.parameters.token !== 'service_token') throw new Error('Reference changed');
+  return {completed: ctx.secrets.token.length};
+}});`,
+    );
+    const source = await f.source();
+    const start = { expected_digest: source.digest, variables: {} };
+    const unavailable = await f.request('start', start);
+    expect(unavailable.status).toBe(409);
+    expect(unavailable.body.error.message).toContain('Integration secrets unavailable');
+    expect((await f.request('runtime')).body.owner).toBeNull();
+    const secret = 'private-runtime-credential';
+    writeFileSync(
+      join(f.home, 'huddle-integrations.json'),
+      JSON.stringify({
+        format: 1,
+        grants: [
+          {
+            profileId: f.profile.id,
+            projectId: f.project.id,
+            huddleId: f.session.huddle_id,
+            worktree: realpathSync(f.home),
+            values: { service_token: secret },
+          },
+        ],
+      }),
+      { mode: 0o600 },
+    );
+    const started = await f.request('start', start);
+    expect(started.status, JSON.stringify(started.body)).toBe(200);
+    const target = started.body.owner.target;
+    const run = await f.request('run', { target, node: 'run', event_id: randomUUID(), data: null });
+    expect(run.status).toBe(200);
+    const history = {
+      owner: { runtimeId: target.runtimeId, incarnation: target.incarnation },
+      collection: 'invocations',
+      parent: run.body.executionId,
+      after: 0,
+    };
+    await until(async () =>
+      (await f.request('history', history)).body.records?.some(
+        (row: { record: { result?: { completed?: number } } }) =>
+          row.record.result?.completed === secret.length,
+      ),
+    );
+    expect(JSON.stringify((await f.request('history', history)).body)).not.toContain(secret);
+    expect(JSON.stringify(await f.source())).not.toContain(secret);
+    expect((await f.request('stop', { target })).status).toBe(200);
+  } finally {
+    await f.close();
+  }
+});

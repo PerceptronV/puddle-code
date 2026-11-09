@@ -1,5 +1,19 @@
 # The puddle communication protocol
 
+Application **28.23** adds parameter editor `secret` and optional owner
+`integrationSecrets: 1`. Source stores bounded logical references; Start/Apply
+checks a private host grant scoped to profile, project, huddle and canonical
+worktree. Existing owners without this capability continue existing graphs and
+reject secret-bearing graphs. No database or agent-runtime protocol change occurs.
+
+The private worker start/subscribe envelope adds optional `secrets`, separate from
+the captured job, keyed by declared parameter name. It is bounded to 16 values /
+64 KiB and supplied from current host configuration immediately before startup.
+Script/trigger/readout contexts expose an optional frozen secrets map. No values
+enter revision bindings, journals, process environment or public API responses.
+Logs and worker failure/readout/health diagnostics are redacted for components
+with secret declarations. Typed results remain the trusted adapter's responsibility.
+
 Application **28.22** adds `write-report` to the existing component-template
 installation request. The IDE gates this choice on 28.22; earlier template names
 and response shapes are unchanged. The editable `puddle.readout.file` component

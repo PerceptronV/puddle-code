@@ -18,6 +18,7 @@ import './sdk.js';
 const socket = new Socket({ fd: 3, readable: true, writable: true });
 const abort = new AbortController();
 let started = false;
+let secrets: Readonly<Record<string, string>> = Object.freeze({});
 let finished = false;
 let cancellation: 'none' | 'signal' = 'none';
 const calls = new HuddleWorkerCalls((message) => {
@@ -47,6 +48,7 @@ readRuntimeFrames(
     if (message.type !== 'start' && message.type !== 'subscribe') return calls.receive(message);
     if (started) throw new Error('Huddle worker cannot start twice');
     started = true;
+    secrets = Object.freeze({ ...message.secrets });
     void (message.type === 'subscribe' ? subscribe(message.job) : run(message.job)).then(
       (outputs) => finish({ type: 'finished', outputs }),
       (error: unknown) =>
@@ -74,6 +76,7 @@ async function subscribe(job: HuddleTriggerWorkerJob) {
     job.component,
     {
       parameters: job.parameters,
+      secrets,
       bindings: job.bindings,
       signal: abort.signal,
       log: (message) => console.log(message),
@@ -119,6 +122,7 @@ async function run(job: HuddleWorkerJob) {
       job.component,
       {
         parameters: job.parameters,
+        secrets,
         bindings: job.bindings,
         signal: abort.signal,
         log: (message) => console.log(message),
@@ -137,6 +141,7 @@ async function run(job: HuddleWorkerJob) {
   const outputs = await executeHuddleNode(node, job.component, {
     inputs: job.inputs,
     parameters: job.parameters,
+    secrets,
     bindings: job.bindings,
     signal: abort.signal,
     puddlang: calls.api,

@@ -1,3 +1,4 @@
+import { huddleSecretReferenceSchema } from '../../api/huddle/contracts.js';
 import type { HuddleComponent } from '../../api/huddle/components.js';
 import type { HuddleDefinition, HuddleNodeDefinition } from '../../api/huddle/definitions.js';
 import type { HuddleJson } from '../../api/huddle/values.js';
@@ -54,6 +55,8 @@ export function resolveHuddleParameters(
       if (parameter.required) throw new Error(`Missing node parameter: ${name}`);
       continue;
     }
+    if (parameter.editor === 'secret' && !huddleSecretReferenceSchema.safeParse(value).success)
+      throw new Error(`Invalid integration secret reference: ${name}`);
     if (validateHuddleValue(parameter.schema, value).length)
       throw new Error(`Invalid node parameter: ${name}`);
     values.push([name, structuredClone(value)]);

@@ -1,3 +1,4 @@
+import { huddleSecretResolver } from '../../integrations/secrets.js';
 import { existsSync, realpathSync, lstatSync } from 'node:fs';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -113,6 +114,13 @@ export class HuddleOfflineReadouts {
       );
       const handle = startHuddleWorker(observation.job, {
         nodePath: process.execPath,
+        secrets:
+          launch.capabilities.integrationSecrets === 1
+            ? huddleSecretResolver(this.home, {
+                ...launch.scope,
+                worktree: launch.identity.canonical_worktree_path,
+              })
+            : undefined,
         entryPath,
         cwd: observation.worktree,
         timeoutMs: 30_000,

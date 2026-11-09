@@ -7,6 +7,7 @@ import {
   huddleWorkerMessageSchema,
   huddleWorkerInputSchema,
   type HuddleJson,
+  type HuddleComponent,
   type HuddleWorkerJob,
   type HuddleTriggerWorkerJob,
   type HuddleWorkerRequest,
@@ -23,6 +24,11 @@ export interface HuddleWorkerOptions {
   entryPath: string;
   cwd: string;
   environment?: NodeJS.ProcessEnv;
+  /** Resolve only declared references from the exact private host grant immediately before spawn. */
+  secrets?(
+    component: HuddleComponent,
+    parameters: Record<string, HuddleJson>,
+  ): Record<string, string>;
   timeoutMs: number;
   signal?: AbortSignal;
   allowance?: RuntimeByteAllowance;
@@ -64,7 +70,17 @@ export function startHuddleWorker(
     ? huddleTriggerWorkerJobSchema.parse(input)
     : huddleWorkerJobSchema.parse(input);
   checkedWorkerSource(job);
-  const start = { type: continuous ? 'subscribe' : 'start', job };
+  const protectedDiagnostics = Object.values(job.component.parameters).some(
+    (p) => p.editor === 'secret',
+  );
+  if (protectedDiagnostics && !options.secrets)
+    throw new Error('Integration secret resolution is unavailable');
+  const secrets = options.secrets?.(job.component, job.parameters);
+  const start = {
+    type: continuous ? 'subscribe' : 'start',
+    job,
+    ...(protectedDiagnostics ? { secrets } : {}),
+  };
   runtimeJsonBytes(start); // Reject an oversized encoded bundle before spawning a process.
   const buffers = new RuntimeTransportBuffers(options.allowance);
   const abort = new AbortController();
@@ -121,7 +137,9 @@ export function startHuddleWorker(
   };
   const fail = (error: unknown) => {
     if (settled) return;
-    failure ??= errorOf(error);
+    failure ??= protectedDiagnostics
+      ? new Error('Integration worker failed (private diagnostics redacted)')
+      : errorOf(error);
     abort.abort(failure);
     if (!exitObserved && child) {
       try {
@@ -170,6 +188,14 @@ export function startHuddleWorker(
       final = message.outputs;
       settle();
       return;
+    }
+    if (protectedDiagnostics && message.type === 'request') {
+      const action = message.action;
+      if (action.kind === 'readout-result' && action.result.status !== 'delivered')
+        action.result.message =
+          'Integration delivery did not complete (private diagnostics redacted)';
+      if (action.kind === 'trigger-health' && 'message' in action.health)
+        action.health.message = 'Integration health diagnostic redacted';
     }
     if (continuous && performance.now() - requestWindow >= 1000) {
       requestWindow = performance.now();
@@ -267,7 +293,12 @@ export function startHuddleWorker(
         if (logged > HUDDLE_WORKER_LIMITS.logBytes)
           return fail(new Error('Huddle worker log limit exceeded'));
         try {
-          options.log?.(stream, chunk.toString('utf8'));
+          options.log?.(
+            stream,
+            protectedDiagnostics
+              ? '[Integration worker output redacted]\n'
+              : chunk.toString('utf8'),
+          );
         } catch (error) {
           fail(error);
         }
