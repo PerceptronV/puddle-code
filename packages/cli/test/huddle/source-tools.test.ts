@@ -15,7 +15,7 @@ const document = huddleDocumentSchema.parse({
   components: {},
   diagnostics: [],
 });
-function client(protocol: { major: number; minor: number } | undefined = PROTOCOL_VERSION) {
+function client(protocol: { major: number; minor: number } | undefined = { major: 28, minor: 30 }) {
   return new PuddlangClient(
     () => 23456,
     {
@@ -25,6 +25,36 @@ function client(protocol: { major: number; minor: number } | undefined = PROTOCO
     protocol,
   );
 }
+
+it('uses explicit module/fixture validation on supporting hosts and refuses fixtures on older hosts', async () => {
+  const result = {
+    valid: true,
+    digest: document.digest,
+    diagnostics: [],
+    checks: { modules: true, fixtures: [] },
+  };
+  const fetch = vi.fn(async () => Response.json(result));
+  vi.stubGlobal('fetch', fetch);
+  const command = parseHuddleCommand(['validate', target.huddle_id], {
+    project: location.project_id,
+    worktree: location.worktree,
+    request: JSON.stringify({ fixtures: ['fixtures/contracts.json'] }),
+  });
+  const print = vi.fn();
+  expect(await runHuddleCommand(client(PROTOCOL_VERSION).huddles, command, print)).toBe(0);
+  expect(print).toHaveBeenCalledWith(result);
+  const [url, options] = fetch.mock.calls[0] as unknown as [string, RequestInit];
+  expect(new URL(url).pathname).toBe(
+    `/api/huddle/abcdef1234/definitions/${target.huddle_id}/validate`,
+  );
+  expect(options.method).toBe('POST');
+  expect(JSON.parse(options.body as string)).toEqual({
+    ...location,
+    fixtures: ['fixtures/contracts.json'],
+  });
+  await expect(client().huddles.validate({ ...target, fixtures: [] })).rejects.toThrow('28.31');
+  expect(fetch).toHaveBeenCalledOnce();
+});
 
 it('routes source operations through the selected profile with escaped host worktree and no mutation', async () => {
   const fetch = vi.fn(async () => Response.json(document));

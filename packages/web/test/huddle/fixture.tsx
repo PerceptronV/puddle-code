@@ -316,6 +316,23 @@ window.fetch = async (input, init) => {
       })),
     );
   if (path === `${prefix}/definitions/${savedId}/source`) return source.request(method, body);
+  if (path === `${prefix}/definitions/${savedId}/validate` && method === 'POST')
+    return Response.json({
+      valid: !body.fixtures?.length,
+      digest: document.digest,
+      diagnostics: body.fixtures?.length
+        ? [
+            {
+              severity: 'error',
+              code: 'fixture_value',
+              node: 'run',
+              path: `/fixtures/${body.fixtures[0]}/cases/0/inputs`,
+              message: 'Sample: invalid fixture input',
+            },
+          ]
+        : [],
+      checks: { modules: true, fixtures: [] },
+    });
   if (path === `${prefix}/definitions/${createdId}/source` && blank)
     return sourceFixture(blank, disk, components).request(method, body);
   if (path === `${prefix}/definitions/${copiedId}/source` && copied)

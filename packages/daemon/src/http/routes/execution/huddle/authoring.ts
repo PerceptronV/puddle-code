@@ -9,6 +9,8 @@ import {
   huddleLocationSchema,
   huddleOpenedSchema,
   huddleOpenSchema,
+  huddleValidateSchema,
+  huddleValidationSchema,
   huddleSaveSchema,
   huddleSaveSourceSchema,
   huddleSourceSchema,
@@ -58,6 +60,16 @@ export function huddleAuthoringRoutes(service: HuddleService): Hono {
       return c.json(
         huddleDocumentSchema.parse(
           await service.inspect(hexIdParam(c, 'profile'), input.data, requestAuthority(c)),
+        ),
+      );
+    })
+    .post('/:profile/definitions/:id/validate', async (c) => {
+      const body = await parseBody(c, huddleValidateSchema.omit({ huddle_id: true }));
+      const input = huddleValidateSchema.safeParse({ ...body, huddle_id: c.req.param('id') });
+      if (!input.success) throw ApiError.badRequest('invalid_location', 'Choose a valid huddle id');
+      return c.json(
+        huddleValidationSchema.parse(
+          await service.validate(hexIdParam(c, 'profile'), input.data, requestAuthority(c)),
         ),
       );
     })

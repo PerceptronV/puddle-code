@@ -18,6 +18,18 @@ try {
   await page.getByRole('button', { name: 'New huddle', exact: true }).click();
   await page.getByRole('button', { name: 'Review graph', exact: true }).click();
   const editor = page.getByRole('region', { name: 'Huddle editor' });
+  const validate = editor.getByRole('button', { name: 'Validate', exact: true });
+  if (process.env.HUDDLE_CAPTURED_SOURCE) {
+    await validate.click();
+    const dialog = page.getByRole('dialog', { name: 'Validate saved huddle' });
+    await dialog.getByRole('button', { name: 'Check saved source' }).click();
+    await dialog.getByText('Saved source checks passed.', { exact: true }).waitFor();
+    await dialog.getByLabel('Contract fixture paths (optional)').fill('fixtures/contracts.json');
+    await dialog.getByRole('button', { name: 'Check saved source' }).click();
+    await dialog.getByText('Saved source needs attention.', { exact: true }).waitFor();
+    await dialog.getByText('run: Sample: invalid fixture input', { exact: false }).waitFor();
+    await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  } else assert.equal(await validate.isDisabled(), true);
   await editor.getByRole('button', { name: 'Settings', exact: true }).click();
   const settings = editor.getByRole('form', { name: 'Execution settings' });
   const updateSettings = settings.getByRole('button', { name: 'Update execution draft' });

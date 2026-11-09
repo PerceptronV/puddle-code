@@ -1335,6 +1335,32 @@ All timestamps are ISO 8601 UTC. Git operations against a given repository (work
 
 ### Huddle orchestration (implementation in progress)
 
+Application 28.31 adds explicit saved-source validation through the IDE's
+**Validate** dialog, CLI/MCP and local/SSH `POST /definitions/:id/validate` in the
+huddle namespace. Requests declare project/worktree and optional fixture paths.
+Reuse inactive source capture and authority; no runtime placement, provider,
+project module execution or graph activation is needed. Normal inspect/discovery
+remains lightweight metadata capture. Older clients/hosts retain graph-only checks.
+
+Daemon `huddle/validation/` strips erasable TypeScript with the worker's Node
+mechanism, then uses the bundled Acorn parser to inspect syntax, literal captured
+imports, default wrapper kind, literal manifest path and declared entry functions.
+Named aliases, namespace imports and top-level const declarations are supported;
+computed/spread wrapper metadata and nonliteral dynamic imports cannot pass this
+static check. Relative imports require exact captured extensions. Readout observation
+declarations must match. This checks declarations, not all TypeScript types or
+arbitrary top-level mutations; workers still enforce actual contracts and values.
+Source code, configuration and dependencies are never imported during validation.
+
+Optional contract fixtures are bounded JSON files below the selected huddle root.
+Each format-1 document contains named cases with node id and input, resolved
+parameter, completion-output or event-emission samples. Reuse runtime validators;
+samples do not run scripts or assert that code produces the sample output. The
+response identifies the captured source digest and each checked fixture's byte
+digest/case count, with bounded node/file/path diagnostics. Saving or validation
+does not grant activation. Executable component fixture testing remains a separate
+trusted-code workflow; real-provider acceptance is still required.
+
 Application 28.30 exposes readable built-in adapter source and **Make local copy**.
 The existing component installer accepts `template: "builtin"` with a pinned
 `builtin: {component, version}`, publishes editable `node.json`/`run.ts` files,

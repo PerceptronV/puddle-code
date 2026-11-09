@@ -375,7 +375,10 @@ wrapper resolves the selected agent into `bindings.agent` only after matching
 its placement to the declared worktree. It validates values and manages exact
 operation identities; this sketch does not define a second agent implementation.
 Metadata is inspectable without evaluating module top-level code. A build/validate
-step checks module/contract agreement. Ordinary Zod-based puddlang scripts can use
+step checks module/contract agreement. Application 28.31 implements that explicit
+saved-source check with static syntax/import/wrapper diagnostics; workers still
+validate the evaluated declaration. It does not execute top-level source or
+replace full TypeScript checking. Ordinary Zod-based puddlang scripts can use
 an explicit wrapper; revise puddlang where necessary and document the resulting
 `pudl run` semantics.
 
@@ -908,8 +911,9 @@ unarchive leaves the placement stopped. Application 28.10 adds `revision` and
 `diff` tools: an explicit owner target, reviewed saved digest for comparison and
 optional source/contract entry selection. The IDE includes Active revision and
 shows this comparison before Apply; it never substitutes a newer digest.
-Validation returns stable node/port/path diagnostics and supports fixture-based
-contract checks without arming live triggers or contacting providers. Source
+Validation returns stable node/port/path diagnostics and, on 28.31+, supports
+selected JSON fixture files with node input/parameter/output/event samples,
+using runtime contract validators without arming live triggers or contacting providers. Source
 inspection must not evaluate custom modules. Executing component tests is a
 separate trusted-code action with fake event/readout fixtures.
 

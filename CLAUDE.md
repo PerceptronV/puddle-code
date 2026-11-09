@@ -788,6 +788,15 @@ with bounded waiting requests. Existing capable owners need no new IPC or capabi
 History and huddle review share `diff/ReadOnlyDiff.tsx`; keep models private to each
 mounted viewer and detach before disposal. Retained-only review must work without
 project source, and source comparison must not import project modules.
+Application 28.31 adds explicit static module and fixture checking under daemon
+`huddle/validation/`, shared `api/huddle/validation.ts` and web `huddle/validation/`.
+Use captured source and the existing registered worktree authority. Never import
+project modules/configuration during inspection or Validate. Strip types as workers
+do, parse with Acorn, check declared imports/wrappers and reuse runtime value checks
+for JSON samples. Keep fixture digests separate from source revisions. CLI/MCP
+falls back to graph-only checks on older hosts, refusing fixture requests there.
+Validation does not activate source, prove full TypeScript correctness or replace
+the worker's actual contract checks. Use exact captured import extensions in kits.
 Application 28.30 adds built-in local copies through the existing template installer.
 Keep generation in shared `huddle/templates/builtins.ts`, host source resolution in
 `huddle/components/host.ts` and the inspector in `huddle/inspector/BuiltinSource.tsx`.

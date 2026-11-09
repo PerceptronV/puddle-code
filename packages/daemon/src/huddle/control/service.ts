@@ -6,6 +6,8 @@ import {
   type HuddleDuplicate,
   huddleLocationSchema,
   huddleOpenSchema,
+  huddleValidateSchema,
+  type HuddleValidate,
   huddleSaveSchema,
   huddleSaveSourceSchema,
   type HuddleSaveSource,
@@ -35,6 +37,7 @@ import { saveHuddleDefinition, saveHuddleSource } from '../definitions/save.js';
 import { discoverHuddleDefinitions } from '../definitions/discovery.js';
 import { installHuddleTemplate } from '../templates/install.js';
 import { coreHuddleComponents } from '@puddle/shared';
+import { checkHuddleSource } from '../validation/check.js';
 
 interface Dependencies {
   home: string;
@@ -106,6 +109,13 @@ export class HuddleService {
       document: this.document(snapshot),
       files: snapshot.files,
     }));
+  }
+
+  validate(profile: string, raw: HuddleValidate, authority: () => boolean) {
+    const { fixtures = [], ...input } = huddleValidateSchema.parse(raw);
+    return this.withSnapshot(profile, input, authority, (snapshot, location) =>
+      checkHuddleSource(snapshot, location.worktree, fixtures, location.check),
+    );
   }
 
   saveSource(profile: string, raw: HuddleSaveSource, authority: () => boolean) {

@@ -46,9 +46,36 @@ the roadmap's real-provider and packaged-platform exit requirements.
 | Built-in source and local copies | `inspector/BuiltinSource.tsx` exposes source/copy through the template installer; shared `huddle/components/host.ts` preserves host observation while ordinary HuddleNode workers adapt events. | Implemented with runtime capability gating; real-provider and platform acceptance remains in the matrix below. |
 | Trigger admission policies | `runtime/huddle/state/executions.ts` applies graph defaults/per-trigger overrides in the durable admission transaction; `inspector/settings/` exposes policies and limits. | Implemented with retained dispositions, capability gates and focused ledger/editor checks; native platform acceptance remains separate. Timer missed-occurrence coalescing is a different policy. |
 | Calendar recurrence | `runtime/huddle/triggers/calendar/` implements daily/selected-weekday and monthly/yearly schedules, timezone handling and skipped missing dates. | Implementation now includes the broader recurrence; native sleep/reboot acceptance remains in the platform matrix. |
-| Module and fixture validation | Shared graph/binding validation, authoring-kit fixtures and runtime wrapper checks exist. | Audit the promised build/validate module-contract agreement and fixture-based authoring workflow; current evidence here does not prove the whole requirement. |
+| Module and fixture validation | Application 28.31 adds static module/wrapper/captured-import checking and JSON contract sample files through IDE/CLI/MCP; runtime checks remain authoritative. | Complete the separate trusted-code fixture execution workflow and provider-authored component acceptance; static samples do not execute scripts. |
 | Session/IDE/window integration | Sidebar, lifecycle, source editing, Start and run, history, transfers and retained-draft recovery have individual evidence below. | Complete the integration audit against the full phase-2/5 requirements, including real agent authoring and native interaction acceptance. |
 | Provider/runtime/platform acceptance | Independent-owner, operation, trigger, feedback and recovery checks are recorded below, including isolated macOS crash recovery. | Complete real coder/reviewer and native-feedback checks in same/distinct worktrees, provider authoring, SSH disconnection, packaged update/removal and mixed-version continuity, reboot, and resource/battery measurements. Do not substitute fixture results for these exit gates. |
+
+## Implemented: static module and contract-fixture validation
+
+Application 28.31 adds explicit source checking through the existing authoring
+service and registered worktree scope. `huddle/validation/modules.ts` uses Node's
+type stripper and Acorn without evaluating source. It checks supported module
+syntax, literal imports within each declared closure, wrapper kind/contract path
+and required methods, including readout observation parity. Default exports may
+use imported aliases/namespaces and statically resolvable const declarations.
+Dynamic wrapper metadata and nonliteral imports are reported as unverified errors;
+this is not full TypeScript checking or proof about arbitrary top-level mutations.
+
+Optional format-1 fixture JSON files contain node input/parameter/output/emission
+samples. They reuse actual runtime value validators, never run scripts or contact
+providers, and report their own byte digests beside the captured source revision.
+Paths use the existing bounded regular-file reader; authority is rechecked after
+asynchronous reads. CLI/MCP and IDE share the new endpoint; old hosts retain the
+previous graph-only behavior and refuse fixture requests. The authoring kit adds
+the fixture schema and an example for the manual transform graph.
+
+Fifty focused checks pass across validation, the existing authoring service and
+kit, and CLI source/authoring suites. They cover shipped adapter declarations, syntax/import/contract failures,
+fixture values, real API/CLI scope and compatibility, and top-level side-effect
+nonexecution without sessions/runtime bindings. This caught extensionless imports
+in the shipped feed/report templates; both now name their captured `http.ts` file.
+The headless editor check exercises report presentation and older-host gating. Executable
+component fixtures, real authoring agents and platform acceptance remain open.
 
 ## Implemented: built-in source and local copies
 

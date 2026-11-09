@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Validate saved huddle module syntax, captured imports, wrapper contracts and optional JSON fixture samples from the IDE or CLI/MCP without executing project code (application 28.31); fix custom trigger/readout template imports to use captured filenames.
+
 - Inspect built-in huddle adapter source and make editable local copies while retaining existing trigger subscriptions, cursors and session lifecycle machinery (application 28.30, runtime hostTriggerScripts-1).
 
 - Configure huddle trigger queue, coalesce and drop policies with per-trigger bounds, durable history and unchanged running work; require runtime admission-1 (application 28.29).

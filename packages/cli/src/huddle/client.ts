@@ -2,6 +2,7 @@ import {
   huddleDiscoverySchema,
   huddleDocumentSchema,
   huddleToolDefinitionSchema,
+  huddleToolValidateSchema,
   huddleToolLocationSchema,
   huddleValidationSchema,
   huddleOpenedSchema,
@@ -10,6 +11,7 @@ import {
   supportsApplicationFeature,
   type HuddleLocation,
   type HuddleOpen,
+  type HuddleValidate,
   type HuddleCreate,
   type HuddleDuplicate,
 } from '@puddle/shared';
@@ -23,6 +25,7 @@ export class HuddleClient {
   readonly supported: boolean;
   readonly duplicationSupported: boolean;
   readonly startersSupported: boolean;
+  readonly moduleValidationSupported: boolean;
   readonly execution: HuddleExecutionClient;
   readonly placement: HuddlePlacementClient;
   readonly source: HuddleSourceClient;
@@ -34,6 +37,7 @@ export class HuddleClient {
     this.supported = supportsApplicationFeature(protocol, { major: 27, minor: 1 });
     this.duplicationSupported = supportsApplicationFeature(protocol, { major: 28, minor: 26 });
     this.startersSupported = supportsApplicationFeature(protocol, { major: 28, minor: 27 });
+    this.moduleValidationSupported = supportsApplicationFeature(protocol, { major: 28, minor: 31 });
     this.execution = new HuddleExecutionClient(request, protocol);
     this.placement = new HuddlePlacementClient(request, sessionRequest, protocol);
     this.source = new HuddleSourceClient(request, protocol);
@@ -58,7 +62,16 @@ export class HuddleClient {
       await this.request(`/definitions/${huddle_id}?${new URLSearchParams(location)}`),
     );
   }
-  async validate(input: HuddleOpen) {
+  async validate(raw: HuddleValidate) {
+    this.requireSupported();
+    const { huddle_id, ...location } = huddleToolValidateSchema.parse(raw);
+    if (this.moduleValidationSupported)
+      return huddleValidationSchema.parse(
+        await this.request(`/definitions/${huddle_id}/validate`, location),
+      );
+    if (location.fixtures !== undefined)
+      throw new Error('Module and fixture validation requires daemon protocol 28.31 or newer');
+    const input = { project_id: location.project_id, worktree: location.worktree, huddle_id };
     const document = await this.inspect(input);
     return huddleValidationSchema.parse({
       valid: !document.diagnostics.some((diagnostic) => diagnostic.severity === 'error'),

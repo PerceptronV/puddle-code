@@ -52,13 +52,32 @@ consume daily execution budget; dropped roots only consume bounded history capac
 Remove an override when deleting its trigger. Timer missed policies are independent.
 
 schemas/ contains JSON Schema draft 2020-12 for format-1 huddle.json, component
-manifests and layout.json, plus the supported port/parameter schema subset.
-Keep all four files together. Associate them using your editor's JSON-schema
+manifests and layout.json, plus the supported port/parameter schema subset and
+contract-fixture.json. Keep schema files together. Associate them using your editor's JSON-schema
 settings; do not add a $schema property to strict format-1 source documents.
 These are structural editor aids. Runtime refinements additionally check paths,
 reserved identifiers, byte/depth/entry limits, required properties, cross-field
 rules, worktree bindings, graph edges and feedback. pudl huddle validate remains
-authoritative for saved-source validation; it does not execute or type-check code.
+authoritative for saved-source validation; it does not execute or fully type-check code.
+On host 28.31+, it also parses captured modules, checks exact literal imports and
+default HuddleNode/HuddleTrigger/HuddleReadout declarations against node.json.
+Use a literal contract path, ordinary object properties and declared functions;
+aliases/namespaces and top-level const declarations are supported. Computed/spread
+wrapper metadata and nonliteral dynamic imports cannot pass this static check.
+Imports must name captured files exactly, including .ts; readout observe support
+must agree with reconciliation. Runtime checks still verify evaluated declarations.
+
+Optional --request '{"fixtures":["fixtures/contracts.json"]}' adds sample contract
+checks; MCP huddle_validate accepts the same fixtures array. Paths are relative to
+the huddle root (at most 16 regular files, 256 KiB each). A fixture is
+{format:1,cases:[{name:"Sample",node:"transform",inputs:{value:"hello"},outputs:{completed:"hello"}}]}.
+Each case names a graph node and supplies inputs, fully resolved parameters,
+completion outputs and/or emissions:[{port:"progress",value:1}]. At most 64 cases
+per file. Existing worker validators check values without running code. The kit's
+fixtures/contracts.json matches examples/manual.json; adapt node ids for your graph.
+Results add checks:{modules:true,fixtures:[{path,digest,cases}]} beside the captured
+source digest. Older hosts remain graph-only and reject fixture requests. Samples
+do not prove that code produces these outputs; executable tests remain separate.
 
 types/puddlang-huddle.d.ts declares the worker-supplied puddlang/huddle and puddlang
 modules. Include it in your TypeScript project's files/include list. Use strict

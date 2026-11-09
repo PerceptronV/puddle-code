@@ -109,6 +109,9 @@ importers:
       '@xterm/headless':
         specifier: 6.0.0
         version: 6.0.0
+      acorn:
+        specifier: 8.17.0
+        version: 8.17.0
       better-sqlite3:
         specifier: ^12.0.0
         version: 12.11.1

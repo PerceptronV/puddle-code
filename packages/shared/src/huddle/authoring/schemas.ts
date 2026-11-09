@@ -3,6 +3,7 @@ import { huddleComponentSchema } from '../../api/huddle/components.js';
 import { huddleDefinitionSchema, huddleLayoutSchema } from '../../api/huddle/definitions.js';
 import { huddleValueSchema } from '../../api/huddle/contracts.js';
 import { huddleJsonSchema, HUDDLE_LIMITS } from '../../api/huddle/values.js';
+import { huddleContractFixtureSchema } from '../../api/huddle/validation.js';
 
 /** Editor schemas describe structure; runtime refinements and graph validation remain authoritative. */
 export function huddleAuthoringSchemas() {
@@ -29,5 +30,6 @@ export function huddleAuthoringSchemas() {
     'schemas/component.json': convert(huddleComponentSchema),
     'schemas/layout.json': convert(huddleLayoutSchema),
     'schemas/value-schema.json': convert(huddleValueSchema, 'output'),
+    'schemas/contract-fixture.json': convert(huddleContractFixtureSchema),
   };
 }

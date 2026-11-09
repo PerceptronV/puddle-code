@@ -64,7 +64,7 @@ export async function readJson(response: Response): Promise<unknown> {
 
 export const feedSource = `import { HuddleTrigger } from 'puddlang/huddle';
 import { z } from 'zod';
-import { readJson } from './http';
+import { readJson } from './http.ts';
 
 const pageSchema = z.strictObject({
   gap: z.boolean(), cursor: z.string().max(4096),
@@ -125,7 +125,7 @@ export default HuddleTrigger({
 
 export const reportSource = `import { HuddleReadout } from 'puddlang/huddle';
 import { z } from 'zod';
-import { readJson } from './http';
+import { readJson } from './http.ts';
 
 const confirmation = z.strictObject({ accepted: z.literal(true), receipt: z.json() });
 export default HuddleReadout({

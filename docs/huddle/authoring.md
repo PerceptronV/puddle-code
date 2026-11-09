@@ -16,7 +16,7 @@ same client-bundled kit on an existing MCP connection. The reported application
 version identifies the kit, not the target host's capabilities. Read that host's
 metadata and validate the saved graph there before execution.
 
-Keep the four `schemas/` files together and associate them through editor settings;
+Keep the `schemas/` files together and associate them through editor settings;
 format-1 documents reject an inline `$schema` field. The schemas describe structure,
 not runtime cross-field/path/byte limits, binding or graph validation. Include
 `types/puddlang-huddle.d.ts` in a strict TypeScript project with ES2023/DOM libraries
@@ -136,9 +136,20 @@ retain their stable codes and node/edge/path locations. Invalid/unreadable root
 manifests and connection/authority failures report an error on stderr and exit 1;
 they do not return a successful validation report. No automatic retry occurs.
 
-Validation checks captured JSON contracts and graph structure. It does not
-type-check or execute TypeScript, test external integrations, check provider
-availability or resolve live execution resources. `valid: true` is not permission
+On application 28.31+, validation also parses captured modules using the worker's
+TypeScript stripping rules, checks exact declared imports and verifies the default
+wrapper's kind, manifest path and required functions. It accepts imported wrapper
+aliases/namespaces and top-level const declarations. Use a literal `contract`,
+ordinary object properties and declared functions; spreads, getters, computed
+metadata and nonliteral dynamic imports cannot pass static checking. Relative
+imports must name the captured file exactly, including `.ts` extensions. A readout's
+`observe` function must agree with its reconciliation declaration.
+
+The result adds `checks: {modules: true, fixtures: [...]}` to identify these checks.
+Older hosts return the previous graph-only report without `checks`. Validation
+does not fully type-check or execute TypeScript, prove arbitrary top-level code,
+test external integrations, check provider availability or resolve live resources.
+`valid: true` is not permission
 or proof of readiness to run. Start/Apply still perform their own admission against
 the reviewed source digest and current resources.
 
@@ -149,6 +160,47 @@ profile; arguments cannot substitute a host/profile or request activation. Tools
 are advertised only on a supporting connection. Validation errors appear in the
 normal report with `valid: false`; malformed calls and unavailable source are MCP
 tool errors. This does not automatically configure MCP for authoring accounts.
+
+### Contract fixtures
+
+On host 28.31+, select up to 16 JSON files relative to the huddle directory:
+
+```sh
+pudl huddle validate 0123456789abcdef0123456789abcdef \
+  --profile work --project 0123456789 --worktree /srv/app \
+  --request '{"fixtures":["fixtures/contracts.json"]}'
+```
+
+The IDE's **Validate** dialog accepts the same paths. MCP `huddle_validate` accepts
+the optional `fixtures` array alongside its normal location fields. Older hosts
+reject fixture requests. Each file is at most 256 KiB and contains at most 64 cases:
+
+```json
+{
+  "format": 1,
+  "cases": [{
+    "name": "Transform sample",
+    "node": "transform",
+    "inputs": {"value": {"message": "hello"}},
+    "outputs": {"completed": {"message": "hello"}}
+  }]
+}
+```
+
+Use graph node ids, not component ids. Supply one or more of `inputs`, `parameters`,
+`outputs`, or `emissions: [{"port":"progress","value":1}]`. Supplied parameter
+samples must be fully resolved, including required values/defaults. Completion
+outputs and event emissions are checked separately. Host-trigger adapters receive
+the raw source at `inputs.event`; custom subscriptions supply event samples through
+`emissions`. Inputs obey the same all/any activation requirements as workers.
+
+The kit ships `schemas/contract-fixture.json` and `fixtures/contracts.json` for
+`examples/manual.json`. Copy the fixture into your huddle and adjust node ids and
+samples. Reports include each parsed fixture's byte digest and case count; errors
+identify its path/case/node. These samples validate contracts, not the behavior of
+your code or equality between input and expected output. Executing component tests
+is a separate trusted-code action; ordinary validation never evaluates project
+modules, starts a runtime or contacts a provider.
 
 The kit also includes `templates/file-report/{node.json,run.ts,file.ts}`, the same
 editable Write report component offered by Add node on application 28.22+. Copy

@@ -336,7 +336,10 @@ describe('inactive huddle authoring', () => {
     );
     writeFileSync(
       join(root, 'nodes/example/run.ts'),
-      `import { writeFileSync } from 'node:fs';\nwriteFileSync(${JSON.stringify(marker)}, 'ran');\nexport default {};`,
+      `import { writeFileSync } from 'node:fs';
+import { HuddleNode } from 'puddlang/huddle';
+writeFileSync(${JSON.stringify(marker)}, 'ran');
+export default HuddleNode({contract:'./node.json', run({inputs}) { return {completed:inputs.value}; }});`,
     );
     const graph = {
       ...definition,
@@ -367,15 +370,51 @@ describe('inactive huddle authoring', () => {
       ),
     );
     const methods: string[] = [];
-    const client = new HuddleClient(async (path) => {
+    const client = new HuddleClient(async (path, body) => {
       methods.push(path);
-      const response = await app.request(`/api/huddle/${f.profile.id}${path}`);
+      const response = await app.request(
+        `/api/huddle/${f.profile.id}${path}`,
+        body === undefined
+          ? undefined
+          : {
+              method: 'POST',
+              headers: { 'content-type': 'application/json' },
+              body: JSON.stringify(body),
+            },
+      );
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
       return response.json();
     }, PROTOCOL_VERSION);
     const target = { ...f.location, huddle_id: definition.id };
     expect(await client.list(f.location)).toEqual([expect.objectContaining({ id: definition.id })]);
     expect((await client.validate(target)).valid).toBe(true);
+    mkdirSync(join(root, 'fixtures'));
+    writeFileSync(
+      join(root, 'fixtures/contracts.json'),
+      JSON.stringify({
+        format: 1,
+        cases: [
+          {
+            name: 'Transform',
+            node: 'transform',
+            inputs: { value: 'sample' },
+            outputs: { completed: 'sample' },
+          },
+        ],
+      }),
+    );
+    const checked = await client.validate({ ...target, fixtures: ['fixtures/contracts.json'] });
+    expect(checked.valid).toBe(true);
+    expect(checked.checks).toEqual({
+      modules: true,
+      fixtures: [
+        {
+          path: 'fixtures/contracts.json',
+          digest: expect.stringMatching(/^[a-f0-9]{64}$/),
+          cases: 1,
+        },
+      ],
+    });
     const digest = (await client.inspect(target)).digest;
     const captured = await client.source.read(target);
     expect(captured.document.digest).toBe(digest);
@@ -397,7 +436,7 @@ describe('inactive huddle authoring', () => {
     expect(f.db.prepare('SELECT * FROM runtime_bindings').all()).toEqual([]);
     f.revoke();
     await expect(client.inspect(target)).rejects.toThrow('HTTP 401');
-    expect(methods).toHaveLength(6);
+    expect(methods).toHaveLength(7);
   });
   it.each(['prompt-agent', 'spawn-agent', 'prompt-spawned-agent', 'review-spawned-agent'] as const)(
     'materialises editable %s templates without changing the graph, overwriting edits or starting an owner',

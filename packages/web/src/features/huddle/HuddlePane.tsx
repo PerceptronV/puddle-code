@@ -24,6 +24,7 @@ import { ExecutionSettings } from './inspector/settings/ExecutionSettings';
 import { NodeConcurrency } from './inspector/settings/NodeConcurrency';
 import { TriggerAdmission } from './inspector/settings/TriggerAdmission';
 import { BuiltinSource } from './inspector/BuiltinSource';
+import { ValidationAction } from './validation/ValidationAction';
 
 export function HuddlePane({ session, focused = true }: { session: Session; focused?: boolean }) {
   const supported = useHuddleSupported();
@@ -168,6 +169,13 @@ function HuddleEditor({
           <button type="button" className={actionClass} onClick={() => openSource('huddle.json')}>
             Open definition
           </button>
+          {profile && (
+            <ValidationAction
+              key={`validation:${profile}:${session.id}`}
+              profile={profile}
+              session={session}
+            />
+          )}
           <button type="button" className={actionClass} onClick={() => openSource('layout.json')}>
             Open layout
           </button>

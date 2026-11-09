@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { huddleCreateSchema, huddleDuplicateSchema, huddleLocationSchema } from '../authoring.js';
-import { huddleDiagnosticSchema } from '../definitions.js';
 import { huddleIdSchema } from '../values.js';
+import { huddleValidateSchema } from '../validation.js';
 
 /** CLI/MCP locations are on the selected host, never resolved against the client cwd. */
 export const huddleToolLocationSchema = huddleLocationSchema.extend({
@@ -18,12 +18,9 @@ export const huddleToolDuplicateSchema = huddleToolDefinitionSchema.extend({
   name: huddleDuplicateSchema.shape.name,
   expected_digest: huddleDuplicateSchema.shape.expected_digest,
 });
-export const huddleValidationSchema = z.strictObject({
-  valid: z.boolean(),
-  digest: z.string().regex(/^[a-f0-9]{64}$/),
-  diagnostics: z.array(huddleDiagnosticSchema),
+export const huddleToolValidateSchema = huddleToolDefinitionSchema.extend({
+  fixtures: huddleValidateSchema.shape.fixtures,
 });
-export type HuddleValidation = z.infer<typeof huddleValidationSchema>;
 
 const definitions = [
   [
@@ -42,8 +39,8 @@ const definitions = [
   ],
   [
     'huddle_validate',
-    'Validate saved huddle source and graph contracts. Returns valid, digest and node/edge/path diagnostics. Does not type-check or execute scripts, check live provider/resource admission, arm triggers or activate code.',
-    huddleToolDefinitionSchema,
+    'Validate saved huddle source and graph contracts. On host 28.31+, also check module syntax, declared imports and wrapper/contract agreement; optional fixtures selects JSON contract sample files relative to the huddle directory. Returns valid, digest and node/edge/path diagnostics. Never imports/executes project code, checks provider admission or arms triggers; not full TypeScript type checking. Older hosts support graph validation only and reject fixture requests.',
+    huddleToolValidateSchema,
     true,
     true,
   ],

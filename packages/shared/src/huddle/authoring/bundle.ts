@@ -55,6 +55,17 @@ export function huddleAuthoringFiles(): Record<string, string> {
       inputs: { value: { message: 'fixture' } },
       outputs: { completed: { message: 'fixture' } },
     }),
+    'fixtures/contracts.json': json({
+      format: 1,
+      cases: [
+        {
+          name: 'Transform sample',
+          node: 'transform',
+          inputs: { value: { message: 'fixture' } },
+          outputs: { completed: { message: 'fixture' } },
+        },
+      ],
+    }),
   };
   for (const item of huddleFlowTemplates)
     for (const [name, contents] of Object.entries(huddleFlowTemplateFiles(item.template)!.files))

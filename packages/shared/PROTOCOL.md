@@ -1,5 +1,28 @@
 # The puddle communication protocol
 
+Application **28.31** adds local/SSH `POST
+/api/huddle/:profile/definitions/:id/validate` with `{project_id, worktree,
+fixtures?: string[]}`. At most 16 fixture paths are relative to the huddle root;
+existing regular-file/symlink and 256 KiB file limits apply. The read-only request
+uses normal source scope and capture; it needs no placement or capable runtime.
+Inspection/discovery remain data-only and do not evaluate modules either.
+
+The validation response retains `{valid, digest, diagnostics}` and adds
+`checks: {modules: true, fixtures: [{path, digest, cases}]}`. The main digest names
+captured graph/source; each successfully parsed fixture has its own byte digest.
+Diagnostics are bounded to 512, preserving errors ahead of warnings. Stable codes
+cover module syntax/type/import/contract and fixture structure/value failures.
+No project module is imported or executed. This is declaration/contract validation,
+not full TypeScript checking or provider/resource admission.
+
+Format-1 contract fixtures contain up to 64 named cases per file: node id and one
+or more of `inputs`, fully resolved `parameters`, completion `outputs`, and
+`emissions: [{port, value}]`. Values reuse runtime port/parameter validation.
+CLI/MCP `validate` uses the endpoint on 28.31+; optional CLI `--request` carries
+`fixtures`, with the same MCP field. Older hosts retain graph-only validation and
+reject explicit fixture requests before HTTP. Runtime, database and ledger
+versions are unchanged; worker contract checks remain authoritative at execution.
+
 Application **28.30** extends the existing component installation request with
 `template: "builtin"` and a required `builtin: {component, version}` reference.
 Other templates reject that field. The endpoint returns the existing installed

@@ -1,5 +1,6 @@
 import {
   huddleToolDefinitionSchema,
+  huddleToolValidateSchema,
   huddleToolLocationSchema,
   huddleToolCreateSchema,
   huddleToolDuplicateSchema,
@@ -10,6 +11,7 @@ import {
   huddleAuthoringRequestSchema,
   type HuddleLocation,
   type HuddleOpen,
+  type HuddleValidate,
   type HuddleCreate,
   type HuddleDuplicate,
   type HuddleSaveSource,
@@ -21,7 +23,7 @@ import type { HuddleClient } from './client.js';
 export const huddleHelp = `  pudl huddle list --project ID --worktree /absolute/host/worktree
   pudl huddle authoring [asset-path]
   pudl huddle inspect <huddle-id> --project ID --worktree /absolute/host/worktree
-  pudl huddle validate <huddle-id> --project ID --worktree /absolute/host/worktree
+  pudl huddle validate <huddle-id> --project ID --worktree /absolute/host/worktree [--request '{"fixtures":["fixtures/contracts.json"]}']
   pudl huddle create --name NAME --project ID --worktree /absolute/host/worktree [--request '{"template":"manual"}']
   pudl huddle duplicate <huddle-id> --name NAME --project ID --worktree /absolute/host/worktree --request '{"expected_digest":"..."}'
   pudl huddle open <huddle-id> --project ID --worktree /absolute/host/worktree
@@ -43,6 +45,11 @@ It needs no daemon, accepts no connection/scope options, and writes no files.
 Source paths refer to the selected execution host; authoring names select kit assets.
 Output is JSON. Validation exits
 1 for graph errors; source/connection errors go to stderr and also exit 1.
+On host 28.31+, Validate also checks module syntax, captured imports and wrapper
+agreement without executing code. Optional fixture paths select JSON contract
+samples relative to the huddle directory. These checks do not execute samples,
+type-check all TypeScript or prove provider admission. Older hosts remain graph-only
+and reject fixture requests. A checks field identifies the performed checks.
 Create/open save source/placements without activation; open returns session.id.
 Create optionally takes --request '{"template":"manual"}' or
 '{"template":"review-loop"}' on host 28.27+.
@@ -91,7 +98,8 @@ after a lost reply, read source and compare before another explicit save.
 export type HuddleCommand =
   | { action: 'authoring'; input: { path?: string } }
   | { action: 'list'; input: HuddleLocation }
-  | { action: 'inspect' | 'validate' | 'open' | 'source'; input: HuddleOpen }
+  | { action: 'inspect' | 'open' | 'source'; input: HuddleOpen }
+  | { action: 'validate'; input: HuddleValidate }
   | { action: 'save-source'; input: HuddleSaveSource }
   | { action: 'create'; input: HuddleCreate }
   | { action: 'duplicate'; input: HuddleDuplicate }
@@ -198,15 +206,31 @@ export function parseHuddleCommand(
       }),
     };
   }
+  if (action === 'validate' && args.length === 2 && options.name === undefined) {
+    const request: unknown = options.request === undefined ? {} : JSON.parse(options.request);
+    if (
+      !request ||
+      typeof request !== 'object' ||
+      Array.isArray(request) ||
+      Object.keys(request).some((key) => key !== 'fixtures')
+    )
+      throw new Error(huddleHelp);
+    return {
+      action,
+      input: huddleToolValidateSchema.parse({
+        ...request,
+        project_id: options.project,
+        worktree: options.worktree,
+        huddle_id: id,
+      }),
+    };
+  }
   if (options.request !== undefined || (action !== 'create' && options.name !== undefined))
     throw new Error(huddleHelp);
   const location = { project_id: options.project, worktree: options.worktree };
   if (action === 'list' && args.length === 1)
     return { action, input: huddleToolLocationSchema.parse(location) };
-  if (
-    (action === 'inspect' || action === 'validate' || action === 'open' || action === 'source') &&
-    args.length === 2
-  )
+  if ((action === 'inspect' || action === 'open' || action === 'source') && args.length === 2)
     return { action, input: huddleToolDefinitionSchema.parse({ ...location, huddle_id: id }) };
   throw new Error(huddleHelp);
 }

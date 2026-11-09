@@ -98,6 +98,13 @@ and type errors. Samples remain local and are not saved or reused for Start.
 Worktree/session/account values are selectors until the host verifies them at
 Start or Apply; **Active revision** shows the actual captured resource bindings.
 
+On application 28.31+, **Validate** checks saved graph wiring, module syntax,
+captured imports and wrapper contracts. Save source edits first to include them.
+The dialog optionally accepts contract fixture paths, one per line relative to
+this huddle's directory, and reports node/file errors for the checked revision.
+Fixture samples check declared value contracts without running scripts or agents;
+see [authoring validation](huddle/authoring.md#contract-fixtures).
+
 On application 28.4, drag nodes with a mouse or touch, or focus a node and use
 arrow keys (10 units, or 50 with Shift). Its inspector also offers X/Y position
 fields. Escape or pointer cancellation abandons a drag. Drag the empty background
