@@ -37,6 +37,7 @@ import { decodeTabTransferDetails, hasTabTransfer, TAB_MIME } from '../tabs/tab-
 import { useTilingDragging, useDropIndicator } from '../layout/TilingDnd';
 import { paneInteractionIntent } from './pane-interaction';
 import { LazyHuddlePane } from '../../huddle/lazy-huddle';
+import { MissingHuddle } from '../../windows/recovery/MissingHuddle';
 
 const contentKey = (ref: TabRef) =>
   `${tabRefKey(ref)}:${ref.type === 'editor' ? (ref.tab.view ?? 'source') : 'source'}`;
@@ -367,9 +368,7 @@ export function PaneLeaf({
                   <LazyHuddlePane key={session.id} session={session} focused={focused} />
                 </TabViewStateContext.Provider>
               ) : (
-                <p className="p-4 text-sm text-fg-muted">
-                  Huddle unavailable — this tab is retained for reconnection.
-                </p>
+                <MissingHuddle session={activeRef.session} />
               );
             })()}
           {terminalKey && !shownSession && (

@@ -34,6 +34,33 @@ delivery and the Turn completed node's editor settings are implemented. Applicat
 28.20 adds explicit native-confirmed asks within bounded feedback executions.
 Source, placement, core runtime and revision-review CLI/MCP tools are available.
 
+## Implemented: missing-placement draft recovery
+
+A huddle tab whose placement is absent from an otherwise available project now
+renders its retained graph/layout text through `windows/recovery/MissingHuddle`.
+Each file has the existing local download control. The graph stays unavailable;
+recovery does not invent a session, read host files, start an owner or send prompts.
+The shared retained-buffer hook tolerates an unavailable profile without creating
+a store for a fabricated profile identity.
+
+`huddle/documents/HuddleTabClose` retains the ordinary multi-file close policy:
+known placements use their manifest/layout paths, while absent placements derive
+paths from retained buffers through shared `tabHoldsFile`. The exact pane/tab close
+handler remains registered, including for empty missing-placement tabs. The tab
+button and Close tab action can no longer bypass or lack the dirty review solely
+because the session row is absent. Existing last-view retention and native window
+close coordination are reused. No protocol or host behavior changes are needed.
+
+Verification: the existing `test:windows:headless huddle-recovery` case now starts
+with a missing placement in an available project. Both retained texts are visible;
+the tab button and registered Close tab action each require review, and Keep editing
+preserves both. It then removes the project and reruns the existing download,
+grouped-discard and unrelated-draft preservation checks. No host file or huddle
+mutation occurs. This uses headless Chromium, the real window working set and
+synthetic native bridges, not Electron or a daemon. Web TypeScript, scoped lint,
+formatting and semantic-token checks pass. Actual native window gestures and
+provider/platform acceptance remain separate.
+
 ## Implemented: kind-aware recovery and presentation audit
 
 The first source audit of remaining agent/terminal assumptions found and corrected
@@ -71,11 +98,9 @@ launched. Shared/daemon/CLI and web TypeScript, scoped lint, formatting and
 semantic-token checks pass. CLI label and tooltip changes were source/type checked,
 not separately exercised through a live CLI/hover acceptance run.
 
-This is a scoped source audit, not proof of the full roadmap. One additional gap
-was observed while building the recovery fixture: a missing huddle placement in
-an otherwise available project displays only a reconnection message; its retained
-graph/layout text should also be exposed. That recovery branch remains to be
-addressed. Platform/provider/native-window acceptance remains open.
+This is a scoped source audit, not proof of the full roadmap. The missing-placement
+recovery gap discovered during this audit is addressed by the increment above.
+Platform/provider/native-window acceptance remains open.
 
 ## Implemented: Start and run
 

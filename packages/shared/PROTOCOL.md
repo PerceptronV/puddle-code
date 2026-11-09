@@ -1,5 +1,8 @@
 # The puddle communication protocol
 
+Missing-placement huddle recovery uses the existing native retained-buffer and tab
+contracts. It adds no host request, schema, runtime capability or protocol version.
+
 Unavailable-project huddle draft recovery and kind labels use existing session,
 tab and retained-buffer contracts. Account migration/handoff explicitly accept
 agent placements only. No schema or protocol version changes are introduced.

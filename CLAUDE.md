@@ -910,6 +910,13 @@ before owner callbacks; typed outputs remain trusted adapter data. Existing work
 retain values until interrupted/stopped. Document host-side configuration and
 rotation in `docs/huddle/integrations.md`; never read provider account credentials.
 
+When a huddle placement is absent but its project still exists, render retained
+graph/layout drafts through `windows/recovery/MissingHuddle.tsx`. The graph tab
+uses `huddle/documents/HuddleTabClose.tsx` to select known source paths or retained
+paths through `tabHoldsFile`, register the ordinary close action and preserve
+multi-file discard review without a session row. Tabs without retained text still
+register an ordinary close handler. Do not fetch files or start owners to recover.
+
 Unavailable-project recovery must render huddle targets returned by
 `desktopPaneCloseReview`, not just editor tabs: those targets already own their
 retained graph/layout buffers, so they are absent from the orphan list. Keep the

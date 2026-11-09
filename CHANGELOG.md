@@ -13,6 +13,8 @@ Past releases: see docs/changelogs/.
 
 #### Added
 
+- Expose retained huddle graph/layout drafts when their placement is missing, and preserve discard review for tab-button and Close tab actions without a session row.
+
 - Recover retained huddle graph/layout drafts when their project is unavailable, with downloads and grouped close review; label huddles correctly in CLI status and tab tooltips.
 
 - Add Start and run for stopped huddles: review saved revision, variables and manual input together, then send once after confirming the active graph; uncertain replies require inspection.

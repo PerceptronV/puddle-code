@@ -1,4 +1,5 @@
 import { huddleDefinitionPath, huddleSourcePaths } from '@puddle/shared';
+import { HuddleTabClose } from '../../huddle/documents/HuddleTabClose';
 import { tabCloseKey } from '../tabs/close/TabCloseRequests';
 import { panePathLabel } from './pane-path';
 import './pane-tab-strip.css';
@@ -627,14 +628,12 @@ function PaneTab({
           )}
           <TabControls>
             {session && <SessionTabActions session={session} onArchived={onArchived} />}
-            {tab.type === 'huddle' && session?.huddle_id ? (
-              <LazyEditorTabClose
+            {tab.type === 'huddle' ? (
+              <HuddleTabClose
                 closeKey={tabCloseKey(leafId, key)}
-                session={session.id}
-                path={huddleDefinitionPath(session.huddle_id)}
-                relatedPaths={huddleSourcePaths(session.huddle_id).slice(1)}
-                kind="file"
-                label={renderTitle(session)}
+                session={tab.session}
+                huddleId={session?.huddle_id ?? undefined}
+                label={session ? renderTitle(session) : `Huddle ${tab.session.slice(0, 8)}`}
                 onClose={onClose}
               />
             ) : (

@@ -1395,6 +1395,13 @@ dependencies. Bindings distinguish literals from named variables. File/Git/sessi
 operations require an explicit worktree binding. Typed feedback edges permit
 bounded two-agent cycles; removing those edges must leave an acyclic graph.
 
+Missing huddle placements in otherwise available projects expose retained graph
+and layout text through the same local recovery/download UI. Graph tab controls
+resolve source paths from the placement when available and retained buffers when
+it is absent. Tab-button, keyboard and window close requests use the existing
+review policy; even an empty missing-placement tab registers a close handler.
+No host file or runtime mutation is required for recovery.
+
 When a native window's project is unavailable, huddle tabs still expose retained
 manifest/layout drafts through the existing local recovery/download surface.
 Register their grouped close review with the ordinary window close coordinator;
