@@ -45,6 +45,7 @@ export async function completionOwnerFixture(completion = true) {
   if (!completion) {
     delete capabilities.completionEvents;
     delete capabilities.completionPlans;
+    delete capabilities.nativeFeedback;
   }
   const launch = huddleOwnerLaunchSchema.parse({
     format: 1,

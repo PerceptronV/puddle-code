@@ -270,6 +270,9 @@ it('only requests component catalogues from supporting hosts and opted-in browse
     configurable: true,
     get: () => ({ version: '0.4.8', protocol: { major: 26, minor: 1 } }),
   });
-  await f.control.status(undefined, () => true, f.signal.signal, true);
-  expect(f.commands.at(-1)).not.toHaveProperty('include_component_releases');
+  const before = f.commands.length;
+  expect((await f.control.status(undefined, () => true, f.signal.signal, true)).availability).toBe(
+    'upgrade_required',
+  );
+  expect(f.commands).toHaveLength(before);
 });

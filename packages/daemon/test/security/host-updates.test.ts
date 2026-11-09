@@ -176,8 +176,8 @@ it('bounds concurrent update calls', async () => {
   expect(f.handle).toHaveBeenCalledTimes(4);
 });
 
-it('retains update controls on the compatible application 26.0 boundary', async () => {
-  const compatible = await fixture(undefined, 0, 26);
+it('retains update controls at minor zero of the current application major', async () => {
+  const compatible = await fixture(undefined, 0);
   await expect(compatible.client.hostUpdate({ action: 'status' })).resolves.toEqual({
     ok: true,
     operation: null,

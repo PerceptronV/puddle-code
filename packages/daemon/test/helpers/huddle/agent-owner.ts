@@ -36,6 +36,8 @@ export async function agentOwnerFixture(
   if (legacy) {
     delete capabilities.operations;
     delete capabilities.spawns;
+    delete capabilities.lifecycle;
+    delete capabilities.nativeFeedback;
   }
   const scope = huddleTurnScope(f, capabilities);
   const binding = f.runtimes.get(scope.owner.runtime_id)!;

@@ -21,11 +21,14 @@ it('requires exact recorded identity and page correspondence', () => {
   ])
     expect(() => parseHuddleRetainedHistory(input, { ...response, history })).toThrow();
 });
-it('keeps retained reads separate from reconciliation and rejects malformed catalogue cursors', () => {
+it('offers retained observation without reconciliation and rejects malformed catalogue cursors', () => {
   expect(
     huddleRetainedHistoryRequestSchema.safeParse({ ...input, include_readout_observation: true })
       .success,
-  ).toBe(false);
+  ).toBe(true);
+  expect(huddleRetainedHistoryRequestSchema.safeParse({ ...input, reconcile: true }).success).toBe(
+    false,
+  );
   expect(
     huddleHistoryOwnersRequestSchema.safeParse({
       after: { runtime_id: owner.runtimeId, created_at: 'invalid' },

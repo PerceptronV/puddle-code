@@ -8,3 +8,16 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Frontend
+
+#### Fixed
+
+- Retry transient desktop packaging downloads up to three times while preserving checksum, signing and publication checks.
+- Refresh the bundled Huddle executable test kit to match the current SDK and component contracts.
+
+### Daemon
+
+#### Fixed
+
+- Restore CI coverage for older host and Huddle capabilities, coordinated upgrades and calibrated runtime resource measurements.

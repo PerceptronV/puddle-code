@@ -51,6 +51,7 @@ it('starts a saved completion graph through HTTP, gates old releases and resumes
     expect(document.components.run!.id).toBe(completionHuddleTrigger.id);
     const metadataPath = join(f.installed.release, 'RUNTIME_CAPABILITIES.json');
     const metadata = JSON.parse(readFileSync(metadataPath, 'utf8'));
+    delete metadata.roles.huddle.nativeFeedback;
     for (const capability of ['completionEvents', 'completionPlans']) {
       delete metadata.roles.huddle[capability];
       writeFileSync(metadataPath, JSON.stringify(metadata));

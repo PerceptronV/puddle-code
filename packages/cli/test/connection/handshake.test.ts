@@ -110,7 +110,7 @@ describe('runHandshake', () => {
       }),
     ).rejects.toMatchObject({
       code: 'upgrade_failed',
-      hint: expect.stringContaining('3 live session(s)'),
+      hint: expect.stringContaining('separate exact interruption review'),
     });
     expect(confirmDaemonUpgrade).not.toHaveBeenCalled();
     expect(upgradeDaemon).not.toHaveBeenCalled();

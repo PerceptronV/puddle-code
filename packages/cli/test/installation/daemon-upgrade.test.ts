@@ -40,7 +40,10 @@ beforeEach(async () => {
   process.env.PUDDLE_HOME = home;
   major = PROTOCOL_VERSION.major - 1;
   minor = 0;
-  hostUpgrade.mockReset();
+  hostUpgrade.mockReset().mockImplementation(async () => {
+    major = PROTOCOL_VERSION.major;
+    return { from: '0.2.3', to: '0.2.4' };
+  });
   rejectInspection = false;
   registry = new LeaseRegistry();
   const version = () => ({
@@ -126,7 +129,8 @@ it.each(['local', 'ssh'] as const)(
     cleanup.push(() => endpoint.authority.close());
     expect(endpoint.authority.version?.protocol.major).toBe(PROTOCOL_VERSION.major);
     expect(endpoint.authority.credential()).toMatch(/^cn_/);
-    expect(install).toHaveBeenCalledOnce();
+    expect(hostUpgrade).toHaveBeenCalledOnce();
+    expect(install).not.toHaveBeenCalled();
   },
 );
 
@@ -138,7 +142,8 @@ it('opens the frontend after one approved update and no second handshake upgrade
   expect((await fetch(frontend.origin)).status).toBe(200);
   expect(frontend.daemon.protocol.major).toBe(PROTOCOL_VERSION.major);
   expect(confirmDaemonUpgrade).toHaveBeenCalledOnce();
-  expect(install).toHaveBeenCalledOnce();
+  expect(hostUpgrade).toHaveBeenCalledOnce();
+  expect(install).not.toHaveBeenCalled();
 });
 
 it.each(['declined', 'missing', 'no-upgrade', 'newer', 'compatible'] as const)(
@@ -175,13 +180,14 @@ it('does not bootstrap blindly when inspection of a known mismatch fails', async
 });
 
 it('reports an incompatible replacement without prompting or installing again', async () => {
-  install.mockImplementation(async () => {});
+  hostUpgrade.mockImplementation(async () => ({ from: '0.2.3', to: '0.2.4' }));
   const confirmDaemonUpgrade = vi.fn(async () => true);
   await expect(ensureDaemon(new LocalTransport(), { confirmDaemonUpgrade })).rejects.toMatchObject({
     code: 'upgrade_failed',
   });
   expect(confirmDaemonUpgrade).toHaveBeenCalledOnce();
-  expect(install).toHaveBeenCalledOnce();
+  expect(hostUpgrade).toHaveBeenCalledOnce();
+  expect(install).not.toHaveBeenCalled();
 });
 
 it.each([0, 1])('rechecks a host changed during the prompt (major offset %i)', async (offset) => {

@@ -51,6 +51,8 @@ it('negotiates operation support independently of legacy huddle ownership', () =
   const legacy = { ...HUDDLE_RUNTIME_CAPABILITIES };
   delete legacy.operations;
   delete legacy.spawns;
+  delete legacy.lifecycle;
+  delete legacy.nativeFeedback;
   const candidate = daemonRuntimeCapabilities('fixture');
   expect(supportsHuddleRuntime(legacy)).toBe(true);
   expect(supportsHuddleRuntime({ ...legacy, operations: 3 })).toBe(false);

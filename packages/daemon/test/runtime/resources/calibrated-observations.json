@@ -1,0 +1,301 @@
+{
+  "source_commit": "c6d1de54cd28bfdc9bcca1145e6fb3852f4244aa",
+  "source_directory": "docs/reports/persistent-runtimes/resources",
+  "observations": [
+    {
+      "name": "2026-11-04-native.json",
+      "count": 1,
+      "result": {
+        "count": 1,
+        "owner_rss_mib": {
+          "total": 67.046875,
+          "max": 67.046875
+        },
+        "owner_descriptors": {
+          "counts": [23]
+        },
+        "shell_descriptors": {
+          "counts": [4]
+        },
+        "adoption_ms": {
+          "max": 31.800542000004498
+        },
+        "native": {
+          "owners": {
+            "self_cpu_one_core_percent_upper": 0.2677817356275168,
+            "self_cpu_one_core_percent_lower": 0.26778155342745597,
+            "reaped_children_cpu_one_core_percent_upper": 0.13546417697766394,
+            "self_interrupt_wakeups_per_second_upper": 2.865988104241286
+          }
+        }
+      },
+      "context": {
+        "platform": "darwin",
+        "nativeCalibrated": true
+      }
+    },
+    {
+      "name": "2026-11-04-native.json",
+      "count": 10,
+      "result": {
+        "count": 10,
+        "owner_rss_mib": {
+          "total": 668.234375,
+          "max": 70.75
+        },
+        "owner_descriptors": {
+          "counts": [23, 23, 23, 23, 23, 23, 23, 23, 23, 23]
+        },
+        "shell_descriptors": {
+          "counts": [4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
+        },
+        "adoption_ms": {
+          "max": 117.9612080000079
+        },
+        "native": {
+          "owners": {
+            "self_cpu_one_core_percent_upper": 0.9684204423780054,
+            "self_cpu_one_core_percent_lower": 0.9684201886661998,
+            "reaped_children_cpu_one_core_percent_upper": 1.231446167515365,
+            "self_interrupt_wakeups_per_second_upper": 21.728173551190707
+          }
+        }
+      },
+      "context": {
+        "platform": "darwin",
+        "nativeCalibrated": true
+      }
+    },
+    {
+      "name": "2026-11-04-host-allowance-native.json",
+      "count": 1,
+      "result": {
+        "count": 1,
+        "owner_rss_mib": {
+          "total": 77.71875,
+          "max": 77.71875
+        },
+        "owner_descriptors": {
+          "counts": [26]
+        },
+        "shell_descriptors": {
+          "counts": [4]
+        },
+        "adoption_ms": {
+          "max": 24.362542000002577
+        },
+        "native": {
+          "owners": {
+            "self_cpu_one_core_percent_upper": 0.1660009390162711,
+            "self_cpu_one_core_percent_lower": 0.16600090881361226,
+            "reaped_children_cpu_one_core_percent_upper": 0.07050030892134432,
+            "self_interrupt_wakeups_per_second_upper": 2.832960653487654
+          }
+        }
+      },
+      "context": {
+        "platform": "darwin",
+        "nativeCalibrated": true
+      }
+    },
+    {
+      "name": "2026-11-04-host-allowance-native.json",
+      "count": 10,
+      "result": {
+        "count": 10,
+        "owner_rss_mib": {
+          "total": 778.25,
+          "max": 79.328125
+        },
+        "owner_descriptors": {
+          "counts": [26, 26, 26, 26, 26, 26, 26, 26, 26, 26]
+        },
+        "shell_descriptors": {
+          "counts": [4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
+        },
+        "adoption_ms": {
+          "max": 99.19158400000015
+        },
+        "native": {
+          "owners": {
+            "self_cpu_one_core_percent_upper": 0.8151657258702214,
+            "self_cpu_one_core_percent_lower": 0.8151656116500825,
+            "reaped_children_cpu_one_core_percent_upper": 0.6491297530828811,
+            "self_interrupt_wakeups_per_second_upper": 23.69746146498572
+          }
+        }
+      },
+      "context": {
+        "platform": "darwin",
+        "nativeCalibrated": true
+      }
+    },
+    {
+      "name": "2026-11-04-host-allowance-native-resample.json",
+      "count": 1,
+      "result": {
+        "count": 1,
+        "owner_rss_mib": {
+          "total": 78.453125,
+          "max": 78.453125
+        },
+        "owner_descriptors": {
+          "counts": [26]
+        },
+        "shell_descriptors": {
+          "counts": [4]
+        },
+        "adoption_ms": {
+          "max": 31.127291000004334
+        },
+        "native": {
+          "owners": {
+            "self_cpu_one_core_percent_upper": 0.029615402244472677,
+            "self_cpu_one_core_percent_lower": 0.02961539455436769,
+            "reaped_children_cpu_one_core_percent_upper": 0.08817921792585205,
+            "self_interrupt_wakeups_per_second_upper": 2.066394470854993
+          }
+        }
+      },
+      "context": {
+        "platform": "darwin",
+        "nativeCalibrated": true
+      }
+    },
+    {
+      "name": "2026-11-04-host-allowance-native-resample.json",
+      "count": 10,
+      "result": {
+        "count": 10,
+        "owner_rss_mib": {
+          "total": 712.484375,
+          "max": 77.671875
+        },
+        "owner_descriptors": {
+          "counts": [26, 26, 26, 25, 26, 26, 26, 26, 26, 26]
+        },
+        "shell_descriptors": {
+          "counts": [4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
+        },
+        "adoption_ms": {
+          "max": 110.74520800000755
+        },
+        "native": {
+          "owners": {
+            "self_cpu_one_core_percent_upper": 1.4602373946438607,
+            "self_cpu_one_core_percent_lower": 1.460237128399934,
+            "reaped_children_cpu_one_core_percent_upper": 0.8477192486775305,
+            "self_interrupt_wakeups_per_second_upper": 25.397052990279647
+          }
+        }
+      },
+      "context": {
+        "platform": "darwin",
+        "nativeCalibrated": true
+      }
+    },
+    {
+      "name": "2026-11-04-host-allowance-native-complete.json",
+      "count": 1,
+      "result": {
+        "count": 1,
+        "owner_rss_mib": {
+          "total": 77.8125,
+          "max": 77.8125
+        },
+        "owner_descriptors": {
+          "counts": [26]
+        },
+        "shell_descriptors": {
+          "counts": [4]
+        },
+        "adoption_ms": {
+          "max": 23.36479099999997
+        },
+        "native": {
+          "owners": {
+            "self_cpu_one_core_percent_upper": 0.029510910407823592,
+            "self_cpu_one_core_percent_lower": 0.02951090438323173,
+            "reaped_children_cpu_one_core_percent_upper": 0.07049855095000584,
+            "self_interrupt_wakeups_per_second_upper": 2.0331473455548577
+          }
+        }
+      },
+      "context": {
+        "platform": "darwin",
+        "nativeCalibrated": true
+      }
+    },
+    {
+      "name": "2026-11-04-host-allowance-native-complete.json",
+      "count": 10,
+      "result": {
+        "count": 10,
+        "owner_rss_mib": {
+          "total": 779.6875,
+          "max": 79.25
+        },
+        "owner_descriptors": {
+          "counts": [26, 26, 26, 26, 26, 26, 26, 26, 26, 26]
+        },
+        "shell_descriptors": {
+          "counts": [4, 4, 4, 4, 4, 4, 4, 4, 4, 4]
+        },
+        "adoption_ms": {
+          "max": 103.05525000000489
+        },
+        "native": {
+          "owners": {
+            "self_cpu_one_core_percent_upper": 0.6828620885011408,
+            "self_cpu_one_core_percent_lower": 0.6828619756183645,
+            "reaped_children_cpu_one_core_percent_upper": 0.8379005038892291,
+            "self_interrupt_wakeups_per_second_upper": 22.76372259445554
+          }
+        }
+      },
+      "context": {
+        "platform": "darwin",
+        "nativeCalibrated": true
+      }
+    },
+    {
+      "name": "2026-11-04-host-allowance-native-complete.json",
+      "count": 50,
+      "result": {
+        "count": 50,
+        "owner_rss_mib": {
+          "total": 2669.140625,
+          "max": 68.890625
+        },
+        "owner_descriptors": {
+          "counts": [
+            26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
+            26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26, 26,
+            26, 26, 26, 26, 26, 26
+          ]
+        },
+        "shell_descriptors": {
+          "counts": [
+            4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4,
+            4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4, 4
+          ]
+        },
+        "adoption_ms": {
+          "max": 438.7441659999895
+        },
+        "native": {
+          "owners": {
+            "self_cpu_one_core_percent_upper": 3.699740309555894,
+            "self_cpu_one_core_percent_lower": 3.6997397619927423,
+            "reaped_children_cpu_one_core_percent_upper": 4.907678732549897,
+            "self_interrupt_wakeups_per_second_upper": 109.75320629237056
+          }
+        }
+      },
+      "context": {
+        "platform": "darwin",
+        "nativeCalibrated": true
+      }
+    }
+  ]
+}

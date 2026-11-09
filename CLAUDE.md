@@ -1228,6 +1228,12 @@ CI runs only on pushed release tags (`v*`) or explicit check tags (`ci` or
 releasing, use a unique tag such as `git tag ci/check-name <commit>` followed by
 `git push origin ci/check-name`. CI tags never invoke release publishing.
 
+Desktop release packaging uses `packages/desktop/scripts/package.mjs`: at most three
+attempts for transient download failures, with 10/20-second backoff. It forces
+`--publish never`, preserves signing/checksum validation and never retries permanent
+packaging errors. Keep measured resource regression fixtures under daemon tests,
+with their original report commit recorded, independent of removable reports.
+
 CI and release jobs install dependencies through `scripts/install-ci.mjs`, which
 uses the running Node installation's bundled headers for native source builds.
 Keep that header override scoped to installation so Electron packaging can use

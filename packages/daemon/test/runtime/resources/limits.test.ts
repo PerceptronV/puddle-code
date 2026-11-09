@@ -42,38 +42,17 @@ function observation(count: 1 | 10 | 50 = 1) {
 }
 
 describe('calibrated fixture resource ceilings', () => {
-  const reports = [
-    '2026-11-04-native.json',
-    '2026-11-04-host-allowance-native.json',
-    '2026-11-04-host-allowance-native-resample.json',
-    '2026-11-04-host-allowance-native-complete.json',
-  ].map((name) => ({
-    name,
-    report: JSON.parse(
-      readFileSync(
-        new URL(
-          `../../../../../docs/reports/persistent-runtimes/resources/${name}`,
-          import.meta.url,
-        ),
-        'utf8',
-      ),
-    ) as {
-      environment: { platform: NodeJS.Platform };
-      native_calibration: unknown;
-      results: Observation[];
-    },
-  }));
-  const rows = reports.flatMap(({ name, report }) =>
-    report.results.map((result) => ({
-      name,
-      count: result.count,
-      result,
-      context: {
-        platform: report.environment.platform,
-        nativeCalibrated: report.native_calibration !== null,
-      },
-    })),
-  );
+  // Measured fields preserved from the archived reports; provenance lives in the fixture.
+  const { observations: rows } = JSON.parse(
+    readFileSync(new URL('./calibrated-observations.json', import.meta.url), 'utf8'),
+  ) as {
+    observations: Array<{
+      name: string;
+      count: number;
+      result: Observation;
+      context: { platform: NodeJS.Platform; nativeCalibrated: boolean };
+    }>;
+  };
 
   it('retains all nine calibrated observations, including partial runs', () => {
     expect(rows).toHaveLength(9);

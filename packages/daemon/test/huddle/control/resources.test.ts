@@ -14,6 +14,7 @@ async function fixture() {
   const f = await huddleExecutionFixture();
   const older = runtimeReleaseCapabilities('1.2.3');
   delete older.roles.huddle!.spawns;
+  delete older.roles.huddle!.lifecycle;
   writeFileSync(join(f.installed.release, 'RUNTIME_CAPABILITIES.json'), JSON.stringify(older));
   const accounts = new AccountStore(f.db);
   const account = accounts.create({

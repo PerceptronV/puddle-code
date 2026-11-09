@@ -13,7 +13,10 @@ import { huddleControllerFixture, until } from '../../helpers/huddle/controller.
 
 async function fixture(capture?: HuddleCompletionBaselineCapture, plans = true) {
   const capabilities = { ...HUDDLE_RUNTIME_CAPABILITIES };
-  if (!plans) delete capabilities.completionPlans;
+  if (!plans) {
+    delete capabilities.completionPlans;
+    delete capabilities.nativeFeedback;
+  }
   const f = await huddleControllerFixture(false, capabilities);
   const controls = new HuddleRuntimeControls(
     f.runtimes,

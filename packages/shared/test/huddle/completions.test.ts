@@ -3,7 +3,7 @@ import { HUDDLE_RUNTIME_CAPABILITIES, supportsHuddleRuntime } from '../../src/in
 import { canAdoptHuddle, daemonRuntimeCapabilities } from '../../src/installation/runtime-roles.js';
 
 it('preserves old owners and requires completion support before adopting a new owner', () => {
-  const { completionEvents: _, ...old } = HUDDLE_RUNTIME_CAPABILITIES;
+  const { completionEvents: _, nativeFeedback: _feedback, ...old } = HUDDLE_RUNTIME_CAPABILITIES;
   expect(supportsHuddleRuntime(old)).toBe(true);
   expect(supportsHuddleRuntime(HUDDLE_RUNTIME_CAPABILITIES)).toBe(true);
   expect(supportsHuddleRuntime({ ...old, completionEvents: 2 })).toBe(false);
@@ -14,7 +14,7 @@ it('preserves old owners and requires completion support before adopting a new o
 });
 
 it('keeps completion-event owners without the newer plan capability compatible', () => {
-  const { completionPlans: _, ...old } = HUDDLE_RUNTIME_CAPABILITIES;
+  const { completionPlans: _, nativeFeedback: _feedback, ...old } = HUDDLE_RUNTIME_CAPABILITIES;
   expect(supportsHuddleRuntime(old)).toBe(true);
   expect(supportsHuddleRuntime({ ...old, completionPlans: 2 })).toBe(false);
   const candidate = daemonRuntimeCapabilities('fixture');
