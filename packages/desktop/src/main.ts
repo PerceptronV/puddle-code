@@ -50,6 +50,7 @@ import { WindowEffects } from './windows/effects/coordination.js';
 import { registerWindowEffectsIpc } from './windows/effects/ipc.js';
 import { DesktopNotifications } from './notifications.js';
 import { HostConnections, type HostConnection } from './windows/hosts/connections.js';
+import { openHostFromPrompt } from './windows/hosts/prompt.js';
 import { DesktopWindowState } from './windows/persistence/state.js';
 import { registerWindowStateIpc } from './windows/ipc.js';
 import { WindowCommands } from './windows/lifecycle/commands.js';
@@ -872,10 +873,7 @@ async function connectFromPrompt(rawHost: string): Promise<void> {
   if (host === '' || host === LOCAL) return;
   promptStatus('connecting');
   try {
-    await openShell(host);
-    addRecentHost(recentsFile(), host);
-    buildMenu();
-    promptWin?.close();
+    await openPromptHost(host, promptWin);
   } catch (e) {
     promptStatus('error', errorText(e));
   }
@@ -921,15 +919,29 @@ function pickerStatus(state: 'connecting' | 'error', message?: string): void {
 async function openFromPicker(target: string): Promise<void> {
   pickerStatus('connecting', target === LOCAL ? 'Starting…' : `Connecting to ${target}…`);
   try {
-    await openShell(target);
-    if (target !== LOCAL) {
-      addRecentHost(recentsFile(), target);
-      buildMenu();
-    }
-    pickerWin?.close();
+    await openPromptHost(target, pickerWin);
   } catch (e) {
     pickerStatus('error', errorText(e));
   }
+}
+
+async function openPromptHost(target: string, prompt: BrowserWindow | null): Promise<void> {
+  await openHostFromPrompt({
+    prompt,
+    open: async () => {
+      await openShell(target);
+      return [...(shells.get(target)?.windows.values() ?? [])].find(
+        ({ identity, win }) => identity.kind === 'host' && !win.isDestroyed(),
+      )?.win;
+    },
+    remember: () => {
+      if (target !== LOCAL) {
+        addRecentHost(recentsFile(), target);
+        buildMenu();
+      }
+    },
+    raise,
+  });
 }
 
 function pickerHosts() {
