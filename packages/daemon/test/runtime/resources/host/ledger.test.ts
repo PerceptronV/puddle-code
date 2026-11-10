@@ -2,6 +2,7 @@ import { randomUUID } from 'node:crypto';
 import { execFile } from 'node:child_process';
 import {
   closeSync,
+  lstatSync,
   mkdirSync,
   mkdtempSync,
   readFileSync,
@@ -35,6 +36,7 @@ vi.mock('node:fs', async (original) => {
   return {
     ...real,
     closeSync: vi.fn(real.closeSync),
+    lstatSync: vi.fn(real.lstatSync),
     readSync: vi.fn(real.readSync),
     writeFileSync: vi.fn(real.writeFileSync),
   };
@@ -45,6 +47,7 @@ const cleanup: Array<() => void> = [];
 afterEach(() => {
   vi.restoreAllMocks();
   vi.mocked(closeSync).mockReset().mockImplementation(realFs.closeSync);
+  vi.mocked(lstatSync).mockReset().mockImplementation(realFs.lstatSync);
   vi.mocked(readSync).mockReset().mockImplementation(realFs.readSync);
   vi.mocked(writeFileSync).mockReset().mockImplementation(realFs.writeFileSync);
   for (const close of cleanup.splice(0).reverse()) close();
@@ -374,6 +377,38 @@ it('refuses inode replacement on existing connections and future opens', () => {
   writeFileSync(f.file, readFileSync(f.file + '.old'), { mode: 0o600 });
   expect(() => ledger.readGrant(owner)).toThrow(/identity changed/);
   expect(() => ledger.compareGrant(owner, 1, 30)).toThrow(/identity changed/);
+  expect(() => f.open()).toThrow(/seal changed/);
+});
+
+it('retains grants across mount device renumbering but fences changes during an open connection', () => {
+  const f = fixture(),
+    ledger = f.open(),
+    owner = identity();
+  const instance = ledger.instanceId;
+  ledger.compareGrant(owner, 0, 60);
+  const seal = readFileSync(f.seal, 'utf8');
+  vi.mocked(lstatSync).mockImplementation((...args: Parameters<typeof lstatSync>) => {
+    const stat = realFs.lstatSync(...args);
+    return Object.assign(stat, { dev: Number(stat.dev) + 2 });
+  });
+  expect(() => ledger.readGrant(owner)).toThrow(/identity changed/);
+  ledger.close();
+  const reopened = f.open();
+  expect(reopened.instanceId).toBe(instance);
+  expect(reopened.readGrant(owner)).toEqual({ revision: 1, bytes: 60 });
+  expect(reopened.compareGrant(identity(), 0, 41)).toBeNull();
+  expect(reopened.compareGrant(owner, 1, 70)).toEqual({ revision: 2, bytes: 70 });
+  expect(readFileSync(f.seal, 'utf8')).toBe(seal);
+  vi.mocked(lstatSync).mockImplementation(realFs.lstatSync);
+  expect(() => reopened.readGrant(owner)).toThrow(/identity changed/);
+});
+
+it('rejects a ledger with a different instance even when its inode is unchanged', () => {
+  const f = fixture();
+  f.open().close();
+  const db = new Database(f.file);
+  db.prepare('UPDATE host_memory SET instance=?').run(randomUUID());
+  db.close();
   expect(() => f.open()).toThrow(/seal changed/);
 });
 

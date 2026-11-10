@@ -67,6 +67,7 @@ export class HostMemoryLedger {
     private readonly paths: HostMemoryPaths,
     private readonly db: Database.Database,
     private readonly seal: HostMemorySeal,
+    private readonly device: number,
   ) {
     this.instanceId = seal.instance;
     this.capacityBytes = seal.capacity;
@@ -117,10 +118,7 @@ export class HostMemoryLedger {
       if (capacityBytes === undefined)
         throw new Error('Host memory ledger capacity is unavailable');
       if (seal && !file) throw new Error('Sealed host memory ledger is missing');
-      if (
-        seal &&
-        (seal.capacity !== capacityBytes || seal.device !== file!.dev || seal.inode !== file!.ino)
-      )
+      if (seal && (seal.capacity !== capacityBytes || seal.inode !== file!.ino))
         throw new Error('Host memory ledger seal changed');
       if (!seal) {
         controller = memoryIo(home, () => acquireHostClaim(home, 'daemon-controller'));
@@ -198,7 +196,11 @@ export class HostMemoryLedger {
         const initialSeal = seal;
         memoryIo(home, () => writeMemorySeal(paths, initialSeal));
       }
-      const ledger = new HostMemoryLedger(paths, db, seal);
+      // Device numbers identify the current mount, not a persistent filesystem:
+      // macOS may assign a different st_dev after reboot. Retain the sealed inode,
+      // instance and capacity, and pin the observed device for this connection.
+      // Keep the original seal unchanged for other readers and older runtimes.
+      const ledger = new HostMemoryLedger(paths, db, seal, file!.dev);
       ledger.requireCurrent();
       if (header.instance !== seal.instance || header.capacity !== seal.capacity)
         throw new Error('Host memory ledger seal changed');
@@ -350,7 +352,8 @@ export class HostMemoryLedger {
       privatePath(this.paths.directory, true);
       const stat = memoryFile(this.paths.database, HOST_MEMORY_LEDGER_BYTES);
       if (
-        stat.dev !== this.seal.device ||
+        stat.dev !== this.device ||
+        memoryFile(this.paths.seal, 4096).dev !== this.device ||
         stat.ino !== this.seal.inode ||
         JSON.stringify(readMemorySeal(this.paths)) !== JSON.stringify(this.seal)
       )

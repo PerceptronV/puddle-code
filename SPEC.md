@@ -160,7 +160,11 @@ staged targets never count as installed software.
 Managed runtime memory has one durable host ceiling, initialised to a quarter of
 physical memory (or a lower reported process constraint), capped at 8 GiB. Its
 private sealed ledger survives daemon replacement and retains the original
-capacity. Launch admission reserves essential state before dispatch; each owner
+capacity. Persisted identity binds the inode, ledger instance and capacity; the
+seal and ledger must reside on the same current device. Device numbers may change
+across reboot, so each open pins the current device for subsequent checks rather
+than comparing it with the historical seal's device number. Opening never rewrites
+the seal or discards grants. Launch admission reserves essential state before dispatch; each owner
 shares its cached grant across terminal history/screens, checkpoint work, transport
 and provider bridge buffers. Idle spare returns use bounded retries. New launches
 can be refused without stopping existing runtimes. Exact retirement reclaims a
