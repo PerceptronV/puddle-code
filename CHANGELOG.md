@@ -8,3 +8,9 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Frontend
+
+#### Fixed
+
+- Prevent an uncaught abort error when a host connection closes while its SSH control channel is still opening.

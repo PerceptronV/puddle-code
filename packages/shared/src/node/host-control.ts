@@ -247,6 +247,9 @@ export class HostControlClient implements ConnectionAuthority {
     try {
       const channel = await this.openChannel();
       if (this.stopped) {
+        // SSH's Duplex.from can emit AbortError on destroy before the normal
+        // channel handlers are installed. This late channel has no authority.
+        channel.once('error', () => {});
         channel.destroy();
         return;
       }
