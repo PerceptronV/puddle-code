@@ -82,9 +82,14 @@ export class SshTransport implements Transport {
     return this.controlArgs.length > 0;
   }
 
-  /** Argv prefix every ssh/scp spawn shares. */
+  /** Only open() may prompt for a shared master; its users must not compete. */
   args(...rest: string[]): string[] {
-    return [...this.controlArgs, ...this.keepaliveArgs, ...rest];
+    return [
+      ...this.controlArgs,
+      ...this.keepaliveArgs,
+      ...(this.hasControlMaster ? ['-o', 'BatchMode=yes'] : []),
+      ...rest,
+    ];
   }
 
   /**
@@ -109,14 +114,21 @@ export class SshTransport implements Transport {
    * inherited TTY or a graphical embedder's askpass helper. Exit 0 leaves a
    * live control socket behind.
    */
-  open(): Promise<void> {
+  open(signal?: AbortSignal): Promise<void> {
+    if (signal?.aborted)
+      return Promise.reject(new CliError('ssh_unreachable', 'SSH authentication cancelled'));
     return new Promise((resolve, reject) => {
-      const child = spawn(this.ssh, this.args(this.host, 'true'), {
-        // A GUI has no useful inherited terminal; OpenSSH calls its askpass
-        // helper instead. The terminal CLI keeps byte-for-byte inheritance.
-        stdio: this.askpassProgram === undefined ? 'inherit' : 'ignore',
-        env: this.spawnEnv(),
-      });
+      const child = spawn(
+        this.ssh,
+        [...this.controlArgs, ...this.keepaliveArgs, this.host, 'true'],
+        {
+          // A GUI has no useful inherited terminal; OpenSSH calls its askpass
+          // helper instead. The terminal CLI keeps byte-for-byte inheritance.
+          stdio: this.askpassProgram === undefined ? 'inherit' : 'ignore',
+          env: this.spawnEnv(),
+          signal,
+        },
+      );
       child.on('error', (err) =>
         reject(new CliError('ssh_unreachable', `could not run ${this.ssh}: ${err.message}`)),
       );
@@ -211,7 +223,7 @@ export class SshTransport implements Transport {
   async copyTo(localPath: string, destPath: string): Promise<void> {
     await this.exec(`mkdir -p $(dirname ${destPath})`, { timeoutMs: 15_000 });
     await new Promise<void>((resolve, reject) => {
-      const child = spawn(this.scp, [...this.controlArgs, localPath, `${this.host}:${destPath}`], {
+      const child = spawn(this.scp, this.args(localPath, `${this.host}:${destPath}`), {
         stdio: ['ignore', 'ignore', 'inherit'],
         env: this.spawnEnv(),
       });

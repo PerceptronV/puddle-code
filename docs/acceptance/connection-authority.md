@@ -115,6 +115,14 @@ and the normal SSH credentials; do not substitute the installed personal daemon.
   participation expires by 45 seconds. Restore the network and verify a fresh
   generation/handshake, retained browser login and no duplicated mutations.
   Interactive password/MFA recovery remains a plain-shell or desktop-askpass check.
+- On a disposable password-only SSH host in Electron, expire the master and
+  let automatic reconnection prompt. Pause for at least ten seconds, type part
+  of the password, pause again, then finish. One dialogue must stay open with
+  its input intact while background control requests retry. Repeat with 2FA.
+  Refresh while authentication is pending: the old request must close and the
+  replacement must remain stable. Close the host during a pending prompt and
+  confirm that no late request reopens it. These native checks remain manual;
+  the automated reconnect fixture uses the real askpass bridge and fake SSH.
 - In Electron, repeat banner and command-palette refresh, then **File → Refresh
   Connection**. Ordinary refresh keeps the origin. Occupy its old port during
   replacement and verify a new invitation preserves the workspace route.

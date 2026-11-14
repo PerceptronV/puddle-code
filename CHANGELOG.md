@@ -14,3 +14,4 @@ Past releases: see docs/changelogs/.
 #### Fixed
 
 - Prevent an uncaught abort error when a host connection closes while its SSH control channel is still opening.
+- Keep SSH password and 2FA prompts stable during reconnection by preventing competing background authentication and cancelling pending authentication when refreshing the connection.

@@ -24,6 +24,7 @@ describe('SshTransport argv shapes', () => {
     expect(argv).toContain('ControlMaster=auto');
     expect(argv).toContain('ControlPersist=10m');
     expect(argv).toContain('cm-%C');
+    expect(argv).toContain('BatchMode=yes');
   });
 
   it('keeps the connection alive so idle NAT drops cannot fell the tunnel', () => {
@@ -37,6 +38,7 @@ describe('SshTransport argv shapes', () => {
   it('drops every Control* option on Windows (no multiplexing there)', () => {
     const ssh = new SshTransport('alice@devbox', { platform: 'win32' });
     expect(ssh.args('alice@devbox', 'true').join(' ')).not.toContain('Control');
+    expect(ssh.args('alice@devbox', 'true').join(' ')).not.toContain('BatchMode');
     expect(ssh.hasControlMaster).toBe(false);
   });
 

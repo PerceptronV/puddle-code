@@ -123,6 +123,7 @@ export async function openTunnel(
   // local to null/never at the call sites below.
   const state: { child: ChildProcess | null } = { child: null };
   let stopping = false;
+  const lifetime = new AbortController();
   let lastRestoredAt = 0;
   // True while a reconnect loop owns the lifecycle — the health monitor stands
   // down and lets that loop resume it on completion.
@@ -198,12 +199,14 @@ export async function openTunnel(
       while (!stopping) {
         await sleep(delay);
         if (stopping) break;
-        if (!(await ssh.isAlive())) {
+        const alive = await ssh.isAlive();
+        if (stopping) break;
+        if (!alive) {
           try {
             // May prompt on the TTY in --foreground mode or through an
             // embedder-supplied askpass helper. A detached CLI frontend has
             // neither, so password/2FA re-auth keeps retrying in its log.
-            await ssh.open();
+            await ssh.open(lifetime.signal);
           } catch {
             delay = Math.min(delay * 2, RECONNECT_MAX_MS);
             continue;
@@ -269,6 +272,9 @@ export async function openTunnel(
     },
     close() {
       stopping = true;
+      // Refresh must retire a pending password/2FA request along with the
+      // old forward, before another frontend starts authenticating this host.
+      lifetime.abort();
       if (healthTimer !== null) {
         clearTimeout(healthTimer);
         healthTimer = null;
