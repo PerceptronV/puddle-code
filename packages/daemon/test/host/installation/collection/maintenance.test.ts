@@ -71,6 +71,23 @@ it('reclaims one bounded batch without advancing the live controller or touching
   acquireHostClaim(f.home, 'host-update-execution').release();
 });
 
+it('automatically collects unused releases after startup despite Finder metadata', async () => {
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  const f = fixture();
+  const metadata = join(f.home, 'bin/versions/.DS_Store');
+  writeFileSync(metadata, 'Finder metadata', { mode: 0o600 });
+  const flush = vi.spyOn(f.collector, 'flush');
+  await vi.advanceTimersByTimeAsync(RELEASE_COLLECTION_MAINTENANCE.startupMs - 1);
+  expect(flush).not.toHaveBeenCalled();
+  expect(existsSync(f.old.path)).toBe(true);
+  await vi.advanceTimersByTimeAsync(1);
+  await flush.mock.results[0]!.value;
+  expect(f.errors).toEqual([]);
+  expect(existsSync(f.old.path)).toBe(false);
+  expect(existsSync(metadata)).toBe(true);
+  expect(existsSync(join(f.home, 'bin/current'))).toBe(true);
+});
+
 it('commits result upkeep only under the existing pause/exclusion and coalesces further bounded work', async () => {
   const reclaim = vi.fn(() => {
     expect(f.pause).toHaveBeenCalled();
@@ -180,6 +197,36 @@ it('continues only its recorded quarantine on the next pass without expanding th
   expect(read().id).toBe(first.id);
   expect(read().actions.every(({ state }) => state === 'finished')).toBe(true);
   expect(existsSync(later.path)).toBe(true);
+});
+
+it('continues bounded deletion at the minimum cadence, then returns to idle after checking for more work', async () => {
+  const f = fixture();
+  for (let index = 0; index < 600; index++)
+    writeFileSync(join(f.old.path, `file-${index}`), 'fixture');
+  vi.useFakeTimers({ toFake: ['setTimeout', 'clearTimeout'] });
+  await f.collector.flush();
+  const later = collectionRelease(f.home, '0.3.8~abc123');
+  const flush = vi.spyOn(f.collector, 'flush');
+  const advance = async () => {
+    const count = flush.mock.calls.length;
+    await vi.advanceTimersByTimeAsync(RELEASE_COLLECTION_MAINTENANCE.minimumMs - 1);
+    expect(flush).toHaveBeenCalledTimes(count);
+    await vi.advanceTimersByTimeAsync(1);
+    expect(flush).toHaveBeenCalledTimes(count + 1);
+    await flush.mock.results[count]!.value;
+  };
+  await advance(); // Finish the existing quarantine before reviewing later releases.
+  expect(existsSync(later.path)).toBe(true);
+  await advance();
+  expect(existsSync(later.path)).toBe(false);
+  await advance(); // No candidates remain; resume the normal idle cadence.
+  expect(f.errors).toEqual([]);
+  const count = flush.mock.calls.length;
+  await vi.advanceTimersByTimeAsync(RELEASE_COLLECTION_MAINTENANCE.intervalMs - 1);
+  expect(flush).toHaveBeenCalledTimes(count);
+  await vi.advanceTimersByTimeAsync(1);
+  await flush.mock.results[count]!.value;
+  expect(flush).toHaveBeenCalledTimes(count + 1);
 });
 
 it('coalesces repeated triggers without postponement or frequent host pauses', async () => {

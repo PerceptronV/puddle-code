@@ -1028,7 +1028,10 @@ and the update-writer claim. It pins selectors, retained runtime bindings and he
 supervisor executables, update receipts/checkpoints and worker/recovery jobs even
 outside bounded operation history, plus retained removal records. Ended bindings
 still pin their build until descendant/asset retirement is proven. Unknown or unsafe
-evidence prevents a review. Verified unreferenced generations become candidates after
+evidence prevents a review. The release inventory tolerates an owned regular `.DS_Store`
+file in `bin/versions` that is not writable by other users, leaving it untouched; reference
+directories and all other unexpected entries retain their strict validation.
+Verified unreferenced generations become candidates after
 seven days; the fingerprint binds their receipt, inode, reference list and candidate
 set. The separate executor accepts at most 32 generations into a private serial
 journal, rechecks references under the same exclusion, atomically quarantines each
@@ -1040,7 +1043,10 @@ Tests include killing the helper after quarantine and continuing under fresh pro
 claims. Mandatory daemon maintenance now invokes this executor outside the upkeep
 it pauses, borrowing the current controller and retaining update/installer exclusion.
 It starts after 30 seconds, coalesces terminal-update observations with a five-minute
-minimum between attempts and runs every 30 minutes when idle. Each pass has a
+minimum between attempts and runs every 30 minutes when idle. Successful deletion
+passes schedule another bounded pass after five minutes until a fresh review finds
+no candidates, so partial quarantines and releases beyond the journal limit continue
+without another startup or update. Each pass has a
 five-second deadline and an aggregate reference-inventory budget of 16 MiB,
 16,384 entries and 8,192 references; separate control/journal/proof reads retain
 their existing per-record/action limits. Shutdown fences scheduling and drains the

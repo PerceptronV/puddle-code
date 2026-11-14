@@ -235,10 +235,15 @@ export class ReleaseCollectionMaintenance {
           { budget },
         );
       }
-      if (batch)
+      if (batch) {
         await executeReleaseCollection(guard, this.deps.runtimes, batch.id, () => !this.closed, {
           budget,
         });
+        // A pass removes at most 512 objects and a journal holds at most 32
+        // releases. Continue at the bounded minimum until a fresh review finds
+        // no more work, including releases left outside the completed batch.
+        this.requested = true;
+      }
     } finally {
       try {
         pause?.release();

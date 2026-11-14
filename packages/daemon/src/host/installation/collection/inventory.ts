@@ -39,6 +39,7 @@ export class ReleaseReferenceInventory {
       this.requireCurrent,
       false,
       this.budget,
+      { allowFinderMetadata: true },
     )) {
       if (
         !hostStageRecordSchema.shape.generation.safeParse(generation).success &&
@@ -124,8 +125,16 @@ export async function boundedDirectories(
   requireCurrent: () => void,
   privateStorage = true,
   budget?: CollectionBudget,
+  options: { allowFinderMetadata?: boolean } = {},
 ): Promise<string[]> {
-  return boundedEntries(path, requireCurrent, 'directory', privateStorage, budget);
+  return boundedEntries(
+    path,
+    requireCurrent,
+    'directory',
+    privateStorage,
+    budget,
+    options.allowFinderMetadata,
+  );
 }
 
 export async function boundedFiles(
@@ -142,6 +151,7 @@ async function boundedEntries(
   kind: 'directory' | 'file',
   privateStorage: boolean,
   budget?: CollectionBudget,
+  allowFinderMetadata = false,
 ): Promise<string[]> {
   try {
     if (privateStorage) privatePath(path, true);
@@ -154,6 +164,14 @@ async function boundedEntries(
   for await (const entry of await opendir(path)) {
     requireCurrent();
     budget?.entry();
+    // Opening bin/versions in Finder must not block all release reclamation.
+    // Only this known inert regular file is ignored, never reference records,
+    // directories or links. Leave it in place; it is not part of a release.
+    if (allowFinderMetadata && entry.name === '.DS_Store' && entry.isFile()) {
+      const info = lstatSync(join(path, entry.name));
+      if (info.isFile() && info.uid === process.getuid?.() && (info.mode & 0o022) === 0) continue;
+      throw new Error('Unsafe Finder metadata in release inventory');
+    }
     if (
       !(kind === 'directory' ? entry.isDirectory() : entry.isFile()) ||
       result.length === RELEASE_INVENTORY_LIMIT

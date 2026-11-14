@@ -1,5 +1,14 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync, mkdirSync, renameSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
+import {
+  chmodSync,
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  renameSync,
+  symlinkSync,
+  unlinkSync,
+  writeFileSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { expect, it } from 'vitest';
 import { atomicPrivateJson, digest } from '@puddle/shared/node';
@@ -11,6 +20,52 @@ import { collectionRelease } from '../../../helpers/release-collection.js';
 import { removalInstallationFixture as fixture } from '../../../helpers/removal-service.js';
 
 const empty = { releaseReferences: () => [], get: () => null };
+
+it('ignores owned Finder metadata in the release directory without changing the review', async () => {
+  const f = fixture();
+  const controller = f.guard.acquireController();
+  try {
+    const unused = collectionRelease(f.home, '0.4.1~abc123');
+    const before = await reviewReleaseCollection(f.guard, empty, () => true);
+    const metadata = join(f.home, 'bin/versions/.DS_Store');
+    writeFileSync(metadata, 'Finder metadata', { mode: 0o600 });
+    const after = await reviewReleaseCollection(f.guard, empty, () => true);
+    expect(after).toEqual(before);
+    expect(after.candidates).toEqual([unused.path]);
+    expect(readFileSync(metadata, 'utf8')).toBe('Finder metadata');
+  } finally {
+    controller.release();
+    f.close();
+  }
+});
+
+it.each(['unknown-file', 'directory', 'symlink', 'writable-file', 'runtime-metadata'])(
+  'does not ignore %s evidence as Finder metadata',
+  async (kind) => {
+    const f = fixture();
+    const controller = f.guard.acquireController();
+    try {
+      const unused = collectionRelease(f.home, '0.4.1~abc123');
+      const metadata = join(f.home, 'bin/versions/.DS_Store');
+      if (kind === 'unknown-file') writeFileSync(join(f.home, 'bin/versions/unknown'), 'unknown');
+      if (kind === 'directory') mkdirSync(metadata);
+      if (kind === 'symlink') symlinkSync(unused.path, metadata);
+      if (kind === 'writable-file') {
+        writeFileSync(metadata, 'Finder metadata');
+        chmodSync(metadata, 0o666);
+      }
+      if (kind === 'runtime-metadata') {
+        mkdirSync(join(f.home, 'runtimes'), { mode: 0o700 });
+        writeFileSync(join(f.home, 'runtimes/.DS_Store'), 'unknown runtime evidence');
+      }
+      await expect(reviewReleaseCollection(f.guard, empty, () => true)).rejects.toThrow();
+      expect(existsSync(unused.path)).toBe(true);
+    } finally {
+      controller.release();
+      f.close();
+    }
+  },
+);
 
 it('excludes update ledger writers for the whole asynchronous review and releases that claim afterwards', async () => {
   const f = fixture();
