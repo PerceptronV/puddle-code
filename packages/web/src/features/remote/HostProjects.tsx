@@ -19,6 +19,7 @@ import { RemoteClient } from './client';
 import { serviceOrigin } from './service';
 import { loadOrderedProjects } from '../mobile/project-order';
 import { reportInstalledReleaseNotes } from '../release-notes/state/queue';
+import { projectListCache, remoteProjectScope } from '../../lib/queries/project-cache';
 
 /** Catalogue readers never install a global transport or attach a terminal. */
 export function HostProjects({
@@ -39,7 +40,7 @@ export function HostProjects({
   const [catalogue, setCatalogue] = useState<{
     projects: Project[];
     repos: RepoWithOrphans[];
-    sessions: Session[];
+    sessions?: Session[];
   } | null>(null);
   const [message, setMessage] = useState('Connecting…');
   const [needsPairing, setNeedsPairing] = useState(false);
@@ -49,6 +50,7 @@ export function HostProjects({
     let offPush: (() => void) | undefined;
     let unsubscribe: (() => void) | undefined;
     let loading = false;
+    let cacheScope: string | undefined;
     setCatalogue(null);
     setMessage('Connecting…');
     setNeedsPairing(false);
@@ -57,30 +59,41 @@ export function HostProjects({
       if (!client || client.state !== 'ready' || loading) return;
       loading = true;
       const generation = client.generation;
+      const current = () => live && client?.state === 'ready' && client.generation === generation;
       try {
         const read = async (path: string) => {
           const response = await client!.request('GET', path);
           if (!response.ok) throw new Error('Could not load projects. Try connecting again.');
           return response.json() as Promise<unknown>;
         };
-        const [projects, repos, sessions, notes] = await Promise.all([
-          read('/api/projects').then((value) => projectSchema.array().parse(value)),
-          read('/api/repos').then((value) => repoWithOrphansSchema.array().parse(value)),
-          read('/api/sessions').then((value) => sessionSchema.array().parse(value)),
+        const projects = projectSchema.array().parse(await read('/api/projects'));
+        if (!current()) return;
+        // Project navigation must not wait for sessions, repository inspection,
+        // release notes or per-profile ordering round trips.
+        setCatalogue((previous) => ({ ...previous, projects, repos: previous?.repos ?? [] }));
+        if (cacheScope) projectListCache.write(cacheScope, projects);
+        setMessage('');
+        await Promise.allSettled([
+          read('/api/repos').then((value) => {
+            const repos = repoWithOrphansSchema.array().parse(value);
+            if (current()) setCatalogue((previous) => previous && { ...previous, repos });
+          }),
+          read('/api/sessions').then((value) => {
+            const sessions = sessionSchema.array().parse(value);
+            if (current()) setCatalogue((previous) => previous && { ...previous, sessions });
+          }),
+          loadOrderedProjects(projects, read).then((ordered) => {
+            if (!current()) return;
+            setCatalogue((previous) => previous && { ...previous, projects: ordered });
+            if (cacheScope) projectListCache.write(cacheScope, ordered);
+          }),
           // Reuse this visible catalogue refresh: runtime-only installs need not reconnect.
           // Older hosts may omit notes without preventing project discovery.
-          read('/api/release-notes')
-            .then((value) => releaseNotesSchema.parse(value))
-            .catch(() => null),
+          read('/api/release-notes').then((value) => {
+            if (current())
+              reportInstalledReleaseNotes(client!.scope, releaseNotesSchema.parse(value));
+          }),
         ]);
-        if (live) {
-          if (notes && client.state === 'ready' && client.generation === generation)
-            reportInstalledReleaseNotes(client.scope, notes);
-          const ordered = await loadOrderedProjects(projects, read);
-          if (!live) return;
-          setCatalogue({ projects: ordered, repos, sessions });
-          setMessage('');
-        }
       } catch (error) {
         if (live) setMessage(error instanceof Error ? error.message : 'Could not load projects.');
       } finally {
@@ -95,6 +108,12 @@ export function HostProjects({
           setNeedsPairing(true);
           return;
         }
+        cacheScope = remoteProjectScope(identity);
+        const cached = projectListCache.read(cacheScope);
+        if (cached) {
+          setCatalogue({ projects: cached, repos: [] });
+          setMessage('Refreshing projects…');
+        }
         client = new RemoteClient(identity);
         offPush = watchPushNotifications(client);
         unsubscribe = client.onState(() => {
@@ -103,7 +122,13 @@ export function HostProjects({
           if (client!.state === 'ready') {
             void refresh();
           } else {
-            setCatalogue(null);
+            if (client!.state === 'rejected' || client!.state === 'pairing') {
+              setCatalogue(null);
+              if (cacheScope) projectListCache.forget(cacheScope);
+            } else {
+              // Retain navigation, but never present old session activity as live.
+              setCatalogue((previous) => previous && { ...previous, sessions: undefined });
+            }
             setMessage(
               client!.state === 'rejected' ? 'Pairing required or access revoked.' : 'Connecting…',
             );
@@ -164,7 +189,7 @@ export function HostProjects({
                       <ProjectCardContent
                         project={project}
                         repoPath={catalogue.repos.find((repo) => repo.id === project.repo_id)?.path}
-                        sessions={catalogue.sessions.filter(
+                        sessions={catalogue.sessions?.filter(
                           (session) => session.project_id === project.id,
                         )}
                       />

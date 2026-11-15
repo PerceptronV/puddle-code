@@ -12,6 +12,7 @@ import { secureChannel, SocketWire, type EncryptedChannel } from '@puddle/remote
 import type { BrowserTransport, FrontendSocket } from '../../lib/transport/browser-transport';
 import type { BrowserHost } from './identity-store';
 import { RemoteSocket } from './socket';
+import { remoteProjectScope } from '../../lib/queries/project-cache';
 
 export type RemoteState = 'connecting' | 'pairing' | 'ready' | 'disconnected' | 'rejected';
 interface Pending {
@@ -27,6 +28,7 @@ export class RemoteClient implements BrowserTransport {
     return this.host.host;
   }
   readonly scope: string;
+  readonly projectCacheScope: string;
   state: RemoteState = 'connecting';
   pendingDevice: RemoteDevice | null = null;
   deviceId: string | null = null;
@@ -46,6 +48,7 @@ export class RemoteClient implements BrowserTransport {
     private invitation?: string,
   ) {
     this.scope = JSON.stringify([host.service, host.account, host.host]);
+    this.projectCacheScope = remoteProjectScope(host);
   }
   onState(listener: () => void): () => void {
     this.listeners.add(listener);

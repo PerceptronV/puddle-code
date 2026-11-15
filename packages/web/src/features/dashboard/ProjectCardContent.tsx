@@ -22,9 +22,9 @@ export function ProjectCardContent({
 }: {
   project: Project;
   repoPath?: string;
-  sessions: Session[];
+  sessions?: Session[];
 }) {
-  const active = sessions.filter((session) => session.status !== 'archived');
+  const active = sessions?.filter((session) => session.status !== 'archived');
   return (
     <>
       <h2
@@ -38,11 +38,9 @@ export function ProjectCardContent({
       </h2>
       <p className="mt-1 truncate text-2xs text-fg-muted">{repoPath ?? '…'}</p>
       <div className="mt-3 flex flex-wrap items-center gap-3 text-2xs text-fg-muted tabular-nums">
-        <span>
-          {active.length} session{active.length === 1 ? '' : 's'}
-        </span>
+        <span>{active ? `${active.length} session${active.length === 1 ? '' : 's'}` : '…'}</span>
         {COUNTED.map(({ status, colour }) => {
-          const count = active.filter((session) => session.status === status).length;
+          const count = active?.filter((session) => session.status === status).length ?? 0;
           return count > 0 ? (
             <span key={status} className="flex items-center gap-1">
               <span className={`size-1.5 rounded-full ${colour}`} />

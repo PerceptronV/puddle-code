@@ -34,6 +34,8 @@ import type {
 } from '@puddle/shared';
 import { api } from '../transport/api';
 import { focusAwareInterval } from './poll-focus';
+import { projectListCache } from './project-cache';
+import { projectCacheScope } from './project-scope';
 
 /** TanStack Query hooks per daemon resource. Types come from @puddle/shared. */
 
@@ -78,13 +80,22 @@ export function useRepos() {
 
 /** All projects when profileId is undefined (the "everyone" view). */
 export function useProjects(profileId: string | undefined, enabled = true) {
+  const scope = projectCacheScope();
   return useQuery({
-    queryKey: ['projects', profileId ?? 'all'],
-    queryFn: () =>
-      api<Project[]>(
+    queryKey: ['projects', profileId ?? 'all', scope],
+    initialData: () => projectListCache.read(scope, profileId),
+    initialDataUpdatedAt: 0,
+    queryFn: async ({ signal }) => {
+      const projects = await api<Project[]>(
         'GET',
         profileId === undefined ? '/api/projects' : `/api/projects?profile=${profileId}`,
-      ),
+        undefined,
+        signal,
+      );
+      if (!signal.aborted && projectCacheScope() === scope)
+        projectListCache.write(scope, projects, profileId);
+      return projects;
+    },
     enabled,
   });
 }

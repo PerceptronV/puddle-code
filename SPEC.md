@@ -2896,6 +2896,15 @@ unchanged; connector-to-daemon loopback traffic disables compression because the
 connector would decompress it before encryption. Authority participation cadence
 and expiry are unchanged.
 
+Project lists retain a validated browser-local presentation cache: at most 16
+lists/1 MiB in total, 256 KiB/2,000 projects per list, expiring after seven days.
+Remote keys bind service, account, registration and pinned peer; local/SSH keys
+bind the native host identity or frontend origin and launch target. Profile lists
+remain separate. Cached lists are immediately stale and refresh normally; they
+grant no authority and do not include session activity. Remote catalogue navigation
+appears before repository/session/order/release-note reads settle, survives transient
+connection loss and is cleared on pairing/rejection or forgetting the pairing.
+
 The regression fixture in `packages/daemon/test/pty/ws-compression.test.ts` measures
 actual WebSocket bytes and exact output through throttled loopback links at 64 kbit/s,
 512 kbit/s and 10 Mbit/s. This is controlled transport evidence, not a guarantee for

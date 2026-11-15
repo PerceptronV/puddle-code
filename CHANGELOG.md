@@ -13,6 +13,7 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
+- Restore bounded host-specific project lists while refreshing, and show remote projects before repository, session, ordering and release-note reads finish.
 - Pace congested browser WebSocket bridges and adapt routine polling to observed host response times.
 - Apply mobile session status and title events directly to cached lists instead of downloading the session catalogue on every event.
 - Preserve the original LaTeX delimiters when showing inline maths source in terminal overlays and Ripple.
