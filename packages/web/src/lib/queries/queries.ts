@@ -42,14 +42,15 @@ import { projectCacheScope } from './project-scope';
 export function useProfiles() {
   return useQuery({
     queryKey: ['profiles'],
-    queryFn: () => api<Profile[]>('GET', '/api/profiles'),
+    queryFn: ({ signal }) => api<Profile[]>('GET', '/api/profiles', undefined, signal),
   });
 }
 
 export function useProfileSettings(profileId: string | undefined) {
   return useQuery({
     queryKey: ['profile-settings', profileId],
-    queryFn: () => api<ProfileSettings>('GET', `/api/profiles/${profileId}/settings`),
+    queryFn: ({ signal }) =>
+      api<ProfileSettings>('GET', `/api/profiles/${profileId}/settings`, undefined, signal),
     enabled: profileId !== undefined,
   });
 }
@@ -57,7 +58,8 @@ export function useProfileSettings(profileId: string | undefined) {
 export function useAccounts(profileId: string | undefined) {
   return useQuery({
     queryKey: ['accounts', profileId],
-    queryFn: () => api<Account[]>('GET', `/api/accounts?profile=${profileId}`),
+    queryFn: ({ signal }) =>
+      api<Account[]>('GET', `/api/accounts?profile=${profileId}`, undefined, signal),
     enabled: profileId !== undefined,
   });
 }
@@ -65,7 +67,8 @@ export function useAccounts(profileId: string | undefined) {
 export function useAccountUsage(accountId: number | undefined) {
   return useQuery({
     queryKey: ['account-usage', accountId],
-    queryFn: () => api<AccountUsage>('GET', `/api/accounts/${accountId}/usage`),
+    queryFn: ({ signal }) =>
+      api<AccountUsage>('GET', `/api/accounts/${accountId}/usage`, undefined, signal),
     enabled: accountId !== undefined,
     staleTime: 15_000,
   });
@@ -74,7 +77,7 @@ export function useAccountUsage(accountId: number | undefined) {
 export function useRepos(enabled = true) {
   return useQuery({
     queryKey: ['repos'],
-    queryFn: () => api<RepoWithOrphans[]>('GET', '/api/repos'),
+    queryFn: ({ signal }) => api<RepoWithOrphans[]>('GET', '/api/repos', undefined, signal),
     enabled,
   });
 }
@@ -113,7 +116,8 @@ export function useProjects(profileId: string | undefined, enabled = true) {
 export function useProjectDetail(projectId: string | undefined) {
   return useQuery({
     queryKey: ['project', projectId],
-    queryFn: () => api<ProjectDetail>('GET', `/api/projects/${projectId}`),
+    queryFn: ({ signal }) =>
+      api<ProjectDetail>('GET', `/api/projects/${projectId}`, undefined, signal),
     enabled: projectId !== undefined,
     placeholderData: (previous) => previous,
   });
@@ -127,7 +131,8 @@ export function refreshProjectConversations(projectId: string): Promise<void> {
 export function useSessions(projectId: string | undefined, enabled = true) {
   return useQuery({
     queryKey: ['sessions', projectId],
-    queryFn: () => api<Session[]>('GET', `/api/sessions?project=${projectId}`),
+    queryFn: ({ signal }) =>
+      api<Session[]>('GET', `/api/sessions?project=${projectId}`, undefined, signal),
     enabled: enabled && projectId !== undefined,
   });
 }
@@ -141,7 +146,8 @@ export function useSessions(projectId: string | undefined, enabled = true) {
  */
 const allSessionsQuery = {
   queryKey: ['sessions', 'all'],
-  queryFn: () => api<Session[]>('GET', '/api/sessions'),
+  queryFn: ({ signal }: { signal: AbortSignal }) =>
+    api<Session[]>('GET', '/api/sessions', undefined, signal),
 };
 
 export function useAllSessions(enabled = true) {
@@ -160,13 +166,17 @@ export function fetchAllSessions(qc: QueryClient): Promise<Session[]> {
 }
 
 export function useConfig() {
-  return useQuery({ queryKey: ['config'], queryFn: () => api<DaemonConfig>('GET', '/api/config') });
+  return useQuery({
+    queryKey: ['config'],
+    queryFn: ({ signal }) => api<DaemonConfig>('GET', '/api/config', undefined, signal),
+  });
 }
 
 export function useRepoBranches(repoId: number | undefined) {
   return useQuery({
     queryKey: ['repo-branches', repoId],
-    queryFn: () => api<RepoBranchesResponse>('GET', `/api/repos/${repoId}/branches`),
+    queryFn: ({ signal }) =>
+      api<RepoBranchesResponse>('GET', `/api/repos/${repoId}/branches`, undefined, signal),
     enabled: repoId !== undefined,
     staleTime: 30_000,
   });
@@ -176,7 +186,8 @@ export function useRepoBranches(repoId: number | undefined) {
 export function useRepoWorktrees(repoId: number | undefined, staleTime = 10_000) {
   return useQuery({
     queryKey: ['repo-worktrees', repoId],
-    queryFn: () => api<RepoWorktreesResponse>('GET', `/api/repos/${repoId}/worktrees`),
+    queryFn: ({ signal }) =>
+      api<RepoWorktreesResponse>('GET', `/api/repos/${repoId}/worktrees`, undefined, signal),
     enabled: repoId !== undefined,
     staleTime,
   });
@@ -225,7 +236,13 @@ export function useDeleteBranch(repoId: number | undefined, projectId: string | 
 export function useDirSuggestions(prefix: string) {
   return useQuery({
     queryKey: ['fs-dirs', prefix],
-    queryFn: () => api<FsDirsResponse>('GET', `/api/fs/dirs?prefix=${encodeURIComponent(prefix)}`),
+    queryFn: ({ signal }) =>
+      api<FsDirsResponse>(
+        'GET',
+        `/api/fs/dirs?prefix=${encodeURIComponent(prefix)}`,
+        undefined,
+        signal,
+      ),
     enabled: prefix.startsWith('/') || prefix.startsWith('~'), // ~ expands on the host
     placeholderData: (previous) => previous, // keep the list steady while typing
     staleTime: 10_000,
@@ -240,7 +257,7 @@ export function useDirSuggestions(prefix: string) {
 export function useDaemonVersion() {
   return useQuery({
     queryKey: ['version'],
-    queryFn: () => api<VersionResponse>('GET', '/api/version'),
+    queryFn: ({ signal }) => api<VersionResponse>('GET', '/api/version', undefined, signal),
     staleTime: Infinity, // changes only with a daemon swap, which reloads the UI
   });
 }
@@ -248,7 +265,7 @@ export function useDaemonVersion() {
 export function useHostInfo() {
   return useQuery({
     queryKey: ['host'],
-    queryFn: () => api<HostInfo>('GET', '/api/host'),
+    queryFn: ({ signal }) => api<HostInfo>('GET', '/api/host', undefined, signal),
     staleTime: Infinity, // the box does not change under a running daemon
   });
 }
@@ -261,7 +278,7 @@ export function hostLabel(host: HostInfo | undefined): string | undefined {
 export function useAgents() {
   return useQuery({
     queryKey: ['agents'],
-    queryFn: () => api<AgentType[]>('GET', '/api/agents'),
+    queryFn: ({ signal }) => api<AgentType[]>('GET', '/api/agents', undefined, signal),
     // The adapter set changes only with a daemon upgrade, but `available`
     // tracks whether each agent's CLI is on PATH — so installing one mid-session
     // must show up without a daemon restart or a reload.
@@ -425,10 +442,12 @@ export function usePatchProject() {
 export function useScratchpad(profileId: string | undefined, projectId: string | undefined) {
   return useQuery({
     queryKey: ['scratchpad', profileId, projectId ?? 'none'],
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       api<ScratchpadEntry[]>(
         'GET',
         `/api/scratchpad?profile=${profileId}${projectId ? `&project=${projectId}` : ''}`,
+        undefined,
+        signal,
       ),
     enabled: profileId !== undefined,
   });
@@ -468,10 +487,12 @@ export function useDeleteScratchpad() {
 export function useLayouts(profileId: string | undefined, projectId: string | undefined) {
   return useQuery({
     queryKey: ['layouts', profileId, projectId ?? 'none'],
-    queryFn: () =>
+    queryFn: ({ signal }) =>
       api<SavedLayout[]>(
         'GET',
         `/api/layouts?profile=${profileId}${projectId ? `&project=${projectId}` : ''}`,
+        undefined,
+        signal,
       ),
     enabled: profileId !== undefined,
   });
@@ -631,7 +652,8 @@ export function putProfileState(
 export function useSessionPorts(sessionId: string | undefined, live: boolean) {
   return useQuery({
     queryKey: ['ports', sessionId],
-    queryFn: () => api<SessionPortsResponse>('GET', `/api/sessions/${sessionId}/ports`),
+    queryFn: ({ signal }) =>
+      api<SessionPortsResponse>('GET', `/api/sessions/${sessionId}/ports`, undefined, signal),
     enabled: sessionId !== undefined && live,
     refetchInterval: focusAwareInterval(5_000),
     refetchIntervalInBackground: false,
@@ -646,7 +668,8 @@ export function useSessionPorts(sessionId: string | undefined, live: boolean) {
 export function useSessionEnv(sessionId: string | undefined, live: boolean) {
   return useQuery({
     queryKey: ['session-env', sessionId],
-    queryFn: () => api<SessionEnvResponse>('GET', `/api/sessions/${sessionId}/env`),
+    queryFn: ({ signal }) =>
+      api<SessionEnvResponse>('GET', `/api/sessions/${sessionId}/env`, undefined, signal),
     enabled: sessionId !== undefined && live,
     refetchInterval: focusAwareInterval(5_000),
     refetchIntervalInBackground: false,

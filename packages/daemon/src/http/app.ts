@@ -3,6 +3,7 @@ import { storageUnavailable, type StorageMonitor } from '../storage/monitor.js';
 import { Hono } from 'hono';
 import { bodyLimit } from 'hono/body-limit';
 import { compressJson } from './compression.js';
+import { revalidateJson } from './revalidation.js';
 import type { UpgradeWebSocket } from 'hono/ws';
 import { agentSignalRequestSchema } from '@puddle/shared';
 import type { AdapterRegistry } from '../agents/registry.js';
@@ -125,6 +126,7 @@ export function buildApp(deps: AppDeps): Hono {
   app.use('/api/*', bearerAuth(deps.authority));
   if (deps.api) app.use('/api/*', profileAccessMiddleware(deps.api));
   app.use('/api/*', compressJson);
+  app.use('/api/*', revalidateJson);
   app.use('/api/*', async (c, next) => {
     // Version remains inspectable; private update control has its own authority.
     if (c.req.path === '/api/version' || !deps.admission) return next();

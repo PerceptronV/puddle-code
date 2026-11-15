@@ -1,5 +1,6 @@
 import type { MiddlewareHandler } from 'hono';
 import { compress } from 'hono/compress';
+import { responsePrefix } from './response-prefix.js';
 
 const THRESHOLD = 1024;
 const encode = compress({ encoding: 'gzip', threshold: THRESHOLD });
@@ -22,33 +23,7 @@ export const compressJson: MiddlewareHandler = async (c, next) => {
   // otherwise the compression middleware also compresses every tiny status reply.
   // With no acceptable encoding it can return without touching the body at all.
   if (!/\bgzip\b|\*/i.test(c.req.header('accept-encoding') ?? '')) return;
-  const reader = c.res.body.getReader();
-  const prefix: Uint8Array[] = [];
-  let bytes = 0;
-  let ended = false;
-  while (bytes < THRESHOLD) {
-    const chunk = await reader.read();
-    if (chunk.done) {
-      ended = true;
-      break;
-    }
-    prefix.push(chunk.value);
-    bytes += chunk.value.byteLength;
-  }
-  const body = new ReadableStream<Uint8Array>({
-    start(controller) {
-      for (const chunk of prefix) controller.enqueue(chunk);
-      if (ended) controller.close();
-    },
-    async pull(controller) {
-      const chunk = await reader.read();
-      if (chunk.done) controller.close();
-      else controller.enqueue(chunk.value);
-    },
-    cancel(reason) {
-      return reader.cancel(reason);
-    },
-  });
-  c.res = new Response(body, c.res);
-  if (bytes >= THRESHOLD) await encode(c, async () => {});
+  const prefix = await responsePrefix(c.res.body, THRESHOLD - 1);
+  c.res = new Response(prefix.stream(), c.res);
+  if (prefix.bytes >= THRESHOLD) await encode(c, async () => {});
 };

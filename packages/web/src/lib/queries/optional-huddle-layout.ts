@@ -6,6 +6,7 @@ export async function optionalHuddleLayout(
   sid: string,
   path: string,
   error: unknown,
+  signal?: AbortSignal,
 ): Promise<FileResponse> {
   const match = /^\.puddle\/huddle\/([a-f0-9]{32})\/layout\.json$/.exec(path);
   if (!match || !(error instanceof ApiError) || error.status !== 404) throw error;
@@ -13,6 +14,8 @@ export async function optionalHuddleLayout(
   const manifest = await api<FileResponse>(
     'GET',
     `/api/worktrees/${sid}/file?path=${encodeURIComponent(path.replace(/layout\.json$/, 'huddle.json'))}`,
+    undefined,
+    signal,
   );
   const parsed = huddleDefinitionSchema.safeParse(manifest.content && JSON.parse(manifest.content));
   if (!parsed.success || parsed.data.id !== match[1]) throw error;

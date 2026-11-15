@@ -2918,6 +2918,32 @@ release-note checks run separately at most every five minutes. Desktop status
 changes coalesce catalogue invalidation, ignoring activity-only repeats and leaving
 an in-flight read intact. Navigation, pairing and authority checks remain separate.
 
+Successful local/SSH JSON GET responses between 4 KiB and 1 MiB support standard
+private HTTP revalidation. Weak SHA-256 ETags describe the uncompressed content;
+every read still runs authority, admission and the route before it can return a
+bodyless 304. Browsers restore their cached representation transparently. Responses
+vary by Authorization and Accept-Encoding, always require revalidation, and respect
+existing cache policies/validators. Tiny replies avoid validator overhead; large
+responses retain streaming beyond a bounded prefix plus one source chunk. There is
+no server response cache. Files, SSE, errors, mutations and profile-scoped relay
+projections are excluded. This saves repeated bodies, not the round trip or host
+work needed to establish current content.
+
+Shared worktree queries (files, tree, search, diffs, Git status, baselines and
+history) and ordinary host/session catalogue reads pass their query cancellation
+signal through HTTP or encrypted relay requests. Losing the last observer stops an
+obsolete read; another observer of the same query keeps it alive. Explicit writes
+retain their existing delivery semantics. This releases transfer capacity on view
+changes without delaying the next view or queuing user actions behind a poll.
+
+Headless checks under `web/test/performance/` cover delayed project catalogue
+navigation, shared-reader cancellation and real Chromium HTTP revalidation. The
+HTTP check uses built daemon middleware in an isolated ephemeral server; it does
+not start an installed daemon. The other checks use the UI-only preview selected
+by `PREVIEW_URL`. The 100-session catalogue fixture transfers 3,334 bytes for all
+project summaries versus 62,601 bytes for session records alone, and verifies that
+summary reads never call the full session-list path.
+
 The regression fixture in `packages/daemon/test/pty/ws-compression.test.ts` measures
 actual WebSocket bytes and exact output through throttled loopback links at 64 kbit/s,
 512 kbit/s and 10 Mbit/s. This is controlled transport evidence, not a guarantee for
