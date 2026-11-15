@@ -140,27 +140,29 @@ export function useCustomCursor(
       else invalidate();
     };
 
-    window.addEventListener('pointermove', move, { passive: true });
+    // Terminal overlays stop propagation to protect CLI mouse input. Observe
+    // movement before those handlers so the visual cursor still follows it.
+    window.addEventListener('pointermove', move, { passive: true, capture: true });
     document.documentElement.addEventListener('pointerleave', hide);
     window.addEventListener('blur', hide);
     window.addEventListener('resize', invalidate);
     document.addEventListener('scroll', invalidate, true);
     document.addEventListener('focusin', invalidate);
     document.addEventListener('focusout', invalidate);
-    document.addEventListener('pointerdown', invalidate);
-    document.addEventListener('pointerup', invalidate);
+    document.addEventListener('pointerdown', invalidate, true);
+    document.addEventListener('pointerup', invalidate, true);
     finePointer.addEventListener('change', pointerChanged);
     document.fonts.addEventListener('loadingdone', invalidate);
     return () => {
-      window.removeEventListener('pointermove', move);
+      window.removeEventListener('pointermove', move, true);
       document.documentElement.removeEventListener('pointerleave', hide);
       window.removeEventListener('blur', hide);
       window.removeEventListener('resize', invalidate);
       document.removeEventListener('scroll', invalidate, true);
       document.removeEventListener('focusin', invalidate);
       document.removeEventListener('focusout', invalidate);
-      document.removeEventListener('pointerdown', invalidate);
-      document.removeEventListener('pointerup', invalidate);
+      document.removeEventListener('pointerdown', invalidate, true);
+      document.removeEventListener('pointerup', invalidate, true);
       finePointer.removeEventListener('change', pointerChanged);
       document.fonts.removeEventListener('loadingdone', invalidate);
       hide();

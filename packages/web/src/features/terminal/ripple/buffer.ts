@@ -1,7 +1,7 @@
 import type { IBuffer, ITheme } from '@xterm/xterm';
 import { rippleCellStyle, type RippleStyle } from './cell-style';
 import { readRow } from '../links/link-buffer';
-import { terminalRichBlocks } from '../rich-output/rich-output-buffer';
+import { terminalRichBlocks, type TerminalRichBlock } from '../rich-output/rich-output-buffer';
 import type { RipplePalette } from './xterm-style';
 import { rippleActions, rippleActionStyles, type RippleAction } from './interactions';
 import type { RippleInputSnapshot } from './input';
@@ -13,7 +13,7 @@ export const RIPPLE_MAX_CHARACTERS = 32_768;
 
 export type RipplePart =
   | { kind: 'text'; source: string; styles?: RippleStyle[]; offset?: number }
-  | { kind: 'mermaid' | 'math'; source: string; display: boolean };
+  | Pick<TerminalRichBlock, 'kind' | 'source' | 'display' | 'rawSource'>;
 
 export interface RippleSnapshot {
   input?: RippleInputSnapshot;
@@ -160,7 +160,12 @@ export function readRippleBuffer(
     const to = Math.min(text.length, end.offset + Math.min(end.length, endIndex));
     if (from < at || to <= from) continue;
     if (from > at) addText(at, from);
-    parts.push({ kind: block.kind, source: block.source, display: block.display });
+    parts.push({
+      kind: block.kind,
+      source: block.source,
+      display: block.display,
+      ...(block.rawSource !== undefined && { rawSource: block.rawSource }),
+    });
     at = to;
   }
   if (at < text.length) addText(at, text.length);

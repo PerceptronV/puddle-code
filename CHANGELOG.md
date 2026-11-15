@@ -8,3 +8,11 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Frontend
+
+#### Fixed
+
+- Preserve the original LaTeX delimiters when showing inline maths source in terminal overlays and Ripple.
+- Keep custom cursors moving continuously across interactive terminal overlays that isolate pointer events.
+- Centre the collapsed Archived sessions row vertically within its island.

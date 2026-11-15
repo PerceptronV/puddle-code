@@ -26,7 +26,12 @@ describe('Ripple terminal projection', () => {
       source: 'flowchart LR\nA --> B',
       display: true,
     });
-    expect(snapshot.parts).toContainEqual({ kind: 'math', source: 'x^2', display: false });
+    expect(snapshot.parts).toContainEqual({
+      kind: 'math',
+      source: 'x^2',
+      rawSource: '$x^2$',
+      display: false,
+    });
   });
   it('joins soft wraps without joining hard lines or trimming word boundaries', () => {
     const buffer = bufferWithLines(
@@ -67,7 +72,12 @@ describe('Ripple terminal projection', () => {
     Object.assign(buffer, { getLine: updated.getLine, length: updated.length });
     const snapshot = readRippleBuffer(buffer, 20);
     expect(snapshot.text).toBe('New reply $x^2$');
-    expect(snapshot.parts).toContainEqual({ kind: 'math', source: 'x^2', display: false });
+    expect(snapshot.parts).toContainEqual({
+      kind: 'math',
+      source: 'x^2',
+      rawSource: '$x^2$',
+      display: false,
+    });
   });
 
   it('bounds work to recent rows and reports omitted history', () => {
@@ -145,7 +155,7 @@ describe('Ripple terminal projection', () => {
     );
     const snapshot = readRippleBuffer(buffer, 80);
     expect(snapshot.parts.filter((part) => part.kind !== 'text')).toEqual([
-      { kind: 'math', source: 'x^2', display: false },
+      { kind: 'math', source: 'x^2', rawSource: '$x^2$', display: false },
       { kind: 'mermaid', source: 'flowchart LR\n  A[Input] --> B[Output]', display: true },
       { kind: 'math', source: '\\frac{1}{2}', display: true },
     ]);

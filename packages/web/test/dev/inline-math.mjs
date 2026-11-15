@@ -16,18 +16,16 @@ try {
       new URL(
         surface === 'terminal'
           ? '/e2e/fixtures/ripple.html?live'
-          : '/e2e/fixtures/ripple.html?ripple',
+          : '/e2e/fixtures/ripple.html?live&ripple',
         base,
       ).href,
     );
-    if (surface === 'terminal') {
-      await page.waitForFunction(() =>
-        window.rippleFixture?.messages.some((m) => m.t === 'attach'),
-      );
-      await page.evaluate(() =>
-        window.rippleFixture.output('\x1b[?1000h\x1b[?1006hBefore $E=mc^2$ after.\r\n'),
-      );
-    }
+    await page.waitForFunction(() => window.rippleFixture?.messages.some((m) => m.t === 'attach'));
+    await page.evaluate(() =>
+      window.rippleFixture.output(
+        '\x1b[?1000h\x1b[?1006hBefore $E=mc^2$ and \\( x^2 \\) after.\r\n',
+      ),
+    );
     const selector =
       surface === 'terminal'
         ? '[data-terminal-rich-block].inline-math-toggle'
@@ -52,13 +50,18 @@ try {
       (selector) => document.querySelector(selector)?.getAttribute('aria-pressed') === 'true',
       selector,
     );
-    assert.ok((await formula.innerText()).includes('E'));
+    assert.equal(await formula.innerText(), '$E=mc^2$');
     if (surface === 'terminal') assert.equal(await formula.getAttribute('data-rendered'), 'false');
     else assert.equal(await formula.locator('.katex:visible').count(), 0);
     await formula.focus();
     await page.keyboard.press('Enter');
     await formula.locator('.katex:visible').waitFor();
+    const parenthesised = page.locator(selector).nth(1);
+    await parenthesised.locator('.katex:visible').waitFor();
+    await parenthesised.click();
+    assert.equal(await parenthesised.innerText(), '\\( x^2 \\)');
     assert.equal(await formula.getAttribute('aria-pressed'), 'false');
+    await formula.focus();
     await page.keyboard.press('Space');
     await page.waitForFunction(
       (selector) => document.querySelector(selector)?.getAttribute('aria-pressed') === 'true',

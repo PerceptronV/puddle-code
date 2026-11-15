@@ -26,6 +26,7 @@ export function sameProjection(previous: Projection | null, next: Projection): b
       return (
         block.kind === other.kind &&
         block.source === other.source &&
+        block.rawSource === other.rawSource &&
         block.display === other.display &&
         block.start.row === other.start.row &&
         block.start.col === other.start.col &&

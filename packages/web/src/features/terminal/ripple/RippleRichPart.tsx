@@ -16,9 +16,10 @@ export function RippleRichPart({
 }) {
   const bodyRef = useRef<HTMLSpanElement>(null);
   const { kind, source, display } = part;
+  const rawSource = part.rawSource ?? source;
   const inline = kind === 'math' && !display;
   const [ready, setReady] = useState(false);
-  const { sourceVisible, props } = useInlineMathToggle(source, ready);
+  const { sourceVisible, props } = useInlineMathToggle(rawSource, ready);
 
   useEffect(() => {
     const body = bodyRef.current;
@@ -48,7 +49,7 @@ export function RippleRichPart({
       {...(inline ? props : {})}
     >
       <span ref={bodyRef} hidden={inline && sourceVisible} />
-      {inline && sourceVisible && <span>{source}</span>}
+      {inline && sourceVisible && <span>{rawSource}</span>}
     </span>
   );
 }

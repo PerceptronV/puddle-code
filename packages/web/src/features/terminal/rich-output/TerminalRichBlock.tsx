@@ -31,8 +31,9 @@ export function TerminalRichBlock({
   const [error, setError] = useState('');
   const [blockSourceVisible, setSourceVisible] = useState(false);
   const { source, kind, display } = block;
+  const rawSource = block.rawSource ?? source;
   const inline = kind === 'math' && !display;
-  const inlineToggle = useInlineMathToggle(source, ready);
+  const inlineToggle = useInlineMathToggle(rawSource, ready);
   const sourceVisible = inline ? inlineToggle.sourceVisible : blockSourceVisible;
 
   useEffect(() => {
@@ -107,7 +108,7 @@ export function TerminalRichBlock({
       />
       {inline && sourceVisible && (
         <span className="absolute inset-0 flex items-center whitespace-pre font-mono text-fg">
-          {source}
+          {rawSource}
         </span>
       )}
       {!inline && (

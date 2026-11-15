@@ -69,6 +69,7 @@ describe('terminal rich output', () => {
   it('locates inline maths precisely and leaves currency untouched', () => {
     const blocks = scan('cost $5 or $10; then $K_{P}$ and \\(x^2\\)');
     expect(blocks.map((block) => block.source)).toEqual(['K_{P}', 'x^2']);
+    expect(blocks.map((block) => block.rawSource)).toEqual(['$K_{P}$', '\\(x^2\\)']);
     expect(blocks[0]).toMatchObject({
       start: { row: 0, col: 21 },
       end: { row: 0, col: 27 },

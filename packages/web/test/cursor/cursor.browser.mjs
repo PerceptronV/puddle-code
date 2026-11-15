@@ -43,7 +43,8 @@ try {
       body: `
     <div id="root"></div><div id="parent" style="font-size:20px"><p id="text">Selectable text</p></div>
     <button id="button">Action</button><div class="monaco-editor" style="font-size:16px"><span id="editor">Editor</span></div>
-    <h1 id="heading">Heading</h1><iframe id="frame"></iframe>`,
+    <h1 id="heading">Heading</h1><iframe id="frame"></iframe>
+    <button id="isolated" onpointermove="event.stopPropagation()">Isolated overlay</button>`,
     }),
   );
   await page.goto('https://cursor.test/');
@@ -90,6 +91,23 @@ try {
     results.push({ kind, baseline, ...counts, metrics });
   }
   if (!baseline) {
+    for (const kind of ['rangefinder', 'drafting', 'invert']) {
+      await choose(kind);
+      await move('text');
+      await move('isolated', 10);
+      await expect(cursor).toHaveClass(/is-interactive/);
+      assert.equal(
+        await page.evaluate(() => {
+          const rect = document.getElementById('isolated').getBoundingClientRect();
+          return (
+            document.querySelector('.custom-cursor').style.transform ===
+            `translate3d(${rect.x + 14}px, ${rect.y + 5}px, 0px) translate(-50%, -50%)`
+          );
+        }),
+        true,
+        `${kind} tracks movement across overlays that stop event propagation`,
+      );
+    }
     await choose('rangefinder');
     await move('text', 1000);
     await expect(cursor).toHaveClass(/is-text/);

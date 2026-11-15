@@ -313,7 +313,10 @@ export function SessionListBody({
           {!showArchived && <div className="h-[var(--ui-surface-gap)] shrink-0" />}
           {showArchived && <HeightHandle handle={handle} label="Resize the archived sessions" />}
           <div
-            className="workspace-surface island-outline flex shrink-0 flex-col bg-surface pb-1.5"
+            className={cn(
+              'workspace-surface island-outline flex shrink-0 flex-col bg-surface',
+              showArchived && 'pb-1.5',
+            )}
             // Sized only while open (closed, the header is all there is). The
             // percentage cap resolves against the sidebar's own definite height,
             // so a pane dragged tall elsewhere cannot swallow the live list here.

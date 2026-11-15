@@ -5,6 +5,8 @@ import { readRow, type CellPosition } from '../links/link-buffer';
 export interface TerminalRichBlock {
   kind: 'mermaid' | 'math';
   source: string;
+  /** Original inline maths, including delimiters and whitespace, for source mode. */
+  rawSource?: string;
   display: boolean;
   start: CellPosition;
   end: CellPosition;
@@ -82,6 +84,7 @@ export function terminalRichBlocks(
     source: string,
     display: boolean,
     cells: CellPosition[],
+    rawSource?: string,
   ) => {
     const start = cells[0];
     const final = cells.at(-1);
@@ -91,6 +94,7 @@ export function terminalRichBlocks(
     blocks.push({
       kind,
       source: source.trim(),
+      ...(rawSource !== undefined && { rawSource }),
       display,
       start,
       end: { row: final.row, col: final.col + Math.max(1, width) - 1 },
@@ -195,7 +199,13 @@ export function terminalRichBlocks(
           cells[0]?.row === cells.at(-1)?.row ||
           line.text.trim() === line.text.slice(offset, offset + match.length)
         )
-          add('math', match.tex, match.display, cells);
+          add(
+            'math',
+            match.tex,
+            match.display,
+            cells,
+            match.display ? undefined : line.text.slice(offset, offset + match.length),
+          );
         offset += match.length - 1;
       } else if (line.text[offset] === '\\') offset++;
     }
