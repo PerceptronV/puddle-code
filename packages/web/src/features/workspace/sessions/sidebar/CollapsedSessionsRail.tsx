@@ -39,10 +39,10 @@ import { beginProjectWindowDrag, canDragProjectWindow } from '../../../windows/d
 /** The collapsed rail's archive target: an icon at the rail's foot. */
 function RailArchiveTarget({
   onArchiveDrop,
-  onExpand,
+  onShowArchived,
 }: {
   onArchiveDrop: (sessions: readonly string[]) => void;
-  onExpand: () => void;
+  onShowArchived: () => void;
 }) {
   const drop = useArchiveDrop('rail', onArchiveDrop);
   return (
@@ -52,7 +52,7 @@ function RailArchiveTarget({
           data-sidebar-motion="sessions-archive"
           ref={drop.setNodeRef}
           type="button"
-          onClick={onExpand}
+          onClick={onShowArchived}
           {...drop.props}
           className={cn(
             'island-outline mt-auto flex min-h-9 w-full shrink-0 items-center justify-center rounded-[var(--ui-surface-radius)] bg-tray p-1.5 text-fg-muted transition-colors hover:bg-elevated hover:text-fg compact:p-1',
@@ -63,7 +63,9 @@ function RailArchiveTarget({
           <span className="sr-only">Archived sessions</span>
         </button>
       </TooltipTrigger>
-      <TooltipContent side="left">Drop selected sessions here to archive them</TooltipContent>
+      <TooltipContent side="left">
+        Show archived sessions, or drop selected sessions here to archive them
+      </TooltipContent>
     </Tooltip>
   );
 }
@@ -212,6 +214,7 @@ export function CollapsedSessionsRail({
   onReorder,
   onPromote,
   onExpand,
+  onShowArchived,
   onSearch,
   onNewTerminal,
   onNewSession,
@@ -228,6 +231,7 @@ export function CollapsedSessionsRail({
   /** Double-click: pin the session's (preview) terminal tab. */
   onPromote: (id: string) => void;
   onExpand: () => void;
+  onShowArchived: () => void;
   onSearch: () => void;
   onNewTerminal: () => void;
   onNewSession: () => void;
@@ -435,8 +439,8 @@ export function CollapsedSessionsRail({
         ))}
       </SessionHoverList>
       {/* The rail's foot: sessions dragged here — glyphs above or centre tab
-          chips — archive; a click expands the sidebar to the full list. */}
-      <RailArchiveTarget onArchiveDrop={onArchiveDrop} onExpand={onExpand} />
+          chips — archive; a click opens the sidebar and its archived island. */}
+      <RailArchiveTarget onArchiveDrop={onArchiveDrop} onShowArchived={onShowArchived} />
     </div>
   );
 }

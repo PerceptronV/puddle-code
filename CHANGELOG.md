@@ -16,3 +16,4 @@ Past releases: see docs/changelogs/.
 - Preserve the original LaTeX delimiters when showing inline maths source in terminal overlays and Ripple.
 - Keep custom cursors moving continuously across interactive terminal overlays that isolate pointer events.
 - Centre the collapsed Archived sessions row vertically within its island.
+- Animate the Archived island opening and closing, and open its contents directly from the collapsed sidebar's archive button.

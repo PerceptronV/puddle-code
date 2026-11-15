@@ -19,6 +19,8 @@ import type { ProjectHeaderActions, SessionGroup, SidebarSessionSelection } from
 export function SessionSidebar({
   searching,
   setSearching,
+  showArchived,
+  onShowArchivedChange,
   groups,
   accounts,
   activeSessionId,
@@ -36,6 +38,8 @@ export function SessionSidebar({
 }: {
   searching: boolean;
   setSearching: (value: boolean) => void;
+  showArchived: boolean;
+  onShowArchivedChange: (expanded: boolean) => void;
   groups: SessionGroup[];
   accounts: Account[];
   activeSessionId: string | null;
@@ -125,6 +129,8 @@ export function SessionSidebar({
       <SessionListBody
         header={controls}
         query={query}
+        showArchived={showArchived}
+        onShowArchivedChange={onShowArchivedChange}
         groups={groups}
         accounts={accounts}
         activeSessionId={activeSessionId}

@@ -519,6 +519,7 @@ function WorkspaceInner() {
   const sidebarCollapsed = uiState.snapshot.sidebar_collapsed;
   const sessionsCollapsed = uiState.snapshot.sessions_collapsed;
   const [searchingSessions, setSearchingSessions] = useState(false);
+  const [showArchivedSessions, setShowArchivedSessions] = useState(false);
 
   // Insert a Scratchpad entry into the focused terminal's stdin, wrapped in
   // bracketed-paste so a multi-line prompt lands as one paste and the agent
@@ -795,6 +796,8 @@ function WorkspaceInner() {
     <SessionSidebar
       searching={searchingSessions}
       setSearching={setSearchingSessions}
+      showArchived={showArchivedSessions}
+      onShowArchivedChange={setShowArchivedSessions}
       groups={sessionGroups}
       accounts={accounts}
       activeSessionId={activeSessionId}
@@ -932,6 +935,12 @@ function WorkspaceInner() {
                   if (session) layout.ensureSession(session);
                 }}
                 onExpand={() => animateSidebar(() => setNarrowSessions(true))}
+                onShowArchived={() =>
+                  animateSidebar(() => {
+                    setShowArchivedSessions(true);
+                    setNarrowSessions(true);
+                  })
+                }
                 onSearch={() => {
                   setSearchingSessions(true);
                   animateSidebar(() => setNarrowSessions(true));
@@ -1057,6 +1066,12 @@ function WorkspaceInner() {
                     }}
                     onExpand={() =>
                       animateSidebar(() => uiState.update({ sessions_collapsed: false }))
+                    }
+                    onShowArchived={() =>
+                      animateSidebar(() => {
+                        setShowArchivedSessions(true);
+                        uiState.update({ sessions_collapsed: false });
+                      })
                     }
                     onSearch={() => {
                       setSearchingSessions(true);

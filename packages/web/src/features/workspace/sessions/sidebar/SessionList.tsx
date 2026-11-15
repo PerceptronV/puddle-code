@@ -4,6 +4,7 @@ import { Archive, ChevronRight } from 'lucide-react';
 import { useMemo, useState, type ReactNode } from 'react';
 import { Link } from 'react-router';
 import { InlineLabelEdit } from '../../../../components/inline-label-edit';
+import { ContentMotion } from '../../../../components/ui/content-motion';
 import { HeightHandle, useResizableHeight } from '../../../../components/resizable-height';
 import {
   ContextMenu,
@@ -36,6 +37,8 @@ import { beginProjectWindowDrag, canDragProjectWindow } from '../../../windows/d
 export function SessionListBody({
   header,
   query,
+  showArchived,
+  onShowArchivedChange,
   groups,
   accounts,
   activeSessionId,
@@ -49,6 +52,8 @@ export function SessionListBody({
 }: {
   header: ReactNode;
   query: string;
+  showArchived: boolean;
+  onShowArchivedChange: (expanded: boolean) => void;
   groups: SessionGroup[];
   accounts: Account[];
   activeSessionId: string | null;
@@ -66,7 +71,6 @@ export function SessionListBody({
   } | null>(null);
   const [dragProject, setDragProject] = useState<string | null>(null);
   const [editingName, setEditingName] = useState<string | null>(null);
-  const [showArchived, setShowArchived] = useState(false);
   // The Archived header doubles as the archive drop target; while a session
   // drags (a row here, or a centre tab chip) it appears even with nothing
   // archived yet, so there is always somewhere to drop.
@@ -308,28 +312,35 @@ export function SessionListBody({
           (SPEC §4). Open, the pane is GROUPED BY PROJECT exactly as the live
           list is, each row saying when it was last active, and its top border
           drags to give the pane more (or less) of the sidebar. */}
-      {(archived.length > 0 || sessionDragActive) && (
+      {(archived.length > 0 || sessionDragActive || showArchived) && (
         <>
           {!showArchived && <div className="h-[var(--ui-surface-gap)] shrink-0" />}
           {showArchived && <HeightHandle handle={handle} label="Resize the archived sessions" />}
           <div
+            data-session-archive-island
             className={cn(
-              'workspace-surface island-outline flex shrink-0 flex-col bg-surface',
-              showArchived && 'pb-1.5',
+              'workspace-surface island-outline flex shrink-0 flex-col bg-surface transition-[height] duration-200 ease-out',
+              handle.dragging && 'transition-none',
             )}
-            // Sized only while open (closed, the header is all there is). The
-            // percentage cap resolves against the sidebar's own definite height,
-            // so a pane dragged tall elsewhere cannot swallow the live list here.
-            style={showArchived ? { height: archivedHeight, maxHeight: '70%' } : undefined}
+            // A concrete header height lets CSS reverse interrupted transitions.
+            // Keep the same cap in both states so a tall saved size cannot jump
+            // past the current sidebar's bounds when it starts closing.
+            style={{
+              height: showArchived
+                ? archivedHeight
+                : 'calc(var(--text-2xs--line-height) + 0.75rem)',
+              maxHeight: '70%',
+            }}
           >
             <button
               data-sidebar-motion="sessions-archive"
               ref={archiveDrop.setNodeRef}
               type="button"
-              onClick={() => setShowArchived((v) => !v)}
+              onClick={() => onShowArchivedChange(!showArchived)}
+              aria-expanded={showArchived}
               {...archiveDrop.props}
               className={cn(
-                'flex w-full items-center gap-1.5 px-3 py-1.5 text-2xs uppercase tracking-wide text-fg-gold transition-colors hover:text-fg',
+                'flex w-full shrink-0 items-center gap-1.5 px-3 py-1.5 text-2xs uppercase tracking-wide text-fg-gold transition-colors hover:text-fg',
                 archiveDrop.armed && 'bg-selection text-fg',
               )}
             >
@@ -340,48 +351,56 @@ export function SessionListBody({
               <span>Archived</span>
               <span className="ml-auto tabular-nums">{archived.length}</span>
             </button>
-            {showArchived && (
-              <SessionHoverList className="no-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain">
-                {displayedArchivedGroups.map((group) => (
-                  <div
-                    key={group.projectId}
-                    data-session-project={group.projectId}
-                    className="mx-2 border-t border-border py-1 first:border-t-0"
-                  >
-                    {/* Dimmer than a live group's header and inert: archived rows
+            <ContentMotion
+              motionKey={String(showArchived)}
+              className="min-h-0 flex-1 overflow-hidden"
+            >
+              {showArchived && (
+                <SessionHoverList className="no-scrollbar h-full min-h-0 overflow-y-auto overscroll-contain pb-1.5">
+                  {archived.length === 0 && (
+                    <p className="px-3 py-3 text-xs text-fg-muted">No archived sessions.</p>
+                  )}
+                  {displayedArchivedGroups.map((group) => (
+                    <div
+                      key={group.projectId}
+                      data-session-project={group.projectId}
+                      className="mx-2 border-t border-border py-1 first:border-t-0"
+                    >
+                      {/* Dimmer than a live group's header and inert: archived rows
                         are for finding one session again, not for navigating
                         projects (that is the live list's header, right above). */}
-                    {group.name !== '' && (
-                      <div
-                        style={appearanceColourStyle(group.colour)}
-                        className={cn(
-                          'truncate px-3 pb-0.5 pt-1.5 text-2xs font-medium uppercase tracking-wide',
-                          group.colour
-                            ? cn(appearanceColourClass(group.colour), 'opacity-70')
-                            : 'text-fg-muted',
-                        )}
-                      >
-                        {group.name}
-                      </div>
-                    )}
-                    <ul className="flex flex-col gap-0.5 compact:gap-0">
-                      {group.sessions.map((session) => (
-                        <li key={session.id}>
-                          <SessionRow
-                            session={session}
-                            activeSessionId={activeSessionId}
-                            accountLabel={accountLabel}
-                            onArchived={onArchived}
-                            ellipsis
-                            lastActive
-                          />
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                ))}
-              </SessionHoverList>
-            )}
+                      {group.name !== '' && (
+                        <div
+                          style={appearanceColourStyle(group.colour)}
+                          className={cn(
+                            'truncate px-3 pb-0.5 pt-1.5 text-2xs font-medium uppercase tracking-wide',
+                            group.colour
+                              ? cn(appearanceColourClass(group.colour), 'opacity-70')
+                              : 'text-fg-muted',
+                          )}
+                        >
+                          {group.name}
+                        </div>
+                      )}
+                      <ul className="flex flex-col gap-0.5 compact:gap-0">
+                        {group.sessions.map((session) => (
+                          <li key={session.id}>
+                            <SessionRow
+                              session={session}
+                              activeSessionId={activeSessionId}
+                              accountLabel={accountLabel}
+                              onArchived={onArchived}
+                              ellipsis
+                              lastActive
+                            />
+                          </li>
+                        ))}
+                      </ul>
+                    </div>
+                  ))}
+                </SessionHoverList>
+              )}
+            </ContentMotion>
           </div>
         </>
       )}
