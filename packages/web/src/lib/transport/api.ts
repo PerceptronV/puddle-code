@@ -1,6 +1,7 @@
 import { errorResponseSchema } from '@puddle/shared';
 import { clearToken, tokenStore } from './auth';
 import { browserTransport } from './browser-transport';
+import { requestTiming } from './request-timing';
 
 /** Typed view of the daemon's uniform error envelope. */
 export class ApiError extends Error {
@@ -27,6 +28,7 @@ export async function api<T>(
 ): Promise<T> {
   const token = tokenStore.get();
   const remote = browserTransport();
+  const observed = method === 'GET' && path.startsWith('/api/') ? requestTiming.start() : null;
   const res = remote
     ? await remote.request(method, path, body, signal)
     : await fetch(path, {
@@ -52,7 +54,9 @@ export async function api<T>(
     }
     throw new ApiError(res.status, 'unknown', `${method} ${path} failed with ${res.status}`);
   }
-  return (await res.json()) as T;
+  const result = (await res.json()) as T;
+  if (!signal?.aborted && browserTransport() === remote) observed?.();
+  return result;
 }
 
 /** The bearer header for a request against the daemon, or `{}` when signed out. */

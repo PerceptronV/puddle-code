@@ -2875,6 +2875,34 @@ that confirmed exit are harmless, while uncertain input, unexpected live-owner
 loss and incomplete snapshots still require recovery. These rules are shared by
 all agent adapters and plain terminal sessions.
 
+**Slow connections**: the daemon negotiates standard WebSocket per-message deflate
+before terminal traffic crosses the SSH tunnel. Compression uses level 1, a 1 KiB
+threshold, no context takeover in either direction and bounded zlib concurrency;
+older clients retain ordinary uncompressed messages. JSON API responses of at least
+1 KiB negotiate gzip after authentication, excluding errors, files, SSE and forwarded
+applications. The browser bridge propagates socket backpressure independently in
+each direction at 256 KiB/64 KiB high/low water marks. No terminal bytes or uncertain
+input are discarded or replayed by these optimisations.
+
+Routine focus-aware polls use successful API GET completion times (including body
+delivery) to add an interval floor of four request durations, capped at 30 seconds;
+existing slower intervals remain intact. The estimate reacts immediately to slower
+reads, decays towards faster reads, expires after a minute without observations and
+resets on remote host selection. It measures request cost, including host work, not
+pure bandwidth. It adds no probes and never delays explicit actions or terminal
+input. Mobile status/title pushes patch cached sessions directly; its safety poll
+waits for the previous read to finish. Encrypted relay terminal framing remains
+unchanged; connector-to-daemon loopback traffic disables compression because the
+connector would decompress it before encryption. Authority participation cadence
+and expiry are unchanged.
+
+The regression fixture in `packages/daemon/test/pty/ws-compression.test.ts` measures
+actual WebSocket bytes and exact output through throttled loopback links at 64 kbit/s,
+512 kbit/s and 10 Mbit/s. This is controlled transport evidence, not a guarantee for
+all workloads: large initial snapshots, sustained output beyond link capacity,
+concurrent file transfers and lossy/high-latency SSH links still require real-host
+acceptance. There is no browser acknowledgement window or terminal delta replay.
+
 ### Connection authority (protocol 18.0)
 
 Shared schemas in `api/connection-auth.ts` define host control (`open`, explicit-resource `renew`, `close`), delegated authority/inspection replies, browser bootstrap, proxy grants/exchange, launcher invitations, frontend status and authentication errors. `api/frontend.ts` defines refresh correlation. Browser APIs include `POST /frontend/remote/registration` (protocol 20.0, authenticated read-only service polling), `POST /frontend/bootstrap`, `POST /frontend/logout`, `GET /frontend/status`, `POST /frontend/proxy-grant`, `POST /frontend/refresh` and `GET/PUT /frontend/local-sync`. Proxy invitation exchange is `POST /proxy/:sid/:port/_puddle/exchange` on the isolated application origin. Error codes distinguish `browser_rejected`, `upstream_expired`, `upstream_unavailable` and `protocol_mismatch`.

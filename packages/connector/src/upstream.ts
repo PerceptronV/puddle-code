@@ -77,6 +77,8 @@ export class RemoteUpstream {
     this.resources.set(id, resource);
     const socket = new WebSocket(`ws://127.0.0.1:${this.authority.port}/ws`, {
       maxPayload: REMOTE_POLICY.responseBytes,
+      // This leg is host-local; compression here would be undone before encryption.
+      perMessageDeflate: false,
     });
     this.socket = socket;
     const timer = setTimeout(this.close, REMOTE_POLICY.handshakeMs);
@@ -184,6 +186,7 @@ export class RemoteUpstream {
           authorization: `Bearer ${this.authority.credential()}`,
           'x-puddle-resource': resource.id,
           'content-type': 'application/json',
+          'accept-encoding': 'identity',
           origin: `http://127.0.0.1:${this.authority.port}`,
         },
         signal: AbortSignal.any([abort.signal, AbortSignal.timeout(30_000)]),

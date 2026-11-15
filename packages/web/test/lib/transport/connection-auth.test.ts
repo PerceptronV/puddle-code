@@ -14,6 +14,39 @@ beforeEach(() => {
 });
 afterEach(() => vi.unstubAllGlobals());
 
+it('measures successful reads through body delivery, but never records failed reads or mutations', async () => {
+  const { api } = await import('../../../src/lib/transport/api');
+  const { requestTiming } = await import('../../../src/lib/transport/request-timing');
+  const complete = vi.fn();
+  const start = vi.spyOn(requestTiming, 'start').mockReturnValue(complete);
+  let release!: () => void;
+  const body = new ReadableStream<Uint8Array>({
+    start(controller) {
+      release = () => {
+        controller.enqueue(new TextEncoder().encode('{"ready":true}'));
+        controller.close();
+      };
+    },
+  });
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response(body)));
+  const reading = api('GET', '/api/test');
+  await Promise.resolve();
+  expect(start).toHaveBeenCalledOnce();
+  expect(complete).not.toHaveBeenCalled();
+  release();
+  await expect(reading).resolves.toEqual({ ready: true });
+  expect(complete).toHaveBeenCalledOnce();
+
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}', { status: 503 })));
+  await expect(api('GET', '/api/test')).rejects.toMatchObject({ status: 503 });
+  expect(complete).toHaveBeenCalledOnce();
+  const observations = start.mock.calls.length;
+  vi.stubGlobal('fetch', vi.fn().mockResolvedValue(new Response('{}')));
+  await api('POST', '/api/test', {});
+  expect(start).toHaveBeenCalledTimes(observations);
+  start.mockRestore();
+});
+
 it('clears invitation fragments before network work and removes the old master credential', async () => {
   localStorage.setItem('puddle.token', 'retired-master');
   const invitation = 'iv_' + 'a'.repeat(64);

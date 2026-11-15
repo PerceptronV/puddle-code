@@ -6,6 +6,7 @@ import type { ConnectionAuthority } from '../auth/connection-authority.js';
 import type { BrowserAuthority, BrowserRecord } from './browser-authority.js';
 import { openAccess } from './access.js';
 import type { ProxyTarget } from './proxy.js';
+import { forwardWsMessage } from './ws-flow.js';
 
 /** Authenticates both legs; browser writes wait for an explicit upstream acknowledgement. */
 export class WsBridge {
@@ -108,7 +109,7 @@ export class WsBridge {
               clearTimeout(timer);
               ready = true;
             }
-            if (browser.readyState === WebSocket.OPEN) browser.send(data, { binary: false });
+            forwardWsMessage(upstream!, browser, data, () => captured.valid(), close);
           });
         } else {
           if (!ready || !resource?.valid() || upstream?.readyState !== WebSocket.OPEN) {
@@ -116,7 +117,14 @@ export class WsBridge {
             return;
           }
           if (authorisation) this.browsers.touch(authorisation);
-          upstream.send(JSON.stringify(message));
+          const captured = resource;
+          forwardWsMessage(
+            browser,
+            upstream,
+            JSON.stringify(message),
+            () => captured.valid(),
+            close,
+          );
         }
       });
     });

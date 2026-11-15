@@ -16,7 +16,8 @@ import { useEffect } from 'react';
 import { Link, Outlet, useLocation, useParams } from 'react-router';
 import { useQueryClient } from '@tanstack/react-query';
 import { Settings } from 'lucide-react';
-import type { Account, ProjectDetail, Session } from '@puddle/shared';
+import type { Account } from '@puddle/shared';
+import { applySessionStatus, applySessionRename } from '../../lib/queries/session-events';
 import { ErrorBoundary } from '../../components/error-boundary';
 import { InlineLabelEdit, editOnDoubleClick } from '../../components/inline-label-edit';
 import { ControlTray } from '../../components/ui/control-tray';
@@ -76,35 +77,8 @@ const SettingsDialog = lazy(() =>
 function useStatusCacheSync() {
   const qc = useQueryClient();
   useEffect(() => {
-    const patchAll = (patch: (s: Session) => Session) => {
-      for (const [key, data] of qc.getQueriesData<Session[]>({ queryKey: ['sessions'] })) {
-        if (data) qc.setQueryData(key, data.map(patch));
-      }
-      for (const [key, data] of qc.getQueriesData<ProjectDetail>({ queryKey: ['project'] })) {
-        if (data) qc.setQueryData(key, { ...data, sessions: data.sessions.map(patch) });
-      }
-    };
-    const offStatus = wsManager.onStatus((event) =>
-      patchAll((session) =>
-        session.id === event.session
-          ? { ...session, status: event.status, last_activity_at: event.last_activity_at }
-          : session,
-      ),
-    );
-    const offRenamed = wsManager.onRenamed((event) =>
-      patchAll((session) =>
-        session.id === event.session
-          ? {
-              ...session,
-              title: event.title,
-              // Older daemons omit agent_title / osc_title from the event — keep
-              // the cached value rather than wiping it.
-              agent_title: 'agent_title' in event ? event.agent_title : session.agent_title,
-              osc_title: 'osc_title' in event ? event.osc_title : session.osc_title,
-            }
-          : session,
-      ),
-    );
+    const offStatus = wsManager.onStatus((event) => applySessionStatus(qc, event));
+    const offRenamed = wsManager.onRenamed((event) => applySessionRename(qc, event));
     // An account's login verification lands AFTER its login PTY exits — the
     // daemon asks the agent's own auth check first, so the flag flips once the
     // dialog is already closed. The push (15.1) is what turns the settings

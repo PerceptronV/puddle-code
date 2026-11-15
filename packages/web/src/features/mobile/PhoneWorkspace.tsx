@@ -11,6 +11,8 @@ import {
   useRepos,
 } from '../../lib/queries/queries';
 import { api } from '../../lib/transport/api';
+import { focusAwareInterval } from '../../lib/queries/poll-focus';
+import { applySessionStatus, applySessionRename } from '../../lib/queries/session-events';
 import { orderByDrag } from '../workspace/sessions/session-order';
 import { loadOrderedProjects } from './project-order';
 import { PhoneTerminalBar } from './PhoneTerminalBar';
@@ -78,13 +80,13 @@ export function PhoneWorkspace({
     queryKey: ['phone-project-order', projects.data],
     queryFn: () => loadOrderedProjects(projects.data ?? [], (path) => api('GET', path)),
     enabled: connected && !!projects.data,
-    refetchInterval: connected ? 15_000 : false,
+    refetchInterval: connected ? focusAwareInterval(15_000) : false,
   });
   const profileState = useQuery({
     queryKey: ['phone-profile-order', project?.profile_id],
     queryFn: () => fetchProfileState(project!.profile_id),
     enabled: connected && !!project,
-    refetchInterval: connected ? 10_000 : false,
+    refetchInterval: connected ? focusAwareInterval(10_000) : false,
   });
   const projectRows = orderedProjects.data ?? projects.data ?? [];
   const sessionRows = orderByDrag(
@@ -102,20 +104,27 @@ export function PhoneWorkspace({
   };
   useEffect(() => wsManager.onConnectionChange(setAttached), []);
   useEffect(() => {
-    const changed = () => {
-      void qc.invalidateQueries({ queryKey: ['sessions'] });
-    };
+    const changed = () => qc.invalidateQueries({ queryKey: ['sessions'] });
     const off = [
-      wsManager.onStatus(changed),
+      wsManager.onStatus((event) => applySessionStatus(qc, event)),
       wsManager.onSessionsChanged(changed),
-      wsManager.onRenamed(changed),
+      wsManager.onRenamed((event) => applySessionRename(qc, event)),
     ];
-    const timer = setInterval(() => {
-      if (connected && !document.hidden) changed();
-    }, 10_000);
+    let stopped = false;
+    const interval = focusAwareInterval(10_000);
+    let timer: ReturnType<typeof setTimeout>;
+    const poll = async () => {
+      try {
+        if (connected && !document.hidden) await changed();
+      } finally {
+        if (!stopped) timer = setTimeout(() => void poll(), interval());
+      }
+    };
+    timer = setTimeout(() => void poll(), interval());
     return () => {
+      stopped = true;
       off.forEach((unsubscribe) => unsubscribe());
-      clearInterval(timer);
+      clearTimeout(timer);
     };
   }, [qc, connected]);
   useEffect(

@@ -7,6 +7,7 @@ import type {
   NotebookEnvironmentsResponse,
 } from '@puddle/shared';
 import { api } from '../transport/api';
+import { focusAwareInterval } from './poll-focus';
 
 export function useNotebookKernels(enabled: boolean) {
   return useQuery({
@@ -21,7 +22,7 @@ export function useNotebookKernelStatus(source: CompilationFileTarget, enabled: 
     queryKey: ['notebook-kernel', source],
     queryFn: () => api<NotebookKernelStatus>('POST', '/api/notebooks/status', { source }),
     enabled,
-    refetchInterval: 1500,
+    refetchInterval: focusAwareInterval(1500),
     retry: false,
   });
 }

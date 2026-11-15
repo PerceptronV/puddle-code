@@ -9,6 +9,7 @@ import { fileURLToPath } from 'node:url';
 import { StorageMonitor } from './storage/monitor.js';
 import { createAdaptorServer, upgradeWebSocket, type ServerType } from '@hono/node-server';
 import { WebSocketServer } from 'ws';
+import { terminalCompression } from './ws/compression.js';
 import type { AgentAdapter } from './agents/adapter.js';
 import { AccountObservations } from './agents/accounts/observations.js';
 import { defaultAdapters } from './agents/defaults.js';
@@ -690,7 +691,7 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
       ws: { gateway, upgradeWebSocket },
     });
 
-    const wss = new WebSocketServer({ noServer: true });
+    const wss = new WebSocketServer({ noServer: true, perMessageDeflate: terminalCompression });
     // createAdaptorServer builds the server WITHOUT listening, so we own the bind
     // and can fall back off a busy port (listenWithFallback) instead of crashing.
     const server: ServerType = createAdaptorServer({

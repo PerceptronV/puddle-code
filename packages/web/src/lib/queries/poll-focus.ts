@@ -1,4 +1,5 @@
 import { focusManager } from '@tanstack/react-query';
+import { requestTiming } from '../transport/request-timing';
 
 /**
  * Focus-aware polling. TanStack's focusManager pauses refetch intervals only
@@ -44,8 +45,9 @@ if (typeof window !== 'undefined') {
 /**
  * A `refetchInterval` that runs at `focusedMs` while the window has focus and
  * `UNFOCUSED_FACTOR`× slower while it doesn't. Hidden-tab behaviour is
- * unchanged (`refetchIntervalInBackground` still decides that).
+ * unchanged (`refetchIntervalInBackground` still decides that). Slow host reads
+ * add a bounded interval floor so polling leaves capacity for terminal traffic.
  */
 export function focusAwareInterval(focusedMs: number): () => number {
-  return () => (windowFocused ? focusedMs : focusedMs * UNFOCUSED_FACTOR);
+  return () => requestTiming.interval(windowFocused ? focusedMs : focusedMs * UNFOCUSED_FACTOR);
 }

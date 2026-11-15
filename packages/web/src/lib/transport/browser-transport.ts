@@ -1,3 +1,5 @@
+import { requestTiming } from './request-timing';
+
 /** Local serving remains the default; remote transport is installed only after host selection. */
 export interface FrontendSocket {
   readonly readyState: number;
@@ -27,6 +29,7 @@ export function browserTransport(): BrowserTransport | null {
   return installed;
 }
 export function installBrowserTransport(transport: BrowserTransport | null): void {
+  requestTiming.reset();
   installed = transport;
 }
 export function browserScope(key: string): string {
