@@ -2905,6 +2905,19 @@ grant no authority and do not include session activity. Remote catalogue navigat
 appears before repository/session/order/release-note reads settle, survives transient
 connection loss and is cleared on pairing/rejection or forgetting the pairing.
 
+Application 28.35 adds `GET /api/projects/catalogue` with the existing optional
+profile filter, returning project metadata, repository paths, per-project active
+session counts and saved project ordering in one response. Count reads stream
+only id/project/status columns, overlay pending runtime observations, and never
+load full session/native metadata or probe worktrees. Remote leases force their
+own profile; the connector explicitly allows this GET and advertises its support
+through `remote_project_catalogue` in version metadata. Both dashboards use the
+compact response on capable peers, and old peers retain progressive reads. Remote
+catalogue views retain counts and paths rather than full session/repository arrays;
+release-note checks run separately at most every five minutes. Desktop status
+changes coalesce catalogue invalidation, ignoring activity-only repeats and leaving
+an in-flight read intact. Navigation, pairing and authority checks remain separate.
+
 The regression fixture in `packages/daemon/test/pty/ws-compression.test.ts` measures
 actual WebSocket bytes and exact output through throttled loopback links at 64 kbit/s,
 512 kbit/s and 10 Mbit/s. This is controlled transport evidence, not a guarantee for

@@ -25,6 +25,7 @@ const routes: ReadonlyArray<readonly [string, RegExp, readonly string[]]> = [
   ['GET', /^\/api\/accounts$/, ['profile']],
   ['GET', new RegExp(`^/api/profiles/${hex}/(settings|state)$`), []],
   ['GET', /^\/api\/projects$/, ['profile']],
+  ['GET', /^\/api\/projects\/catalogue$/, ['profile']],
   ['GET', new RegExp(`^/api/projects/${hex}$`), []],
   ['GET', /^\/api\/sessions$/, ['project', 'profile', 'status']],
   ['GET', new RegExp(`^/api/sessions/${uuid}$`), []],

@@ -112,6 +112,12 @@ it('keeps PTY output and exit cleanup working when database writes fail', async 
       status: 'exited',
       persistence_pending: true,
     });
+    expect(f.service.projectSessionCounts().get(f.ids.project)).toEqual({
+      total: 1,
+      running: 0,
+      waiting_input: 0,
+      interrupted: 0,
+    });
     status.mockRestore();
     // Exercise the same coalesced recovery independently without waiting 30 seconds.
     const persistence = new RuntimePersistence(f.stores.sessions, f.stores.events);

@@ -386,7 +386,8 @@
 // 28.32: opt-in recorded agent identities in live and retained huddle operation history.
 // 28.33: explicit retained trigger-input inspection for a selected huddle execution.
 // 28.34: optional display-only node labels in huddle layout metadata.
-export const PROTOCOL_VERSION = { major: 28, minor: 34 } as const;
+// 28.35: compact project catalogues avoid transferring full session lists for dashboard counts.
+export const PROTOCOL_VERSION = { major: 28, minor: 35 } as const;
 
 /** A feature floor is distinct from compatibility with this client's application major. */
 export function supportsApplicationFeature(

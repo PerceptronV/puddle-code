@@ -5,6 +5,7 @@ import type {
   AgentTurnSignal,
   ClearSessionEnvResponse,
   CreateSessionRequest,
+  ProjectSessionCounts,
   RestartSessionRuntimeRequest,
   Session,
   SessionEnvResponse,
@@ -374,6 +375,25 @@ export class SessionService extends EventEmitter {
       .list({ ...filter, status: undefined })
       .map((s) => this.withComputed(s))
       .filter((s) => filter.status === undefined || s.status === filter.status);
+  }
+
+  /** Match list()'s pending observations without filesystem probes or full session allocations. */
+  projectSessionCounts(profileId?: string): Map<string, ProjectSessionCounts> {
+    const counts = new Map<string, ProjectSessionCounts>();
+    for (const row of this.deps.sessions.statusRows(profileId)) {
+      const status = this.persistence.state(row.id)?.status ?? row.status;
+      if (status === 'archived') continue;
+      let entry = counts.get(row.project_id);
+      if (!entry)
+        counts.set(
+          row.project_id,
+          (entry = { total: 0, running: 0, waiting_input: 0, interrupted: 0 }),
+        );
+      entry.total++;
+      if (status === 'running' || status === 'waiting_input' || status === 'interrupted')
+        entry[status]++;
+    }
+    return counts;
   }
 
   /**

@@ -1,4 +1,7 @@
 import { useState } from 'react';
+import { supportsApplicationFeature } from '@puddle/shared';
+import { useDaemonVersion } from '../../lib/queries/queries';
+import { useProjectCatalogue } from '../../lib/queries/project-catalogue-queries';
 import { Archive, ChevronRight, FolderGit2, FolderOpen, SquareTerminal } from 'lucide-react';
 import {
   useProfileSettings,
@@ -49,8 +52,11 @@ function ActionTile({
 export function Dashboard() {
   const profileId = useCurrentProfileId();
   useArrangementReady(profileId, true);
-  const projects = useProjects(profileId ?? undefined);
-  const repos = useRepos();
+  const version = useDaemonVersion();
+  const compact = supportsApplicationFeature(version.data?.protocol, { major: 28, minor: 35 });
+  const catalogue = useProjectCatalogue(profileId ?? undefined, compact);
+  const projects = useProjects(profileId ?? undefined, !compact);
+  const repos = useRepos(!!version.data && !compact);
   const settings = useProfileSettings(profileId ?? undefined);
   const patchSettings = usePatchProfileSettings(profileId ?? '');
   const [creating, setCreating] = useState(false);
@@ -59,9 +65,10 @@ export function Dashboard() {
   const home = useHomeTerminal();
   const paletteKey = useHotkeyLabel('palette.toggle');
 
-  const repoPath = (repoId: number) => repos.data?.find((r) => r.id === repoId)?.path;
+  const repoPath = (repoId: number) =>
+    catalogue.data?.paths[repoId] ?? repos.data?.find((r) => r.id === repoId)?.path;
 
-  const all = projects.data ?? [];
+  const all = catalogue.data?.projects ?? projects.data ?? [];
   // New projects float to the top until dragged; archived ones drop out of the
   // grid into the disclosure below (SPEC §11).
   const order = settings.data?.projectOrder ?? [];
@@ -104,6 +111,8 @@ export function Dashboard() {
                 key={project.id}
                 project={project}
                 repoPath={repoPath(project.repo_id)}
+                summaryMode={compact || !version.data}
+                counts={catalogue.data?.counts[project.id]}
                 draggable
                 dragging={dragging === project.id}
                 onDragStart={() => setDragging(project.id)}
@@ -149,6 +158,8 @@ export function Dashboard() {
                       key={project.id}
                       project={project}
                       repoPath={repoPath(project.repo_id)}
+                      summaryMode={compact || !version.data}
+                      counts={catalogue.data?.counts[project.id]}
                       draggable={false}
                       dragging={false}
                       onDragStart={() => {}}

@@ -94,6 +94,8 @@ export function profileAccessMiddleware(
     if (method === 'GET') {
       if (path === '/api/profiles') return c.json([owner]);
       if (path === '/api/projects') return c.json(projects);
+      // The handler derives its scope from this lease, never the caller's selection.
+      if (path === '/api/projects/catalogue') return next();
       if (path === '/api/accounts') return c.json(api.accounts.list(profile));
       if (path === '/api/repos')
         return c.json(

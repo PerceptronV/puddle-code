@@ -71,10 +71,11 @@ export function useAccountUsage(accountId: number | undefined) {
   });
 }
 
-export function useRepos() {
+export function useRepos(enabled = true) {
   return useQuery({
     queryKey: ['repos'],
     queryFn: () => api<RepoWithOrphans[]>('GET', '/api/repos'),
+    enabled,
   });
 }
 
@@ -123,11 +124,11 @@ export function refreshProjectConversations(projectId: string): Promise<void> {
   return api<void>('POST', `/api/projects/${projectId}/conversations/refresh`);
 }
 
-export function useSessions(projectId: string | undefined) {
+export function useSessions(projectId: string | undefined, enabled = true) {
   return useQuery({
     queryKey: ['sessions', projectId],
     queryFn: () => api<Session[]>('GET', `/api/sessions?project=${projectId}`),
-    enabled: projectId !== undefined,
+    enabled: enabled && projectId !== undefined,
   });
 }
 
@@ -393,7 +394,10 @@ export function useCreateProject() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: (body: CreateProjectRequest) => api<Project>('POST', '/api/projects', body),
-    onSuccess: () => void qc.invalidateQueries({ queryKey: ['projects'] }),
+    onSuccess: () => {
+      void qc.invalidateQueries({ queryKey: ['projects'] });
+      void qc.invalidateQueries({ queryKey: ['project-catalogue'] });
+    },
   });
 }
 
@@ -408,6 +412,7 @@ export function usePatchProject() {
         detail ? { ...detail, project } : detail,
       );
       void qc.invalidateQueries({ queryKey: ['projects'] });
+      void qc.invalidateQueries({ queryKey: ['project-catalogue'] });
     },
   });
 }
@@ -498,6 +503,7 @@ export function useDeleteLayout() {
 }
 
 function invalidateSessions(qc: ReturnType<typeof useQueryClient>, session: Session) {
+  void qc.invalidateQueries({ queryKey: ['project-catalogue'] });
   // Invalidate the whole `sessions` namespace, not just this project's key: the
   // cross-project sidebar reads `['sessions', 'profile', profileId]`, which a
   // `['sessions', projectId]` prefix would NOT match — so a fresh session (or a

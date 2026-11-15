@@ -7,6 +7,7 @@ export const versionResponseSchema = z.object({
   remote_notifications: z.boolean().optional(),
   remote_notification_previews: z.boolean().optional(),
   remote_image_uploads: z.boolean().optional(),
+  remote_project_catalogue: z.boolean().optional(),
   /** Exact admitted device has a current host-approved maintenance grant (application 26). */
   remote_host_updates: z.boolean().optional(),
   protocol: z.object({

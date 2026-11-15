@@ -32,8 +32,8 @@ import {
 } from '../src/index.js';
 
 describe('shared API schemas', () => {
-  it('declares protocol 28.34 for display-only huddle node labels', () => {
-    expect(PROTOCOL_VERSION).toEqual({ major: 28, minor: 34 });
+  it('declares protocol 28.35 for compact project catalogues', () => {
+    expect(PROTOCOL_VERSION).toEqual({ major: 28, minor: 35 });
   });
 
   it('accepts headless mode and rejects the previous scripted name', () => {

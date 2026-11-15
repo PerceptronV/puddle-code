@@ -210,6 +210,7 @@ export class RemoteUpstream {
         const version = versionResponseSchema.parse(body);
         // Only this connector's admitted device can establish the capability.
         delete version.remote_host_updates;
+        delete version.remote_project_catalogue;
         const push =
           this.notifications &&
           (version.protocol.major > 22 ||
@@ -217,6 +218,10 @@ export class RemoteUpstream {
         body = {
           ...version,
           remote_image_uploads: true,
+          ...(version.protocol.major > 28 ||
+          (version.protocol.major === 28 && version.protocol.minor >= 35)
+            ? { remote_project_catalogue: true }
+            : {}),
           ...(this.supportsMaintenance() && version.protocol.major >= 26
             ? { remote_host_updates: true }
             : {}),

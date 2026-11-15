@@ -96,6 +96,13 @@ function fixture() {
 }
 
 describe('profile-bound host authority', () => {
+  it('admits only the catalogue read within the lease profile', async () => {
+    const f = fixture();
+    expect((await f.req('/api/projects/catalogue')).status).toBe(200);
+    expect((await f.req(`/api/projects/catalogue?profile=${f.two.profile.id}`)).status).toBe(403);
+    expect((await f.req('/api/projects/catalogue', 'POST')).status).toBe(403);
+    expect((await f.req('/api/projects/catalogue/private')).status).toBe(403);
+  });
   it('allows public release notes but no mutation or neighbouring path', async () => {
     const f = fixture();
     expect((await f.req('/api/release-notes')).status).toBe(200);

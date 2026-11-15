@@ -13,6 +13,7 @@ import type { SessionService } from '../../sessions/service.js';
 import type { ConversationCatalogue } from '../../sessions/conversation-catalogue.js';
 import type { WorktreeManager } from '../../worktrees/manager.js';
 import { hexIdParam, parseBody } from '../validate.js';
+import { projectCatalogue } from './project-catalogue.js';
 
 export interface ProjectRouteDeps {
   projects: ProjectStore;
@@ -25,6 +26,14 @@ export interface ProjectRouteDeps {
 
 export function projectRoutes(deps: ProjectRouteDeps): Hono {
   return new Hono()
+    .get('/catalogue', (c) =>
+      c.json(
+        projectCatalogue(
+          deps,
+          (c.var as { remoteProfile?: string }).remoteProfile ?? c.req.query('profile'),
+        ),
+      ),
+    )
     .get('/', (c) => {
       const profile = c.req.query('profile');
       return c.json(deps.projects.list(profile));

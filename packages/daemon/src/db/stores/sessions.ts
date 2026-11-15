@@ -252,6 +252,16 @@ export class SessionStore {
     return rows.map(toSession);
   }
 
+  /** Stream only the columns needed for counts; never materialise session metadata or secrets. */
+  *statusRows(
+    profileId?: string,
+  ): Iterable<{ id: string; project_id: string; status: SessionStatus }> {
+    const statement = this.db.prepare(`SELECT s.id, s.project_id, s.status FROM sessions s
+      ${profileId === undefined ? '' : 'JOIN projects p ON p.id = s.project_id WHERE p.profile_id = ?'}`);
+    for (const row of statement.iterate(...(profileId === undefined ? [] : [profileId])))
+      yield row as { id: string; project_id: string; status: SessionStatus };
+  }
+
   listActiveByRepo(repoId: number): Session[] {
     const rows = this.db
       .prepare(

@@ -1,6 +1,6 @@
 import { Hono } from 'hono';
-import { afterAll, beforeAll, describe, expect, it } from 'vitest';
-import { PROFILE_ICON_COLOURS, projectSchema } from '@puddle/shared';
+import { afterAll, beforeAll, describe, expect, it, vi } from 'vitest';
+import { PROFILE_ICON_COLOURS, projectSchema, projectCatalogueSchema } from '@puddle/shared';
 import { ApiError } from '../../src/http/errors.js';
 import { projectRoutes } from '../../src/http/routes/projects.js';
 import { ConversationCatalogue } from '../../src/sessions/conversation-catalogue.js';
@@ -101,5 +101,69 @@ describe('project colours', () => {
       ).toBe(400);
     }
     expect(fx.stores.projects.get(fx.ids.project).colour).toBe('blue');
+  });
+});
+
+describe('compact project catalogue', () => {
+  it('matches session counts without materialising lists and omits private session/repository metadata', async () => {
+    for (let i = 0; i < 100; i++) {
+      fx.stores.sessions.create({
+        id: crypto.randomUUID(),
+        project_id: fx.ids.project,
+        account_id: null,
+        worktree_path: '/missing/catalogue-fixture',
+        base_branch: 'main',
+        branch: 'main',
+        separate_branch: false,
+        kind: 'terminal',
+        agent_type: null,
+        title: 'private session title',
+        skip_permissions: false,
+        status: i < 50 ? 'archived' : i < 75 ? 'running' : 'waiting_input',
+      });
+    }
+    fx.stores.profiles.patchSettings(fx.ids.profile, { projectOrder: [fx.ids.project] });
+    const full = JSON.stringify(fx.service.list());
+    const list = vi.spyOn(fx.service, 'list').mockImplementation(() => {
+      throw new Error('Full session list must not be read');
+    });
+    try {
+      const response = await app.request(`/api/projects/catalogue?profile=${fx.ids.profile}`);
+      expect(response.status).toBe(200);
+      const text = await response.text();
+      const value = projectCatalogueSchema.parse(JSON.parse(text));
+      expect(value.projects.find((entry) => entry.project.id === fx.ids.project)?.sessions).toEqual(
+        { total: 50, running: 25, waiting_input: 25, interrupted: 0 },
+      );
+      expect(value.project_order[fx.ids.profile]).toEqual([fx.ids.project]);
+      expect(text).not.toContain('private session title');
+      expect(text).not.toContain('onboarding_notes');
+      expect(text.length).toBeLessThan(full.length / 3);
+      console.info(
+        `Catalogue fixture: ${full.length} full session bytes; ${text.length} catalogue bytes for all projects`,
+      );
+    } finally {
+      list.mockRestore();
+    }
+  });
+
+  it('uses the lease-selected profile even if no explicit filter is supplied', async () => {
+    const other = fx.stores.profiles.create({ name: 'catalogue-other', branch_prefix: '' });
+    fx.stores.projects.create({
+      name: 'other private project',
+      profile_id: other.id,
+      repo_id: fx.ids.repo,
+    });
+    const scoped = new Hono();
+    scoped.use('*', async (c, next) => {
+      c.set('remoteProfile', fx.ids.profile);
+      await next();
+    });
+    scoped.route('/api/projects', projectRoutes({ ...fx.stores, ...fx, catalogue }));
+    const value = projectCatalogueSchema.parse(
+      await (await scoped.request('/api/projects/catalogue')).json(),
+    );
+    expect(value.projects.every((entry) => entry.project.profile_id === fx.ids.profile)).toBe(true);
+    expect(value.project_order[other.id]).toBeUndefined();
   });
 });

@@ -2,7 +2,7 @@ import { type DragEvent, useState } from 'react';
 import { Link } from 'react-router';
 import { ArchiveRestore, Archive as ArchiveIcon, Pencil } from 'lucide-react';
 import { toastError } from '../../lib/transport/errors';
-import type { Project, ProjectColour } from '@puddle/shared';
+import type { Project, ProjectColour, ProjectSessionCounts } from '@puddle/shared';
 import { ColourPicker } from '../../components/colour-picker';
 import {
   appearanceColourClass,
@@ -71,6 +71,8 @@ function CardIconButton({
 export function ProjectCard({
   project,
   repoPath,
+  summaryMode = false,
+  counts,
   draggable,
   dragging,
   onDragStart,
@@ -79,6 +81,8 @@ export function ProjectCard({
 }: {
   project: Project;
   repoPath: string | undefined;
+  summaryMode?: boolean;
+  counts?: ProjectSessionCounts;
   draggable: boolean;
   dragging: boolean;
   onDragStart: () => void;
@@ -88,7 +92,7 @@ export function ProjectCard({
   const patch = usePatchProject();
   const protocol = useDaemonVersion().data?.protocol;
   const colourSupported = projectColourSupported(protocol);
-  const sessions = useSessions(project.id);
+  const sessions = useSessions(project.id, !summaryMode);
   const [renaming, setRenaming] = useState(false);
   const [name, setName] = useState(project.name);
   const [abbrev, setAbbrev] = useState(projectAbbrev(project));
@@ -141,9 +145,10 @@ export function ProjectCard({
           >
             <Link draggable={false} to={`/project/${project.id}`} className={projectCardSurface}>
               <ProjectCardContent
+                counts={counts}
                 project={project}
                 repoPath={repoPath}
-                sessions={sessions.data ?? []}
+                sessions={summaryMode ? undefined : sessions.data}
               />
             </Link>
             {/* Actions sit over the card's top-right, revealed on hover; siblings

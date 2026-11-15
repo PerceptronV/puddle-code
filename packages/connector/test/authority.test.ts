@@ -50,6 +50,17 @@ describe('remote surface', () => {
   const id = crypto.randomUUID();
   const request = (method: 'GET' | 'POST' | 'PATCH', path: string) =>
     permittedRequest({ t: 'request', id, method, path });
+  it('allows only read-only project catalogue requests and their existing profile filter', () => {
+    expect(request('GET', '/api/projects/catalogue').path).toBe('/api/projects/catalogue');
+    expect(request('GET', '/api/projects/catalogue?profile=0123456789').path).toContain('profile=');
+    for (const path of [
+      '/api/projects/catalogue/private',
+      '/api/projects/catalogue?fields=secret',
+      '/api/projects/catalogue?profile=a&profile=b',
+    ])
+      expect(() => request('GET', path)).toThrow();
+    expect(() => request('POST', '/api/projects/catalogue')).toThrow();
+  });
   it('denies host-wide storage diagnostics', () => {
     expect(() => request('GET', '/api/storage')).toThrow();
   });

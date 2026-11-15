@@ -93,6 +93,22 @@ export async function previewRequest(
       return json([profile]);
     case '/api/projects':
       return json([project]);
+    case '/api/projects/catalogue':
+      return json({
+        projects: [
+          {
+            project,
+            repo_path: repo.path,
+            sessions: {
+              total: sessions.filter((s) => s.status !== 'archived').length,
+              running: sessions.filter((s) => s.status === 'running').length,
+              waiting_input: sessions.filter((s) => s.status === 'waiting_input').length,
+              interrupted: sessions.filter((s) => s.status === 'interrupted').length,
+            },
+          },
+        ],
+        project_order: { [profile.id]: settings.projectOrder ?? [] },
+      });
     case `/api/projects/${project.id}`:
       return json({ project, sessions });
     case '/api/repos':

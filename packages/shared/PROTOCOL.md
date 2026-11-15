@@ -1,5 +1,16 @@
 # The puddle communication protocol
 
+Application **28.35** adds read-only `GET /api/projects/catalogue?profile=<id>`.
+It returns `{projects: [{project, repo_path, sessions: {total, running,
+waiting_input, interrupted}}], project_order}`. Totals exclude archived sessions;
+pending runtime status observations match the normal list. The daemon streams
+only session id/project/status columns and performs no worktree inspection.
+Remote profile leases force their own profile and reject foreign filters. The
+connector explicitly allows only this GET and advertises
+`remote_project_catalogue: true` in version metadata when its daemon supports it.
+Clients require both capabilities remotely; old connectors/hosts keep the
+progressive list fallback. No runtime/database/remote-framing version changes.
+
 Application **28.34** adds optional `labels: { [nodeId]: string }` to huddle
 `layout.json` and its inspection projection. Labels are trimmed, 1–200 characters,
 and bounded by the existing node count. They are display names, independent of

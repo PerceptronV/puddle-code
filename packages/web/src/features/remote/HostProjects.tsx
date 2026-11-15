@@ -1,14 +1,11 @@
 import { useEffect, useState } from 'react';
 import { Laptop } from 'lucide-react';
 import {
-  projectSchema,
-  repoWithOrphansSchema,
-  sessionSchema,
+  versionResponseSchema,
+  supportsApplicationFeature,
   releaseNotesSchema,
   type Project,
   type RemoteHost,
-  type RepoWithOrphans,
-  type Session,
 } from '@puddle/shared';
 import { Button } from '../../components/ui/button';
 import { Disclosure } from '../../components/ui/disclosure';
@@ -17,7 +14,10 @@ import { loadBrowserHost } from './identity-store';
 import { watchPushNotifications } from './push-notifications';
 import { RemoteClient } from './client';
 import { serviceOrigin } from './service';
-import { loadOrderedProjects } from '../mobile/project-order';
+import {
+  loadProjectCatalogue,
+  type ProjectCatalogueView,
+} from '../../lib/queries/project-catalogue';
 import { reportInstalledReleaseNotes } from '../release-notes/state/queue';
 import { projectListCache, remoteProjectScope } from '../../lib/queries/project-cache';
 
@@ -37,11 +37,7 @@ export function HostProjects({
   pair(): void;
   open(project: Project): void;
 }) {
-  const [catalogue, setCatalogue] = useState<{
-    projects: Project[];
-    repos: RepoWithOrphans[];
-    sessions?: Session[];
-  } | null>(null);
+  const [catalogue, setCatalogue] = useState<ProjectCatalogueView | null>(null);
   const [message, setMessage] = useState('Connecting…');
   const [needsPairing, setNeedsPairing] = useState(false);
   useEffect(() => {
@@ -51,6 +47,9 @@ export function HostProjects({
     let unsubscribe: (() => void) | undefined;
     let loading = false;
     let cacheScope: string | undefined;
+    let capabilityGeneration: string | null = null;
+    let compact = false;
+    let notesAt = -Infinity;
     setCatalogue(null);
     setMessage('Connecting…');
     setNeedsPairing(false);
@@ -66,34 +65,30 @@ export function HostProjects({
           if (!response.ok) throw new Error('Could not load projects. Try connecting again.');
           return response.json() as Promise<unknown>;
         };
-        const projects = projectSchema.array().parse(await read('/api/projects'));
-        if (!current()) return;
-        // Project navigation must not wait for sessions, repository inspection,
-        // release notes or per-profile ordering round trips.
-        setCatalogue((previous) => ({ ...previous, projects, repos: previous?.repos ?? [] }));
-        if (cacheScope) projectListCache.write(cacheScope, projects);
-        setMessage('');
-        await Promise.allSettled([
-          read('/api/repos').then((value) => {
-            const repos = repoWithOrphansSchema.array().parse(value);
-            if (current()) setCatalogue((previous) => previous && { ...previous, repos });
-          }),
-          read('/api/sessions').then((value) => {
-            const sessions = sessionSchema.array().parse(value);
-            if (current()) setCatalogue((previous) => previous && { ...previous, sessions });
-          }),
-          loadOrderedProjects(projects, read).then((ordered) => {
-            if (!current()) return;
-            setCatalogue((previous) => previous && { ...previous, projects: ordered });
-            if (cacheScope) projectListCache.write(cacheScope, ordered);
-          }),
-          // Reuse this visible catalogue refresh: runtime-only installs need not reconnect.
-          // Older hosts may omit notes without preventing project discovery.
-          read('/api/release-notes').then((value) => {
-            if (current())
-              reportInstalledReleaseNotes(client!.scope, releaseNotesSchema.parse(value));
-          }),
-        ]);
+        if (capabilityGeneration !== generation) {
+          const version = versionResponseSchema.parse(await read('/api/version'));
+          if (!current()) return;
+          compact =
+            version.remote_project_catalogue === true &&
+            supportsApplicationFeature(version.protocol, { major: 28, minor: 35 });
+          capabilityGeneration = generation;
+        }
+        await loadProjectCatalogue(read, compact, current, (view) => {
+          setCatalogue(view);
+          if (cacheScope) projectListCache.write(cacheScope, view.projects);
+          setMessage('');
+        });
+        // Installation notes are secondary, infrequent metadata. Do not hold
+        // navigation or catalogue refreshes behind their transfer.
+        if (current() && performance.now() - notesAt > 300_000) {
+          notesAt = performance.now();
+          void read('/api/release-notes')
+            .then((value) => {
+              if (current())
+                reportInstalledReleaseNotes(client!.scope, releaseNotesSchema.parse(value));
+            })
+            .catch(() => {});
+        }
       } catch (error) {
         if (live) setMessage(error instanceof Error ? error.message : 'Could not load projects.');
       } finally {
@@ -111,7 +106,7 @@ export function HostProjects({
         cacheScope = remoteProjectScope(identity);
         const cached = projectListCache.read(cacheScope);
         if (cached) {
-          setCatalogue({ projects: cached, repos: [] });
+          setCatalogue({ projects: cached, paths: {}, counts: {} });
           setMessage('Refreshing projects…');
         }
         client = new RemoteClient(identity);
@@ -127,7 +122,7 @@ export function HostProjects({
               if (cacheScope) projectListCache.forget(cacheScope);
             } else {
               // Retain navigation, but never present old session activity as live.
-              setCatalogue((previous) => previous && { ...previous, sessions: undefined });
+              setCatalogue((previous) => previous && { ...previous, counts: {} });
             }
             setMessage(
               client!.state === 'rejected' ? 'Pairing required or access revoked.' : 'Connecting…',
@@ -188,10 +183,8 @@ export function HostProjects({
                     >
                       <ProjectCardContent
                         project={project}
-                        repoPath={catalogue.repos.find((repo) => repo.id === project.repo_id)?.path}
-                        sessions={catalogue.sessions?.filter(
-                          (session) => session.project_id === project.id,
-                        )}
+                        repoPath={catalogue.paths[project.repo_id]}
+                        counts={catalogue.counts[project.id]}
                       />
                     </button>
                   ))}

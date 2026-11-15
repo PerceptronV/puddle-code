@@ -77,7 +77,22 @@ const SettingsDialog = lazy(() =>
 function useStatusCacheSync() {
   const qc = useQueryClient();
   useEffect(() => {
-    const offStatus = wsManager.onStatus((event) => applySessionStatus(qc, event));
+    let catalogueTimer: ReturnType<typeof setTimeout> | undefined;
+    const statuses = new Map<string, string>();
+    const refreshCatalogue = () => {
+      if (catalogueTimer) return;
+      catalogueTimer = setTimeout(() => {
+        catalogueTimer = undefined;
+        void qc.invalidateQueries({ queryKey: ['project-catalogue'] }, { cancelRefetch: false });
+      }, 250);
+    };
+    const offStatus = wsManager.onStatus((event) => {
+      applySessionStatus(qc, event);
+      if (statuses.get(event.session) === event.status) return;
+      statuses.set(event.session, event.status);
+      if (statuses.size > 2048) statuses.delete(statuses.keys().next().value!);
+      refreshCatalogue();
+    });
     const offRenamed = wsManager.onRenamed((event) => applySessionRename(qc, event));
     // An account's login verification lands AFTER its login PTY exits — the
     // daemon asks the agent's own auth check first, so the flag flips once the
@@ -98,6 +113,7 @@ function useStatusCacheSync() {
       }
     });
     const invalidateSessions = (projectIds: string[]) => {
+      refreshCatalogue();
       void qc.invalidateQueries({ queryKey: ['sessions'] });
       for (const projectId of projectIds) {
         void qc.invalidateQueries({ queryKey: ['project', projectId] });
@@ -110,6 +126,7 @@ function useStatusCacheSync() {
       invalidateSessions([event.target_project]),
     );
     return () => {
+      clearTimeout(catalogueTimer);
       offStatus();
       offRenamed();
       offAccount();

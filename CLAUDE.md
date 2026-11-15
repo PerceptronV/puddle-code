@@ -415,6 +415,14 @@ supervised one.
 
 ## Conventions
 
+- Project dashboard summaries use application 28.35 `/api/projects/catalogue`.
+  Count from streamed id/project/status columns with pending persistence overlays;
+  do not materialise sessions, parse environments or inspect worktrees for counts.
+  Remote scope comes from the lease; require connector and daemon capability before
+  requesting the aggregate. Browser project caches are bounded, identity/profile
+  scoped and always revalidated; retained project names never imply live authority
+  or session activity. Keep old-host progressive reads and UI-preview fixtures aligned.
+
 - UI iteration: apply the requested visual change to the live development preview first, then review related surfaces and suggest consistency improvements before broadening the change. Related header/sidebar action groups share `web/src/components/ui/control-tray.tsx` and its theme-token CSS, including vertical collapsed-rail layouts. Use unfilled action groups in headers/notebooks and filled trays for sidebar controls; navigator selections follow the host accent (gold when unset), and PDF overlays retain a legible backing. Island outlines, radii and tray fills come from shared tokens; overlays keep their shadows. Host accents change palette values, never component-to-surface relationships: pane frames alias sidebar surfaces, and reading areas/active tabs keep the default theme background. Preserve the original default palette; only preset/custom accents add softened island and nested-tray depth. Shared `--ui-*` geometry tokens govern row/control/tab sizes and rounded insets. `recipes.ts` owns common fields/actions/overlays, and `components/ui/island-resize-edges.tsx` owns facing-edge resize feedback. Persistent tray identities are scoped with `TrayMotionProvider`; accessible labels are not cache keys. Desktop prompt builds embed the same palette. The token checker also guards application chrome against literal colours.
 
 - **0.4.0 release requirement:** persistent runtimes and frontend-managed host

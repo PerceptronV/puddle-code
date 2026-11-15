@@ -34,6 +34,26 @@ export const projectSchema = z.object({
 });
 export type Project = z.infer<typeof projectSchema>;
 
+/** Counts only: dashboards do not need session identities, worktrees or native metadata. */
+export const projectSessionCountsSchema = z.object({
+  total: z.number().int().nonnegative(),
+  running: z.number().int().nonnegative(),
+  waiting_input: z.number().int().nonnegative(),
+  interrupted: z.number().int().nonnegative(),
+});
+export type ProjectSessionCounts = z.infer<typeof projectSessionCountsSchema>;
+export const projectCatalogueSchema = z.object({
+  projects: z.array(
+    z.object({
+      project: projectSchema,
+      repo_path: z.string(),
+      sessions: projectSessionCountsSchema,
+    }),
+  ),
+  project_order: z.record(profileId, z.array(projectId)),
+});
+export type ProjectCatalogue = z.infer<typeof projectCatalogueSchema>;
+
 export const createProjectRequestSchema = z.object({
   profile_id: profileId,
   repo_id: rowId,
