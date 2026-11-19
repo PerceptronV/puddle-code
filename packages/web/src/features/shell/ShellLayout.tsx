@@ -319,7 +319,11 @@ function TopBar() {
         label="Workspace controls"
         className={cn(
           'shell-header-actions h-full justify-self-end rounded-none!',
-          shellTitleBar && '[-webkit-app-region:no-drag]',
+          // Empty tray space is native title-bar chrome; only the controls
+          // (including the profile's inline rename field) opt out of dragging.
+          inlaidLights && 'cursor-default [-webkit-app-region:drag]',
+          shellTitleBar &&
+            '[&>button]:[-webkit-app-region:no-drag] [&>.profile-trigger]:[-webkit-app-region:no-drag]',
         )}
       >
         <Tooltip>

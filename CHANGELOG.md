@@ -17,4 +17,5 @@ Past releases: see docs/changelogs/.
 
 #### Fixed
 
+- Restore native window dragging and double-click resizing in the blank space around the top-right header controls on macOS.
 - Limit live agent notifications and sounds to profiles open in a window; coordinate desktop delivery within the event's profile (application protocol 28.36).
