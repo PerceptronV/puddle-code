@@ -18,6 +18,8 @@ declare global {
       messages(): DesktopNotificationRequest[];
       emit(index: number): Promise<void>;
       click(index: number): void;
+      selectProfile(id: string | null): void;
+      moveProject(profile: string): void;
     };
   }
 }
@@ -189,4 +191,59 @@ test('native notification clicks activate hidden tabs and open missing sessions 
   await page.evaluate(() => window.notificationFixture.click(0));
   await expect(terminal(0)).toBeVisible();
   expect(errors).toEqual([]);
+});
+
+test('ignores other profiles and follows profile selection without replaying old events', async ({
+  page,
+}) => {
+  await page.goto(`${origin}/e2e/fixtures/desktop-notifications.html`);
+  await expect(page.locator('textarea').first()).toBeAttached();
+  await page.evaluate(() => window.notificationFixture.moveProject('abcdef0123'));
+  await page.evaluate(() => window.notificationFixture.emit(2));
+  await page.evaluate(() => window.notificationFixture.emit(0));
+  expect(await page.evaluate(() => window.notificationFixture.delivered())).toEqual([
+    sessionIds[0],
+  ]);
+  await page.evaluate(() => window.notificationFixture.selectProfile('abcdef0123'));
+  await page.evaluate(() => window.notificationFixture.emit(0));
+  await page.evaluate(() => window.notificationFixture.emit(2));
+  expect(await page.evaluate(() => window.notificationFixture.delivered())).toEqual([
+    sessionIds[0],
+    sessionIds[2],
+  ]);
+  await page.evaluate(() => window.notificationFixture.selectProfile(null));
+  await page.evaluate(() => window.notificationFixture.emit(2));
+  expect(await page.evaluate(() => window.notificationFixture.delivered())).toHaveLength(2);
+});
+
+test('discards notification lookups that finish after a profile switch', async ({ page }) => {
+  let finishLookup!: () => void;
+  const lookup = new Promise<void>((resolve) => {
+    finishLookup = resolve;
+  });
+  await page.route(`${origin}/api/sessions`, (route) =>
+    route.fulfill({
+      json: [{ id: sessionIds[2], project_id: '1000000002' }],
+    }),
+  );
+  await page.route(`${origin}/api/projects/1000000002`, async (route) => {
+    await lookup;
+    await route.fulfill({
+      json: {
+        project: { id: '1000000002', profile_id: '0123456789', name: 'Delayed' },
+        sessions: [],
+      },
+    });
+  });
+  await page.goto(`${origin}/e2e/fixtures/desktop-notifications.html?uncached`);
+  await expect(page.locator('textarea').first()).toBeAttached();
+  const request = page.waitForRequest(`${origin}/api/projects/1000000002`);
+  await page.evaluate(() => window.notificationFixture.emit(2));
+  await request;
+  await page.evaluate(() => window.notificationFixture.selectProfile('abcdef0123'));
+  const response = page.waitForResponse(`${origin}/api/projects/1000000002`);
+  finishLookup();
+  await response;
+  await page.evaluate(() => window.notificationFixture.emit(0));
+  expect(await page.evaluate(() => window.notificationFixture.delivered())).toEqual([]);
 });

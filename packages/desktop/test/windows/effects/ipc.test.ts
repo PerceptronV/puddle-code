@@ -17,7 +17,15 @@ it('binds claims to the registered sender and rejects renderer-selected hosts an
     vi.fn(),
   );
   registerWindowEffectsIpc(ipc, context, effects);
+  const profile = handlers.get('puddle:window-notification-profile')!;
+  expect(() => profile({}, { profileId: 'aaaaaaaaaa', host: 'another' })).toThrow();
+  expect(() => profile({}, 'invalid-profile')).toThrow();
+  profile({}, 'aaaaaaaaaa');
   const claim = handlers.get('puddle:window-notification-claim')!;
+  expect(claim({}, { id: 'scoped', profileId: 'bbbbbbbbbb' })).toBe(false);
+  expect(claim({}, { id: 'scoped', profileId: 'aaaaaaaaaa' })).toBe(true);
+  profile({}, null);
+  expect(claim({}, { id: 'withdrawn', profileId: 'aaaaaaaaaa' })).toBe(false);
   expect(() => claim({}, { id: 'event', host: 'another' })).toThrow();
   expect(() => claim({}, { id: 'x'.repeat(3000) })).toThrow('too large');
   expect(claim({}, { id: 'event' })).toBe(true);
@@ -27,4 +35,5 @@ it('binds claims to the registered sender and rejects renderer-selected hosts an
   });
   expect(() => handlers.get('puddle:window-effects-status')!({})).toThrow('Invalid window sender');
   expect(() => claim({}, { id: 'next' })).toThrow('Invalid window sender');
+  expect(() => profile({}, 'aaaaaaaaaa')).toThrow('Invalid window sender');
 });

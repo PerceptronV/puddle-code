@@ -1,5 +1,12 @@
 # The puddle communication protocol
 
+Application **28.36** adds optional private desktop notification-profile registration
+and an optional `profileId` on notification claims. The renderer capability-detects
+`setNotificationProfile`; older shells receive the original claim shape. Main binds
+registration to the ready renderer generation and validates detached profile identity.
+Only registered live windows in the event profile participate in scoped election.
+No runtime, database or remote-framing version changes.
+
 Application **28.35** adds read-only `GET /api/projects/catalogue?profile=<id>`.
 It returns `{projects: [{project, repo_path, sessions: {total, running,
 waiting_input, interrupted}}], project_order}`. Totals exclude archived sessions;

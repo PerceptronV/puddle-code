@@ -1,5 +1,9 @@
 import type { IpcMain, IpcMainInvokeEvent } from 'electron';
-import { desktopNotificationClaimSchema, type DesktopWindowContext } from '@puddle/shared';
+import {
+  desktopNotificationClaimSchema,
+  desktopNotificationProfileSchema,
+  type DesktopWindowContext,
+} from '@puddle/shared';
 import type { WindowEffects } from './coordination.js';
 
 export function registerWindowEffectsIpc(
@@ -7,6 +11,13 @@ export function registerWindowEffectsIpc(
   context: (event: IpcMainInvokeEvent) => DesktopWindowContext,
   effects: WindowEffects,
 ) {
+  ipc.handle('puddle:window-notification-profile', (event, value: unknown) => {
+    const owner = context(event);
+    effects.setNotificationProfile(
+      owner.identity.id,
+      desktopNotificationProfileSchema.parse(value),
+    );
+  });
   ipc.handle('puddle:window-effects-status', (event) => effects.status(context(event).identity.id));
   ipc.handle('puddle:window-notification-claim', (event, value: unknown) => {
     const owner = context(event);

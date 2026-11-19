@@ -107,6 +107,10 @@ responsibility; reusable fixtures stay in `test/helpers/`. Existing recursive te
 discovery includes these directories. Numbered database migrations remain together
 in their ordered directory.
 
+Live notification delivery is profile-scoped. `windows/effects/` registers the
+selected profile per ready renderer generation and elects delivery only among
+windows in that profile; retain capability detection for older desktop shells.
+
 Private desktop window contracts live under `shared/src/desktop/windows/`, grouped
 into identities, content, persistence, transfers, drag, project navigation, commands
 and the composed bridge. Export them through the existing package entry point.

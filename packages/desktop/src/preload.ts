@@ -15,6 +15,8 @@ contextBridge.exposeInMainWorld('puddleDesktop', {
     version: 1,
     huddles: true,
     effects: {
+      setNotificationProfile: (profileId: string | null) =>
+        ipcRenderer.invoke('puddle:window-notification-profile', profileId),
       status: () => ipcRenderer.invoke('puddle:window-effects-status'),
       claimNotification: (request: unknown) =>
         ipcRenderer.invoke('puddle:window-notification-claim', request),

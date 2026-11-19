@@ -3113,7 +3113,7 @@ only removes their views and does not stop their sessions.
 - **Monaco** for file view/edit. Saving PUTs the full file; daemon writes to the worktree so running agents see the change immediately. Editor keybindings are registered in one place (`editor-keybindings.ts`): ⌘/Ctrl+S saves, **⌥Z** toggles line wrap (flipping the `editorWordWrap` client setting so every open editor follows and the choice persists); Monaco's stock multi-cursor / comment / find bindings are kept.
 - **Tab view positions** remain independent in bounded browser-window memory, keyed by transport, profile/project layout, pane, tab and rooted target. Source, untitled, read-only, working/staged/history and conflict editors save Monaco scroll, cursor and folding state before disposing models. Returning to a tab restores it; an explicit source-navigation request takes precedence once, without repeating on later remounts. Markdown and HTML retain their own semantic scroll positions before publishing to linked/locked views; receivers still follow the current driver. Mobile text views retain both scroll axes, and shared mobile previews use the same restoration. Loading/zero-sized surfaces cannot replace valid saved positions. These positions survive tab/project switches within the window, not browser reloads, and add no daemon state or protocol fields.
 - **Rendered-view find**: Monaco's **⌘F** (Apple) / **Ctrl+F** (elsewhere) entry point also opens a matching find widget in every rendered Markdown or HTML file view, including preview, linked, and locked modes. It highlights all rendered-text matches, scrolls the active match into view, wraps Enter / Shift+Enter and arrow navigation, and offers case, whole-word, and JavaScript-regex toggles; Escape closes it. Markdown uses non-mutating CSS Highlight ranges, so links and sanitised markup stay intact. Sandboxed HTML keeps `allow-same-origin` disabled: a credential-free injected bridge performs the same search inside the opaque-origin document and reports only match state to the parent. Each view caps simultaneous highlights at 1,000 and labels the count as a lower bound when capped.
-- **Media viewer** for non-text files: a `file` tab whose path is an image, video, audio clip, or PDF renders an inline preview (`<img>`/`<video>`/`<audio>` or the owned PDF.js viewer) instead of Monaco, fetched from `GET /media` through the authed API. Images/audio/video use an object URL (no token in an element `src`), revoked on close; PDF.js receives the fetched bytes directly, so the remote app needs no blob requests in `connect-src`. Unknown binaries keep the "Binary — use Download" fallback.
+- **Media viewer** for non-text files: a `file` tab whose path is an image, video, audio clip, or PDF renders an inline preview (`<img>`/`<video>`/`<audio>` or the owned PDF.js viewer) instead of Monaco, fetched from `GET /media` through the authed API. Image previews offer **Copy image** on right-click, copying full-size pixels to the clipboard as PNG (other formats copy their displayed frame); failures surface as a toast. Images/audio/video use an object URL (no token in an element `src`), revoked on close; PDF.js receives the fetched bytes directly, so the remote app needs no blob requests in `connect-src`. Unknown binaries keep the "Binary — use Download" fallback.
 - **Compilation providers** (protocol 17.1; command settings 17.3) are daemon-host capabilities, not browser assumptions: the generic daemon registry advertises provider ids, source extensions, open-input extensions, the selected local executor, and eager support. The generic service owns target identity, on-demand/eager mode, status revisions, one-in-flight/one-dirty-run coalescing, dependency observation, artefact descriptors, and project/file/mode settings lookup; a provider owns tool discovery, entry-point resolution, command templates and validation, exact argument arrays, dependencies, managed output, and optional navigation. LaTeX is the first provider (`.tex` sources and `.tex`/`.bib`/`.sty`/`.cls`/`.bst` inputs); adding another compiled type must not add TeX branches to the generic service, tab strip, settings storage, or dialog. Discovery runs on the machine hosting `puddled` — including an SSH host — and searches its effective `PATH` plus bounded conventional TeX Live, MacTeX, TinyTeX, and MiKTeX locations. LaTeX prefers `latexmk`, then Tectonic, then bounded direct `pdflatex`/`xelatex`/`lualatex` passes with bibliography helpers when present. `% !TEX root` and `% !TEX program` accept only confined relative roots and allow-listed engines. Built-in and customised commands are parsed into executable + argv and spawned without a shell, with shell escape disabled by the advertised defaults, a two-minute timeout, a 2 MiB captured-output ceiling, and process-group teardown on daemon stop.
 
   Dependency observation is shared across eager targets by exact path and parent
@@ -3426,16 +3426,22 @@ Losing ownership dismisses that window's offer; ordinary React remounts retain
 existing offers and their dismissal state. No extra GitHub poller is introduced.
 
 Attention events claim one delivery decision per host, including optional sound.
-The native focused renderer is preferred so the existing recent-terminal-input
-policy is evaluated in the relevant window; otherwise the host or a surviving
-detached window decides. Modern event ids are consumed in a bounded 2048-entry
-ledger; legacy status-only events use a two-second duplicate-delivery window.
+Live notifications and sounds are limited to the window's selected profile; events
+from other profiles are dropped before claiming delivery. Application 28.36 adds
+optional private desktop profile registration and profile-scoped claims. Registration
+is bound to the ready renderer generation and removed on profile exit. Only live
+registered windows in the event's profile participate: the focused renderer is
+preferred, otherwise that profile's host or a surviving detached window decides.
+Profile changes during asynchronous lookup cancel delivery. The renderer checks the
+registration capability before sending the optional claim field to older shells.
+Modern event ids are consumed in a bounded 2048-entry ledger; legacy status-only events use a two-second duplicate-delivery window.
 Lost claim replies never fall back to uncoordinated delivery. Native notification
 objects live with the host's window set, survive closing their original window,
 and route clicks through a surviving window. The renderer resolves the target
 project's actual profile, focuses an existing detached session pane when present,
 and otherwise uses the shared project-window router. IPC uses the existing exact
-origin/main-frame boundary. Browser/older-shell notification behaviour is unchanged.
+origin/main-frame boundary. Browser and older-shell delivery also filters by the
+selected profile; older shells retain their existing host-wide claim election.
 
 Application 26.22 makes explicit native pane closure review dirty files and
 untitled drafts through their existing tab dialogues. Review dispatch acknowledges

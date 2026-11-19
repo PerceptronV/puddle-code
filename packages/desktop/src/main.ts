@@ -134,6 +134,8 @@ const windowEffects = new WindowEffects(
           host: host.target,
           kind: identity.kind,
           focused: win.isFocused(),
+          generation: windowCommands.generation(identity.id)!,
+          profileId: identity.kind === 'host' ? undefined : identity.profileId,
         })),
     ),
   (id, status) => {

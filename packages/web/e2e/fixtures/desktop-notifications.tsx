@@ -15,6 +15,7 @@ import { Terminal } from '../../src/features/terminal/Terminal';
 import { wsManager } from '../../src/lib/transport/ws';
 import { Workspace } from '../../src/features/workspace/Workspace';
 import { makeLeaf } from '../../src/features/workspace/layout/layout-tree';
+import { projectCacheScope } from '../../src/lib/queries/project-scope';
 import { profileStore } from '../../src/features/profile/profile-store';
 import { workingSetKey } from '../../src/features/workspace/use-ui-state';
 import { TooltipProvider } from '../../src/components/ui/tooltip';
@@ -66,13 +67,13 @@ for (const project of uncached ? projects.slice(0, 1) : projects)
     project,
     sessions: sessions.filter((s) => s.project_id === project.id),
   });
-query.setQueryData(['projects', profileId], projects);
+query.setQueryData(['projects', profileId, projectCacheScope()], projects);
 query.setQueryData(['accounts', profileId], []);
 query.setQueryData(['repos'], []);
 query.setQueryData(['profiles'], []);
 query.setQueryData(['compilation-capabilities'], { providers: [] });
+profileStore.set(profileId);
 if (workspace) {
-  profileStore.set(profileId);
   sessionStorage.setItem(
     workingSetKey(profileId),
     JSON.stringify(
@@ -158,6 +159,18 @@ Object.assign(window, {
       for (const handler of events) handler(event);
       // Cached notification preferences settle before this next event-loop turn.
       await new Promise((resolve) => setTimeout(resolve, 0));
+    },
+    selectProfile(id: string | null) {
+      profileStore.set(id);
+    },
+    moveProject(profile: string) {
+      query.setQueryData(['project', otherProjectId], {
+        project: { ...projects[1], profile_id: profile },
+        sessions: [sessions[2]],
+      });
+      query.setQueryData(['profile-settings', profile], {
+        notifications: { desktop: true, sound: false, when_focused: false },
+      });
     },
     click(index: number) {
       for (const handler of clicks)

@@ -5,12 +5,15 @@ export interface EffectWindow {
   host: string;
   kind: 'host' | 'project' | 'pane';
   focused: boolean;
+  generation?: number;
+  profileId?: string;
 }
 
 /** One automatic poller per host, and one sound/delivery decision per attention event. */
 export class WindowEffects {
   private readonly claims = new Map<string, number>();
   private readonly published = new Map<string, string>();
+  private readonly profiles = new Map<string, { profileId: string; generation?: number }>();
   constructor(
     private readonly windows: () => EffectWindow[],
     private readonly send: (id: string, status: DesktopWindowEffectsStatus) => void,
@@ -36,6 +39,9 @@ export class WindowEffects {
 
   publish(): void {
     const live = this.windows();
+    for (const [id, profile] of this.profiles)
+      if (!live.some((window) => window.id === id && window.generation === profile.generation))
+        this.profiles.delete(id);
     for (const id of this.published.keys())
       if (!live.some((window) => window.id === id)) this.published.delete(id);
     for (const window of live) {
@@ -47,8 +53,21 @@ export class WindowEffects {
     }
   }
 
+  setNotificationProfile(id: string, profileId: string | null): void {
+    const window = this.windows().find((window) => window.id === id);
+    if (!window) throw new Error('Notification window is unavailable');
+    if (profileId && window.profileId && window.profileId !== profileId)
+      throw new Error('Window belongs to another profile');
+    if (profileId) this.profiles.set(id, { profileId, generation: window.generation });
+    else this.profiles.delete(id);
+  }
+
   claimNotification(id: string, request: DesktopNotificationClaim): boolean {
-    const windows = this.candidates(id);
+    const windows = this.candidates(id).filter((window) => {
+      if (!request.profileId) return true; // Older renderers retain their original contract.
+      const profile = this.profiles.get(window.id);
+      return profile?.profileId === request.profileId && profile.generation === window.generation;
+    });
     // The focused renderer knows whether a human recently interacted with this session.
     const elected = windows.find((window) => window.focused) ?? this.owner(windows);
     if (!elected || elected.id !== id) return false;

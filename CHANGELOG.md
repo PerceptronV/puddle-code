@@ -8,3 +8,13 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Frontend
+
+#### Added
+
+- Add **Copy image** to the image file preview context menu, copying full-size pixels as PNG.
+
+#### Fixed
+
+- Limit live agent notifications and sounds to profiles open in a window; coordinate desktop delivery within the event's profile (application protocol 28.36).

@@ -26,6 +26,8 @@ import { wsManager } from '../../lib/transport/ws';
 import { claimWindowNotification } from '../windows/effects/notifications';
 import { openNativeNotification } from '../windows/navigation/notification';
 import { toastError } from '../../lib/transport/errors';
+import { currentProfileId, useCurrentProfileId } from '../profile/profile-store';
+import { desktopBridge } from '../../lib/desktop';
 
 /** The profile's notification prefs (SPEC §11); delivery defaults mirror the settings tab. */
 const DEFAULT_PREFS = notificationPreferencesSchema.parse({});
@@ -142,6 +144,7 @@ export function useAgentNotifications(
   isSessionFocused: (session: Session) => boolean = () => document.hasFocus(),
 ): void {
   const qc = useQueryClient();
+  const profileId = useCurrentProfileId();
   const openRef = useRef(openSession);
   openRef.current = openSession;
   const focusedRef = useRef(isSessionFocused);
@@ -162,20 +165,21 @@ export function useAgentNotifications(
     setWaitingCount(0);
 
     let active = true;
+    const effects = desktopBridge()?.windows?.effects;
+    const registered = effects?.setNotificationProfile
+      ? effects.setNotificationProfile(profileId).then(
+          () => true,
+          () => false,
+        )
+      : Promise.resolve(true);
+    const isCurrent = () => active && profileId !== null && currentProfileId() === profileId;
     const deliver = async (
       event: Pick<AgentNotification, 'session' | 'reason' | 'content'> & {
         id?: string;
         activity?: string | null;
       },
     ) => {
-      if (
-        !(await claimWindowNotification(
-          event.id ?? `${event.session}:${event.activity ?? 'waiting'}`,
-          !event.id,
-        ))
-      )
-        return;
-      if (!active) return;
+      if (!isCurrent()) return;
       let session = findSession(qc, event.session);
       if (!session) {
         try {
@@ -184,7 +188,7 @@ export function useAgentNotifications(
           return;
         }
       }
-      if (!active || !session) return;
+      if (!isCurrent() || !session) return;
       const found = session;
       let prefs: NotificationPreferences;
       let project: ProjectDetail['project'];
@@ -194,9 +198,10 @@ export function useAgentNotifications(
           queryFn: () => api<ProjectDetail>('GET', `/api/projects/${found.project_id}`),
           staleTime: 10_000,
         });
-        if (!active) return;
+        if (!isCurrent()) return;
         project = detail.project;
         const profile = project.profile_id;
+        if (profile !== profileId) return;
         const settings = await qc.fetchQuery({
           queryKey: ['profile-settings', profile],
           queryFn: () => api<ProfileSettings>('GET', `/api/profiles/${profile}/settings`),
@@ -208,7 +213,16 @@ export function useAgentNotifications(
       } catch {
         return;
       }
-      if (!active) return;
+      if (!(await registered) || !isCurrent()) return;
+      if (
+        !(await claimWindowNotification(
+          event.id ?? `${event.session}:${event.activity ?? 'waiting'}`,
+          !event.id,
+          project.profile_id,
+        )) ||
+        !isCurrent()
+      )
+        return;
       const verdict = decideNotification({
         prefs,
         projectId: found.project_id,
@@ -274,6 +288,7 @@ export function useAgentNotifications(
       active = false;
       off();
       offNotification();
+      void effects?.setNotificationProfile?.(null).catch(() => {});
     };
-  }, [qc]);
+  }, [qc, profileId]);
 }

@@ -5,6 +5,7 @@ import { fetchPreviewAsset } from './preview-assets';
 import { downloadPath } from '../../../lib/queries/worktree-queries';
 import type { MediaKind } from './media-kind';
 import { useMediaRefresh } from './media-refresh-store';
+import { ImagePreview } from './ImagePreview';
 
 const PdfDocumentViewer = lazy(() =>
   import('./pdf/PdfViewer').then((module) => ({ default: module.PdfViewer })),
@@ -62,7 +63,7 @@ export function MediaViewer({
   if (kind === 'image') {
     return (
       <Centre>
-        <img src={url} alt={path} className="max-h-full max-w-full object-contain" />
+        <ImagePreview url={url} blob={blob} path={path} />
       </Centre>
     );
   }
