@@ -196,6 +196,21 @@ export class XtermRetainedState {
       // guarded addLineToLink still admits any newly retained marker.
       if (data.id !== undefined && service._entriesWithId.has(`${data.id};;${data.uri}`))
         return register(data);
+      // The headless screen needs the URL, not a new anonymous identity for
+      // every repaint. xterm retains each anonymous link until its marked row
+      // leaves history, even when a TUI overwrites that row thousands of times.
+      // Reuse only identical anonymous targets in the live service map; native
+      // marker disposal remains responsible for retirement, with no stale cache.
+      if (data.id === undefined) {
+        const buffer = this.core._inputHandler._activeBuffer;
+        for (const entry of service._dataByLinkId.values()) {
+          if (entry.data.id !== undefined || entry.data.uri !== data.uri) continue;
+          // Normal and alternate rows have independent marker lifetimes.
+          if (!entry.lines.some((marker) => buffer.markers.includes(marker))) continue;
+          service.addLineToLink(entry.id, buffer.ybase + buffer.y);
+          return entry.id;
+        }
+      }
       if (
         units > this.lease.owner.limits.linkUnits ||
         service._dataByLinkId.size >= this.lease.owner.limits.links ||

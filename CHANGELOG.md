@@ -8,3 +8,9 @@ Past releases: see docs/changelogs/.
 # Changelog
 
 ## [Unreleased]
+
+### Runtime
+
+#### Fixed
+
+- Reuse identical anonymous terminal hyperlinks across agent redraws so repeated links do not exhaust screen retention and leave sessions blank or unavailable after switching projects or reloading.

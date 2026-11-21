@@ -188,6 +188,14 @@ for the same queued geometry do not add parser work. Captures retain no ANSI
 cache after hand-off. Periodic persistence, fsync and shutdown flushing retain
 their existing cadence and capacity checks.
 
+Canonical headless screens reuse retained metadata for identical anonymous OSC 8
+hyperlink targets within the same buffer. Repainting a link on an existing line does not allocate a new
+entry; links on additional lines still require bounded marker admission. Explicit
+OSC 8 identities remain separate, and xterm's marker disposal retires entries when
+their last line leaves history. This prevents repeated agent redraws from exhausting
+the hyperlink-entry limit and permanently disabling attach snapshots without
+raising the existing link, marker or byte limits.
+
 Runtime owners admit canonical viewport and initial parser-action capacity before
 creating a native PTY, then await restore and requested geometry. A refusal prevents
 the new terminal from starting with a canonical-screen gap. Preparations coalesce

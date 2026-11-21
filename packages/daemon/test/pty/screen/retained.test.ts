@@ -1,6 +1,8 @@
 import { performance } from 'node:perf_hooks';
 import headless from '@xterm/headless';
+import { SerializeAddon } from '@xterm/addon-serialize';
 import { describe, expect, it, vi } from 'vitest';
+import { coreOf } from '../../../src/pty/screen/retained/internals.js';
 import {
   SCREEN_RETAINED_LIMITS,
   ScreenRetainedBudget,
@@ -70,6 +72,83 @@ describe('retained terminal state', () => {
     try {
       for (let index = 0; index < 20; index++)
         await fixture.guard.write('\x1b]8;id=stable;https://example.invalid/\x07x\x1b]8;;\x07');
+      expect(fixture.failures).toEqual([]);
+    } finally {
+      fixture.guard.dispose();
+    }
+  });
+
+  it('keeps repeated anonymous hyperlink redraws restorable without consuming new entries', async () => {
+    const fixture = screen({ links: 4 });
+    const serialiser = new SerializeAddon();
+    fixture.terminal.loadAddon(serialiser);
+    try {
+      // Codex redraws the same anonymous OSC 8 targets while the cursor stays
+      // on the same rows. xterm otherwise creates a new entry on every redraw,
+      // and those markers survive until the entire line leaves scrollback.
+      const redraw = (index: number) =>
+        `\x1b[1;1H\x1b]8;;https://example.invalid/one\x07one\x1b]8;;\x07` +
+        `\x1b[2;1H\x1b]8;;https://example.invalid/two\x07two\x1b]8;;\x07 ${index}`;
+      await fixture.guard.write(Array.from({ length: 1100 }, (_, i) => redraw(i)).join(''));
+      expect(fixture.failures).toEqual([]);
+      expect(coreOf(fixture.terminal)._oscLinkService._dataByLinkId.size).toBe(2);
+      expect(coreOf(fixture.terminal)._bufferService.buffers.normal.markers).toHaveLength(2);
+      expect(serialiser.serialize()).toContain('1099');
+      await fixture.guard.write('\x1b[3;1Hstill updating');
+      expect(text(fixture.terminal)[2]).toContain('still updating');
+    } finally {
+      fixture.guard.dispose();
+    }
+  });
+
+  it('keeps explicit hyperlink identities separate from reused anonymous targets', async () => {
+    const fixture = screen({ links: 3 });
+    try {
+      for (const id of ['', 'id=first', 'id=second', ''])
+        await fixture.guard.write(`\x1b]8;${id};https://example.invalid/\x07x\x1b]8;;\x07`);
+      const entries = [...coreOf(fixture.terminal)._oscLinkService._dataByLinkId.values()];
+      expect(entries.map((entry) => entry.data.id)).toEqual([undefined, 'first', 'second']);
+      expect(fixture.failures).toEqual([]);
+    } finally {
+      fixture.guard.dispose();
+    }
+  });
+
+  it('retires reused anonymous targets after their last line leaves history', async () => {
+    const fixture = screen({ links: 1, scrollback: 1 });
+    const link = '\x1b]8;;https://example.invalid/\x07x\x1b]8;;\x07';
+    try {
+      await fixture.guard.write(link + '\r\n' + link);
+      const service = coreOf(fixture.terminal)._oscLinkService;
+      const first = [...service._dataByLinkId.values()][0]!;
+      expect(first.lines).toHaveLength(2);
+      await fixture.guard.write('\r\n'.repeat(4));
+      expect(service._dataByLinkId.size).toBe(0);
+      await fixture.guard.write(link);
+      expect(service._dataByLinkId.size).toBe(1);
+      expect([...service._dataByLinkId.keys()][0]).not.toBe(first.id);
+      expect(fixture.failures).toEqual([]);
+    } finally {
+      fixture.guard.dispose();
+    }
+  });
+
+  it('retains independent anonymous link markers in normal and alternate buffers', async () => {
+    const fixture = screen({ links: 2 });
+    const link = '\x1b]8;;https://example.invalid/\x07x\x1b]8;;\x07';
+    try {
+      await fixture.guard.write(link);
+      const core = coreOf(fixture.terminal);
+      const service = core._oscLinkService;
+      const normalId = [...service._dataByLinkId.keys()][0]!;
+      await fixture.guard.write('\x1b[?1049h' + link + '\r' + link);
+      expect(service._dataByLinkId.size).toBe(2);
+      expect(core._bufferService.buffers.normal.markers).toHaveLength(1);
+      expect(core._bufferService.buffers.alt.markers).toHaveLength(1);
+      await fixture.guard.write('\x1b[?1049l');
+      expect([...service._dataByLinkId.keys()]).toEqual([normalId]);
+      await fixture.guard.write('\r' + link);
+      expect([...service._dataByLinkId.keys()]).toEqual([normalId]);
       expect(fixture.failures).toEqual([]);
     } finally {
       fixture.guard.dispose();
