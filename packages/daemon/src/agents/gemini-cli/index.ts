@@ -1,6 +1,7 @@
 import { prepareGeminiInteractive } from './control.js';
 import { prepareGeminiHeadless } from './headless.js';
 import { geminiRuntimeAssets } from './runtime-assets.js';
+import { geminiHistory } from './history.js';
 import { existsSync, readFileSync, readdirSync, statSync } from 'node:fs';
 import { readFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -206,7 +207,7 @@ function safeReaddir(dir: string): string[] {
   }
 }
 
-/** Async metadata-only Gemini catalogue; unchanged chat files are never read. */
+/** Metadata and bounded startup evidence; unchanged chat files reuse cached inspection. */
 async function discoverGeminiConversations(
   configDir: string,
 ): Promise<import('../adapter.js').NativeConversation[]> {
@@ -236,12 +237,17 @@ async function discoverGeminiConversations(
         continue;
       }
       for (const filename of names) {
-        if (!filename.endsWith('.json')) continue;
-        const ref = filename.slice(0, -'.json'.length);
-        if (seen.has(ref)) continue;
+        if (!/\.jsonl?$/.test(filename)) continue;
         try {
-          const stats = await stat(join(dir, filename));
+          const path = join(dir, filename);
+          const stats = await stat(path);
           if (!stats.isFile()) continue;
+          const { ref, empty } = await geminiHistory(
+            path,
+            filename.replace(/\.jsonl?$/, ''),
+            stats,
+          );
+          if (empty || seen.has(ref)) continue;
           seen.add(ref);
           result.push({
             ref,

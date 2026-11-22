@@ -133,7 +133,11 @@ it('migrates schema 42 without changing ordinary owner identities, fingerprints 
   db = openDatabase(file);
   expect(snapshot()).toEqual({
     ...before,
-    sessions: before['sessions']!.map((row) => ({ ...(row as object), huddle_id: null })),
+    sessions: before['sessions']!.map((row) => ({
+      ...(row as object),
+      huddle_id: null,
+      history_pending: 0,
+    })),
     runtime_bindings: before['runtime_bindings']!.map((row) => ({
       ...(row as object),
       role: 'session',

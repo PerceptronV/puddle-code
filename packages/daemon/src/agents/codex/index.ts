@@ -336,14 +336,18 @@ export const codex: AgentAdapter = {
       // Keep complete discovery, but do not block the daemon on one synchronous
       // stat per historical transcript or enqueue an unbounded filesystem burst.
       for (let offset = 0; offset < rows.length; offset += 32) {
-        conversations.push(
-          ...(await Promise.all(
-            rows.slice(offset, offset + 32).map(async (thread) => {
-              let updatedAt: string | null = null;
+        const batch = await Promise.all(
+          rows
+            .slice(offset, offset + 32)
+            .map(async (thread): Promise<NativeConversation | null> => {
+              let updatedAt: string;
               try {
                 updatedAt = (await stat(thread.rolloutPath)).mtime.toISOString();
-              } catch {
-                /* Missing/unreadable native file. */
+              } catch (error) {
+                // thread/start can allocate an id and index row before Codex
+                // materialises a rollout. That is not yet saved history.
+                if ((error as NodeJS.ErrnoException).code === 'ENOENT') return null;
+                throw error;
               }
               return {
                 ref: thread.id,
@@ -355,8 +359,8 @@ export const codex: AgentAdapter = {
                 updatedAt,
               };
             }),
-          )),
         );
+        for (const conversation of batch) if (conversation) conversations.push(conversation);
       }
       return conversations;
     },

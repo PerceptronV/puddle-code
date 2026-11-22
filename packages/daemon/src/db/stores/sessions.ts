@@ -33,6 +33,7 @@ interface Row {
   cwd: string | null;
   branch_owned: number;
   native_sync: Session['native_sync'] | null;
+  history_pending: number;
   joined_conversation_id: number | null;
   joined_agent_session_ref: string | null;
   joined_agent_title: string | null;
@@ -74,6 +75,7 @@ function toSession(r: Row): Session {
     conversation_id: _directConversationId,
     branch_owned,
     native_sync,
+    history_pending: _historyPending,
     joined_conversation_id,
     joined_agent_session_ref,
     joined_agent_title,
@@ -165,6 +167,39 @@ export class SessionStore {
     const row = this.db.prepare(`${SESSION_SELECT} WHERE s.id = ?`).get(id) as Row | undefined;
     if (!row) throw ApiError.notFound('session', id);
     return toSession(row);
+  }
+
+  /** Private launch bookkeeping, never a change to runtime or worktree ownership. */
+  deferHistory(id: string): void {
+    this.db.prepare('UPDATE sessions SET history_pending = 1 WHERE id = ?').run(id);
+  }
+
+  pendingHistoryIds(id?: string): ReadonlySet<string> {
+    return new Set(
+      (
+        this.db
+          .prepare(
+            `SELECT s.id FROM sessions s
+        LEFT JOIN sessions canonical ON canonical.id = s.placement_alias_of
+        LEFT JOIN agent_conversations c ON c.id = COALESCE(s.conversation_id, canonical.conversation_id)
+        WHERE s.history_pending = 1 AND COALESCE(c.history_registered, 0) = 0
+        ${id === undefined ? '' : 'AND s.id = ?'}`,
+          )
+          .all(...(id === undefined ? [] : [id])) as { id: string }[]
+      ).map((row) => row.id),
+    );
+  }
+
+  /** Native storage, rather than an allocated startup id, establishes saved history. */
+  registerConversationHistory(conversationId: number): string[] {
+    return (
+      this.db
+        .prepare(
+          `UPDATE sessions SET history_pending = 0
+        WHERE history_pending = 1 AND conversation_id = ? RETURNING project_id`,
+        )
+        .all(conversationId) as { project_id: string }[]
+    ).map((row) => row.project_id);
   }
 
   /** Session counts and last activity for an account (SPEC §6 usage). */

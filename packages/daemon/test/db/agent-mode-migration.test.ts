@@ -85,11 +85,15 @@ it('migrates saved scripted sessions to headless while preserving their state an
     ...row,
     agent_mode: row['agent_mode'] === 'scripted' ? 'headless' : 'interactive',
     huddle_id: null,
+    history_pending: 0,
   }));
   expect(rows()).toEqual(expected);
   expect(new SessionStore(db).get(migratedId).agent_mode).toBe('headless');
   expect(db.prepare('SELECT * FROM events ORDER BY id').all()).toEqual(events);
-  expect(db.prepare('SELECT * FROM agent_conversations ORDER BY id').all()).toEqual(conversations);
+  expect(db.prepare('SELECT * FROM agent_conversations ORDER BY id').all()).toEqual(
+    (conversations as Record<string, unknown>[]).map((row) => ({ ...row, history_registered: 1 })),
+  );
+  expect(new SessionStore(db).pendingHistoryIds().size).toBe(0);
   expect(db.pragma('foreign_key_check')).toEqual([]);
   expect(db.pragma('foreign_keys', { simple: true })).toBe(1);
   expect(() => db.prepare("UPDATE sessions SET agent_mode = 'scripted'").run()).toThrow(/CHECK/);

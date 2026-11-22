@@ -1,4 +1,5 @@
-import { mkdtempSync, type FSWatcher } from 'node:fs';
+import { randomUUID } from 'node:crypto';
+import { mkdtempSync, realpathSync, type FSWatcher } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { afterEach, describe, expect, it, onTestFinished, vi } from 'vitest';
@@ -100,6 +101,142 @@ function setup(
 }
 
 describe('ConversationCatalogue', () => {
+  it('keeps a blank launch live but omits its ended, unpersisted history and counts', async () => {
+    const { f } = setup();
+    f.stores.profiles.patchSettings(f.ids.profile, { concurrentTemplate: '' });
+    const session = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+      separate_branch: false,
+      separate_worktree: false,
+    });
+    await waitFor(() => f.service.get(session.id).status === 'waiting_input');
+    expect(f.service.list().map((row) => row.id)).toContain(session.id);
+    expect(f.service.projectSessionCounts().get(f.ids.project)?.total).toBe(1);
+    // A preset/startup native id alone must not promote a blank session.
+    expect(f.service.get(session.id).agent_session_ref).not.toBeNull();
+    await f.service.kill(session.id);
+    await waitFor(() => f.ptys.liveTerms(session.id).length === 0);
+    expect(f.service.list()).toEqual([]);
+    expect(f.service.projectSessionCounts().get(f.ids.project)).toBeUndefined();
+    expect(f.stores.sessions.get(session.id)).not.toHaveProperty('history_pending');
+    expect(f.stores.sessions.allWorktreePaths()).toContain(session.worktree_path);
+    // Private bookkeeping survives daemon replacement, including interrupted launches.
+    f.stores.sessions.setStatus(session.id, 'interrupted');
+    expect(f.service.list()).toEqual([]);
+    const liveTerms = vi.spyOn(f.ptys, 'liveTerms').mockReturnValue(['shell-1']);
+    expect(f.service.list().map((row) => row.id)).toContain(session.id);
+    liveTerms.mockRestore();
+  });
+
+  it('keeps a temporary placement visible while an independent owner is still live', async () => {
+    const { f } = setup();
+    f.stores.profiles.patchSettings(f.ids.profile, { concurrentTemplate: '' });
+    const session = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+      separate_branch: false,
+      separate_worktree: false,
+    });
+    await waitFor(() => f.service.get(session.id).status === 'waiting_input');
+    await f.service.kill(session.id);
+    await waitFor(() => f.ptys.liveTerms(session.id).length === 0);
+    const owner = f.stores.runtimes.prepare({
+      identity: {
+        runtime_id: randomUUID(),
+        incarnation: randomUUID(),
+        launch_id: randomUUID(),
+        profile_id: f.ids.profile,
+        project_id: f.ids.project,
+        session_id: session.id,
+        canonical_worktree_path: realpathSync(session.worktree_path),
+      },
+      build: 'test',
+      protocol: { major: 1, minor: 0 },
+      releasePath: f.repoPath,
+    });
+    expect(f.service.list().map((row) => row.id)).toContain(session.id);
+    expect(f.service.projectSessionCounts().get(f.ids.project)?.total).toBe(1);
+    f.stores.runtimes.finish(owner.runtime_id, 'exited', () => undefined);
+    expect(f.service.list()).toEqual([]);
+  });
+
+  it('registers a persisted blank launch once and keeps it if native files later disappear', async () => {
+    const { f, catalogue, setNative } = setup();
+    f.stores.profiles.patchSettings(f.ids.profile, { concurrentTemplate: '' });
+    const session = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+      separate_branch: false,
+      separate_worktree: false,
+    });
+    await waitFor(() => f.service.get(session.id).status === 'waiting_input');
+    const ref = f.service.get(session.id).agent_session_ref!;
+    setNative([
+      {
+        ref,
+        cwd: session.worktree_path,
+        title: null,
+        parentRef: null,
+        createdAt: null,
+        updatedAt: null,
+      },
+    ]);
+    catalogue.refreshProject(f.ids.project);
+    await waitFor(() => !f.stores.sessions.pendingHistoryIds().has(session.id));
+    await f.service.kill(session.id);
+    await waitFor(() => f.ptys.liveTerms(session.id).length === 0);
+    expect(f.service.list().map((row) => row.id)).toContain(session.id);
+    setNative([]);
+    const scanned = vi.spyOn(f.stores.conversations, 'completeSuccessfulScan');
+    catalogue.refreshProject(f.ids.project);
+    await waitFor(() => scanned.mock.calls.length > 0);
+    catalogue.refreshProject(f.ids.project);
+    await waitFor(() => f.service.get(session.id).conversation_missing === true);
+    expect(f.service.list().map((row) => row.id)).toContain(session.id);
+    expect(f.service.projectSessionCounts().get(f.ids.project)?.total).toBe(1);
+  });
+
+  it('recognises native persistence observed before the launch binds its ref', async () => {
+    const { f } = setup();
+    f.stores.profiles.patchSettings(f.ids.profile, { concurrentTemplate: '' });
+    const session = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+      separate_branch: false,
+      separate_worktree: false,
+    });
+    await waitFor(() => f.service.get(session.id).status === 'waiting_input');
+    const ref = f.service.get(session.id).agent_session_ref!;
+    f.stores.sessions.setAgentSessionRef(session.id, null);
+    f.stores.conversations.upsertMany(
+      f.ids.profile,
+      'fake',
+      f.ids.account,
+      [{ ref, cwd: session.worktree_path }],
+      new Date().toISOString(),
+    );
+    f.stores.sessions.setAgentSessionRef(session.id, ref);
+    await f.service.kill(session.id);
+    await waitFor(() => f.ptys.liveTerms(session.id).length === 0);
+    expect(f.service.list().map((row) => row.id)).toContain(session.id);
+  });
+
+  it('retains launches with an initial prompt even before native persistence', async () => {
+    const { f } = setup();
+    const session = await f.service.create({
+      project_id: f.ids.project,
+      account_id: f.ids.account,
+      separate_branch: false,
+      separate_worktree: false,
+      prompt: 'Do the task',
+    });
+    await waitFor(() => f.service.get(session.id).status === 'waiting_input');
+    await f.service.kill(session.id);
+    await waitFor(() => f.ptys.liveTerms(session.id).length === 0);
+    expect(f.service.list().map((row) => row.id)).toContain(session.id);
+  });
+
   it('observes accepted scan triggers and phases without conversation data', async () => {
     const measurements: Readonly<CatalogueScanMeasurement>[] = [];
     const { f, catalogue, triggerWatch, setNative, setFail } = setup({

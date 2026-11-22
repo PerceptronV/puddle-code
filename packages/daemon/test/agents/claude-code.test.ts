@@ -19,6 +19,26 @@ function account(configDir: string): Account {
 }
 
 describe('claude-code adapter', () => {
+  it('omits startup-only transcripts and discovers them after a user message', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'puddle-cc-empty-'));
+    const project = join(dir, 'projects', 'project');
+    mkdirSync(project, { recursive: true });
+    const file = join(project, 'blank.jsonl');
+    const startup = JSON.stringify({ type: 'system', cwd: '/worktree', subtype: 'bridge_status' });
+    writeFileSync(file, startup + '\n');
+    expect(await claudeCode.conversationDiscovery!.discover(account(dir))).toEqual([]);
+    writeFileSync(
+      file,
+      startup +
+        '\n' +
+        JSON.stringify({ type: 'user', cwd: '/worktree', message: { content: 'Hi' } }) +
+        '\n',
+    );
+    expect(await claudeCode.conversationDiscovery!.discover(account(dir))).toEqual([
+      expect.objectContaining({ ref: 'blank', cwd: '/worktree' }),
+    ]);
+  });
+
   it('previews only the latest assistant text, excluding tool results and older turns', async () => {
     const dir = mkdtempSync(join(tmpdir(), 'puddle-cc-preview-'));
     const project = join(dir, 'projects', 'test-project');

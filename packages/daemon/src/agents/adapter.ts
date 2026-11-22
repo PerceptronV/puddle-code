@@ -78,7 +78,7 @@ export interface NativeConversation {
 export interface ConversationDiscoveryHooks {
   /** Store roots whose metadata changes should schedule a debounced scan. */
   watchRoots(account: Account): string[];
-  /** Full top-level catalogue; never reads transcript bodies. */
+  /** Full top-level saved catalogue; bounded metadata/startup windows only, never full transcripts. */
   discover(account: Account): Promise<NativeConversation[]>;
 }
 

@@ -1276,6 +1276,7 @@ CREATE TABLE agent_conversations (
   last_seen_at TEXT NOT NULL,
   missing_scan_count INTEGER NOT NULL DEFAULT 0,
   missing INTEGER NOT NULL DEFAULT 0,
+  history_registered INTEGER NOT NULL DEFAULT 0, -- native storage observed; startup identity alone is insufficient
   UNIQUE(profile_id, agent_type, agent_session_ref)
 );
 
@@ -1297,6 +1298,7 @@ CREATE TABLE sessions (
   title TEXT,                           -- puddle user override; native title lives above
   status TEXT NOT NULL,
   native_sync TEXT,                     -- pending | full | fallback; NULL for terminals
+  history_pending INTEGER NOT NULL DEFAULT 0, -- private temporary blank-launch bookkeeping
   skip_permissions INTEGER NOT NULL DEFAULT 0,
   session_env TEXT NOT NULL DEFAULT '{}',
   cwd TEXT,                             -- terminal-only, worktree-relative last prompt dir
@@ -2402,6 +2404,20 @@ operations. Programmes have host OS authority, not a sandbox. See
 Desktop menus, tab shortcuts, pane overlays and mobile actions share session lifecycle eligibility. Only exited/interrupted sessions with present worktrees and native conversations can resume. Mobile retains a disabled Resume action with the missing-resource reason; live sessions retain Stop regardless of missing-resource flags. Connection and pending-request restrictions remain local to each surface.
 
 ### Native conversation lifecycle
+
+New agent launches with no initial prompt remain temporary until the native catalogue
+observes saved conversation storage. Live temporary terminals remain selectable across
+project switches and reloads. Once ended, an unregistered launch is omitted from session
+lists and project counts; its internal placement, worktree ownership and runtime/replay
+records remain available for recovery. Initial task/onboarding prompts retain launch
+history for diagnostics. Migration 052 preserves all existing history. Native startup
+IDs alone do not register history, and registration is permanent once observed, including
+when native files subsequently disappear. Catalogue evidence arriving before reference
+binding is retained too. Codex requires its rollout to exist; Claude excludes recognised
+startup-only bookkeeping while retaining native background jobs; Gemini excludes empty
+JSON/JSONL startup records using bounded, cached inspection and keeps the native session
+ID. Unknown or oversized records are retained conservatively. OpenCode's persisted
+session metadata is sufficient even before a first message.
 
 Placement orchestration stays in `sessions/service.ts`; `sessions/legacy/owner.ts`
 owns daemon-hosted PTYs, nonce/conversation indexes, status detection, native

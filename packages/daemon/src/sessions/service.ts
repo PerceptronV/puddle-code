@@ -256,6 +256,14 @@ export class SessionService extends EventEmitter {
         ),
       emit: (event, ...args) => this.emit(event, ...args),
     });
+    this.on('status', (event: StatusEvent) => {
+      if (LIVE_STATUSES.includes(event.status)) return;
+      if (this.deps.sessions.pendingHistoryIds(event.session).has(event.session)) {
+        this.emit('sessions-changed', {
+          projectIds: [this.deps.sessions.get(event.session).project_id],
+        });
+      }
+    });
     this.on('session-switched', (event: SessionSwitchEvent) => {
       if (
         event.outcome !== 'rebound' ||
@@ -371,18 +379,34 @@ export class SessionService extends EventEmitter {
   list(
     filter: { project_id?: string; profile_id?: string; status?: SessionStatus } = {},
   ): Session[] {
+    const pending = this.deps.sessions.pendingHistoryIds();
     return this.deps.sessions
       .list({ ...filter, status: undefined })
+      .filter(
+        (s) =>
+          !pending.has(s.id) ||
+          this.keepTemporarySession(s.id, this.persistence.state(s.id)?.status ?? s.status),
+      )
       .map((s) => this.withComputed(s))
       .filter((s) => filter.status === undefined || s.status === filter.status);
+  }
+
+  private keepTemporarySession(id: string, status: SessionStatus): boolean {
+    return (
+      LIVE_STATUSES.includes(status) ||
+      this.deps.runtimes?.ownerOf(id) != null ||
+      this.deps.ptys.liveTerms(id).length > 0
+    );
   }
 
   /** Match list()'s pending observations without filesystem probes or full session allocations. */
   projectSessionCounts(profileId?: string): Map<string, ProjectSessionCounts> {
     const counts = new Map<string, ProjectSessionCounts>();
+    const pending = this.deps.sessions.pendingHistoryIds();
     for (const row of this.deps.sessions.statusRows(profileId)) {
       const status = this.persistence.state(row.id)?.status ?? row.status;
       if (status === 'archived') continue;
+      if (pending.has(row.id) && !this.keepTemporarySession(row.id, status)) continue;
       let entry = counts.get(row.project_id);
       if (!entry)
         counts.set(
@@ -535,6 +559,10 @@ export class SessionService extends EventEmitter {
       prompt: preamble === '' ? undefined : preamble,
       skipPermissions: skip,
     };
+    // Keep the durable placement for ownership/recovery, but do not offer an
+    // unused launch in saved history. Explicit/onboarding prompts are real work.
+    if (launchOpts.prompt === undefined && adapter.conversationDiscovery)
+      this.deps.sessions.deferHistory(sessionId);
     const spawn = () =>
       this.spawnAgent(
         sessionId,

@@ -537,6 +537,43 @@ async function readClaudeMetadata(
     const handle = await open(path, 'r');
     try {
       const head = await transcriptHead(handle);
+      // Startup hooks can leave a small JSONL containing only bookkeeping.
+      // Only classify a complete, understood file as empty; large/truncated
+      // transcripts and native background jobs retain their existing behaviour.
+      if (Buffer.byteLength(head) === stats.size) {
+        let empty = true;
+        for (const line of head.split('\n').filter((line) => line.trim())) {
+          try {
+            const record: unknown = JSON.parse(line);
+            if (
+              !record ||
+              typeof record !== 'object' ||
+              !('type' in record) ||
+              !(
+                [
+                  'progress',
+                  'file-history-snapshot',
+                  'queue-operation',
+                  'last-prompt',
+                  'custom-title',
+                  'agent-name',
+                  'ai-title',
+                ].includes(String(record.type)) ||
+                (record.type === 'system' &&
+                  'subtype' in record &&
+                  ['bridge_status', 'init'].includes(String(record.subtype)))
+              )
+            ) {
+              empty = false;
+              break;
+            }
+          } catch {
+            empty = false;
+            break;
+          }
+        }
+        if (empty) return null;
+      }
       let cwd: string | null = null;
       for (const line of head.split('\n').slice(0, 20)) {
         try {

@@ -359,6 +359,8 @@ export class ConversationCatalogue extends EventEmitter {
     for (const [index, metadata] of native.entries()) {
       seenRefs.add(metadata.ref);
       const { before, conversation } = observations[index]!;
+      for (const projectId of this.deps.sessions.registerConversationHistory(conversation.id))
+        changedProjects.add(projectId);
       if (
         before &&
         (before.native_title !== conversation.native_title ||

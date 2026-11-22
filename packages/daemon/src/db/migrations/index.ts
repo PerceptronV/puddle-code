@@ -1,3 +1,4 @@
+import { migration052 } from './052-session-history.js';
 import { migration051 } from './051-huddle-recoveries.js';
 import { migration050 } from './050-huddle-session-operations.js';
 import { migration001 } from './001-initial.js';
@@ -109,6 +110,7 @@ export const MIGRATIONS: Migration[] = [
   migration049,
   migration050,
   migration051,
+  migration052,
 ];
 
 /** Highest application database migration understood by this daemon build. */

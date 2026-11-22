@@ -18,6 +18,7 @@ export interface AgentConversation {
 
 interface Row extends Omit<AgentConversation, 'missing'> {
   missing: number;
+  history_registered: number;
 }
 
 export interface NativeConversationMetadata {
@@ -30,7 +31,8 @@ export interface NativeConversationMetadata {
 }
 
 function toConversation(row: Row): AgentConversation {
-  return { ...row, missing: row.missing === 1 };
+  const { history_registered: _historyRegistered, ...metadata } = row;
+  return { ...metadata, missing: row.missing === 1 };
 }
 
 /** Durable native-conversation catalogue, keyed within the owning profile. */
@@ -46,10 +48,17 @@ export class ConversationStore {
     seenAt: string,
   ): Array<{ before: AgentConversation | undefined; conversation: AgentConversation }> {
     return this.db.transaction(() =>
-      metadata.map((row) => ({
-        before: this.getByRef(profileId, agentType, row.ref),
-        conversation: this.upsert(profileId, agentType, accountId, row, seenAt),
-      })),
+      metadata.map((row) => {
+        const before = this.getByRef(profileId, agentType, row.ref);
+        const conversation = this.upsert(profileId, agentType, accountId, row, seenAt);
+        this.db
+          .prepare(
+            `UPDATE agent_conversations SET history_registered = 1
+          WHERE id = ? AND history_registered = 0`,
+          )
+          .run(conversation.id);
+        return { before, conversation };
+      }),
     )();
   }
 

@@ -9,6 +9,12 @@ Past releases: see docs/changelogs/.
 
 ## [Unreleased]
 
+### Daemon
+
+#### Fixed
+
+- Keep new blank agent sessions temporary until native storage records a conversation, omit ended unsaved launches from history, and honour Codex, Claude Code, Gemini and OpenCode persistence differences.
+
 ### Runtime
 
 #### Fixed

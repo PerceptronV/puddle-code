@@ -300,6 +300,29 @@ describe('codex adapter — rollout discovery', () => {
     );
   });
 
+  it('does not catalogue an allocated thread until its rollout exists', async () => {
+    const cfg = mkdtempSync(join(tmpdir(), 'codex-empty-'));
+    const path = join(cfg, 'deferred.jsonl');
+    const db = new Database(join(cfg, 'state_5.sqlite'));
+    db.exec(`create table threads (
+      id text primary key, cwd text, created_at integer, created_at_ms integer,
+      rollout_path text, title text, thread_source text, source text
+    )`);
+    db.prepare(`insert into threads values (?, '/wt', 1, 1000, ?, '', 'user', 'cli')`).run(
+      UUID_A,
+      path,
+    );
+    db.close();
+    expect(await codex.conversationDiscovery!.discover(account(cfg))).toEqual([]);
+    writeFileSync(
+      path,
+      JSON.stringify({ type: 'session_meta', payload: { id: UUID_A, cwd: '/wt' } }),
+    );
+    expect(await codex.conversationDiscovery!.discover(account(cfg))).toEqual([
+      expect.objectContaining({ ref: UUID_A }),
+    ]);
+  });
+
   it('catalogues a top-level rollout omitted from an available state index', async () => {
     const cfg = mkdtempSync(join(tmpdir(), 'codex-cfg-'));
     writeRollout(cfg, UUID_A, '/daemon/home', [], '01');
