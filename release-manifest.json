@@ -1,9 +1,9 @@
 {
   "format": 2,
-  "version": "0.5.8",
+  "version": "0.5.9",
   "components": {
-    "frontend": "0.5.8",
-    "daemon": "0.5.8",
-    "runtime": "0.5.8"
+    "frontend": "0.5.9",
+    "daemon": "0.5.9",
+    "runtime": "0.5.9"
   }
 }
