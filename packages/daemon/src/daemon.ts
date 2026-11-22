@@ -850,9 +850,8 @@ export async function startDaemon(opts: DaemonOptions = {}): Promise<RunningDaem
         }),
       inspection: updateInspection,
       pauseDaemon,
-      observeAdoption: (operation, nonce) => {
-        updateAdoption.observe(operation, nonce);
-      },
+      observeAdoption: (operation, nonce) => updateAdoption.review(operation, nonce),
+      inspectAdoption: (operation) => updateAdoption.review(operation),
       continueRecovery: async (operation, authorised) => {
         await startUpdateRecoveryWorker(paths.home, operation, {
           authorised,

@@ -146,7 +146,8 @@ try {
     });
   });
   if (remote) status.catalogue.releases.repository = null;
-  await context.route(remote ? '**/api/host/updates' : '**/frontend/updates', async (route) => {
+  const updatesRoute = remote ? /\/api\/host\/updates(?:\?.*)?$/ : /\/frontend\/updates(?:\?.*)?$/;
+  await context.route(updatesRoute, async (route) => {
     const request = route.request();
     if (request.method() === 'GET') return route.fulfill({ json: status });
     const input = request.postDataJSON();
@@ -250,6 +251,29 @@ try {
   ).toHaveCount(0);
   assert.equal(writes.filter((input) => input.action === 'apply').length, 1);
   assert.equal(writes.at(-1).interruption_approval, 'b'.repeat(64));
+  status.result.operation.phase = 'recovery_required';
+  status.result.review = {
+    fingerprint: null,
+    can_apply: false,
+    blockers: [{ code: 'runtime_persistence_pending' }, { code: 'runtime_persistence_pending' }],
+    more_blockers: 0,
+    affected: { terminals: 0, notebooks: 0, compilation: 0, programmes: 0 },
+  };
+  const beforeRecoveryRead = writes.length;
+  await page.getByRole('button', { name: 'Refresh status', exact: true }).click();
+  await expect(
+    page.getByText(/2 affected runtimes\. A runtime cannot confirm saved state/),
+  ).toBeVisible();
+  await expect(page.getByText(/Verify completion checks the installed services/)).toBeVisible();
+  await expect(page.getByRole('button', { name: 'Apply update', exact: true })).toHaveCount(0);
+  assert.equal(writes.length, beforeRecoveryRead);
+  if (process.env.PUDDLE_HOST_UPDATE_RECOVERY_SCREENSHOT)
+    await page.screenshot({
+      path: process.env.PUDDLE_HOST_UPDATE_RECOVERY_SCREENSHOT,
+      fullPage: true,
+    });
+  delete status.result.review;
+  status.result.operation.phase = 'applying';
   if (remote) {
     status.result.operation.phase = 'recovery_required';
     await page.getByRole('button', { name: 'Refresh status', exact: true }).click();

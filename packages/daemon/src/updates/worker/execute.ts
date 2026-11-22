@@ -17,6 +17,7 @@ import { awaitHostUpdateCompletion } from '../verification/completion.js';
 import { recordUpdateWorkerLifetime } from './lifetime.js';
 import { HostUpdateActions } from './actions.js';
 import { requireCheckpointCompatibility } from '../checkpoints/compatibility.js';
+import { updateFailureMessage } from '../verification/diagnostics.js';
 
 /** One consumed worker transaction; uncertainty always retains its operation for inspection. */
 export async function executeHostUpdate(
@@ -80,7 +81,7 @@ export async function executeHostUpdate(
     worker.complete(verification);
   } catch (error) {
     try {
-      worker.failed('Host activation or verification requires inspection');
+      worker.failed(updateFailureMessage(error));
     } catch {
       /* Keep the earlier durable phase if storage is unavailable. */
     }

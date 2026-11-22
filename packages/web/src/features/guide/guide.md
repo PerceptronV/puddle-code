@@ -178,6 +178,19 @@ automatically reapplied. **Verify completion** and **Continue recovery** are
 explicit online actions. If the daemon or connector stays offline, use local/SSH
 recovery; the remote browser cannot perform offline continuation.
 
+**Verify completion** checks that the installed services and existing runtimes have
+been taken over successfully; it does not reinstall or restart them. **Continue
+recovery** checks which unfinished installation steps can safely proceed. Neither
+action repairs or restarts a damaged session.
+
+If the panel reports a runtime that cannot confirm saved state, inspect its session
+and host logs first. `puddle updates <host>` lists affected runtime ids on supporting
+hosts. A runtime can remain running while its terminal screen or other retained state
+has failed to save. If it needs to be stopped, review the active agents and shell jobs
+before using the session's Stop action. After confirmed exit, verify update completion,
+install the desired runtime software, then resume the saved conversation. Stopping
+loses in-memory process state; recovery never does this automatically.
+
 ## What are the CLI, daemon and desktop app?
 
 - **CLI (`puddle`):** the frontend. It installs and manages Puddle components, opens the browser UI, and launches connections to local or SSH hosts.

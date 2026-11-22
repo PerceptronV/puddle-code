@@ -102,3 +102,41 @@ it('uses frontend terminology for incompatibility reported by an older host', ()
   expect(html).toContain('Check failed: frontend incompatible');
   expect(html).not.toContain('cockpit');
 });
+
+it('shows live recovery blockers from status without reusing an old approval or exposing targets', () => {
+  const status = statusFixture();
+  const oldApproval = reviewFixture();
+  const current = reviewFixture();
+  current.operation!.phase = 'recovery_required';
+  current.operation!.dispatched = true;
+  current.review!.fingerprint = null;
+  current.review!.can_apply = false;
+  current.review!.blockers = [
+    { code: 'runtime_persistence_pending', target: '/private/first' },
+    { code: 'runtime_persistence_pending', target: '/private/second' },
+  ];
+  status.result = current;
+  const render = () =>
+    renderToStaticMarkup(
+      createElement(OperationReview, {
+        status,
+        reply: oldApproval,
+        disabled: false,
+        offlineDisabled: false,
+        act: () => {},
+      }),
+    );
+  const html = render();
+  expect(html).toContain('2 affected runtimes');
+  expect(html).toContain('cannot confirm saved state');
+  expect(html).toContain('requires your approval');
+  expect(html).toContain('without reinstalling');
+  expect(html).not.toContain('/private');
+  expect(html).not.toContain('Apply update');
+  expect(html).not.toContain('Daemon-owned work affected');
+  status.observation = 'recorded';
+  expect(render()).not.toContain('2 affected runtimes');
+  status.observation = 'live';
+  delete current.review;
+  expect(render()).not.toContain('2 affected runtimes');
+});

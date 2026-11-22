@@ -1,5 +1,6 @@
 import {
   hostUpdateTerminal,
+  hostUpdateBlockerMessage,
   type FrontendHostUpdateReply,
   type FrontendHostUpdateRequest,
   type FrontendHostUpdateStatus,
@@ -25,12 +26,21 @@ export function OperationReview({
   const reference = { id: operation.id, revision: operation.revision };
   const apply = reviewedApply(status, reply);
   const offline = offlineRecoveryRequest(status);
-  const review =
-    reply?.ok &&
-    reply.operation?.id === operation.id &&
-    reply.operation.revision === operation.revision
+  const recoveryReview =
+    status.observation !== 'recorded' && operation.dispatched && status.result?.ok
+      ? status.result.review
+      : undefined;
+  const review = operation.dispatched
+    ? recoveryReview
+    : reply?.ok &&
+        reply.operation?.id === operation.id &&
+        reply.operation.revision === operation.revision
       ? reply.review
       : undefined;
+  const blockerCounts = new Map<string, number>();
+  for (const { code } of review?.blockers ?? [])
+    if (code !== 'interruption_approval_required')
+      blockerCounts.set(code, (blockerCounts.get(code) ?? 0) + 1);
   const terminal = hostUpdateTerminal(operation.phase);
   return (
     <div className="mt-5 space-y-3 text-sm">
@@ -63,26 +73,26 @@ export function OperationReview({
       )}
       {review && (
         <>
-          <p className="text-xs text-fg-secondary">
-            Daemon-owned work affected: {review.affected.terminals} terminals,{' '}
-            {review.affected.notebooks} notebook kernels, {review.affected.compilation} compilation
-            jobs/watchers, {review.affected.programmes} programmes.
-          </p>
+          {!operation.dispatched && (
+            <p className="text-xs text-fg-secondary">
+              Daemon-owned work affected: {review.affected.terminals} terminals,{' '}
+              {review.affected.notebooks} notebook kernels, {review.affected.compilation}{' '}
+              compilation jobs/watchers, {review.affected.programmes} programmes.
+            </p>
+          )}
           {review.interruption_fingerprint && (
             <p className="text-xs text-warning">
               Applying interrupts the listed work. Shell jobs and in-memory kernel state will be
               lost; interrupted programmes are not replayed.
             </p>
           )}
-          {review.blockers
-            .filter(({ code }) => code !== 'interruption_approval_required')
-            .map(({ code }, index) => (
-              <p key={`${code}-${index}`} className="text-xs text-warning">
-                {code === 'runtime_lifetime_unverified'
-                  ? 'A runtime has a limited or unverified host lifetime. Daemon replacement is blocked while it runs. Updating also requires a supported host service manager.'
-                  : `Check failed: ${(code === 'cockpit_incompatible' ? 'frontend_incompatible' : code).replaceAll('_', ' ')}`}
-              </p>
-            ))}
+          {[...blockerCounts].map(([code, count]) => (
+            <p key={code} className="text-xs text-warning">
+              {count > 1 &&
+                `${count} ${code.startsWith('runtime_') ? 'affected runtimes' : 'checks failed'}. `}
+              {hostUpdateBlockerMessage(code)}
+            </p>
+          ))}
           {review.more_blockers > 0 && (
             <p className="text-xs text-warning">{review.more_blockers} additional checks failed.</p>
           )}
@@ -152,8 +162,11 @@ export function OperationReview({
       )}
       {operation.dispatched && !terminal && (
         <p className="text-xs text-fg-muted">
-          The host accepted this operation. Status will refresh as it reconnects. Recovery actions
-          are explicit; applying is never repeated automatically.
+          {status.capabilities.verify_completion &&
+            'Verify completion checks the installed services and runtime takeover without reinstalling or restarting them. '}
+          {status.capabilities.continue_recovery &&
+            'Continue recovery checks which unfinished installation steps can safely proceed. '}
+          Recovery does not repair or restart an affected session.
         </p>
       )}
     </div>

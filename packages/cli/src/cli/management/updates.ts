@@ -1,9 +1,17 @@
 import type { Command } from '../args.js';
 import { acquireAuthority } from '../../lib/auth/connection-authority.js';
 import { continueHostUpdate, inspectHostUpdate } from '../../lib/auth/control-channel.js';
-import type { HostUpdateReply } from '@puddle/shared';
+import { hostUpdateBlockerMessage, type HostUpdateReply } from '@puddle/shared';
 import { openHostTransport } from '../../lib/transport/open.js';
 import { CliError, type Logger } from '../../lib/types.js';
+
+function reportBlockers(result: HostUpdateReply, logger: Logger): void {
+  if (!result.ok || !result.review) return;
+  for (const blocker of result.review.blockers)
+    logger.info(`  ${blocker.target}: ${hostUpdateBlockerMessage(blocker.code)}`);
+  if (result.review.more_blockers)
+    logger.info(`  ${result.review.more_blockers} additional checks failed`);
+}
 
 /** Observe durable state, cancel preparation, verify completion or explicitly continue once. */
 export async function runUpdates(
@@ -77,7 +85,20 @@ export async function runUpdates(
                     reason: 'cancelled',
                   },
             );
-        if (!result.ok || !result.operation)
+        if (!result.ok || !result.operation) {
+          // A failed recovery reply permits observation only, never redispatch.
+          if (authority && (command.recover || command.continue)) {
+            try {
+              const status = await authority.hostUpdate({
+                action: 'status',
+                id: command.operation,
+                ...(recoverySupported ? { include_recovery: true } : {}),
+              });
+              reportBlockers(status, logger);
+            } catch {
+              // Preserve the original uncertain outcome when observation also fails.
+            }
+          }
           throw new CliError(
             'upgrade_failed',
             command.continue
@@ -86,12 +107,14 @@ export async function runUpdates(
                 ? 'Update completion was not verified; inspect its current state before another recovery action'
                 : 'Update was not cancelled; inspect its current state before another action',
           );
+        }
       }
       const operation = result.operation;
       logger.info(`host update ${operation.id} on ${transport.label}: ${operation.phase}`);
       for (const target of operation.targets)
         logger.info(`  ${target.component} v${target.version}`);
       if (operation.message) logger.info(operation.message);
+      reportBlockers(result, logger);
       if (result.recovery) {
         logger.info(
           `recorded recovery ${result.recovery.id}: ${result.recovery.consumed ? 'worker consumed the attempt' : 'accepted for dispatch'}`,

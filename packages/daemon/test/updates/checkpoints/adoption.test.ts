@@ -1,7 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
-import { symlinkSync, writeFileSync } from 'node:fs';
+import { existsSync, symlinkSync, unlinkSync, writeFileSync } from 'node:fs';
 import { basename, join } from 'node:path';
 import { expect, it, vi } from 'vitest';
 import {
@@ -47,6 +47,8 @@ import { checkpointWorker } from '../../helpers/update-checkpoint.js';
 import { systemdObservation } from '../../helpers/host-supervision.js';
 import { runtimeDirectory } from '../../../src/runtime/ownership/storage.js';
 import { HostUpdateRecoveryAttempts } from '../../../src/updates/recovery/worker/records.js';
+import { HostUpdateVerificationBlocked } from '../../../src/updates/verification/diagnostics.js';
+import { inspectAdoptionOwners } from '../../../src/updates/checkpoints/adoption-owners.js';
 
 async function fixture() {
   const f = runtimeDatabase();
@@ -136,6 +138,57 @@ async function fixture() {
     },
   };
 }
+
+it('diagnoses unsaved owners without creating proof, changing the operation or hiding extra blockers', async () => {
+  const f = await fixture();
+  try {
+    const proofFile = join(f.home, 'updates', 'adoptions', `${f.operation.id}.json`);
+    unlinkSync(proofFile);
+    const original = new HostUpdateOperations(f.home).read();
+    const client = f.connections.get(f.binding.runtime_id)!;
+    const state = client.state!;
+    client.state = { ...state, persistence_pending: true };
+    const review = f.writer.review(f.operation);
+    expect(review).toMatchObject({
+      fingerprint: null,
+      can_apply: false,
+      blockers: [{ code: 'runtime_persistence_pending', target: f.binding.runtime_id }],
+    });
+    expect(existsSync(proofFile)).toBe(false);
+    expect(f.writer.observe(f.operation, randomUUID())).toBe(false);
+    expect(new HostUpdateOperations(f.home).read()).toEqual(original);
+
+    const row = f.runtimes.get(f.binding.runtime_id)!;
+    const rows = new Map(
+      Array.from({ length: 40 }, () => {
+        const runtime_id = randomUUID();
+        return [runtime_id, { ...row, runtime_id }] as const;
+      }),
+    );
+    try {
+      inspectAdoptionOwners(
+        {
+          ...f.deps,
+          runtimes: { get: (id) => rows.get(id) ?? null },
+          connections: { get: () => client },
+        },
+        [...rows.values()].map(runtimeCheckpointOwner),
+      );
+      throw new Error('Expected blocked adoption');
+    } catch (error) {
+      expect(error).toBeInstanceOf(HostUpdateVerificationBlocked);
+      const bounded = (error as HostUpdateVerificationBlocked).review();
+      expect(bounded.blockers).toHaveLength(32);
+      expect(bounded.more_blockers).toBe(8);
+    }
+    client.state = state;
+    expect(f.writer.review(f.operation)).toBeUndefined();
+    expect(existsSync(proofFile)).toBe(false); // A healthy diagnostic still is not proof.
+    expect(f.writer.observe(f.operation, randomUUID())).toBe(true);
+  } finally {
+    await f.close();
+  }
+});
 
 it('requires exact generation, increasing controller identity and settled authenticated owners', async () => {
   const f = await fixture();
@@ -318,9 +371,7 @@ it.each(['verifying', 'recovery_required', 'continuation', 'restart-owners'] as 
     if (!address || typeof address === 'string') throw new Error('Fixture did not bind');
     const port = address.port;
     f.deps.port = () => port;
-    const observe = vi.fn((operation, nonce) => {
-      f.writer.observe(operation, nonce);
-    });
+    const observe = vi.fn((operation, nonce) => f.writer.review(operation, nonce));
     const coordinator = new HostUpdateCoordinator({
       home: f.home,
       operations: new HostUpdateOperations(f.home),
@@ -334,6 +385,7 @@ it.each(['verifying', 'recovery_required', 'continuation', 'restart-owners'] as 
         throw new Error('No dispatch in this fixture');
       },
       observeAdoption: observe,
+      inspectAdoption: (operation) => f.writer.review(operation),
     });
     writeRuntime(f.paths, { pid: process.pid, port });
     const closeControl = await startHostControl(
@@ -440,6 +492,34 @@ it.each(['verifying', 'recovery_required', 'continuation', 'restart-owners'] as 
         }
         observe.mockClear();
       }
+      const client = f.connections.get(f.binding.runtime_id)!;
+      const state = client.state!;
+      client.state = { ...state, persistence_pending: true };
+      const original = new HostUpdateOperations(f.home).read();
+      const status = await coordinator.execute(
+        { action: 'status', id: f.operation.id, include_recovery: true },
+        () => true,
+      );
+      expect(status).toMatchObject({
+        ok: true,
+        review: {
+          can_apply: false,
+          fingerprint: null,
+          blockers: [{ code: 'runtime_persistence_pending', target: f.binding.runtime_id }],
+        },
+      });
+      expect(
+        await coordinator.execute({ action: 'status', id: f.operation.id }, () => true),
+      ).not.toHaveProperty('review');
+      expect(
+        await coordinator.execute({ action: 'status', include_recovery: true }, () => false),
+      ).toEqual({ ok: false, code: 'rejected', operation: null });
+      await expect(verifyHostUpdateAdoption(f.home, f.operation)).rejects.toThrow(
+        HostUpdateVerificationBlocked,
+      );
+      expect(new HostUpdateOperations(f.home).read()).toEqual(original);
+      client.state = state;
+      observe.mockClear();
       const proof = await verifyHostUpdateAdoption(f.home, f.operation);
       if (additionalOwner) {
         expect(proof.checkpoint).not.toBe(digest(`${JSON.stringify(stored)}\n`));

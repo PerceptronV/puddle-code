@@ -11,6 +11,7 @@ import {
   type HostReleaseCapabilities,
   type HostUpdateDaemonHandoff,
   type HostUpdateCatalogue,
+  type HostUpdateReview,
 } from '@puddle/shared';
 import { acquireHostClaim, HostClaimBusy } from '../security/claims.js';
 import { HostUpdateConflict, HostUpdateOperations } from './operations/store.js';
@@ -39,7 +40,8 @@ export class HostUpdateCoordinator {
       catalogue?(): HostUpdateCatalogue;
       /** Supplied when all daemon-update admission and recovery participants are composed. */
       pauseDaemon?(): Promise<{ release(): void; outgoing: HostUpdateDaemonHandoff['outgoing'] }>;
-      observeAdoption?(operation: HostUpdateOperation, nonce: string): void;
+      observeAdoption?(operation: HostUpdateOperation, nonce: string): HostUpdateReview | void;
+      inspectAdoption?(operation: HostUpdateOperation): HostUpdateReview | undefined;
       continueRecovery?(operation: HostUpdateOperation, authorised: () => boolean): Promise<void>;
       dispatch(
         operation: HostUpdateOperation,
@@ -68,12 +70,21 @@ export class HostUpdateCoordinator {
       this.releaseFinishedMaintenance();
       if (command.action === 'status') {
         const operation = store.read(command.id);
+        let review: HostUpdateReview | void = undefined;
         if (operation && command.adoption_nonce)
-          this.deps.observeAdoption?.(operation, command.adoption_nonce);
+          review = this.deps.observeAdoption?.(operation, command.adoption_nonce);
+        else if (
+          operation &&
+          command.include_recovery &&
+          ['verifying', 'recovery_required'].includes(operation.phase) &&
+          operation.targets.some(({ component }) => component === 'daemon')
+        )
+          review = this.deps.inspectAdoption?.(operation);
         requireAuthority();
         return {
           ok: true,
           operation,
+          ...(review ? { review: hostUpdateReviewSchema.parse(review) } : {}),
           ...(command.include_catalogue && this.deps.catalogue
             ? {
                 catalogue: presentHostCatalogue(

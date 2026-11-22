@@ -7,6 +7,7 @@ import { recordUpdateWorkerLifetime } from '../../../src/updates/worker/lifetime
 import { verifyHostUpdateCompletion } from '../../../src/updates/verification/completion.js';
 import { updateInstallation as fixture } from '../../helpers/update-installation.js';
 import { readUpdateActions } from '../../../src/updates/worker/actions.js';
+import { HostUpdateVerificationBlocked } from '../../../src/updates/verification/diagnostics.js';
 
 // Installer composition uses simulated supervision; lifetime has separate process tests.
 vi.mock('../../../src/updates/worker/lifetime.js', () => ({
@@ -65,6 +66,20 @@ it('refuses all activation commands when the worker lifetime cannot be recorded'
   expect(run).not.toHaveBeenCalled();
   expect(f.selected('runtime')).toBe(f.previous);
   expect(f.store.read()?.phase).toBe('recovery_required');
+}, 30_000);
+
+it('retains a safe specific failure message without exposing private targets or permitting replay', async () => {
+  const f = await fixture();
+  const error = new HostUpdateVerificationBlocked([
+    { code: 'runtime_persistence_pending', target: '/private/runtime' },
+  ]);
+  vi.mocked(recordUpdateWorkerLifetime).mockRejectedValueOnce(error);
+  const run = vi.fn();
+  await expect(executeHostUpdate(f.puddleHome, f.job, run)).rejects.toBe(error);
+  expect(f.store.read()).toMatchObject({ phase: 'recovery_required', message: error.message });
+  expect(f.store.read()?.message).not.toContain('/private');
+  await expect(executeHostUpdate(f.puddleHome, f.job, run)).rejects.toThrow();
+  expect(run).not.toHaveBeenCalled();
 }, 30_000);
 
 it('does not accept successful command output as verification of the selected generation', async () => {

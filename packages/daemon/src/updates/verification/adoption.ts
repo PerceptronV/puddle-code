@@ -15,6 +15,7 @@ import { readRuntime } from '../../runtime-file.js';
 import { resolvePaths } from '../../paths.js';
 import { readUpdateAdoptionRequirements } from '../checkpoints/requirements.js';
 import { readHostUpdateAdoption } from '../checkpoints/adoption.js';
+import { HostUpdateVerificationBlocked } from './diagnostics.js';
 import { requireVerificationOperation } from './operation.js';
 
 /** Recheck after other completion probes yield; an earlier receipt cannot certify a new controller. */
@@ -71,6 +72,8 @@ export async function verifyHostUpdateAdoption(
       reply.operation.worker_id !== operation.worker_id
     )
       throw new Error('Host update changed during adoption verification');
+    if (reply.review?.blockers.length)
+      throw new HostUpdateVerificationBlocked(reply.review.blockers, reply.review.more_blockers);
     const response = await fetch(`http://127.0.0.1:${authority.port}/api/version`, {
       headers: { authorization: `Bearer ${authority.credential()}` },
       redirect: 'error',

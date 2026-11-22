@@ -74,6 +74,7 @@ export * from './api/connection/frontend.js';
 export * from './api/connection/frontend-updates.js';
 export * from './api/connection/host-maintenance.js';
 export * from './installation/presentation.js';
+export * from './installation/update-messages.js';
 export * from './remote/maintenance.js';
 export * from './api/connection/frontend-remote.js';
 export * from './ws/messages.js';

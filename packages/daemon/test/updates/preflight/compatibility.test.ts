@@ -43,6 +43,8 @@ function fixture(
   // The transport has already validated full responses; this double supplies the
   // identity fields consumed by compatibility inspection without creating a PTY.
   const state = {
+    persistence_pending: false,
+    journal: { persistence_pending: false },
     lifetime: 'service' as 'service' | 'host_session' | 'unknown' | undefined,
     identity: runtimeBindingIdentity(binding),
     build: binding.build,
@@ -86,6 +88,26 @@ it('accepts different release versions and additive runtime minors, using suppor
   expect(f.request).toHaveBeenCalledExactlyOnceWith({ t: 'inspect' });
   expect(f.store.read()?.phase).toBe('staged'); // Inspection cannot approve or dispatch.
 });
+
+it.each(['state', 'journal'] as const)(
+  'blocks daemon replacement when runtime %s persistence is pending, but permits a runtime-default update',
+  async (kind) => {
+    for (const component of ['daemon', 'runtime'] as const) {
+      const f = fixture(component);
+      if (kind === 'state') f.state.persistence_pending = true;
+      else f.state.journal.persistence_pending = true;
+      const result = await f.inspect();
+      expect(result.blockers).toEqual(
+        component === 'daemon'
+          ? [{ code: 'runtime_persistence_pending', target: f.binding.runtime_id }]
+          : [],
+      );
+      expect(f.store.read()?.phase).toBe('staged');
+      expect(f.binding.state).toBe('running');
+      expect(f.request.mock.calls).toEqual(component === 'daemon' ? [[{ t: 'inspect' }]] : []);
+    }
+  },
+);
 
 it.each(['host_session', 'unknown', undefined] as const)(
   'blocks daemon replacement for %s lifetime without stopping the owner',

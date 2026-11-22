@@ -30,6 +30,7 @@ type Blocker = {
     | 'runtime_default_incompatible'
     | 'runtime_incompatible'
     | 'runtime_unavailable'
+    | 'runtime_persistence_pending'
     | 'runtime_identity_changed'
     | 'runtime_lifetime_unverified'
     | 'runtime_inventory_unknown'
@@ -170,11 +171,12 @@ export class HostUpdateCompatibility {
             const client = this.deps.connections.getHuddle?.(binding.runtime_id);
             if (!client || performance.now() >= deadline) throw new Error('Huddle unavailable');
             const response = await client.request({ t: 'inspect' });
-            if (
-              response.t !== 'state' ||
-              response.state.state !== 'running' ||
-              response.state.persistencePending
-            )
+            if (response.t === 'state' && response.state.persistencePending)
+              result.blockers.push({
+                code: 'runtime_persistence_pending',
+                target: binding.runtime_id,
+              });
+            if (response.t !== 'state' || response.state.state !== 'running')
               throw new Error('Huddle has no durable live observation');
             requireHuddleState(huddleBindingLaunch(this.deps.home, binding), response.state);
             if (response.state.observation < binding.event_cursor)
@@ -197,6 +199,11 @@ export class HostUpdateCompatibility {
           if (!client) throw new Error('Owner unavailable');
           const response = await client.request({ t: 'inspect' });
           if (response.t !== 'state') throw new Error('Owner did not report state');
+          if (response.state.persistence_pending || response.state.journal.persistence_pending)
+            result.blockers.push({
+              code: 'runtime_persistence_pending',
+              target: binding.runtime_id,
+            });
           if (response.state.lifetime !== 'service')
             result.blockers.push({
               code: 'runtime_lifetime_unverified',

@@ -1594,6 +1594,15 @@ Its introduction changes no wire shape or protocol version.
 
 ## Non-bumps worth recording
 
+- **Host recovery diagnostics (2026-11-21)**: use the existing optional blocked
+  `review` in authorised `status` replies requested with `include_recovery` or
+  `adoption_nonce`. Reviews retain null fingerprint, `can_apply: false`, bounded
+  string-code/target blockers and truncation counts; they grant no approval.
+  No schema, field type, enum or request changes. Older clients accept the existing
+  shape and older workers remain conservative. Frontend projection still strips
+  private targets; offline ledger reads supply no live review. Application/runtime/
+  remote versions are unchanged.
+
 - **Huddle definition foundation (2026-11-08)**: new local document/component
   schemas and graph/binding validation are preparatory only. No existing REST,
   WS, runtime IPC, session-kind or saved-tab schema changes, and no huddle

@@ -313,6 +313,11 @@ and exact interruption fingerprint before exposing approval. Preserve dismissal 
 React remounts in the same window. Compatible release skew must not become an update
 condition. Keep recorded/offline recovery distinct from fresh service proof;
 native desktop-dialog and remaining platform recovery acceptance remain open.
+Live recovery diagnostics reuse the existing blocked review in requested status replies.
+Share adoption checks with proof creation; diagnostic reads never write proof or complete
+operations. Keep private runtime targets in CLI output only, redact browser targets,
+and block daemon preflight on pending runtime persistence. Recovery never implicitly
+stops or resumes a degraded session.
 Application 25.15 adds local/SSH session runtime inspection/restart. Keep orchestration
 in `sessions/runtime/`, reusing RuntimeControls' queue/clean-exit observation and normal
 SessionService resume. Fingerprints bind the exact owner, placement, native ref, shell

@@ -525,6 +525,27 @@ and shell offers. Host invalidations/reconnection refresh reads only; mutations 
 retry nor wait in an offline queue. Each window offers each host/component/release once,
 retaining dismissal across React remounts and reconnects. Offers open Host settings and
 never activate software. Compatible frontend/daemon release skew remains supported.
+Daemon-update preflight rejects ordinary or huddle runtimes reporting pending state
+or journal persistence before dispatch; runtime-default selection still leaves existing
+owners alone. Live status with `include_recovery` can return the existing bounded
+blocked `review` for an unfinished daemon takeover: `can_apply: false`, null fingerprint,
+no interruption approval, and no daemon-owned interruption counts. Blockers identify
+unsaved, unavailable, unsettled or changed runtimes, changed daemon release identity,
+or unavailable takeover evidence. Private CLI output retains runtime targets; frontend
+and remote projections retain only codes and truncation counts. Recorded/offline reads
+do not manufacture live diagnostics. The panel uses the current status review rather
+than an earlier action's review, and explains verification versus continuation.
+
+The adoption writer uses the same checks for diagnostics and nonce-bound proof. A
+diagnostic read writes no receipt, does not checkpoint SQLite, and never establishes
+completion. A failed nonce observation returns a blocked review so supporting workers
+report the underlying check instead of a missing proof file; older workers retain their
+conservative behaviour. Only fixed diagnostic text may enter the operation message.
+CLI recovery failures can issue one status read for details, never another mutation.
+Neither recovery action repairs or restarts a degraded session. Stop/resume remains a
+separate explicit interruption through existing session controls; no check or claim is
+bypassed to finish an update.
+
 Remote browsers require an explicit host-approved maintenance grant, separate
 from pairing. Application 26.0/remote 5 carries the exact admitted Noise device,
 host registration and grant identity on a manually participating private control
